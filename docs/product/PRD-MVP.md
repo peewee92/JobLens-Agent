@@ -1,8 +1,9 @@
 # JobLens Agent MVP 产品需求文档
 
-- 状态：Draft v0.1
+- 状态：v1.0（已整理，与 ROADMAP / SYSTEM-ARCHITECTURE / ADR-0001 对齐）
 - 目标版本：MVP
 - 产品定位：基于真实岗位市场数据的个人求职与职业转型 Agent
+- 关联文档：[路线图](roadmap/ROADMAP.md) · [系统架构](architecture/SYSTEM-ARCHITECTURE.md) · [Collector 接入契约](integration/COLLECTOR-CONTRACT.md) · [MVP 范围决策](decisions/0001-mvp-scope.md)
 
 ## 1. 背景与问题
 
@@ -18,6 +19,32 @@
 - 对一个具体岗位，我应该怎么改简历和准备面试？
 
 JobLens 已有的岗位筛选浏览器插件解决了“真实岗位从哪里来”的问题。JobLens Agent 在此基础上解决“这些岗位对我意味着什么、我下一步应该做什么”的问题。
+
+---
+
+## 1.1 MVP 范围边界（先读这一节）
+
+### 只解决五个问题
+
+1. 我适合什么岗位？
+2. 这个岗位值不值得投？
+3. 我和目标岗位差在哪里？
+4. 下一步最值得补什么？
+5. 针对这个岗位，我怎么改简历、准备面试？
+
+### MVP 主链路
+
+```text
+Profile → Job Pool → Match → Gap → Resume/Interview
+```
+
+完整闭环：`Profile → Market → Match → Gap → Action → Evidence → Re-match`。
+MVP 第一阶段先完成到 Resume/Interview；Evidence 回写接口与数据模型保留（见 §5.4 / §8）。
+
+### 明确不做
+
+自动投递、自动 Boss 打招呼、Multi-Agent、语音模拟面试、Offer 比较、全网岗位爬虫、复杂在线课程。
+完整清单与“暂不做 vs 永远不做”的说明见 §10。
 
 ---
 
@@ -369,17 +396,17 @@ JSON Schema 位于：`packages/contracts/schemas/`。
 
 ## 10. 明确不做
 
-MVP 不做：
+MVP 明确**暂不做**以下事项（不是永远不做；多平台 / 成长闭环 / 产品扩展见 ROADMAP Phase 7–9）：
 
 - 自动投递；
 - 自动 Boss 打招呼；
-- 多平台爬虫；
 - Multi-Agent；
-- 长期自治求职；
-- Offer 决策；
-- 社交关系拓展；
-- 复杂课程平台；
-- 云原生基础设施。
+- 语音模拟面试；
+- Offer 比较；
+- 全网岗位爬虫；
+- 复杂在线课程。
+
+P1/P2 可能重启的能力（不在 MVP）：多平台 Collector、GitHub 项目解析、多简历版本、定时更新与提醒、面试复盘、Offer 比较。
 
 ---
 
@@ -414,3 +441,23 @@ MVP 不做：
 - [ ] 可针对具体岗位生成简历调整建议
 - [ ] 可生成项目讲述重点
 - [ ] 可生成岗位相关面试准备清单
+
+---
+
+## 12. 首推开发顺序（落地起点）
+
+严格按以下顺序开发，先形成第一个真实闭环，再扩展：
+
+1. **Collector JSON 导入（第一个基础设施节点）**
+   - 实现 `POST /api/v1/job-imports`；
+   - 把浏览器插件导出的 `boss-job-filter-report-v1.3.1-*.json` 真正导入系统；
+   - 闭环变为：`BOSS → JobLens Collector → 导出 JSON → JobLens Agent → 我的岗位池`；
+   - 详见 ROADMAP Phase 1 与 integration/COLLECTOR-CONTRACT.md。
+
+2. **UserProfile + 单岗位 Match（第一个可演示 Agent）**
+   - 上传真实经历 → 生成 UserProfile；
+   - 导入刚从 BOSS 采集的真实岗位；
+   - Agent 基于真实经历告诉你：哪些值得投、为什么；
+   - 对应 ROADMAP Phase 2–3。
+
+> 不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把上面两步跑通。
