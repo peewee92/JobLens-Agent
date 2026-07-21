@@ -75,12 +75,16 @@ JobLens-Agent/
 
 ## 当前阶段
 
+MVP 主线（Phase 0–6，详见 [路线图](docs/roadmap/ROADMAP.md)）：
+
 ```text
 Phase 0：仓库与契约基线 ✅
-Phase 1：Collector JSON 导入
+Phase 1：Collector JSON 导入   ← 现在就从这里开始（POST /api/v1/job-imports）
 Phase 2：Career Profile
 Phase 3：Job Match
 Phase 4：Skill Gap
 Phase 5：Resume / Interview Pack
 Phase 6：Eval + Trace + 闭环验证
 ```
+
+Phase 7–9（P1/P2：Collector API 同步、个人成长闭环、产品扩展）见路线图。
