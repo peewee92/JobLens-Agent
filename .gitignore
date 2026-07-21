@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+.next/
+dist/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data / local runtime
+*.db
+*.sqlite
+*.sqlite3
+data/local/
+output/
+
+# IDE
+.idea/
+.vscode/

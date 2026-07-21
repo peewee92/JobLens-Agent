@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job.schema.json",
+  "title": "Job",
+  "type": "object",
+  "required": ["id", "title", "company", "source", "sourceUrl"],
+  "properties": {
+    "id": {"type": "string"},
+    "title": {"type": "string"},
+    "company": {"type": "string"},
+    "area": {"type": ["string", "null"]},
+    "salaryMinK": {"type": ["number", "null"]},
+    "salaryMaxK": {"type": ["number", "null"]},
+    "experience": {"type": ["string", "null"]},
+    "education": {"type": ["string", "null"]},
+    "description": {"type": ["string", "null"]},
+    "skills": {"type": "array", "items": {"type": "string"}},
+    "source": {"type": "string"},
+    "sourceUrl": {"type": "string"},
+    "sourceVersion": {"type": ["string", "null"]},
+    "collectedAt": {"type": ["string", "null"]},
+    "sourceRaw": {"type": ["object", "null"]}
+  }
+}

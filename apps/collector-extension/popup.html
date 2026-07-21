@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>岗位筛选 v1.3.1</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header class="app-header">
+      <div>
+        <h1>岗位筛选 <small>v1.3.1</small></h1>
+        <p>适用于 BOSS 直聘的通用岗位搜索与筛选工具。</p>
+      </div>
+    </header>
+
+    <section class="section city-section">
+      <div class="section-title-row">
+        <label class="section-title">工作城市</label>
+        <button id="openCityPicker" type="button" class="text-button">切换/添加城市</button>
+      </div>
+
+      <div id="selectedCities" class="selected-cities" aria-live="polite"></div>
+
+      <div class="hot-row">
+        <span class="sub-label">热门城市</span>
+        <div id="hotCities" class="city-buttons"></div>
+      </div>
+
+      <label class="remote-option">
+        <input id="remote" type="checkbox" checked>
+        <span><strong>全国远程</strong><small>全国搜索后，再通过卡片与详情页识别远程岗位</small></span>
+      </label>
+
+      <div id="cityPicker" class="city-picker" hidden>
+        <div class="picker-header">
+          <strong>选择城市</strong>
+          <button id="closeCityPicker" type="button" class="icon-button" aria-label="关闭">×</button>
+        </div>
+        <div class="search-wrap">
+          <input id="citySearch" type="search" placeholder="搜索城市或省份，例如：武汉、湖北、恩施">
+          <button id="clearCitySearch" type="button" class="clear-search" aria-label="清除搜索">×</button>
+        </div>
+        <div id="recentSection" class="recent-section" hidden>
+          <span class="sub-label">最近选择</span>
+          <div id="recentCities" class="city-buttons"></div>
+        </div>
+        <div class="picker-body">
+          <nav id="provinceList" class="province-list" aria-label="省份"></nav>
+          <section class="city-list-wrap">
+            <div class="city-list-head">
+              <strong id="activeProvinceName">湖北</strong>
+              <span id="cityResultCount"></span>
+            </div>
+            <div id="cityList" class="city-grid"></div>
+          </section>
+        </div>
+        <div class="picker-footer">
+          <span id="selectedCount">已选 1/20</span>
+          <div>
+            <button id="resetCities" type="button" class="ghost-button">恢复武汉</button>
+            <button id="confirmCities" type="button" class="compact-primary">完成</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <label for="keywords" class="section-title">搜索词</label>
+      <p class="field-help">每行一个。默认内置 AI/大模型岗位关键词模板，也可直接替换为任意岗位；城市搜索和全国远程都使用原词，不自动追加“远程”。</p>
+      <textarea id="keywords" rows="9"></textarea>
+    </section>
+
+    <section class="section settings-section">
+      <div class="grid">
+        <label>最低薪资 K
+          <input id="minSalaryK" type="number" min="1" value="14">
+        </label>
+        <label>薪资过滤方式
+          <select id="salaryMode">
+            <option value="minGte">下限 ≥ 阈值（严格）</option>
+            <option value="midGte">区间中位数 ≥ 阈值</option>
+            <option value="maxGte">上限 ≥ 阈值（宽松）</option>
+          </select>
+        </label>
+        <label>每个搜索词页数
+          <input id="pagesPerQuery" type="number" min="1" max="10" value="2">
+        </label>
+        <label>全国远程判定
+          <select id="remotePolicy">
+            <option value="cardOrDetail">卡片 + 详情确认</option>
+            <option value="cardOnly">仅卡片严格确认</option>
+            <option value="loose">不强制过滤，仅标注</option>
+          </select>
+        </label>
+        <label>详情补采范围
+          <select id="detailMode">
+            <option value="remote">优先补采远程候选</option>
+            <option value="matched">远程候选 + 匹配岗位</option>
+            <option value="off">关闭详情补采</option>
+          </select>
+        </label>
+        <label>详情补采上限
+          <input id="detailLimit" type="number" min="0" max="200" value="40">
+        </label>
+        <label>最低岗位相关度
+          <input id="minRelevanceScore" type="number" min="0" max="100" value="20">
+        </label>
+        <label>翻页策略
+          <select id="smartStop">
+            <option value="true">无新增时提前停止</option>
+            <option value="false">始终抓满页数</option>
+          </select>
+        </label>
+      </div>
+
+      <fieldset>
+        <legend>可选排除项</legend>
+        <label><input id="excludePartTime" type="checkbox" checked> 排除兼职/日结</label>
+        <label><input id="excludeIntern" type="checkbox"> 排除实习</label>
+        <label><input id="excludeAssistant" type="checkbox"> 排除助理</label>
+      </fieldset>
+    </section>
+
+    <p id="taskEstimate" class="task-estimate"></p>
+    <p class="notice">城市会作为独立搜索范围执行。选择越多城市，搜索页数和访问次数越多；最多同时选择 20 个城市。</p>
+
+    <button id="start" class="primary-button">开始搜索并自动导出</button>
+    <div class="secondary-row">
+      <button id="downloadCsv" class="secondary">上次 CSV</button>
+      <button id="downloadJson" class="secondary">完整报告</button>
+      <button id="downloadDiagnostics" class="secondary">诊断 JSON</button>
+    </div>
+    <p id="status">请先确认当前 Chrome 已登录 BOSS 直聘。</p>
+  </main>
+  <script src="cities.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

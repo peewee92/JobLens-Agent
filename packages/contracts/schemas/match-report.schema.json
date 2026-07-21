@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/match-report.schema.json",
+  "title": "MatchReport",
+  "type": "object",
+  "required": ["jobId", "profileVersion", "score", "recommendation", "matches", "gaps"],
+  "properties": {
+    "jobId": {"type": "string"},
+    "profileVersion": {"type": "integer"},
+    "score": {"type": "number", "minimum": 0, "maximum": 100},
+    "recommendation": {"enum": ["strong", "good", "stretch", "low"]},
+    "summary": {"type": "string"},
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement", "userEvidenceIds", "jobEvidence"],
+        "properties": {
+          "requirement": {"type": "string"},
+          "userEvidenceIds": {"type": "array", "items": {"type": "string"}},
+          "jobEvidence": {"type": "string"}
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement", "severity", "jobEvidence"],
+        "properties": {
+          "requirement": {"type": "string"},
+          "severity": {"enum": ["high", "medium", "low"]},
+          "jobEvidence": {"type": "string"},
+          "currentEvidence": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

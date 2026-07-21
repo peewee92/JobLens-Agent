@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/user-profile.schema.json",
+  "title": "UserProfile",
+  "type": "object",
+  "required": ["id", "version", "headline", "skills", "evidence", "preferences"],
+  "properties": {
+    "id": {"type": "string"},
+    "version": {"type": "integer", "minimum": 1},
+    "headline": {"type": "string"},
+    "yearsOfExperience": {"type": ["number", "null"]},
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "level", "evidenceIds"],
+        "properties": {
+          "name": {"type": "string"},
+          "level": {"enum": ["strong", "working", "basic", "unknown"]},
+          "evidenceIds": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "summary", "source"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"enum": ["work", "project", "education", "achievement", "self_report"]},
+          "summary": {"type": "string"},
+          "source": {"type": "string"}
+        }
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "properties": {
+        "targetRoles": {"type": "array", "items": {"type": "string"}},
+        "cities": {"type": "array", "items": {"type": "string"}},
+        "remoteAccepted": {"type": ["boolean", "null"]},
+        "minimumSalaryK": {"type": ["number", "null"]},
+        "constraints": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

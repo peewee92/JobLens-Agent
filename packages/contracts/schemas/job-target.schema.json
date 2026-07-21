@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job-target.schema.json",
+  "title": "JobTarget",
+  "type": "object",
+  "required": ["id", "name", "jobIds"],
+  "properties": {
+    "id": {"type": "string"},
+    "name": {"type": "string"},
+    "description": {"type": ["string", "null"]},
+    "jobIds": {"type": "array", "items": {"type": "string"}},
+    "targetRoles": {"type": "array", "items": {"type": "string"}},
+    "createdAt": {"type": "string"}
+  }
+}

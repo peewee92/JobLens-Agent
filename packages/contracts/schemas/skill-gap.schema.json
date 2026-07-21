@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/skill-gap.schema.json",
+  "title": "SkillGap",
+  "type": "object",
+  "required": ["targetId", "profileVersion", "items"],
+  "properties": {
+    "targetId": {"type": "string"},
+    "profileVersion": {"type": "integer"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["skill", "marketDemand", "currentCoverage", "priority", "supportingJobIds", "action"],
+        "properties": {
+          "skill": {"type": "string"},
+          "marketDemand": {"type": "number", "minimum": 0, "maximum": 1},
+          "currentCoverage": {"enum": ["strong", "partial", "weak", "none"]},
+          "priority": {"enum": ["P0", "P1", "P2"]},
+          "supportingJobIds": {"type": "array", "items": {"type": "string"}},
+          "action": {
+            "type": "object",
+            "required": ["goal", "doneWhen"],
+            "properties": {
+              "goal": {"type": "string"},
+              "doneWhen": {"type": "array", "items": {"type": "string"}},
+              "evidenceToProduce": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}
