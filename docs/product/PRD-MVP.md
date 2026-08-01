@@ -1,9 +1,9 @@
 # JobLens Agent MVP 产品需求文档
 
-- 状态：v1.0（已整理，与 ROADMAP / SYSTEM-ARCHITECTURE / ADR-0001 对齐）
-- 目标版本：MVP
+- 状态：v2.0（与 ROADMAP Phase 0.5+ / SYSTEM-ARCHITECTURE / DOMAIN-MODEL / ADR-0001..0005 对齐）
+- 目标版本：MVP v0.1（首个可运行闭环）→ MVP v0.2 → P1
 - 产品定位：基于真实岗位市场数据的个人求职与职业转型 Agent
-- 关联文档：[路线图](roadmap/ROADMAP.md) · [系统架构](architecture/SYSTEM-ARCHITECTURE.md) · [Collector 接入契约](integration/COLLECTOR-CONTRACT.md) · [MVP 范围决策](decisions/0001-mvp-scope.md)
+- 关联文档：[路线图](roadmap/ROADMAP.md) · [系统架构](architecture/SYSTEM-ARCHITECTURE.md) · [领域模型](architecture/DOMAIN-MODEL.md) · [评估与追踪](architecture/EVAL-AND-TRACE.md) · [Collector 接入契约](integration/COLLECTOR-CONTRACT.md) · [MVP 范围决策](decisions/0001-mvp-scope.md)
 
 ## 1. 背景与问题
 
@@ -24,138 +24,161 @@ JobLens 已有的岗位筛选浏览器插件解决了“真实岗位从哪里来
 
 ## 1.1 MVP 范围边界（先读这一节）
 
-### 只解决五个问题
+### MVP 不是一次性做完所有事
 
-1. 我适合什么岗位？
-2. 这个岗位值不值得投？
-3. 我和目标岗位差在哪里？
-4. 下一步最值得补什么？
-5. 针对这个岗位，我怎么改简历、准备面试？
-
-### MVP 主链路
+我们把 MVP 拆成两个可独立交付的版本，外加一个 P1 收口：
 
 ```text
-Profile → Job Pool → Match → Gap → Resume/Interview
+MVP v0.1（首个可运行闭环）
+Profile
+→ SearchIntent
+→ Job Pool
+→ JobRequirement
+→ Eligibility
+→ Match
+→ Ranking
+→ UserFeedback
+
+MVP v0.2（从岗位反推学习路线与准备）
+Target Cohort
+→ Skill Gap
+→ Action Plan
+→ Resume / Interview
+
+P1（让 Agent 编排成熟能力）
+Career Agent
+→ 调用成熟 Workflow
 ```
 
-完整闭环：`Profile → Market → Match → Gap → Action → Evidence → Re-match`。
-MVP 第一阶段先完成到 Resume/Interview；Evidence 回写接口与数据模型保留（见 §5.4 / §8）。
+v0.1 的价值主张很窄但很硬：
 
-### 明确不做
+> **基于我的真实经历和一批真实目标岗位，告诉我哪些岗位最值得优先投，以及为什么。**
 
-自动投递、自动 Boss 打招呼、Multi-Agent、语音模拟面试、Offer 比较、全网岗位爬虫、复杂在线课程。
-完整清单与“暂不做 vs 永远不做”的说明见 §10。
+v0.2 再回答“缺什么、怎么补、怎么改简历、怎么面试”。P1 才让 Career Agent 成为面向用户的统一入口，去编排 v0.1 / v0.2 已经稳定下来的 Workflow。
+
+### MVP v0.1 明确不做（详见 ADR-0001 / 0001-mvp-scope）
+
+- 完整职业发现（用户自己已有大致方向）
+- 长期课程系统
+- 自动投递 / 自动打招呼
+- Multi-Agent
+- 复杂 Memory
+- 跨平台自动采集
+
+### v0.2 / P1 才做
+
+- Skill Gap / Action Plan（v0.2）
+- Resume Delta / Interview Pack（v0.2）
+- Career Agent 统一入口（P1）
+
+完整“暂不做 vs 永远不做”见 §10 与 ADR-0001。
 
 ---
 
 ## 2. 产品目标
 
-### 2.1 MVP 核心目标
+### 2.1 MVP v0.1 核心目标
 
-打通以下最短闭环：
+把最短、最可验证的闭环打通：
 
 ```text
-用户简历/经历
-→ Career Profile
+用户真实经历
+→ UserProfile
+→ SearchIntent
 → 真实岗位池
-→ 岗位匹配
-→ 目标方向能力差距
-→ 个性化行动建议
-→ 单岗位简历/面试准备
+→ 每个岗位的 JobRequirement
+→ Eligibility Gate
+→ 语义 Match
+→ 批量 Ranking
+→ UserFeedback
 ```
 
-### 2.2 MVP 成功标准
+数字分数只用于内部排序，**不被解释为概率**，也不单独展示给用户。
+
+### 2.2 MVP v0.1 成功标准
 
 一个用户能够在一次完整流程中：
 
-1. 导入自己的简历或结构化经历；
-2. 导入 JobLens Collector 采集的岗位 JSON；
-3. 查看适合自己的岗位及可解释匹配理由；
-4. 选择一个目标岗位方向；
-5. 看到基于真实岗位要求统计出的能力差距；
-6. 获得最多 3 个 P0 行动建议；
-7. 选择某一岗位生成定制的简历修改建议和面试准备清单。
+1. 导入自己的简历或结构化经历，得到带 Evidence 的 `UserProfile`；
+2. 定义 `SearchIntent`（目标角色、城市、薪资下限、硬约束等）；
+3. 导入 JobLens Collector 采集的岗位 JSON，形成 `Job Pool`；
+4. 系统为每个岗位抽取结构化 `JobRequirement`；
+5. 看到每个岗位的 `Eligibility`（Eligible / Conditional / Blocked）与 `Fit`（Strong / Good / Stretch / Low）；
+6. 看到按推荐等级排序的岗位列表，每条都可追溯到 Profile Evidence 或 Job Requirement；
+7. 对岗位给出 `UserFeedback`（值得投 / 可以考虑 / 不适合）及原因。
 
 ---
 
 ## 3. 目标用户
 
-### Persona A：经验型工程师转 AI
+### Primary Persona：主动求职 / 转型中的有经验候选人
 
-- 有 5–10 年传统软件工程经验；
-- 想转 AI 应用、Agent、AI 全栈等岗位；
-- 不知道已有经验哪些可迁移；
-- 容易陷入“什么都要学”的焦虑。
+> 有 **3～10 年工作经验**，有现成简历，已有 **1～3 个大致目标方向**，正在主动求职或职业转型的人。
 
-### Persona B：目标岗位明确的转型者
+特征：
 
-- 已知道要转 Agent Engineer / AI Application Engineer 等方向；
-- 需要用真实岗位反推技能、项目、简历和面试准备。
+- 不是应届生，也不是完全没方向的探索者；
+- 已经有简历和项目经历，痛点不是“写不出简历”，而是“不知道哪些岗位真的值得投、为什么”；
+- 会自己收集岗位（BOSS / 猎聘 / 内推），但逐条读 JD、手工比对、定制简历成本高；
+- 想要一个能引用真实经历和真实 JD 的判断，而不是泛泛的职业建议。
 
-### Persona C：正在主动求职的人
-
-- 每周收集大量岗位；
-- 需要快速判断哪些值得投；
-- 希望减少逐条读 JD 和手工定制简历的成本。
+> 设计取舍：早期版本**不服务**“完全不知道自己要做什么”的职业探索场景，也不服务“需要系统帮我从零规划职业”的用户。这两类需要完整的职业发现能力，属于 MVP v0.1 明确不做项。
 
 ---
 
 ## 4. 核心价值主张
 
-### 4.1 基于真实岗位，而不是泛泛职业建议
+### 4.1 MVP v0.1 核心价值（一句话）
 
-系统的技能建议必须回答：
+> **基于我的真实经历和一批真实目标岗位，告诉我哪些岗位最值得优先投，以及为什么。**
 
-> 为什么建议我学这个？哪些我真正想投的岗位要求它？
+它必须回答的不是“我适合什么、缺什么、怎么学、怎么改简历、怎么面试”（那是 v0.2 以后的事），而是更前置、更可证伪的一步：
 
-### 4.2 基于证据，而不是模型拍脑袋
+> 在我导入的这批真实岗位里，哪些最值得我现在就投？理由能不能引用我的真实经历或真实 JD？
 
-“用户会某个技能”应尽量关联到经历、项目和结果证据；“岗位要求某能力”应关联到具体 JD 文本。
+### 4.2 基于真实岗位，而不是泛泛职业建议
 
-### 4.3 从差距到行动，再回到匹配
+系统的推荐必须能回答：
 
-最终闭环：
+> 为什么推荐这个岗位？它匹配了我经历里的哪一条证据，或命中了 JD 里的哪一条要求？
 
-```text
-发现 Gap
-→ 创建 Action
-→ 完成学习/项目
-→ 添加 Evidence
-→ 更新 Profile
-→ Re-match
-```
+### 4.3 基于证据，而不是模型拍脑袋
 
-MVP 先实现到 Action Plan，保留 Evidence 回写接口和数据模型。
+- “用户会某个技能”必须关联到经历、项目和结果证据（`Evidence`）；
+- “岗位要求某能力”必须关联到具体 JD 文本（`JobRequirement.evidenceSpan`）；
+- 任何推荐都可通过 `UserProfile` 或 `JobRequirement` 追溯到来源（见 EVAL-AND-TRACE）。
+
+### 4.4 从岗位判断，回到能力事实
+
+v0.1 先把“哪些岗位值得投”做扎实。`JobRequirement` 成为后续 `Match` / `Gap` / `Resume` / `Interview` 统一的事实基础——这也是为什么 `Requirement Intelligence` 被单独提升为一个阶段（ROADMAP Phase 3），而不是 Match 内部的一个步骤。
 
 ---
 
 ## 5. MVP 功能范围
 
-## 5.1 Career Profile｜我的职业画像
+## 5.1 Career Profile｜我的职业画像（v0.1）
 
 ### 输入
 
-MVP 支持：
-
-- 简历文本/PDF 解析后的文本；
+- 简历文本 / PDF 解析后的文本；
 - 用户手动补充项目和职业偏好；
-- 用户明确选择的目标岗位类型。
+- 用户确认 / 修正的 `Evidence`。
 
 ### 输出
 
-结构化 `UserProfile`：
+结构化 `UserProfile`（Schema：`user-profile.schema.json`）：
 
 - 基础工作年限；
-- 技能；
+- 技能（必须关联 `evidenceIds`，禁止只存“React：熟练”这类无证据标签）；
 - 项目；
 - 行业与业务领域；
 - 可迁移优势；
 - 职业偏好；
-- Evidence 列表。
+- `Evidence` 列表。
 
 ### 关键要求
 
-禁止只保存“React：熟练”这种不可验证标签。技能尽量绑定证据：
+技能尽量绑定证据：
 
 ```text
 React
@@ -164,13 +187,39 @@ React
 └── 复杂业务结果
 ```
 
+无证据的能力标签是 v0.1 必须避免的（见 P1 的 `user-profile.schema.json` 增强：`ProfileFact` / `Evidence` / `CapabilityAssessment`）。
+
 ---
 
-## 5.2 Job Pool｜我的岗位池
+## 5.2 SearchIntent｜求职意向（v0.1，新增）
+
+`SearchIntent` 是 `UserProfile` 之后、`Job Pool` 之前的独立环节。它把“用户想找什么”从零散偏好变成可计算、可复现的约束。
+
+### 字段（Schema：`search-intent.schema.json`）
+
+- `targetRoles`：目标角色列表；
+- `cities`：目标城市；
+- `remoteAccepted`：是否接受远程；
+- `minimumSalaryK`：薪资下限（千）；
+- `seniority`：级别（如 junior / mid / senior / staff）；
+- `employmentTypes`：全职 / 兼职 / 实习等；
+- `excludeKeywords`：排除关键词；
+- `hardConstraints`：硬约束（确定性 Eligibility 判定用）；
+- `softPreferences`：软偏好（排序加权用，不打分强制）。
+
+### 作用
+
+`SearchIntent` 同时驱动：
+
+- `Eligibility Gate`（硬约束做确定性判定）；
+- `Ranking`（软偏好参与排序）；
+- Collector 复现分析（快照随导入批次保存，见 COLLECTOR-CONTRACT）。
+
+---
+
+## 5.3 Job Pool｜我的岗位池（v0.1）
 
 ### 数据来源
-
-MVP：
 
 ```text
 JobLens Collector JSON
@@ -178,130 +227,167 @@ JobLens Collector JSON
 → JobLens Agent API
 ```
 
-P1 再改成浏览器插件直接 POST API。
+P1 再改成浏览器插件直接 POST API（见 ROADMAP Phase 9 / COLLECTOR-CONTRACT §5）。
 
 ### 能力
 
 - 导入 report JSON；
-- 保留原始岗位字段；
+- 保留原始岗位字段（`sourceRaw`）；
 - 标准化薪资、城市、远程、技能、JD；
 - 基于 URL + 公司 + 标题去重；
 - 查询、筛选、收藏、忽略。
 
----
-
-## 5.3 Job Match｜岗位匹配
-
-每个岗位生成可解释的 `MatchReport`。
-
-### 匹配维度
-
-1. 硬性条件；
-2. 核心技能；
-3. 相关项目经验；
-4. 工作年限/领域；
-5. 用户偏好；
-6. 转型可迁移能力。
-
-### 输出
-
-- 综合匹配分；
-- 推荐等级；
-- 已匹配能力；
-- 部分匹配；
-- 明显差距；
-- 用户证据；
-- JD 证据；
-- 推荐动作。
-
-### 原则
-
-分数必须可解释。禁止只输出一个 `87%`。
+详细 FR / BR / API / 数据模型 / 错误处理 / 兼容策略 / 验收标准见 `P0-1-job-data-foundation.md`。
 
 ---
 
-## 5.4 Job Target & Market Gap｜目标方向与能力差距
+## 5.4 JobRequirement｜岗位需求抽取（v0.1，新增，核心）
 
-用户可以：
+每个岗位在进入 Match 之前，先抽成结构化 `JobRequirement`（Schema：`job-requirement.schema.json`）。这是 v0.1 最重要的新增模型。
 
-- 选择一个预设方向；
-- 由 Agent 根据岗位池建议方向；
-- 选择若干收藏岗位组成自定义目标岗位集。
-
-系统从目标岗位集统计：
-
-- 技能出现频率；
-- 关键技术组合；
-- 经验要求；
-- 学历要求；
-- 薪资区间；
-- 高频职责关键词。
-
-结合 UserProfile 生成 Skill Gap：
+### 抽取链路
 
 ```text
-能力
-市场需求强度
-当前覆盖程度
-证据充分度
-优先级
-建议行动
+Job
+→ Requirement Extraction（LLM Structured Output）
+→ JobRequirement
+→ Match
 ```
 
-### MVP 行动建议限制
+### 字段要点
 
-只生成：
+- `id` / `jobId` / `originalText`；
+- `type`：`skill` / `experience` / `education` / `responsibility` / `domain` / `constraint`；
+- `normalizedCapability`：归一化后的能力名（用于同义归一、跨岗位聚合）；
+- `importance`：`must_have` / `preferred` / `bonus`；
+- `evidenceSpan`：命中 JD 原文的片段（可追溯）；
+- `confidence`：抽取置信度；
+- `extractorVersion`：抽取器版本（可复现）。
 
-- 最多 3 个 P0；
-- 最多 5 个 P1。
+### 为什么重要
 
-避免生成“大而全 50 项学习清单”。
+`JobRequirement` 是 `Match` / `Gap` / `Prepare` 的**统一事实来源**（见 ADR-0004 与 DOMAIN-MODEL）。v0.1 先让它服务于 `Match` 和 `Eligibility`；v0.2 的 `Skill Gap` 与 `Prepare` 直接复用，不需要重新读 JD。
 
 ---
 
-## 5.5 Job Preparation｜单岗位求职准备
+## 5.5 Match｜岗位匹配（v0.1，重定义）
 
-针对某个具体岗位生成最小 Job Pack：
+v0.1 **不再把固定 100 分权重作为核心规则**。匹配结果由两层组成，数字只用于内部排序。
 
-### MVP 只包含
+### Eligibility（确定性 / 半确定性）
 
-1. 简历调整建议；
-2. 项目经历排序与讲法；
-3. 面试准备清单。
+```text
+Eligibility
+├── Eligible      硬性条件全部满足
+├── Conditional   有硬条件需人工确认（如“经验 3-5 年，你有 2.5 年”）
+└── Blocked       明确不满足硬约束（城市 / 学历 / 年限硬门槛）
+```
 
-### 不在 MVP
+优先用确定性代码判定（城市、薪资下限、明确学历门槛、明确必须年限、远程要求）。
 
-- 自动改完整简历 PDF；
-- 自动投递；
-- 自动和招聘者聊天；
-- 语音模拟面试。
+### Fit（语义匹配）
+
+```text
+Fit
+├── Strong     强匹配
+├── Good       良好
+├── Stretch    有差距但可冲刺
+└── Low        弱匹配
+```
+
+基于 `Profile Evidence` 与 `JobRequirement` 的语义匹配，输出可解释理由与证据链接。
+
+### 输出 `MatchReport`（v0.1 字段）
+
+- `eligibility`：`eligible` / `conditional` / `blocked`
+- `blockedReasons`：被 Blocked 的原因
+- `recommendation`：`strong` / `good` / `stretch` / `low` / `blocked`
+- `matchedRequirementIds`：命中的 JobRequirement id
+- `missingRequirementIds`：缺失的 JobRequirement id（尤其 `must_have`）
+- `evidenceLinks`：到 `UserProfile` Evidence 或 `JobRequirement.evidenceSpan` 的链接
+- `score`（可选，仅内部排序，不解释为概率）
+
+完整字段演进见 P1 的 `match-report.schema.json` 增强。
+
+---
+
+## 5.6 Ranking｜批量排序（v0.1）
+
+基于 `Eligibility` + `Fit` + `SearchIntent.softPreferences` 对 `Job Pool` 批量排序：
+
+- Blocked 沉底或默认隐藏；
+- Eligible 内按 Fit 与软偏好综合排序；
+- 数字 `score` 仅用于排序，不单独展示为“87%”。
+
+---
+
+## 5.7 UserFeedback｜用户反馈（v0.1，新增）
+
+排序之后必须收回人类判断，形成可评估、可改进的闭环。
+
+### 决策（Schema：`user-feedback.schema.json`）
+
+```text
+值得投     interested
+可以考虑   maybe
+不适合     rejected
+```
+
+### 字段要点
+
+- `jobId` / `profileVersion` / `matchReportId`；
+- `decision`：`interested` / `maybe` / `rejected`；
+- `reasons`：反馈原因（结构化标签 + 自由文本）；
+- `comment`：用户备注；
+- `createdAt`。
+
+### 作用
+
+- 作为 `Match Eval` 的人工基准（见 EVAL-AND-TRACE）；
+- 作为 v0.2 `Target Cohort` 的来源之一（`createdFromFeedback`）；
+- 让“模型推荐”与“真人判断”可被一起评测，而不是各自为政。
+
+---
+
+## 5.8 v0.2 才做的：Target Cohort / Skill Gap / Preparation
+
+以下属于 MVP v0.2，不在 v0.1 范围：
+
+- `Target Cohort`：由收藏岗位、或 `UserFeedback` 聚合出的目标岗位集（概念演进见 `job-target.schema.json` → `TargetCohort`）；
+- `Skill Gap`：基于 `JobRequirement` 聚合，优先级不单看频率（见 P1 `skill-gap.schema.json`：`targetCoverage` / `mustHaveRatio` / `evidenceCoverage` / `gapSeverity`）；
+- `Action Plan`：最多 3 个 P0 / 5 个 P1；
+- `Resume Delta` / `Interview Pack`：单岗位简历调整建议与面试准备清单。
 
 ---
 
 ## 6. 核心用户流程
 
-### Flow A：从“我是谁”到“哪些岗位适合我”
+### Flow A：从“我是谁 + 我想找什么”到“哪些岗位值得投”（v0.1 主链路）
 
 ```text
 导入简历
 → Profile Extraction
-→ 用户确认/修正画像
-→ 导入岗位
-→ 批量 Match
-→ 按推荐等级查看岗位
+→ 用户确认 Evidence
+→ Define SearchIntent
+→ 导入岗位（Job Pool）
+→ Requirement Extraction（每岗 JobRequirement）
+→ Eligibility Gate
+→ Semantic Match
+→ 批量 Ranking
+→ UserFeedback
 ```
 
-### Flow B：从目标岗位反推学习路线
+### Flow B：从目标岗位集反推学习路线（v0.2）
 
 ```text
-选择岗位方向或收藏岗位集
-→ Market Requirement Aggregation
+Target Cohort（收藏岗位 / UserFeedback 聚合）
+→ Requirement Aggregation（复用 JobRequirement）
 → Profile Comparison
 → Skill Gap
 → P0/P1 Action Plan
 ```
 
-### Flow C：准备一个具体岗位
+### Flow C：准备一个具体岗位（v0.2）
 
 ```text
 打开岗位
@@ -316,51 +402,77 @@ P1 再改成浏览器插件直接 POST API。
 
 ## 7. Agent 设计
 
-MVP 使用 **单 Career Agent + Tools**，不使用 Multi-Agent。
+MVP v0.1 不要求用户直接面对 Agent。底层能力由 **LLM Capability → Domain Workflow → Career Agent** 三层组成（见 ADR-0004）：
 
-### Tools
+```text
+LLM Capability（最小可评估的 LLM 能力）
+   Profile Extraction
+   Requirement Extraction
+   Semantic Match
+
+Domain Workflow（组合 Capability + 确定性代码）
+   JobRequirement Extraction
+   Single Job Match
+   Batch Ranking
+
+Career Agent（P1 才作为统一入口）
+   编排成熟 Workflow，不直接实现业务能力
+```
+
+### v0.1 可用 Tools（供 Workflow 调用，不是业务全在 Agent 里）
 
 - `get_user_profile`
+- `get_search_intent`
 - `list_jobs`
 - `get_job`
-- `get_job_target`
-- `analyze_job_requirements`
+- `get_job_requirement`
+- `run_eligibility`
 - `match_job`
-- `aggregate_market_requirements`
-- `analyze_skill_gap`
-- `generate_resume_advice`
-- `generate_interview_pack`
+- `rank_jobs`
+- `save_user_feedback`
 
 ### Agent 不负责
 
 - 直接写数据库；
 - 修改原始采集数据；
 - 自动申请岗位；
-- 绕过确定性业务规则。
+- 绕过确定性业务规则（Eligibility 必须由代码判定，Agent 不能推翻）；
+- 在 v0.1 充当统一用户入口（那是 P1）。
 
 ---
 
 ## 8. 核心数据模型
 
-MVP 以五个模型为主：
+v0.1 以七个模型为主：
 
 ```text
 UserProfile
+SearchIntent
 Job
-JobTarget
+JobRequirement
 MatchReport
-SkillGap
+UserFeedback
+（JobTarget / TargetCohort 在 v0.2 引入）
 ```
 
 并辅以：
 
 ```text
 Evidence
-ActionItem
-JobPreparationPack
 ```
 
-JSON Schema 位于：`packages/contracts/schemas/`。
+JSON Schema 位于：`packages/contracts/schemas/`，当前包含：
+
+- `user-profile.schema.json`
+- `job.schema.json`
+- `search-intent.schema.json`（新增）
+- `job-requirement.schema.json`（新增，最重要）
+- `user-feedback.schema.json`（新增）
+- `job-target.schema.json`（v0.2 演化为 TargetCohort）
+- `skill-gap.schema.json`（v0.2）
+- `match-report.schema.json`（v0.1 字段已落地，P1 增强 `eligibility` / `evidenceLinks` 等）
+
+关系图见 `DOMAIN-MODEL.md`。
 
 ---
 
@@ -368,25 +480,37 @@ JSON Schema 位于：`packages/contracts/schemas/`。
 
 ### 可解释
 
-所有关键职业判断必须尽量带 `evidence`。
+所有关键职业判断必须尽量带 `evidence` 与 `evidenceLinks`。
 
 ### 可追踪
 
 记录：
 
 - 模型版本；
-- Prompt/Agent 版本；
+- Prompt / Extractor 版本；
 - 输入 Profile 版本；
-- Job 数据版本；
+- Job / JobRequirement 版本；
 - 输出 Artifact。
 
-### 可评估
+统一 Trace 结构见 `EVAL-AND-TRACE.md`。
+
+### 可评估（Eval 是横切要求，不是最后一个 Phase）
+
+每个 AI 能力都必须从第一天起配套 Eval：
+
+```text
+Profile Extraction  → Profile Eval
+Requirement Extraction → Requirement Eval
+Match              → Match Eval
+（P1）Agent        → Agent Eval
+```
 
 至少建立：
 
 - 10 条 Profile Extraction 测试；
 - 20 条 Job Match 测试；
-- 10 条 Skill Gap 测试。
+- 10 条 Requirement Extraction 测试；
+- UserFeedback 作为 Match 人工基准集。
 
 ### 隐私
 
@@ -396,7 +520,7 @@ JSON Schema 位于：`packages/contracts/schemas/`。
 
 ## 10. 明确不做
 
-MVP 明确**暂不做**以下事项（不是永远不做；多平台 / 成长闭环 / 产品扩展见 ROADMAP Phase 7–9）：
+MVP v0.1 **明确暂不做**（不是永远不做；多平台 / 成长闭环 / 产品扩展见 ROADMAP Phase 7–9）：
 
 - 自动投递；
 - 自动 Boss 打招呼；
@@ -404,13 +528,17 @@ MVP 明确**暂不做**以下事项（不是永远不做；多平台 / 成长闭
 - 语音模拟面试；
 - Offer 比较；
 - 全网岗位爬虫；
-- 复杂在线课程。
+- 复杂在线课程；
+- 完整职业发现（用户无方向时的探索）；
+- 长期课程系统；
+- 复杂 Memory；
+- 跨平台自动采集。
 
-P1/P2 可能重启的能力（不在 MVP）：多平台 Collector、GitHub 项目解析、多简历版本、定时更新与提醒、面试复盘、Offer 比较。
+v0.2 / P1 才重启的能力（不在 v0.1）：Skill Gap、Action Plan、Resume Delta、Interview Pack、Career Agent 统一入口、GitHub 项目解析、多简历版本、定时更新与提醒、面试复盘、Offer 比较。
 
 ---
 
-## 11. MVP 验收清单
+## 11. MVP v0.1 验收清单
 
 ### Profile
 
@@ -418,29 +546,34 @@ P1/P2 可能重启的能力（不在 MVP）：多平台 Collector、GitHub 项�
 - [ ] 用户可以修改错误的技能和经历
 - [ ] 核心技能至少关联一个 Evidence 或明确标记“缺少证据”
 
+### SearchIntent
+
+- [ ] 用户可定义目标角色 / 城市 / 薪资下限 / 硬约束 / 软偏好
+- [ ] SearchIntent 快照随导入批次保存，可用于复现分析
+
 ### Jobs
 
 - [ ] 可导入 Collector v1.3.1 report JSON
 - [ ] 可查看最终岗位与候选岗位
 - [ ] 重复导入不会产生大量重复岗位
 
+### JobRequirement
+
+- [ ] 每个岗位产出结构化 JobRequirement
+- [ ] 每条 Requirement 有 `type` / `importance` / `evidenceSpan` / `confidence`
+
 ### Match
 
-- [ ] 可批量匹配至少 50 个岗位
-- [ ] 每个匹配报告都有理由和证据
-- [ ] 可按匹配等级排序
+- [ ] 每个岗位有 Eligibility（Eligible / Conditional / Blocked）
+- [ ] 每个岗位有 Fit（Strong / Good / Stretch / Low）
+- [ ] 报告可追溯到 Profile Evidence 或 Job Requirement
+- [ ] `score` 仅用于内部排序，未作为概率展示
 
-### Gap
+### Ranking + Feedback
 
-- [ ] 可基于目标岗位集聚合技能需求
-- [ ] 可生成 P0/P1 差距
-- [ ] 每项 P0 可以追溯到对应岗位需求
-
-### Prepare
-
-- [ ] 可针对具体岗位生成简历调整建议
-- [ ] 可生成项目讲述重点
-- [ ] 可生成岗位相关面试准备清单
+- [ ] 可按 Eligibility + Fit + 软偏好批量排序
+- [ ] 用户可对岗位给出 interested / maybe / rejected 及原因
+- [ ] 反馈可回查到对应 MatchReport
 
 ---
 
@@ -448,16 +581,18 @@ P1/P2 可能重启的能力（不在 MVP）：多平台 Collector、GitHub 项�
 
 严格按以下顺序开发，先形成第一个真实闭环，再扩展：
 
-1. **Collector JSON 导入（第一个基础设施节点）**
+1. **Job Data Foundation（第一个基础设施节点）**
    - 实现 `POST /api/v1/job-imports`；
    - 把浏览器插件导出的 `boss-job-filter-report-v1.3.1-*.json` 真正导入系统；
    - 闭环变为：`BOSS → JobLens Collector → 导出 JSON → JobLens Agent → 我的岗位池`；
-   - 详见 ROADMAP Phase 1 与 integration/COLLECTOR-CONTRACT.md。
+   - 详见 `P0-1-job-data-foundation.md` 与 ROADMAP Phase 1。
 
-2. **UserProfile + 单岗位 Match（第一个可演示 Agent）**
-   - 上传真实经历 → 生成 UserProfile；
+2. **UserProfile + SearchIntent + 单岗位 Match（第一个可演示 Agent）**
+   - 上传真实经历 → 生成带 Evidence 的 UserProfile；
+   - 定义 SearchIntent；
    - 导入刚从 BOSS 采集的真实岗位；
-   - Agent 基于真实经历告诉你：哪些值得投、为什么；
-   - 对应 ROADMAP Phase 2–3。
+   - 抽取 JobRequirement → Eligibility → Match；
+   - 用户给出 UserFeedback；
+   - 对应 ROADMAP Phase 2–5。
 
-> 不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把上面两步跑通。
+> 不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把上面两步跑通，且从第一个 LLM Pipeline 就接 Eval（见 ADR-0005）。

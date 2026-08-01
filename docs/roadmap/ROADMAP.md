@@ -5,85 +5,100 @@
 用最小工程成本打通：
 
 ```text
-Collector → Profile → Match → Gap → Prepare → Eval
+Profile → SearchIntent → JobRequirement → Eligibility → Match → Ranking → UserFeedback
 ```
 
-路线图强调先形成可验证闭环，再增加自动化和平台规模。
+路线图强调先形成可验证闭环，再增加能力广度与平台规模。**Eval 从 Phase 1 就介入，不是最后一个 Phase。**
+
+领域模型、阶段边界与关键决策见：
+- [领域模型](architecture/DOMAIN-MODEL.md)
+- [系统架构](architecture/SYSTEM-ARCHITECTURE.md)
+- [评估与追踪](architecture/EVAL-AND-TRACE.md)
+- [MVP 范围决策](decisions/0001-mvp-scope.md)
+- [后端技术栈](decisions/0002-backend-stack.md)
+- [数据库策略](decisions/0003-database-strategy.md)
+- [LLM / Workflow / Agent 边界](decisions/0004-llm-workflow-agent-boundary.md)
+- [Eval 从第一天开始](decisions/0005-eval-from-day-one.md)
 
 ---
 
-# Phase 0｜基线与契约（已建立）
+# Phase 0.5｜产品与领域模型冻结（P0，概念基线）
 
-目标：让项目有清晰边界和可直接开发的契约。
+目标：在写第一行业务逻辑前，先把**产品定义、领域模型、阶段边界、架构边界**冻结。
+
+### 为什么有这个 Phase
+
+早期最容易失控的是“文档无限扩张但无工程证据”。Phase 0.5 只做三件事：
+
+1. 收缩 Primary Persona（有 3–10 年经验、有简历、有 1–3 个目标方向、主动求职/转型）；
+2. 冻结领域模型（`UserProfile` / `SearchIntent` / `Job` / `JobRequirement` / `MatchReport` / `UserFeedback` / `TargetCohort` / `SkillGap`）；
+3. 冻结阶段边界与后端边界（单 FastAPI 进程 + 分层，不拆微服务；LLM Capability → Domain Workflow → Career Agent）。
 
 ### 交付
 
-- [x] 新建 JobLens-Agent 仓库
-- [x] 集成现有 Collector 插件源码
-- [x] MVP PRD
-- [x] 系统架构
+- [x] MVP PRD v2.0（单 Persona、两阶段 MVP、JobRequirement、UserFeedback、Eligibility+Fit）
+- [x] 领域模型 `DOMAIN-MODEL.md`
+- [x] 系统架构 `SYSTEM-ARCHITECTURE.md`（单后端应用 + 新执行链）
 - [x] Collector 导入契约
-- [x] 五个核心领域模型 Schema
-- [x] 本地 Git 初始化
+- [x] 核心领域 Schema（含 3 个新增：`search-intent` / `job-requirement` / `user-feedback`）
+- [x] ADR-0001..0005
 
 ### 完成标准
 
-Codex/开发者进入仓库后，可以直接回答：
+开发者进入仓库后，可以直接回答：
 
-- 系统解决什么问题；
-- MVP 不做什么；
+- 系统解决什么问题、不解决什么；
+- 第一阶段只做哪 8 步（v0.1）；
 - Collector 与 Agent 如何分工；
-- 第一批 API 和数据模型是什么。
+- 第一批 API 和数据模型是什么；
+- 不需要理解整个 JobLens 长期愿景就能开工。
 
 ---
 
-# Phase 1｜岗位数据接入（P0）
+# Phase 1｜Job Data Foundation（P0）
+
+对应需求文档：`P0-1-job-data-foundation.md`
 
 建议周期：2–3 天
 
-目标：不依赖手工 CSV 分析，把已有 Collector 的 JSON 正式导入系统。
+目标：不依赖手工 CSV 分析，把已有 Collector 的 JSON 正式导入系统，形成可靠的 `Job Pool`。
 
 ### 任务
 
-1. FastAPI 基础服务；
+1. 单个 FastAPI 进程（非微服务，见 ADR-0002 / 0003）；
 2. SQLite 数据库；
 3. `POST /api/v1/job-imports`；
-4. 解析 Collector report：
-   - `jobs`
-   - `candidates`
-   - `statistics`
-   - `config`
-5. Job 标准化与去重；
+4. 解析 Collector report：`jobs` / `candidates` / `statistics` / `config`；
+5. Job 标准化与去重（canonical key）；
 6. Job Pool 查询接口；
-7. 保存 `source_raw`，避免数据不可追溯。
+7. 保存 `sourceRaw`，避免数据不可追溯；
+8. 导入批次记录：`Import Batch` / `Source Snapshot` / `Collector Version` / `Collected At` / `SearchIntent Snapshot`（见 COLLECTOR-CONTRACT）。
 
 ### 验收
 
 - 同一 JSON 重复导入两次，Job 数量基本不增加；
 - 可以按城市、薪资、关键词查看岗位；
-- 可以打开原始 BOSS URL。
+- 可以打开原始 BOSS URL；
+- 能回答“这批岗位里 Python 比例为什么这么高”（需保存搜索关键词 / 城市 / 时间 / Collector 版本）。
+
+> 这一阶段**只做数据地基**，不碰 Match / Profile LLM。做完即可作为第一个可独立验收的节点。
 
 ---
 
-# Phase 2｜Career Profile（P0）
+# Phase 2｜Profile + SearchIntent（P0）
 
 建议周期：3–5 天
 
-目标：建立后续所有匹配判断的个人事实底座。
+目标：建立个人事实底座与“我想找什么”的明确约束。
 
 ### 任务
 
 1. 简历文本输入；
-2. LLM Structured Output → UserProfile；
-3. Evidence 抽取；
-4. 用户确认/修正；
-5. Profile Version；
-6. 职业偏好：
-   - 目标城市
-   - 远程
-   - 最低薪资
-   - 感兴趣岗位
-   - 不接受条件
+2. LLM Structured Output → `UserProfile`（带 `Evidence`）；
+3. Evidence 抽取与用户确认；
+4. Profile Version；
+5. `SearchIntent` 定义（目标角色 / 城市 / 远程 / 薪资下限 / 级别 / 硬约束 / 软偏好）；
+6. `Profile Eval` 数据集与断言（从第一个 LLM Pipeline 开始，见 ADR-0005）。
 
 ### 验收
 
@@ -93,49 +108,95 @@ Profile 页面可以明确区分：
 - 我了解但缺少项目证据；
 - 我完全没有。
 
+`SearchIntent` 可保存为快照并与导入批次关联。
+
 ---
 
-# Phase 3｜岗位匹配（P0，核心）
+# Phase 3｜Requirement Intelligence（P0，核心新增）
 
-建议周期：5–7 天
+目标：`JobRequirement` 成为 `Match` / `Gap` / `Prepare` 的**统一事实基础**。
 
-目标：让用户真正知道“哪些岗位值得投、为什么”。
+### 为什么单独成 Phase
+
+过去 Requirement Extraction 只是 Match 内部一步。现在它被提升为独立能力，因为：
+
+- `Match` 需要它对每条 JD 要求结构化；
+- v0.2 的 `Skill Gap` 直接复用它做需求聚合，不必回读 JD；
+- `Resume` / `Interview` 的准备也基于它定位差距。
 
 ### 任务
 
-1. JD Requirement Extraction；
-2. 确定性硬条件判断；
-3. LLM 语义匹配；
-4. MatchReport Structured Output；
-5. Evidence Linking；
-6. 批量匹配队列；
-7. 匹配列表 UI；
-8. Strong / Good / Stretch / Low 四级推荐。
+1. JD → `JobRequirement`（LLM Structured Output）；
+2. `type` 分类：`skill` / `experience` / `education` / `responsibility` / `domain` / `constraint`；
+3. `normalizedCapability` 归一化；
+4. `importance`：`must_have` / `preferred` / `bonus`；
+5. `evidenceSpan` 命中 JD 原文；
+6. `confidence` / `extractorVersion`；
+7. `Requirement Eval` 数据集与断言。
 
-### 推荐评分结构
+### 验收
 
-```text
-硬条件             20
-核心技能           30
-相关项目           20
-领域/经验           10
-可迁移能力          10
-个人偏好            10
-```
+抽样 20 个岗位，人工检查：
 
-分值只是排序辅助；实际展示以 evidence-based reason 为主。
+- `must_have` 与 `bonus` 区分合理；
+- `evidenceSpan` 能精确指向 JD 原文；
+- 同义能力已归一（如 “React.js” / “ReactJS” → “React”）。
+
+---
+
+# Phase 4｜Single Job Match（P0，核心）
+
+建议周期：5–7 天
+
+目标：让单个岗位判断“是否值得投、为什么”可信、可解释。
+
+### 任务
+
+1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）；
+2. `Evidence Retrieval`（从 UserProfile 拉相关 Evidence）；
+3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）；
+4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）；
+5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked`；
+6. `Match Eval` 数据集与断言（含 UserFeedback 作为人工基准）。
 
 ### 验收
 
 至少选 20 个真实岗位人工评审：
 
-- Top 5 是否大体合理；
+- Top 推荐是否大体合理；
 - 推荐理由是否能引用真实经历；
-- 不匹配原因是否能引用 JD。
+- 不匹配原因是否能引用 JD / JobRequirement；
+- 数字 `score` 未被当作概率展示。
 
 ---
 
-# Phase 4｜目标岗位与 Skill Gap（P0）
+# Phase 5｜Batch Ranking + UserFeedback（P0）
+
+建议周期：3–4 天
+
+目标：从“单个岗位判断”到“一批岗位排序 + 人类反馈闭环”。
+
+### 任务
+
+1. 批量 Match 队列；
+2. Ranking（Eligibility + Fit + SearchIntent.softPreferences）；
+3. Blocked 沉底 / 默认隐藏；
+4. `UserFeedback` 采集（interested / maybe / rejected + reasons）；
+5. 反馈回查到 MatchReport；
+6. 反馈作为 `Match Eval` 基准与 v0.2 `Target Cohort` 来源。
+
+### 验收
+
+- 可批量匹配至少 50 个岗位；
+- 可按推荐等级排序；
+- 用户反馈可回查；
+- 反馈数据落库，可进入 Eval 统计。
+
+> 到 Phase 5 结束，MVP v0.1 闭环完成。此时即可独立演示与评测，不必等 v0.2。
+
+---
+
+# Phase 6｜Target Cohort + Skill Gap（v0.2）
 
 建议周期：4–6 天
 
@@ -143,14 +204,13 @@ Profile 页面可以明确区分：
 
 ### 任务
 
-1. 创建 JobTarget；
-2. 从收藏岗位创建自定义 Target；
-3. 聚合技能频率；
-4. 归一化同义技能；
-5. 市场要求 vs Profile；
-6. 生成 SkillGap；
-7. 生成 P0/P1 Action Plan；
-8. 每项建议关联支持岗位。
+1. 创建 `Target Cohort`（收藏岗位 / UserFeedback 聚合，概念从 `JobTarget` 演进）；
+2. 复用 `JobRequirement` 聚合需求；
+3. 归一化同义技能；
+4. 市场要求 vs Profile；
+5. 生成 `SkillGap`：优先级不单看频率，引入 `targetCoverage` / `mustHaveRatio` / `evidenceCoverage` / `gapSeverity`；
+6. 生成 P0/P1 Action Plan；
+7. 每项建议关联 `supportingRequirementIds`。
 
 ### 验收
 
@@ -158,7 +218,7 @@ Profile 页面可以明确区分：
 
 ```text
 为什么重要
-哪些岗位要求
+哪些岗位要求（JobRequirement）
 我当前有什么证据
 具体缺什么
 做到什么算补齐
@@ -166,7 +226,7 @@ Profile 页面可以明确区分：
 
 ---
 
-# Phase 5｜Job Preparation Pack（P0）
+# Phase 7｜Job Preparation（v0.2）
 
 建议周期：3–5 天
 
@@ -174,9 +234,9 @@ Profile 页面可以明确区分：
 
 ### MVP 交付
 
-- 简历修改建议；
+- Resume Delta（简历调整建议，非整份重写）；
 - 项目排序建议；
-- STAR/项目讲述重点；
+- STAR / 项目讲述重点；
 - 预计面试问题；
 - 面试前补习清单。
 
@@ -186,100 +246,55 @@ Profile 页面可以明确区分：
 
 ---
 
-# Phase 6｜Eval + Trace（P0）
+# Phase 8｜Career Agent（P1）
 
-建议周期：3–5 天
+目标：让 `Career Agent` 成为面向用户的统一入口，去**编排**已经成熟的 Workflow（Profile / SearchIntent / Requirement / Match / Ranking / Gap / Prepare）。
 
-目标：让这个项目成为真正的 Agent Engineering 作品，而不是 Prompt Demo。
+### 关键边界（ADR-0004）
 
-### Eval
-
-- Profile Extraction 数据集；
-- Requirement Extraction 数据集；
-- Job Match 人工基准集；
-- Skill Gap 基准集。
-
-### Trace
-
-至少记录：
-
-```text
-run_id
-agent_version
-model
-input_refs
-tool_calls
-structured_output
-latency
-token_usage
-error
-```
-
-### 门禁
-
-- Structured Output parse success ≥ 98%；
-- 不得生成 Profile 中不存在的项目事实；
-- MatchReport 必须有 evidence；
-- Gap P0 必须至少被目标岗位集中的真实要求支持。
-
----
-
-# Phase 7｜Collector API 同步（P1）
-
-目标：从“下载 JSON → 上传”升级为一键同步。
+- Agent 不直接实现业务能力；
+- Agent 组合稳定 Workflow；
+- 所有业务事实仍来自 `JobRequirement` 等统一模型；
+- 多 Agent 不进入本期。
 
 ### 任务
 
-- 插件设置 JobLens Agent API 地址；
-- API Token；
-- “同步到我的岗位池”；
-- 增量导入；
-- 同步结果反馈。
-
-注意：保留 JSON 下载能力作为离线和故障兜底。
+- 统一对话入口；
+- Tool Registry（复用 Workflow 能力，不是把业务全写成 Agent Tool）；
+- Context Builder（P0 用户确认事实 / 当前 Job，P1 相关 Evidence）；
+- `Agent Eval`。
 
 ---
 
-# Phase 8｜个人成长闭环（P1）
+# Phase 9｜Growth Loop / Collector Sync（P1）
 
-目标：实现真正的 `Gap → Action → Evidence → Re-match`。
+目标：形成真正的 `Gap → Action → Evidence → Re-match`，并从“下载 JSON → 上传”升级为一键同步。
 
 ### 任务
 
 - ActionItem 状态；
-- 学习/项目 Evidence 录入；
-- Profile 更新；
-- 匹配度变化；
-- “补完这个能力后影响了哪些岗位”对比。
-
----
-
-# Phase 9｜产品扩展（P2）
-
-只在 MVP 有真实使用价值后考虑：
-
-- 其他招聘平台 Collector；
-- GitHub 项目解析；
-- 多份简历版本管理；
-- 定时岗位更新；
-- 新岗位提醒；
-- 面试记录与复盘；
-- Offer 比较。
+- 学习 / 项目 Evidence 录入；
+- Profile 更新与重新匹配；
+- Collector API 同步（插件 POST Agent API，增量导入，保留 JSON 兜底）；
+- “补完这个能力后影响了哪些岗位”对比；
+- 新岗位提醒 / 定时更新（价值验证后再做）。
 
 ---
 
 # 当前最推荐的开发顺序
 
 ```text
-1. Collector JSON Import
-2. UserProfile
-3. 单岗位 Match
-4. 批量 Match
-5. JobTarget
-6. SkillGap
-7. Job Preparation Pack
-8. Eval
-9. Collector API Sync
+Phase 0.5  产品与领域基线（本文档 + PRD v2.0 + DOMAIN-MODEL + ADR）
+Phase 1    Job Data Foundation（POST /api/v1/job-imports）
+Phase 2    Profile + SearchIntent
+Phase 3    Requirement Intelligence（JobRequirement）
+Phase 4    Single Job Match（Eligibility + Fit）
+Phase 5    Batch Ranking + UserFeedback
+--- v0.1 闭环完成，可独立演示与评测 ---
+Phase 6    Target Cohort + Skill Gap
+Phase 7    Job Preparation
+Phase 8    Career Agent
+Phase 9    Growth Loop / Collector Sync
 ```
 
-不要先做漂亮 Dashboard，也不要先做 Multi-Agent。
+不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把 Phase 1–5 跑通，且每个 LLM Pipeline 从第一天接 Eval。
