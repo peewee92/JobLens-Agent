@@ -1,0 +1,3 @@
+# Example payloads for the JSON Schema contracts in ../schemas.
+# Used to document and test each domain structure (job, search-intent,
+# match-report, ...). Populate with concrete sample payloads as they arise.

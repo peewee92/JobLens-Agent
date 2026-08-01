@@ -1,0 +1,4 @@
+# Eval datasets for JobLens (ADR-0005: Eval from day one).
+# Store fixed, version-tagged datasets used to score LLM pipelines
+# (Profile / Requirement / Match / Agent). Add real .json/.jsonl files here
+# as each pipeline lands; do not commit model outputs, only the fixtures.

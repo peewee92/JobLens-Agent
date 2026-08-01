@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/user-feedback.schema.json",
+  "title": "UserFeedback",
+  "type": "object",
+  "required": ["id", "jobId", "profileVersion", "decision"],
+  "properties": {
+    "id": {"type": "string", "description": "UserFeedback 唯一 id"},
+    "jobId": {"type": "string", "description": "被反馈的 Job id"},
+    "profileVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "产生该反馈时使用的 UserProfile 版本"
+    },
+    "matchReportId": {
+      "type": ["string", "null"],
+      "description": "对应的 MatchReport id（若有）"
+    },
+    "decision": {
+      "enum": ["interested", "maybe", "rejected"],
+      "description": "interested=值得投；maybe=可以考虑；rejected=不适合"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "反馈原因（结构化标签 + 自由文本）"
+    },
+    "comment": {
+      "type": ["string", "null"],
+      "description": "用户备注"
+    },
+    "createdAt": {
+      "type": "string",
+      "description": "ISO8601 创建时间"
+    }
+  }
+}

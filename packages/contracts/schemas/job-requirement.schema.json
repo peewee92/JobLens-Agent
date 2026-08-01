@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job-requirement.schema.json",
+  "title": "JobRequirement",
+  "type": "object",
+  "required": ["id", "jobId", "type", "importance"],
+  "properties": {
+    "id": {"type": "string", "description": "JobRequirement 唯一 id"},
+    "jobId": {"type": "string", "description": "所属 Job 的 id"},
+    "originalText": {
+      "type": ["string", "null"],
+      "description": "JD 中原始的抽取文本"
+    },
+    "type": {
+      "enum": ["skill", "experience", "education", "responsibility", "domain", "constraint"],
+      "description": "需求类型"
+    },
+    "normalizedCapability": {
+      "type": ["string", "null"],
+      "description": "归一化后的能力名，用于同义归一与跨岗位聚合（如 'React.js'→'React'）"
+    },
+    "importance": {
+      "enum": ["must_have", "preferred", "bonus"],
+      "description": "must_have=硬必须；preferred=优先；bonus=加分项"
+    },
+    "evidenceSpan": {
+      "type": ["string", "null"],
+      "description": "命中 JD 原文的片段，保证可追溯"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "抽取置信度（0-1）"
+    },
+    "extractorVersion": {
+      "type": ["string", "null"],
+      "description": "抽取器/模型版本，保证可复现"
+    }
+  }
+}

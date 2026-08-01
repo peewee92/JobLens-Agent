@@ -3,9 +3,12 @@
   "$id": "https://joblens.local/schemas/job.schema.json",
   "title": "Job",
   "type": "object",
-  "required": ["id", "title", "company", "source", "sourceUrl"],
+  "required": ["id", "title", "company", "remoteStatus", "remoteConfidence", "source", "sourceUrl"],
   "properties": {
-    "id": {"type": "string"},
+    "id": {
+      "type": "string",
+      "description": "JobLens 生成的内部 Job Resource ID；不是 Collector 或招聘网站的外部岗位 ID。"
+    },
     "title": {"type": "string"},
     "company": {"type": "string"},
     "area": {"type": ["string", "null"]},
@@ -15,10 +18,19 @@
     "education": {"type": ["string", "null"]},
     "description": {"type": ["string", "null"]},
     "skills": {"type": "array", "items": {"type": "string"}},
+    "remoteStatus": {
+      "type": "string",
+      "enum": ["confirmed", "rejected", "unknown"],
+      "description": "岗位远程事实：明确支持、明确不支持或信息不足。"
+    },
+    "remoteConfidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "远程状态判断的规则置信等级，不表示概率。"
+    },
     "source": {"type": "string"},
     "sourceUrl": {"type": "string"},
     "sourceVersion": {"type": ["string", "null"]},
-    "collectedAt": {"type": ["string", "null"]},
-    "sourceRaw": {"type": ["object", "null"]}
+    "collectedAt": {"type": ["string", "null"]}
   }
 }

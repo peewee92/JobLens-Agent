@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/search-intent.schema.json",
+  "title": "SearchIntent",
+  "type": "object",
+  "required": ["id", "version", "targetRoles"],
+  "properties": {
+    "id": {"type": "string", "description": "SearchIntent 唯一 id"},
+    "version": {"type": "integer", "minimum": 1, "description": "用户确认版本，随每次修改递增"},
+    "targetRoles": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "description": "目标角色列表，如 ['AI Application Engineer', 'Agent Engineer']"
+    },
+    "cities": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "目标城市"
+    },
+    "remoteAccepted": {
+      "type": ["boolean", "null"],
+      "description": "是否接受远程"
+    },
+    "minimumSalaryK": {
+      "type": ["number", "null"],
+      "description": "薪资下限（千/月）"
+    },
+    "seniority": {
+      "enum": ["intern", "junior", "mid", "senior", "staff", "lead", "principal", null],
+      "description": "目标级别"
+    },
+    "employmentTypes": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "雇佣类型，如 ['full_time', 'contract']"
+    },
+    "excludeKeywords": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "排除关键词"
+    },
+    "hardConstraints": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "硬约束，用于确定性 Eligibility 判定"
+    },
+    "softPreferences": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "软偏好，仅参与排序加权，不强制"
+    },
+    "createdAt": {
+      "type": "string",
+      "description": "ISO8601 创建时间"
+    }
+  }
+}

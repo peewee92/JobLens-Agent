@@ -14,6 +14,8 @@
       "salaryMaxK": 30,
       "area": "武汉",
       "skills": ["Python", "RAG", "Agent"],
+      "remoteStatus": "unknown",
+      "remoteConfidence": "low",
       "url": "https://www.zhipin.com/job_detail/example.html",
       "description": "负责 AI 应用、RAG 和 Agent 能力建设。"
     }
