@@ -26,7 +26,23 @@ venv/
 *.sqlite
 *.sqlite3
 data/local/
+data/raw/
+data/imports/
+data/exports/
+data/private/
+data/personal/
+data/resumes/
+data/evals/private/
+data/samples/private/
 output/
+
+# Personal learning notes / local drafts
+# Keep project-facing requirements, architecture, ADRs and implementation plans in Git.
+# Keep personal transition plans, study records, answers and work-in-progress journals local.
+docs/learning/
+docs/dev-journal/
+*.local.md
+*.tmp.md
 
 # IDE
 .idea/
