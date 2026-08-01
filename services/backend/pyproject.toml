@@ -1,0 +1,27 @@
+[project]
+name = "joblens-backend"
+version = "0.1.0"
+description = "JobLens Agent Backend - Modular Monolith baseline (Step 1)"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2",
+    "pydantic-settings",
+    "sqlalchemy>=2,<3",
+    "alembic",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+]
+
+[tool.fastapi]
+entrypoint = "app.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
