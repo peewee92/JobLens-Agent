@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1.schemas import ApiError, ApiErrorResponse
+from app.application.job_import_queries import JobImportNotFoundError
 from app.application.job_imports.errors import (
     ImportIdentityConflictError,
     InvalidCollectorReportError,
@@ -59,6 +60,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "unsupported_collector_version",
+            str(error),
+        )
+
+    @app.exception_handler(JobImportNotFoundError)
+    async def handle_job_import_not_found(
+        _request: Request,
+        error: JobImportNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "job_import_not_found",
             str(error),
         )
 

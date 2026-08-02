@@ -3,11 +3,20 @@ from collections.abc import Callable
 
 from fastapi import Depends
 
+from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
-from app.application.ports import AbstractJobQueryRepository, AbstractUnitOfWork
+from app.application.ports import (
+    AbstractJobImportQueryRepository,
+    AbstractJobQueryRepository,
+    AbstractUnitOfWork,
+)
 from app.db.session import SessionLocal
-from app.repositories import SqlAlchemyJobQueryRepository, SqlAlchemyUnitOfWork
+from app.repositories import (
+    SqlAlchemyJobImportQueryRepository,
+    SqlAlchemyJobQueryRepository,
+    SqlAlchemyUnitOfWork,
+)
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 
@@ -20,6 +29,20 @@ def get_uow_factory() -> UnitOfWorkFactory:
     """
 
     return lambda: SqlAlchemyUnitOfWork(SessionLocal)
+
+
+def get_job_import_query_repository() -> AbstractJobImportQueryRepository:
+    """Provide the read-only Job Import audit repository."""
+
+    return SqlAlchemyJobImportQueryRepository(SessionLocal)
+
+
+def get_job_import_detail_use_case(
+    repository: AbstractJobImportQueryRepository = Depends(
+        get_job_import_query_repository
+    ),
+) -> GetJobImportDetailUseCase:
+    return GetJobImportDetailUseCase(repository)
 
 
 def get_job_query_repository() -> AbstractJobQueryRepository:
