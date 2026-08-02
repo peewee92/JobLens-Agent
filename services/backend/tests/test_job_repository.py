@@ -12,12 +12,19 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.job_imports.models import NormalizedJobInput
 from app.application.ports import (
+    JobImportCandidateWrite,
     JobImportItemWrite,
     JobImportWrite,
     RepositoryRecordNotFound,
 )
 from app.db.base import Base
-from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
+from app.db.models import (
+    JobImportCandidateORM,
+    JobImportItemORM,
+    JobImportORM,
+    JobORM,
+    JobSourceORM,
+)
 from app.domain.jobs import ImportOutcome, RemoteConfidence, RemoteStatus
 from app.repositories import SqlAlchemyJobRepository
 
@@ -146,6 +153,24 @@ def test_repository_writes_import_batch_and_per_item_audit(
                 collected_at=normalized.collected_at,
             )
         )
+        repository.add_import_candidates(
+            (
+                JobImportCandidateWrite(
+                    import_id=import_id,
+                    candidate_index=0,
+                    keep=True,
+                    decision="keep:matched",
+                    title="Candidate A",
+                    candidate_raw={"title": "Candidate A", "unknown": [1, 2]},
+                ),
+                JobImportCandidateWrite(
+                    import_id=import_id,
+                    candidate_index=1,
+                    keep=None,
+                    candidate_raw="legacy-value",
+                ),
+            )
+        )
         job_id = repository.add_job(normalized)
         source_id = repository.add_source(job_id, normalized)
         item_id = repository.add_import_item(
@@ -169,12 +194,22 @@ def test_repository_writes_import_batch_and_per_item_audit(
     with session_factory() as session:
         batch = session.get(JobImportORM, import_id)
         item = session.get(JobImportItemORM, item_id)
+        candidates = list(
+            session.scalars(
+                select(JobImportCandidateORM).order_by(
+                    JobImportCandidateORM.candidate_index
+                )
+            )
+        )
         assert batch is not None
         assert item is not None
         assert batch.received == 1
         assert batch.created == 1
         assert item.job_id == job_id
         assert item.job_source_id == source_id
+        assert [candidate.keep for candidate in candidates] == [True, None]
+        assert candidates[0].candidate_raw["unknown"] == [1, 2]
+        assert candidates[1].candidate_raw == "legacy-value"
         assert session.scalar(select(func.count(JobORM.id))) == 1
 
 

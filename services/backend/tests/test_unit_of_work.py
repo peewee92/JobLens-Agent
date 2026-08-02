@@ -10,9 +10,19 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.job_imports.models import NormalizedJobInput
-from app.application.ports import JobImportItemWrite, JobImportWrite
+from app.application.ports import (
+    JobImportCandidateWrite,
+    JobImportItemWrite,
+    JobImportWrite,
+)
 from app.db.base import Base
-from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
+from app.db.models import (
+    JobImportCandidateORM,
+    JobImportItemORM,
+    JobImportORM,
+    JobORM,
+    JobSourceORM,
+)
 from app.domain.jobs import ImportOutcome, RemoteConfidence, RemoteStatus
 from app.repositories import SqlAlchemyUnitOfWork
 
@@ -77,6 +87,16 @@ def test_explicit_commit_persists_complete_transaction(
         import_id = uow.jobs.add_import(
             JobImportWrite(source_version="1.3.1", received=1)
         )
+        uow.jobs.add_import_candidates(
+            (
+                JobImportCandidateWrite(
+                    import_id=import_id,
+                    candidate_index=0,
+                    keep=True,
+                    candidate_raw={"title": "Candidate"},
+                ),
+            )
+        )
         job_id = uow.jobs.add_job(normalized)
         source_id = uow.jobs.add_source(job_id, normalized)
         uow.jobs.add_import_item(
@@ -94,6 +114,7 @@ def test_explicit_commit_persists_complete_transaction(
     assert count_rows(session_factory, JobSourceORM) == 1
     assert count_rows(session_factory, JobImportORM) == 1
     assert count_rows(session_factory, JobImportItemORM) == 1
+    assert count_rows(session_factory, JobImportCandidateORM) == 1
 
 
 def test_exit_without_commit_rolls_back_all_changes(
@@ -120,6 +141,16 @@ def test_exception_rolls_back_complete_graph(
             import_id = uow.jobs.add_import(
                 JobImportWrite(source_version="1.3.1", received=1)
             )
+            uow.jobs.add_import_candidates(
+                (
+                    JobImportCandidateWrite(
+                        import_id=import_id,
+                        candidate_index=0,
+                        keep=False,
+                        candidate_raw={"title": "must rollback"},
+                    ),
+                )
+            )
             job_id = uow.jobs.add_job(normalized)
             source_id = uow.jobs.add_source(job_id, normalized)
             uow.jobs.add_import_item(
@@ -137,6 +168,7 @@ def test_exception_rolls_back_complete_graph(
     assert count_rows(session_factory, JobSourceORM) == 0
     assert count_rows(session_factory, JobImportORM) == 0
     assert count_rows(session_factory, JobImportItemORM) == 0
+    assert count_rows(session_factory, JobImportCandidateORM) == 0
 
 
 def test_uow_cannot_be_used_outside_active_scope(

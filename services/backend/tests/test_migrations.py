@@ -9,13 +9,14 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_TABLES = {
+BASE_TABLES = {
     "alembic_version",
     "jobs",
     "job_sources",
     "job_imports",
     "job_import_items",
 }
+EXPECTED_TABLES = BASE_TABLES | {"job_import_candidates"}
 
 
 def _run_alembic(database_url: str, *args: str) -> None:
@@ -46,12 +47,26 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         "uq_jobs_canonical_key"
     }
     assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("job_import_candidates")
+    } == {"uq_job_import_candidates_import_candidate_index"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("job_import_candidates")
+    } >= {"ck_job_import_candidates_index_non_negative"}
+    assert {
         item["name"] for item in inspector.get_check_constraints("jobs")
     } >= {
         "remote_status_enum",
         "remote_confidence_enum",
         "ck_jobs_salary_range",
     }
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260801_0001")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == BASE_TABLES
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "base")

@@ -20,7 +20,13 @@ from app.application.job_imports.errors import (
 )
 from app.application.job_imports.normalizer import normalize_adapted_report
 from app.db.base import Base
-from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
+from app.db.models import (
+    JobImportCandidateORM,
+    JobImportItemORM,
+    JobImportORM,
+    JobORM,
+    JobSourceORM,
+)
 from app.domain.jobs import ImportOutcome
 from app.repositories import SqlAlchemyUnitOfWork
 
@@ -137,6 +143,7 @@ def test_reimport_updates_stable_entities_but_creates_new_audit_batch(
         assert count_rows(session, JobSourceORM) == 1
         assert count_rows(session, JobImportORM) == 2
         assert count_rows(session, JobImportItemORM) == 2
+        assert count_rows(session, JobImportCandidateORM) == 0
 
         job = session.scalar(select(JobORM))
         source = session.scalar(select(JobSourceORM))
@@ -160,6 +167,81 @@ def test_reimport_updates_stable_entities_but_creates_new_audit_batch(
             ImportOutcome.CREATED,
             ImportOutcome.UPDATED,
         ]
+
+
+def test_candidates_are_preserved_without_entering_job_pool(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = load_report()
+    payload["candidates"] = [
+        {
+            "title": "Kept candidate",
+            "company": "Company A",
+            "url": "https://www.zhipin.com/job_detail/candidate-a.html",
+            "sourceJobId": "candidate-a",
+            "keep": True,
+            "decision": "keep:matched",
+            "pendingDetail": False,
+            "unknownNested": {"score": 0.92},
+        },
+        {
+            "title": "Rejected candidate",
+            "company": "Company B",
+            "url": "https://www.zhipin.com/job_detail/candidate-b.html",
+            "keep": False,
+            "decision": "reject:salary",
+            "pendingDetail": True,
+        },
+        "legacy-candidate-value",
+        None,
+    ]
+
+    result = make_use_case(session_factory).execute(payload)
+
+    with session_factory() as session:
+        rows = list(
+            session.scalars(
+                select(JobImportCandidateORM).order_by(
+                    JobImportCandidateORM.candidate_index
+                )
+            )
+        )
+        assert count_rows(session, JobORM) == 1
+        assert len(rows) == 4
+        assert [row.candidate_index for row in rows] == [0, 1, 2, 3]
+        assert [row.keep for row in rows] == [True, False, None, None]
+        assert rows[0].decision == "keep:matched"
+        assert rows[0].source_job_id == "candidate-a"
+        assert rows[0].candidate_raw["unknownNested"] == {"score": 0.92}
+        assert rows[1].pending_detail is True
+        assert rows[2].candidate_raw == "legacy-candidate-value"
+        assert rows[3].candidate_raw is None
+        assert all(row.import_id == result.import_id for row in rows)
+
+
+def test_reimport_creates_new_candidate_snapshot_per_batch(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = load_report()
+    payload["candidates"] = [{"title": "Candidate", "keep": True}]
+    use_case = make_use_case(session_factory)
+
+    first = use_case.execute(payload)
+    second = use_case.execute(payload)
+
+    with session_factory() as session:
+        rows = list(
+            session.scalars(
+                select(JobImportCandidateORM).order_by(
+                    JobImportCandidateORM.created_at,
+                    JobImportCandidateORM.id,
+                )
+            )
+        )
+        assert len(rows) == 2
+        assert {row.import_id for row in rows} == {first.import_id, second.import_id}
+        assert rows[0].candidate_raw == rows[1].candidate_raw
+        assert count_rows(session, JobORM) == 1
 
 
 def test_item_error_is_audited_and_counted_as_skipped(
@@ -202,6 +284,7 @@ def test_identity_conflict_rolls_back_new_batch_and_all_new_rows(
     session_factory: sessionmaker[Session],
 ) -> None:
     payload = load_report()
+    payload["candidates"] = [{"title": "must rollback", "keep": False}]
     normalized = normalize_adapted_report(adapt_collector_report(payload)).jobs[0]
     conflicting = replace(
         normalized,
@@ -222,6 +305,7 @@ def test_identity_conflict_rolls_back_new_batch_and_all_new_rows(
         assert count_rows(session, JobSourceORM) == 1
         assert count_rows(session, JobImportORM) == 0
         assert count_rows(session, JobImportItemORM) == 0
+        assert count_rows(session, JobImportCandidateORM) == 0
         job = session.scalar(select(JobORM))
         assert job is not None
         assert job.title == "Legacy Job"
@@ -239,3 +323,4 @@ def test_unsupported_report_version_opens_no_transaction_or_audit_batch(
     with session_factory() as session:
         assert count_rows(session, JobImportORM) == 0
         assert count_rows(session, JobImportItemORM) == 0
+        assert count_rows(session, JobImportCandidateORM) == 0

@@ -77,6 +77,11 @@ def test_get_import_detail_returns_auditable_sanitized_response(
     invalid = deepcopy(payload["jobs"][0])
     invalid.pop("company")
     payload["jobs"].append(invalid)
+    payload["candidates"] = [
+        {"title": "kept", "keep": True, "secret": "candidate-secret"},
+        {"title": "rejected", "keep": False},
+        {"title": "unknown", "keep": "invalid"},
+    ]
 
     created = api_environment.post("/api/v1/job-imports", json=payload)
     assert created.status_code == 201
@@ -95,7 +100,13 @@ def test_get_import_detail_returns_auditable_sanitized_response(
     assert body["skipped"] == 1
     assert body["received"] == body["created"] + body["updated"] + body["skipped"]
     assert body["searchIntentSnapshot"]["selectedCities"][0]["name"] == "武汉"
-    assert body["sourceSnapshot"]["candidateCount"] == 0
+    assert body["sourceSnapshot"]["candidateCount"] == 3
+    assert body["candidateSummary"] == {
+        "total": 3,
+        "kept": 1,
+        "rejected": 1,
+        "unknown": 1,
+    }
     assert [item["inputIndex"] for item in body["items"]] == [0, 1]
     assert [item["outcome"] for item in body["items"]] == ["created", "error"]
     assert body["items"][0]["jobId"].startswith("job_")
@@ -107,6 +118,8 @@ def test_get_import_detail_returns_auditable_sanitized_response(
     assert "collectorOnlyField" not in serialized
     assert "sourceRaw" not in serialized
     assert "canonicalKey" not in serialized
+    assert "candidateRaw" not in serialized
+    assert "candidate-secret" not in serialized
 
 
 def test_get_import_detail_returns_structured_404(

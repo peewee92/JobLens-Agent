@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.application.job_import_queries import (
+    JobImportCandidateSummary,
     JobImportDetail,
     JobImportNotFoundError,
 )
@@ -38,6 +39,12 @@ def make_detail() -> JobImportDetail:
         errors=(),
         search_intent_snapshot={},
         source_snapshot={},
+        candidate_summary=JobImportCandidateSummary(
+            total=0,
+            kept=0,
+            rejected=0,
+            unknown=0,
+        ),
         collected_at=now,
         created_at=now,
         items=(),

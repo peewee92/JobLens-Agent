@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.application.job_imports import ImportJobsUseCase
 from app.db.base import Base
-from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
+from app.db.models import (
+    JobImportCandidateORM,
+    JobImportItemORM,
+    JobImportORM,
+    JobORM,
+    JobSourceORM,
+)
 from app.domain.jobs import ImportOutcome
 from app.repositories import (
     SqlAlchemyJobImportQueryRepository,
@@ -55,6 +61,12 @@ def seed_mixed_import(session_factory: sessionmaker[Session]) -> str:
     invalid = deepcopy(payload["jobs"][0])
     invalid.pop("company")
     payload["jobs"].append(invalid)
+    payload["candidates"] = [
+        {"title": "kept", "keep": True, "secret": "internal"},
+        {"title": "rejected", "keep": False},
+        {"title": "unknown", "keep": "not-a-boolean"},
+        "legacy-value",
+    ]
     use_case = ImportJobsUseCase(
         lambda: SqlAlchemyUnitOfWork(session_factory)
     )
@@ -78,7 +90,11 @@ def test_get_import_returns_ordered_public_audit_detail(
     assert detail.skipped == 1
     assert detail.received == detail.created + detail.updated + detail.skipped
     assert detail.search_intent_snapshot["selectedCities"][0]["name"] == "武汉"
-    assert detail.source_snapshot["candidateCount"] == 0
+    assert detail.source_snapshot["candidateCount"] == 4
+    assert detail.candidate_summary.total == 4
+    assert detail.candidate_summary.kept == 1
+    assert detail.candidate_summary.rejected == 1
+    assert detail.candidate_summary.unknown == 2
     assert [item.input_index for item in detail.items] == [0, 1]
     assert [item.outcome for item in detail.items] == [
         ImportOutcome.CREATED,
@@ -94,9 +110,18 @@ def test_get_import_returns_ordered_public_audit_detail(
     # The database keeps raw diagnostic evidence, but the public Read Model does not.
     with session_factory() as session:
         batch = session.get(JobImportORM, import_id)
+        candidate = session.scalar(
+            select(JobImportCandidateORM).where(
+                JobImportCandidateORM.import_id == import_id,
+                JobImportCandidateORM.candidate_index == 0,
+            )
+        )
         assert batch is not None
+        assert candidate is not None
         assert "raw" in batch.errors[0]
+        assert candidate.candidate_raw["secret"] == "internal"
     assert not hasattr(detail.errors[0], "raw")
+    assert not hasattr(detail, "candidates")
 
 
 def test_get_import_uses_two_selects_and_performs_no_writes(
@@ -119,7 +144,13 @@ def test_get_import_uses_two_selects_and_performs_no_writes(
     try:
         before = {}
         with session_factory() as session:
-            for model in (JobORM, JobSourceORM, JobImportORM, JobImportItemORM):
+            for model in (
+                JobORM,
+                JobSourceORM,
+                JobImportORM,
+                JobImportItemORM,
+                JobImportCandidateORM,
+            ):
                 before[model] = int(
                     session.scalar(select(func.count()).select_from(model)) or 0
                 )
