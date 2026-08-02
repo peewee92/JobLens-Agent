@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job-import-detail.schema.json",
+  "title": "JobImportDetail",
+  "type": "object",
+  "required": [
+    "importId",
+    "sourceVersion",
+    "received",
+    "created",
+    "updated",
+    "skipped",
+    "errors",
+    "searchIntentSnapshot",
+    "sourceSnapshot",
+    "createdAt",
+    "items"
+  ],
+  "properties": {
+    "importId": {"type": "string"},
+    "sourceVersion": {"type": "string"},
+    "collectorVersion": {"type": ["string", "null"]},
+    "received": {"type": "integer", "minimum": 0},
+    "created": {"type": "integer", "minimum": 0},
+    "updated": {"type": "integer", "minimum": 0},
+    "skipped": {"type": "integer", "minimum": 0},
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "stage", "code", "message"],
+        "properties": {
+          "index": {"type": "integer", "minimum": 0},
+          "stage": {"type": "string"},
+          "code": {"type": "string"},
+          "message": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "searchIntentSnapshot": {"type": "object"},
+    "sourceSnapshot": {"type": "object"},
+    "collectedAt": {"type": ["string", "null"], "format": "date-time"},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "inputIndex",
+          "outcome",
+          "jobId",
+          "jobSourceId",
+          "errorCode",
+          "errorMessage"
+        ],
+        "properties": {
+          "inputIndex": {"type": "integer", "minimum": 0},
+          "outcome": {
+            "type": "string",
+            "enum": ["created", "updated", "skipped", "error"]
+          },
+          "jobId": {"type": ["string", "null"]},
+          "jobSourceId": {"type": ["string", "null"]},
+          "errorCode": {"type": ["string", "null"]},
+          "errorMessage": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
