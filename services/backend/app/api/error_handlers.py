@@ -13,6 +13,7 @@ from app.application.job_imports.errors import (
     InvalidCollectorReportError,
     UnsupportedCollectorVersionError,
 )
+from app.application.job_queries import JobNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "unsupported_collector_version",
+            str(error),
+        )
+
+    @app.exception_handler(JobNotFoundError)
+    async def handle_job_not_found(
+        _request: Request,
+        error: JobNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "job_not_found",
             str(error),
         )
 
