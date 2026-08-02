@@ -55,6 +55,33 @@ Job Pool 页面
 
 ## 2. 具体执行顺序
 
+### 当前切片进度（2026-08-02）
+
+| Slice | 内容 | 状态 |
+| --- | --- | --- |
+| 1 | Backend Baseline | 已完成 |
+| 2 | ORM Model + Migration | 已完成 |
+| 3 | Collector Adapter + Normalizer + Canonical Key | 已完成 |
+| 4 | Repository + Transaction Boundary | 已完成 |
+| 5 | ImportJobsUseCase + Idempotency | 下一步 |
+| 6 | `POST /api/v1/job-imports` | 计划中 |
+| 7 | Job Pool Query API | 计划中 |
+| 8 | 最小 Web E2E | 计划中 |
+
+采用该顺序的原因：
+
+```text
+外部格式隔离
+→ 内部语义稳定
+→ 数据访问边界
+→ 业务事务
+→ HTTP 入口
+```
+
+每层都可以独立测试，避免在 Router 中同时完成 JSON 解析、去重、SQLAlchemy 写入和事务处理。
+
+> Slice 4 状态（2026-08-02）：已新增 Application-owned Repository / Unit of Work Port、SQLAlchemy Repository、SQLAlchemy Unit of Work 和 FastAPI UoW Factory。Repository 只负责 query / add / update / flush，不负责 commit / rollback；Application 在一个 Unit of Work 中显式提交整条业务链。事务测试证明：显式 commit 后四表共同持久化，忘记 commit 或中途异常时四表全部回滚。当前后端测试为 34 passed。
+
 ### 第 1 步：技术基线落地
 
 创建真正的 Backend：
@@ -96,6 +123,8 @@ Celery
 都还不需要。Agent / LLM / Workflow 相关的分层（`llm` / `workflows` / `agent` / `evals` / `tracing`）按 ADR-0002 在后续阶段再补，不在本阶段建空目录。
 
 ### 第 2 步：把 Job 模型真正落到代码
+
+> 当前状态（2026-08-01）：**ORM Model + 第一条 Alembic Migration 已完成并验证**。已落地 `JobORM` / `JobSourceORM` / `JobImportORM` / `JobImportItemORM`，开发库已升级到 `20260801_0001`，迁移支持 upgrade / downgrade，ORM 与 Migration 经 `alembic check` 验证无漂移。Pydantic **API Request / Response DTO** 留到 HTTP API Slice 再实现；Collector Adapter 已在独立 Application Boundary 中使用版本化 Pydantic 外部模型，它们不等同于 API DTO。
 
 现在 JSON Schema 只是"设计契约"。下一步需要变成：
 

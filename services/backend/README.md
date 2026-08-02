@@ -1,8 +1,8 @@
 # JobLens Backend
 
-JobLens Agent 的后端基线（Step 1）：**模块化单体（Modular Monolith）**。
+JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-本阶段只建立运行基座，不实现任何业务：HTTP 运行时、配置、数据库基础设施、迁移基础设施、测试基础设施。业务（Job Import / Profile / Match ...）在后续 Vertical Slice 中逐步加入。
+当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key，以及 Repository + Unit of Work 事务边界。尚未实现 ImportJobsUseCase、Job Import API 和 Job Pool API。
 
 ## Prerequisites
 
@@ -37,7 +37,12 @@ uv run pytest
 
 ## Migration commands
 
-本阶段 Alembic 已初始化并指向 `Base.metadata`，但**尚未创建业务表**。后续 Step 2 才生成第一条迁移。
+Alembic 已指向 `Base.metadata`，第一条业务迁移为 `20260801_0001_create_job_data_foundation.py`，创建：
+
+- `jobs`
+- `job_sources`
+- `job_imports`
+- `job_import_items`
 
 ```bash
 # 查看当前迁移版本
@@ -46,9 +51,14 @@ uv run alembic current
 # 查看迁移历史
 uv run alembic history
 
-# （Step 2 起）生成并应用迁移
-uv run alembic revision --autogenerate -m "create jobs"
+# 应用全部迁移
 uv run alembic upgrade head
+
+# 回退一版
+uv run alembic downgrade -1
+
+# 检查 ORM metadata 与数据库迁移是否漂移
+uv run alembic check
 ```
 
 ## Configuration
@@ -76,11 +86,16 @@ services/backend/
 │   ├── main.py         # Composition Root（创建 App、注册 Router）
 │   ├── core/config.py  # 配置（pydantic-settings）
 │   ├── api/            # HTTP 层（Router / DI）
-│   ├── domain/         # 业务概念与规则（本阶段空）
-│   ├── application/    # Use Case（本阶段空）
-│   ├── repositories/   # 数据访问（本阶段空）
-│   └── db/             # Engine / Session / ORM Base
-└── tests/              # pytest（test_health / test_db）
+│   ├── domain/
+│   │   └── jobs/       # RemoteStatus / RemoteConfidence / ImportOutcome
+│   ├── application/
+│   │   ├── job_imports/ # Adapter / Normalizer / Canonical Key
+│   │   └── ports/       # Repository / Unit of Work 接口
+│   ├── repositories/    # SQLAlchemy Repository + Unit of Work
+│   └── db/
+│       ├── session.py  # Engine / Session / SQLite FK enforcement
+│       └── models/     # Job / JobSource / JobImport / JobImportItem ORM
+└── tests/              # health / ORM / migration / adapter / repository / transaction tests
 ```
 
 分层调用方向：`API → Application → Domain → Repository → Database`。
