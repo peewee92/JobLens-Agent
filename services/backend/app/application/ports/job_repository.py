@@ -43,6 +43,22 @@ class JobImportWrite:
 
 
 @dataclass(frozen=True, slots=True)
+class JobImportCandidateWrite:
+    """Immutable raw candidate evidence for one import batch."""
+
+    import_id: str
+    candidate_index: int
+    candidate_raw: Any
+    keep: bool | None = None
+    decision: str | None = None
+    pending_detail: bool | None = None
+    source_job_id: str | None = None
+    source_url: str | None = None
+    title: str | None = None
+    company: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class JobImportItemWrite:
     """Data required to append one per-input import result."""
 
@@ -110,6 +126,12 @@ class AbstractJobRepository(ABC):
         errors: tuple[dict[str, Any], ...],
     ) -> None:
         """Write final counters for an import batch before commit."""
+
+    @abstractmethod
+    def add_import_candidates(
+        self, candidates: tuple[JobImportCandidateWrite, ...]
+    ) -> None:
+        """Persist all raw candidates in one flush within the current transaction."""
 
     @abstractmethod
     def add_import_item(self, data: JobImportItemWrite) -> str:

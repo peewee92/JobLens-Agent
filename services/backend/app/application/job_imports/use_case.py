@@ -11,6 +11,7 @@ from app.application.job_imports.models import ImportIssue, NormalizedJobInput
 from app.application.job_imports.normalizer import normalize_adapted_report
 from app.application.ports import (
     AbstractUnitOfWork,
+    JobImportCandidateWrite,
     JobImportItemWrite,
     JobImportWrite,
     JobSourceRef,
@@ -78,6 +79,12 @@ class ImportJobsUseCase:
                         "candidateCount": normalized_report.candidate_count,
                     },
                     collected_at=normalized_report.generated_at,
+                )
+            )
+            uow.jobs.add_import_candidates(
+                tuple(
+                    self._candidate_write(import_id, index, candidate)
+                    for index, candidate in enumerate(normalized_report.candidates_raw)
                 )
             )
 
@@ -195,6 +202,42 @@ class ImportJobsUseCase:
             )
 
         return source_by_external_id or source_by_url
+
+    @classmethod
+    def _candidate_write(
+        cls,
+        import_id: str,
+        candidate_index: int,
+        candidate: Any,
+    ) -> JobImportCandidateWrite:
+        record = candidate if isinstance(candidate, Mapping) else {}
+        return JobImportCandidateWrite(
+            import_id=import_id,
+            candidate_index=candidate_index,
+            candidate_raw=deepcopy(candidate),
+            keep=record.get("keep") if isinstance(record.get("keep"), bool) else None,
+            decision=cls._candidate_text(record, "decision", 512),
+            pending_detail=(
+                record.get("pendingDetail")
+                if isinstance(record.get("pendingDetail"), bool)
+                else None
+            ),
+            source_job_id=cls._candidate_text(record, "sourceJobId", 255),
+            source_url=cls._candidate_text(record, "url", 2048),
+            title=cls._candidate_text(record, "title", 255),
+            company=cls._candidate_text(record, "company", 255),
+        )
+
+    @staticmethod
+    def _candidate_text(
+        record: Mapping[str, Any],
+        key: str,
+        max_length: int,
+    ) -> str | None:
+        value = record.get(key)
+        if not isinstance(value, str):
+            return None
+        return value[:max_length]
 
     @staticmethod
     def _error_detail(issue: ImportIssue) -> ImportErrorDetail:

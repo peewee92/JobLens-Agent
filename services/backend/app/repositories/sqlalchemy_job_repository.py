@@ -1,6 +1,7 @@
 """SQLAlchemy implementation of the job persistence application port."""
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from sqlalchemy import select
@@ -9,12 +10,19 @@ from sqlalchemy.orm import Session
 from app.application.job_imports.models import NormalizedJobInput
 from app.application.ports.job_repository import (
     AbstractJobRepository,
+    JobImportCandidateWrite,
     JobImportItemWrite,
     JobImportWrite,
     JobSourceRef,
     RepositoryRecordNotFound,
 )
-from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
+from app.db.models import (
+    JobImportCandidateORM,
+    JobImportItemORM,
+    JobImportORM,
+    JobORM,
+    JobSourceORM,
+)
 
 
 class SqlAlchemyJobRepository(AbstractJobRepository):
@@ -155,6 +163,29 @@ class SqlAlchemyJobRepository(AbstractJobRepository):
         model.updated = updated
         model.skipped = skipped
         model.errors = [dict(error) for error in errors]
+        self._session.flush()
+
+    def add_import_candidates(
+        self, candidates: tuple[JobImportCandidateWrite, ...]
+    ) -> None:
+        models = [
+            JobImportCandidateORM(
+                import_id=data.import_id,
+                candidate_index=data.candidate_index,
+                keep=data.keep,
+                decision=data.decision,
+                pending_detail=data.pending_detail,
+                source_job_id=data.source_job_id,
+                source_url=data.source_url,
+                title=data.title,
+                company=data.company,
+                candidate_raw=deepcopy(data.candidate_raw),
+            )
+            for data in candidates
+        ]
+        if not models:
+            return
+        self._session.add_all(models)
         self._session.flush()
 
     def add_import_item(self, data: JobImportItemWrite) -> str:

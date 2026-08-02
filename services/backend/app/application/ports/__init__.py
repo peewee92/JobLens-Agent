@@ -6,6 +6,7 @@ from app.application.ports.job_import_query_repository import (
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.ports.job_repository import (
     AbstractJobRepository,
+    JobImportCandidateWrite,
     JobImportItemWrite,
     JobImportWrite,
     JobSourceRef,
@@ -18,6 +19,7 @@ __all__ = [
     "AbstractJobQueryRepository",
     "AbstractJobRepository",
     "AbstractUnitOfWork",
+    "JobImportCandidateWrite",
     "JobImportItemWrite",
     "JobImportWrite",
     "JobSourceRef",
