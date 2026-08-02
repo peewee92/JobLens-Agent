@@ -68,7 +68,7 @@ Job Pool 页面
 | 7 | Job Pool Query API | 已完成 |
 | 8 | Job Import Audit Detail API | 已完成 |
 | 9 | Candidate Evidence Persistence | 已完成 |
-| 10 | 最小 Web E2E | 下一步 |
+| 10 | 最小 Web E2E | 已完成 |
 
 采用该顺序的原因：
 
@@ -93,6 +93,8 @@ Job Pool 页面
 > Slice 8 状态（2026-08-02）：已实现 `GET /api/v1/job-imports/{importId}`、独立审计 Read Model、Query Repository 和结构化 404。返回批次统计、SearchIntent/Source Snapshot 与按 inputIndex 排序的逐条 outcome；数据库可保留错误 raw，但公开 API 仅返回 index/stage/code/message。详情固定两条 SELECT，无写 SQL。
 >
 > Slice 9 状态（2026-08-02）：新增 `job_import_candidates` 与 Alembic 0002，完整保存每次 import 的 candidate raw 和 best-effort 诊断字段。Candidates 与 Job/Source/Item 同事务提交，重复导入形成新的不可变快照，致命冲突整体回滚；审计详情增加 candidateSummary，但不公开 candidateRaw。当前后端测试为 92 passed。
+>
+> Slice 10 状态（2026-08-02）：`apps/web` 已初始化为 Next.js App Router + TypeScript，完成 JSON 导入、Job Pool URL 筛选/分页、Job 详情和 Import 审计页面。浏览器写入通过同源 Route Handler 代理 FastAPI，Backend URL 保持 server-only；9 条 Web 纯函数/架构测试、TypeScript、production build 和真实 FastAPI+Next smoke E2E 均通过。P0-1 最小产品闭环已完成。
 
 ### 第 1 步：技术基线落地
 

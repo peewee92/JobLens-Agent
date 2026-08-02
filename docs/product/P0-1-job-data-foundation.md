@@ -223,6 +223,8 @@ COLLECTOR-CONTRACT §5 的 P1 插件同步也建议携带上述快照字段。
 - [x] 可通过 `GET /api/v1/job-imports/{importId}` 查询批次统计、快照和逐条 outcome，且不暴露错误 raw；
 - [x] `candidates` 按 import 完整持久化，保留 raw 和原始顺序，致命错误时同事务回滚；
 - [x] 审计详情返回 candidateSummary，但不暴露 candidateRaw；
+- [x] Web 可上传 Collector JSON、查看导入结果与审计、筛选 Job Pool 并打开 Job 详情；
+- [x] Web 不暴露 Backend 地址或 raw/canonical 内部字段；
 - [x] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
 
-> P0-1 数据地基后端核心能力已完成，主要剩余最小 Web E2E。完成前端闭环后再进入 Phase 2，不提前做 Match / Profile 抽取。
+> P0-1 Job Data Foundation 的 Backend 与最小 Web E2E 已完成。下一阶段进入 Phase 2 Profile + SearchIntent；不提前做 Match、Ranking 或 Agent Chat。

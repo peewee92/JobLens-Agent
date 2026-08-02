@@ -69,7 +69,7 @@ JobLens-Agent/
 - **一个 Git 仓库**，多语言、多可运行应用：Web（TypeScript）、Collector Extension（JS）、Backend（Python）、Contracts（JSON Schema）。
 - 三类内容：`apps`（用户入口）/ `services`（后台服务）/ `packages`（共享资产）。
 - Backend 是 **Modular Monolith**：一个进程、一个数据库、逻辑分层；不拆微服务。
-- 工具链：JS 用 `pnpm`（待应用初始化后加 `pnpm-workspace.yaml`），Python 用 `uv`；暂不引入 Turborepo / Nx。
+- 工具链：JS/TS 用 `pnpm workspace`，Python 用 `uv`；暂不引入 Turborepo / Nx。
 
 ## 现有资产
 
@@ -120,8 +120,8 @@ Phase 0.5 已完成（产品与领域模型冻结）。当前主线（详见 [�
 
 ```text
 Phase 0.5：产品与领域模型冻结 ✅
-Phase 1：Job Data Foundation   ← 现在就从这里开始（POST /api/v1/job-imports）
-Phase 2：Profile + SearchIntent
+Phase 1：Job Data Foundation   ✅ Backend + Minimal Web E2E
+Phase 2：Profile + SearchIntent ← 下一阶段
 Phase 3：Requirement Intelligence
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback

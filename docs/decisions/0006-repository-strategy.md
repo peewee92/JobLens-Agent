@@ -78,13 +78,13 @@ Backend 归入 `services/`（而非 `apps/`），以强调「用户客户端 vs 
 
 ### 2.5 工具链策略
 
-- JS/TS 应用：未来使用 `pnpm workspace`；
+- JS/TS 应用：使用 `pnpm workspace`；
 - Python 服务：`uv`（项目级 `pyproject.toml` + `uv.lock`）；
 - 根目录提供统一入口（`make dev / make test / make verify` 或 `scripts/*.sh`）。
 
 **暂不引入 Turborepo / Nx 等 Monorepo 框架。**
 
-> 暂缓项：`pnpm-workspace.yaml` 暂不创建。当前 `apps/web` 仅为占位 README、`apps/collector-extension` 仍为纯 JS 无 `package.json`；待任一应用真正初始化（拥有 `package.json`）后再补，避免引用空目录。
+> 2026-08-02 更新：`apps/web` 已初始化为 Next.js + TypeScript 应用，根目录已新增 `pnpm-workspace.yaml`。当前仍不引入 Turborepo / Nx。
 
 ### 2.6 `packages/contracts` 的定位
 
