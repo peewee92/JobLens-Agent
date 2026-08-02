@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.db.models.common import new_job_import_id, utc_now
 
 if TYPE_CHECKING:
+    from app.db.models.job_import_candidate import JobImportCandidateORM
     from app.db.models.job_import_item import JobImportItemORM
 
 
@@ -57,4 +58,10 @@ class JobImportORM(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="JobImportItemORM.input_index",
+    )
+    candidates: Mapped[list["JobImportCandidateORM"]] = relationship(
+        back_populates="import_batch",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="JobImportCandidateORM.candidate_index",
     )

@@ -33,3 +33,7 @@ def new_job_import_id() -> str:
 
 def new_job_import_item_id() -> str:
     return new_prefixed_id("itm")
+
+
+def new_job_import_candidate_id() -> str:
+    return new_prefixed_id("cand")
