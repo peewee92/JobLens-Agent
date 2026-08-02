@@ -1,0 +1,26 @@
+{
+  "name": "@joblens/web",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "env -u NODE_OPTIONS next dev",
+    "build": "env -u NODE_OPTIONS next build",
+    "start": "env -u NODE_OPTIONS next start",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "smoke:e2e": "node scripts/smoke-e2e.mjs"
+  },
+  "dependencies": {
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "tsx": "4.23.4",
+    "typescript": "6.0.3"
+  }
+}
