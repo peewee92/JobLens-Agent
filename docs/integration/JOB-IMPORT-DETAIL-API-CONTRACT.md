@@ -28,7 +28,13 @@ GET /api/v1/job-imports/{importId}
     }
   ],
   "searchIntentSnapshot": {},
-  "sourceSnapshot": {"candidateCount": 0},
+  "sourceSnapshot": {"candidateCount": 3},
+  "candidateSummary": {
+    "total": 3,
+    "kept": 1,
+    "rejected": 1,
+    "unknown": 1
+  },
   "collectedAt": "2026-07-21T00:00:00Z",
   "createdAt": "2026-08-02T12:00:00Z",
   "items": [
@@ -59,11 +65,13 @@ GET /api/v1/job-imports/{importId}
 - 批次统计；
 - SearchIntent / Source Snapshot；
 - 每条 input 的 outcome 与关联 Job ID；
+- candidates 的 total/kept/rejected/unknown 汇总；
 - 脱敏后的错误 index/stage/code/message。
 
 不得返回：
 
 - `errors[*].raw`；
+- `candidateRaw` 或 candidates 列表；
 - `JobSource.sourceRaw`；
 - canonical key；
 - normalized source URL；

@@ -6,10 +6,11 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.application.job_import_queries.models import (
+    JobImportCandidateSummary,
     JobImportDetail,
     JobImportErrorDetail,
     JobImportItemDetail,
@@ -17,7 +18,7 @@ from app.application.job_import_queries.models import (
 from app.application.ports.job_import_query_repository import (
     AbstractJobImportQueryRepository,
 )
-from app.db.models import JobImportItemORM, JobImportORM
+from app.db.models import JobImportCandidateORM, JobImportItemORM, JobImportORM
 
 SessionFactory = Callable[[], Session]
 
@@ -60,6 +61,30 @@ class SqlAlchemyJobImportQueryRepository(AbstractJobImportQueryRepository):
 
     def get_import(self, import_id: str) -> JobImportDetail | None:
         with self._session_factory() as session:
+            candidate_total = (
+                select(func.count(JobImportCandidateORM.id))
+                .where(JobImportCandidateORM.import_id == JobImportORM.id)
+                .correlate(JobImportORM)
+                .scalar_subquery()
+            )
+            candidate_kept = (
+                select(func.count(JobImportCandidateORM.id))
+                .where(
+                    JobImportCandidateORM.import_id == JobImportORM.id,
+                    JobImportCandidateORM.keep.is_(True),
+                )
+                .correlate(JobImportORM)
+                .scalar_subquery()
+            )
+            candidate_rejected = (
+                select(func.count(JobImportCandidateORM.id))
+                .where(
+                    JobImportCandidateORM.import_id == JobImportORM.id,
+                    JobImportCandidateORM.keep.is_(False),
+                )
+                .correlate(JobImportORM)
+                .scalar_subquery()
+            )
             batch = session.execute(
                 select(
                     JobImportORM.id,
@@ -74,6 +99,9 @@ class SqlAlchemyJobImportQueryRepository(AbstractJobImportQueryRepository):
                     JobImportORM.source_snapshot,
                     JobImportORM.collected_at,
                     JobImportORM.created_at,
+                    candidate_total.label("candidate_total"),
+                    candidate_kept.label("candidate_kept"),
+                    candidate_rejected.label("candidate_rejected"),
                 ).where(JobImportORM.id == import_id)
             ).one_or_none()
             if batch is None:
@@ -103,6 +131,16 @@ class SqlAlchemyJobImportQueryRepository(AbstractJobImportQueryRepository):
             errors=_public_errors(batch.errors),
             search_intent_snapshot=deepcopy(batch.search_intent_snapshot),
             source_snapshot=deepcopy(batch.source_snapshot),
+            candidate_summary=JobImportCandidateSummary(
+                total=batch.candidate_total,
+                kept=batch.candidate_kept,
+                rejected=batch.candidate_rejected,
+                unknown=(
+                    batch.candidate_total
+                    - batch.candidate_kept
+                    - batch.candidate_rejected
+                ),
+            ),
             collected_at=_as_utc(batch.collected_at),
             created_at=_require_utc(batch.created_at),
             items=tuple(

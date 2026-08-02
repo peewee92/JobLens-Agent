@@ -17,6 +17,14 @@ class JobImportErrorDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class JobImportCandidateSummary:
+    total: int
+    kept: int
+    rejected: int
+    unknown: int
+
+
+@dataclass(frozen=True, slots=True)
 class JobImportItemDetail:
     input_index: int
     outcome: ImportOutcome
@@ -38,6 +46,7 @@ class JobImportDetail:
     errors: tuple[JobImportErrorDetail, ...]
     search_intent_snapshot: dict[str, Any]
     source_snapshot: dict[str, Any]
+    candidate_summary: JobImportCandidateSummary
     collected_at: datetime | None
     created_at: datetime
     items: tuple[JobImportItemDetail, ...]

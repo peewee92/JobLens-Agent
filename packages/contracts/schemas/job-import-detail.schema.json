@@ -13,6 +13,7 @@
     "errors",
     "searchIntentSnapshot",
     "sourceSnapshot",
+    "candidateSummary",
     "createdAt",
     "items"
   ],
@@ -40,6 +41,17 @@
     },
     "searchIntentSnapshot": {"type": "object"},
     "sourceSnapshot": {"type": "object"},
+    "candidateSummary": {
+      "type": "object",
+      "required": ["total", "kept", "rejected", "unknown"],
+      "properties": {
+        "total": {"type": "integer", "minimum": 0},
+        "kept": {"type": "integer", "minimum": 0},
+        "rejected": {"type": "integer", "minimum": 0},
+        "unknown": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
     "collectedAt": {"type": ["string", "null"], "format": "date-time"},
     "createdAt": {"type": "string", "format": "date-time"},
     "items": {

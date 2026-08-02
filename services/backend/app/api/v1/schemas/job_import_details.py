@@ -16,6 +16,13 @@ class JobImportAuditError(CamelCaseModel):
     message: str
 
 
+class JobImportCandidateSummaryResponse(CamelCaseModel):
+    total: int
+    kept: int
+    rejected: int
+    unknown: int
+
+
 class JobImportAuditItem(CamelCaseModel):
     input_index: int
     outcome: ImportOutcome
@@ -36,6 +43,7 @@ class JobImportDetailResponse(CamelCaseModel):
     errors: list[JobImportAuditError]
     search_intent_snapshot: dict[str, Any]
     source_snapshot: dict[str, Any]
+    candidate_summary: JobImportCandidateSummaryResponse
     collected_at: datetime | None
     created_at: datetime
     items: list[JobImportAuditItem]
@@ -61,6 +69,12 @@ class JobImportDetailResponse(CamelCaseModel):
             ],
             search_intent_snapshot=detail.search_intent_snapshot,
             source_snapshot=detail.source_snapshot,
+            candidate_summary=JobImportCandidateSummaryResponse(
+                total=detail.candidate_summary.total,
+                kept=detail.candidate_summary.kept,
+                rejected=detail.candidate_summary.rejected,
+                unknown=detail.candidate_summary.unknown,
+            ),
             collected_at=detail.collected_at,
             created_at=detail.created_at,
             items=[

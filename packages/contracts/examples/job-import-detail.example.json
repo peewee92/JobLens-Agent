@@ -18,7 +18,13 @@
     "selectedCities": [{"name": "武汉", "code": "101200100"}]
   },
   "sourceSnapshot": {
-    "candidateCount": 0
+    "candidateCount": 3
+  },
+  "candidateSummary": {
+    "total": 3,
+    "kept": 1,
+    "rejected": 1,
+    "unknown": 1
   },
   "collectedAt": "2026-07-21T00:00:00Z",
   "createdAt": "2026-08-02T12:00:00Z",
