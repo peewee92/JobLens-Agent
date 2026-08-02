@@ -104,18 +104,16 @@ def test_repository_supports_idempotency_lookups_and_updates(
     with session_factory() as session:
         repository = SqlAlchemyJobRepository(session)
         assert repository.find_job_id_by_canonical_key(original.canonical_key) == job_id
-        assert (
-            repository.find_source_id_by_external_id(
-                original.source, original.source_job_id or ""
-            )
-            == source_id
+        source_by_external_id = repository.find_source_by_external_id(
+            original.source, original.source_job_id or ""
         )
-        assert (
-            repository.find_source_id_by_normalized_url(
-                original.source, original.normalized_source_url
-            )
-            == source_id
+        source_by_url = repository.find_source_by_normalized_url(
+            original.source, original.normalized_source_url
         )
+        assert source_by_external_id is not None
+        assert source_by_external_id.id == source_id
+        assert source_by_external_id.job_id == job_id
+        assert source_by_url == source_by_external_id
 
         repository.update_job(job_id, changed)
         repository.update_source(source_id, changed)

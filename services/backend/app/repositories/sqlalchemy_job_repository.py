@@ -11,6 +11,7 @@ from app.application.ports.job_repository import (
     AbstractJobRepository,
     JobImportItemWrite,
     JobImportWrite,
+    JobSourceRef,
     RepositoryRecordNotFound,
 )
 from app.db.models import JobImportItemORM, JobImportORM, JobORM, JobSourceORM
@@ -31,23 +32,25 @@ class SqlAlchemyJobRepository(AbstractJobRepository):
         statement = select(JobORM.id).where(JobORM.canonical_key == canonical_key)
         return self._session.scalar(statement)
 
-    def find_source_id_by_external_id(
+    def find_source_by_external_id(
         self, source: str, source_job_id: str
-    ) -> str | None:
-        statement = select(JobSourceORM.id).where(
+    ) -> JobSourceRef | None:
+        statement = select(JobSourceORM.id, JobSourceORM.job_id).where(
             JobSourceORM.source == source,
             JobSourceORM.source_job_id == source_job_id,
         )
-        return self._session.scalar(statement)
+        row = self._session.execute(statement).one_or_none()
+        return None if row is None else JobSourceRef(id=row.id, job_id=row.job_id)
 
-    def find_source_id_by_normalized_url(
+    def find_source_by_normalized_url(
         self, source: str, normalized_source_url: str
-    ) -> str | None:
-        statement = select(JobSourceORM.id).where(
+    ) -> JobSourceRef | None:
+        statement = select(JobSourceORM.id, JobSourceORM.job_id).where(
             JobSourceORM.source == source,
             JobSourceORM.normalized_source_url == normalized_source_url,
         )
-        return self._session.scalar(statement)
+        row = self._session.execute(statement).one_or_none()
+        return None if row is None else JobSourceRef(id=row.id, job_id=row.job_id)
 
     def add_job(self, data: NormalizedJobInput) -> str:
         model = JobORM(

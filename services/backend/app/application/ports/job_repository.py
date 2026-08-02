@@ -19,6 +19,14 @@ class RepositoryRecordNotFound(LookupError):
 
 
 @dataclass(frozen=True, slots=True)
+class JobSourceRef:
+    """Minimal source identity needed by the application decision logic."""
+
+    id: str
+    job_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class JobImportWrite:
     """Data required to create one import-batch audit record."""
 
@@ -60,16 +68,16 @@ class AbstractJobRepository(ABC):
         """Return the JobLens job ID for an idempotency key, if present."""
 
     @abstractmethod
-    def find_source_id_by_external_id(
+    def find_source_by_external_id(
         self, source: str, source_job_id: str
-    ) -> str | None:
-        """Find a source row by platform-scoped external identifier."""
+    ) -> JobSourceRef | None:
+        """Find source identity by platform-scoped external identifier."""
 
     @abstractmethod
-    def find_source_id_by_normalized_url(
+    def find_source_by_normalized_url(
         self, source: str, normalized_source_url: str
-    ) -> str | None:
-        """Find a source row by the stable normalized source URL."""
+    ) -> JobSourceRef | None:
+        """Find source identity by the stable normalized source URL."""
 
     @abstractmethod
     def add_job(self, data: NormalizedJobInput) -> str:
