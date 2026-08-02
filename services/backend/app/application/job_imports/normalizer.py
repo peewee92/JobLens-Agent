@@ -218,6 +218,7 @@ def normalize_adapted_job(record: AdaptedCollectorJob) -> NormalizedJobInput:
         collected_at=collected_at,
         first_seen_at=first_seen_at,
         last_seen_at=last_seen_at,
+        input_index=record.index,
     )
 
 

@@ -23,3 +23,7 @@ class JobNormalizationError(JobImportBoundaryError):
 
 class CanonicalIdentityError(JobImportBoundaryError):
     """A stable canonical identity cannot be generated for a job."""
+
+
+class ImportIdentityConflictError(RuntimeError):
+    """Persistent Job and JobSource identities disagree and require repair."""

@@ -148,6 +148,7 @@ class NormalizedJobInput:
     collected_at: datetime
     first_seen_at: datetime
     last_seen_at: datetime
+    input_index: int = 0
 
 
 @dataclass(frozen=True, slots=True)

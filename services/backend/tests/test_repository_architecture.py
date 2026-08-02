@@ -9,6 +9,9 @@ PORTS_DIR = BACKEND_ROOT / "app" / "application" / "ports"
 SQLALCHEMY_REPOSITORY = (
     BACKEND_ROOT / "app" / "repositories" / "sqlalchemy_job_repository.py"
 )
+IMPORT_USE_CASE = (
+    BACKEND_ROOT / "app" / "application" / "job_imports" / "use_case.py"
+)
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -28,6 +31,13 @@ def test_application_ports_do_not_import_sqlalchemy() -> None:
         imported.update(_imported_modules(path))
 
     assert not any(module.startswith("sqlalchemy") for module in imported)
+
+
+def test_import_use_case_does_not_import_sqlalchemy_or_orm_models() -> None:
+    imported = _imported_modules(IMPORT_USE_CASE)
+
+    assert not any(module.startswith("sqlalchemy") for module in imported)
+    assert not any(module.startswith("app.db.models") for module in imported)
 
 
 def test_sqlalchemy_repository_does_not_own_commit_or_rollback() -> None:

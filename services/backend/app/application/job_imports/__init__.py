@@ -1,9 +1,4 @@
-"""Pure job-import boundary and normalization helpers.
-
-This package intentionally does not persist data. It converts external Collector
-payloads into stable internal inputs that a later use case can store through a
-repository.
-"""
+"""Collector import boundary, normalization and application use case."""
 
 from app.application.job_imports.adapter import adapt_collector_report
 from app.application.job_imports.models import (
@@ -14,11 +9,19 @@ from app.application.job_imports.models import (
     NormalizedJobInput,
 )
 from app.application.job_imports.normalizer import normalize_adapted_report
+from app.application.job_imports.use_case import (
+    ImportErrorDetail,
+    ImportJobsResult,
+    ImportJobsUseCase,
+)
 
 __all__ = [
     "AdaptedCollectorJob",
     "AdaptedCollectorReport",
+    "ImportErrorDetail",
     "ImportIssue",
+    "ImportJobsResult",
+    "ImportJobsUseCase",
     "NormalizedCollectorReport",
     "NormalizedJobInput",
     "adapt_collector_report",
