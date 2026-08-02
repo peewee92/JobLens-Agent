@@ -208,13 +208,13 @@ COLLECTOR-CONTRACT §5 的 P1 插件同步也建议携带上述快照字段。
 
 - [x] `POST /api/v1/job-imports` 可导入 Collector v1.3.1 report JSON；
 - [x] 同一 JSON 重复导入两次，Job 数量基本不增加；
-- [ ] 每个 JobSource 保留完整 `sourceRaw`，普通 Job API 默认不返回；（持久化已完成，待 Job Query API 验证默认不返回）
-- [ ] 可按城市、薪资、关键词和三态 `remoteStatus` 筛选 Job Pool；
+- [x] 每个 JobSource 保留完整 `sourceRaw`，普通 Job API 默认不返回；
+- [x] 可按城市、薪资、关键词和三态 `remoteStatus` 筛选 Job Pool；
 - [x] `Job.id` 为 JobLens internal ID，外部岗位 ID 只存于 `JobSource.sourceJobId`；
 - [x] `jobs.canonical_key` 持久化并建立唯一约束，但不出现在普通 API Response；
-- [ ] 可打开原始 BOSS URL；
+- [x] Job List / Detail 返回原始 `sourceUrl`，前端可据此打开 BOSS URL；
 - [x] 导入批次保存 `SearchIntent Snapshot` / `Source Snapshot` / `Collector Version` / `Collected At`；
 - [x] 单条失败不中断整批，错误计入响应；
 - [x] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
 
-> 完成后即可开工 Phase 2（Profile + SearchIntent）。不要在本阶段提前做 Match / Profile 抽取。
+> 当前核心导入与 Job Pool 查询验收已完成；`candidates` 完整持久化、导入批次详情查询和最小 Web E2E 仍是 P0-1 剩余项。完成这些收尾后再进入 Phase 2，不提前做 Match / Profile 抽取。
