@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work，以及 `ImportJobsUseCase` 的幂等导入与批次统计。尚未实现 Job Import HTTP API 和 Job Pool API。
+当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`，以及 `POST /api/v1/job-imports`。尚未实现 Job Pool Query API 和 Web 页面。
 
 ## Prerequisites
 
@@ -26,8 +26,34 @@ uv run fastapi dev
 
 启动后访问：
 
-- API 根：`http://127.0.0.1:8000/api/v1/health`
+- Health：`http://127.0.0.1:8000/api/v1/health`
 - 交互式文档：`http://127.0.0.1:8000/docs`
+- OpenAPI：`http://127.0.0.1:8000/openapi.json`
+
+### Import Collector report
+
+```bash
+curl -i \
+  -X POST http://127.0.0.1:8000/api/v1/job-imports \
+  -H 'Content-Type: application/json' \
+  --data @../../data/samples/collector-report-minimal.json
+```
+
+成功返回 `201 Created`：
+
+```json
+{
+  "importId": "imp_...",
+  "sourceVersion": "1.3.1",
+  "received": 1,
+  "created": 1,
+  "updated": 0,
+  "skipped": 0,
+  "errors": []
+}
+```
+
+重复导入同一岗位时会创建新的 `JobImport` 审计记录，但不会重复创建 `Job`，响应通常为 `created=0 / updated=1`。
 
 ## Test
 
@@ -85,7 +111,7 @@ services/backend/
 ├── app/
 │   ├── main.py         # Composition Root（创建 App、注册 Router）
 │   ├── core/config.py  # 配置（pydantic-settings）
-│   ├── api/            # HTTP 层（Router / DI）
+│   ├── api/            # HTTP Router / DTO / DI / Error Mapping
 │   ├── domain/
 │   │   └── jobs/       # RemoteStatus / RemoteConfidence / ImportOutcome
 │   ├── application/
@@ -95,7 +121,7 @@ services/backend/
 │   └── db/
 │       ├── session.py  # Engine / Session / SQLite FK enforcement
 │       └── models/     # Job / JobSource / JobImport / JobImportItem ORM
-└── tests/              # health / ORM / migration / adapter / repository / transaction / use-case tests
+└── tests/              # health / ORM / migration / adapter / repository / use-case / HTTP integration tests
 ```
 
 分层调用方向：`API → Application → Domain → Repository → Database`。

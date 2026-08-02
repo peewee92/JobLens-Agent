@@ -170,7 +170,7 @@ created_at
 
 | 场景 | 处理 |
 | --- | --- |
-| report 缺 `version` | 视为未知版本，用保守 adapter，记录 warning |
+| report 缺 `version` | 返回 422；当前不猜测 Collector 版本，避免错误解析 |
 | 单条 Job 缺 `title`/`company`/`sourceUrl` | 跳过该条，计入 `errors` |
 | 解析异常 | 捕获并计入 `errors`，不影响其他条 |
 | 重复导入 | BR-2 幂等，created≈0 |
@@ -206,15 +206,15 @@ COLLECTOR-CONTRACT §5 的 P1 插件同步也建议携带上述快照字段。
 
 ## 9. 验收标准
 
-- [ ] `POST /api/v1/job-imports` 可导入 Collector v1.3.1 report JSON；
-- [ ] 同一 JSON 重复导入两次，Job 数量基本不增加；
-- [ ] 每个 JobSource 保留完整 `sourceRaw`，普通 Job API 默认不返回；
+- [x] `POST /api/v1/job-imports` 可导入 Collector v1.3.1 report JSON；
+- [x] 同一 JSON 重复导入两次，Job 数量基本不增加；
+- [ ] 每个 JobSource 保留完整 `sourceRaw`，普通 Job API 默认不返回；（持久化已完成，待 Job Query API 验证默认不返回）
 - [ ] 可按城市、薪资、关键词和三态 `remoteStatus` 筛选 Job Pool；
-- [ ] `Job.id` 为 JobLens internal ID，外部岗位 ID 只存于 `JobSource.sourceJobId`；
-- [ ] `jobs.canonical_key` 持久化并建立唯一约束，但不出现在普通 API Response；
+- [x] `Job.id` 为 JobLens internal ID，外部岗位 ID 只存于 `JobSource.sourceJobId`；
+- [x] `jobs.canonical_key` 持久化并建立唯一约束，但不出现在普通 API Response；
 - [ ] 可打开原始 BOSS URL；
-- [ ] 导入批次保存 `SearchIntent Snapshot` / `Source Snapshot` / `Collector Version` / `Collected At`；
-- [ ] 单条失败不中断整批，错误计入响应；
-- [ ] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
+- [x] 导入批次保存 `SearchIntent Snapshot` / `Source Snapshot` / `Collector Version` / `Collected At`；
+- [x] 单条失败不中断整批，错误计入响应；
+- [x] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
 
 > 完成后即可开工 Phase 2（Profile + SearchIntent）。不要在本阶段提前做 Match / Profile 抽取。
