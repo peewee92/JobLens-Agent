@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`、`POST /api/v1/job-imports`，以及 Job Pool 列表/详情查询 API。尚未实现 Web 页面和导入批次详情查询。
+当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`、`POST /api/v1/job-imports`、Job Pool 列表/详情查询，以及导入批次审计详情 API。尚未实现最小 Web 页面和 candidates 完整持久化。
 
 ## Prerequisites
 
@@ -54,6 +54,14 @@ curl -i \
 ```
 
 重复导入同一岗位时会创建新的 `JobImport` 审计记录，但不会重复创建 `Job`，响应通常为 `created=0 / updated=1`。
+
+查询某次导入审计：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/job-imports/imp_xxx
+```
+
+返回批次统计、快照和按 `inputIndex` 排序的逐条 outcome；数据库中保存的错误 raw 不进入普通 API。
 
 ### Query Job Pool
 
@@ -131,6 +139,7 @@ services/backend/
 │   ├── application/
 │   │   ├── job_imports/ # Adapter / Normalizer / Canonical Key / ImportJobsUseCase
 │   │   ├── job_queries/ # Job Read Models / ListJobs / GetJob
+│   │   ├── job_import_queries/ # Import Audit Read Model / Get Detail
 │   │   └── ports/       # Write Repository / Query Repository / Unit of Work
 │   ├── repositories/    # SQLAlchemy write/query repositories + Unit of Work
 │   └── db/

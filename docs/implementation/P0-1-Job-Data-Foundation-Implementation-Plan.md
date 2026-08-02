@@ -66,7 +66,8 @@ Job Pool 页面
 | 5 | ImportJobsUseCase + Idempotency | 已完成 |
 | 6 | `POST /api/v1/job-imports` | 已完成 |
 | 7 | Job Pool Query API | 已完成 |
-| 8 | 最小 Web E2E | 下一步 |
+| 8 | Job Import Audit Detail API | 已完成 |
+| 9 | 最小 Web E2E | 下一步 |
 
 采用该顺序的原因：
 
@@ -86,7 +87,9 @@ Job Pool 页面
 >
 > Slice 6 状态（2026-08-02）：已实现 `POST /api/v1/job-imports`、camelCase Response DTO、FastAPI Dependency Injection 和统一错误映射。成功返回 201；无效/不支持 report 返回 422；身份冲突返回 409；未知错误返回不泄漏内部信息的 500。HTTP 集成测试覆盖真实 SQLite 写入、重复导入、部分错误、回滚和 OpenAPI。
 >
-> Slice 7 状态（2026-08-02）：已实现独立 Job Query Read Model、`AbstractJobQueryRepository`、SQLAlchemy 查询实现、`ListJobsUseCase` / `GetJobUseCase`、`GET /api/v1/jobs` 和 `GET /api/v1/jobs/{id}`。支持关键词、城市、最低薪资、远程状态、来源、稳定排序和分页；多来源 Job 只返回一次，主来源按 `last_seen_at DESC + source_id ASC` 确定；列表固定两条 SELECT、详情一条 SELECT。当前后端测试为 77 passed。
+> Slice 7 状态（2026-08-02）：已实现独立 Job Query Read Model、`AbstractJobQueryRepository`、SQLAlchemy 查询实现、`ListJobsUseCase` / `GetJobUseCase`、`GET /api/v1/jobs` 和 `GET /api/v1/jobs/{id}`。支持关键词、城市、最低薪资、远程状态、来源、稳定排序和分页；多来源 Job 只返回一次，主来源按 `last_seen_at DESC + source_id ASC` 确定；列表固定两条 SELECT、详情一条 SELECT。
+>
+> Slice 8 状态（2026-08-02）：已实现 `GET /api/v1/job-imports/{importId}`、独立审计 Read Model、Query Repository 和结构化 404。返回批次统计、SearchIntent/Source Snapshot 与按 inputIndex 排序的逐条 outcome；数据库可保留错误 raw，但公开 API 仅返回 index/stage/code/message。详情固定两条 SELECT，无写 SQL。当前后端测试为 88 passed。
 
 ### 第 1 步：技术基线落地
 

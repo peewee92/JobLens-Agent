@@ -104,7 +104,7 @@ GET /api/v1/jobs?city=上海&minSalaryK=20&remoteStatus=confirmed&q=React&limit=
 GET /api/v1/job-imports/{importId}
 ```
 
-返回批次汇总 + 关联的 `SearchIntent Snapshot` / `Source Snapshot`。
+返回批次汇总、关联的 `SearchIntent Snapshot` / `Source Snapshot`，以及按 `inputIndex` 排序的逐条 outcome。数据库可保留错误 raw 用于诊断，但普通 API 只返回 index/stage/code/message。
 
 ---
 
@@ -215,6 +215,7 @@ COLLECTOR-CONTRACT §5 的 P1 插件同步也建议携带上述快照字段。
 - [x] Job List / Detail 返回原始 `sourceUrl`，前端可据此打开 BOSS URL；
 - [x] 导入批次保存 `SearchIntent Snapshot` / `Source Snapshot` / `Collector Version` / `Collected At`；
 - [x] 单条失败不中断整批，错误计入响应；
+- [x] 可通过 `GET /api/v1/job-imports/{importId}` 查询批次统计、快照和逐条 outcome，且不暴露错误 raw；
 - [x] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
 
-> 当前核心导入与 Job Pool 查询验收已完成；`candidates` 完整持久化、导入批次详情查询和最小 Web E2E 仍是 P0-1 剩余项。完成这些收尾后再进入 Phase 2，不提前做 Match / Profile 抽取。
+> 当前核心导入、Job Pool 查询和导入批次审计详情已完成；`candidates` 完整持久化与最小 Web E2E 仍是 P0-1 剩余项。完成这些收尾后再进入 Phase 2，不提前做 Match / Profile 抽取。
