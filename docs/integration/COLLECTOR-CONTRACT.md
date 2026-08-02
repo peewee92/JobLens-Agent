@@ -36,7 +36,7 @@ v1.3.1 主要结构：
 }
 ```
 
-Agent 系统应优先导入 `jobs`，同时保留 `candidates` 作为诊断和后续重新筛选数据。
+Agent 系统优先导入 `jobs`，并按 `JobImport` 完整持久化 `candidates`，作为诊断和后续重新筛选数据；普通 API 只公开 candidate 汇总，不公开 raw。
 
 ---
 

@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`、`POST /api/v1/job-imports`、Job Pool 列表/详情查询，以及导入批次审计详情 API。尚未实现最小 Web 页面和 candidates 完整持久化。
+当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`、`POST /api/v1/job-imports`、Job Pool 列表/详情查询、导入批次审计详情，以及 candidates 完整持久化。P0-1 主要剩余最小 Web E2E。
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ curl -i \
 curl http://127.0.0.1:8000/api/v1/job-imports/imp_xxx
 ```
 
-返回批次统计、快照和按 `inputIndex` 排序的逐条 outcome；数据库中保存的错误 raw 不进入普通 API。
+返回批次统计、快照、candidateSummary 和按 `inputIndex` 排序的逐条 outcome；数据库中保存的错误 raw 与 candidateRaw 都不进入普通 API。
 
 ### Query Job Pool
 
@@ -85,12 +85,10 @@ uv run pytest
 
 ## Migration commands
 
-Alembic 已指向 `Base.metadata`，第一条业务迁移为 `20260801_0001_create_job_data_foundation.py`，创建：
+Alembic 已指向 `Base.metadata`：
 
-- `jobs`
-- `job_sources`
-- `job_imports`
-- `job_import_items`
+- `20260801_0001_create_job_data_foundation.py` 创建 `jobs / job_sources / job_imports / job_import_items`；
+- `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`。
 
 ```bash
 # 查看当前迁移版本
@@ -144,7 +142,7 @@ services/backend/
 │   ├── repositories/    # SQLAlchemy write/query repositories + Unit of Work
 │   └── db/
 │       ├── session.py  # Engine / Session / SQLite FK enforcement
-│       └── models/     # Job / JobSource / JobImport / JobImportItem ORM
+│       └── models/     # Job / Source / Import / Item / Candidate ORM
 └── tests/              # health / ORM / migration / import / query / architecture / HTTP integration tests
 ```
 

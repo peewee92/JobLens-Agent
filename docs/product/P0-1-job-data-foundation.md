@@ -157,10 +157,15 @@ created_at
 
 用于记录 report 中每一条输入的处理结果：`import_id` / `input_index` / `job_id` / `job_source_id` / `outcome` / `error_code` / `error_message`。它不重复保存 `sourceRaw`。
 
-### 5.5 持久化
+### 5.5 job_import_candidates（候选证据）
+
+每个 `report.candidates` 条目作为不可变批次证据保存：`import_id` / `candidate_index` / `keep` / `decision` / `pending_detail` / `source_job_id` / `source_url` / `title` / `company` / `candidate_raw`。Candidate 不直接创建 Job；原始 JSON 完整保存，普通 API 只返回 kept/rejected/unknown 汇总。
+
+### 5.6 持久化
 
 - MVP：SQLite（ADR-0003）；
-- 第一条业务 Migration：`jobs` / `job_sources` / `job_imports` / `job_import_items`；
+- Migration 0001：`jobs` / `job_sources` / `job_imports` / `job_import_items`；
+- Migration 0002：`job_import_candidates`；
 - 身份、来源和远程状态决策：ADR-0007；
 - 迁移：Alembic（ADR-0002）。
 
@@ -216,6 +221,8 @@ COLLECTOR-CONTRACT §5 的 P1 插件同步也建议携带上述快照字段。
 - [x] 导入批次保存 `SearchIntent Snapshot` / `Source Snapshot` / `Collector Version` / `Collected At`；
 - [x] 单条失败不中断整批，错误计入响应；
 - [x] 可通过 `GET /api/v1/job-imports/{importId}` 查询批次统计、快照和逐条 outcome，且不暴露错误 raw；
+- [x] `candidates` 按 import 完整持久化，保留 raw 和原始顺序，致命错误时同事务回滚；
+- [x] 审计详情返回 candidateSummary，但不暴露 candidateRaw；
 - [x] 提供至少 1 个 pytest 用例：幂等导入断言 created≈0。
 
-> 当前核心导入、Job Pool 查询和导入批次审计详情已完成；`candidates` 完整持久化与最小 Web E2E 仍是 P0-1 剩余项。完成这些收尾后再进入 Phase 2，不提前做 Match / Profile 抽取。
+> P0-1 数据地基后端核心能力已完成，主要剩余最小 Web E2E。完成前端闭环后再进入 Phase 2，不提前做 Match / Profile 抽取。

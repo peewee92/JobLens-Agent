@@ -43,7 +43,7 @@ JobLens 内部统一、稳定的岗位实体，保存用于查询、匹配和排
 - 保存 `firstSeenAt` / `lastSeenAt` / `collectedAt`；
 - `sourceJobId` 只在具体 `source` 内有意义，不能作为 `Job.id`；
 - `sourceRaw` 属于 JobSource，普通 Job API 默认不返回；
-- JobSource 表示来源身份，不表示某一次 Import 事件。批次逐条处理结果由 `JobImportItem` 记录。
+- JobSource 表示来源身份，不表示某一次 Import 事件。批次逐条处理结果由 `JobImportItem` 记录；Collector 的完整筛选候选证据由 `JobImportCandidate` 记录，不直接进入 Job Pool。
 
 详细决策见 ADR-0007。
 

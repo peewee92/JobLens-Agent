@@ -67,7 +67,8 @@ Job Pool 页面
 | 6 | `POST /api/v1/job-imports` | 已完成 |
 | 7 | Job Pool Query API | 已完成 |
 | 8 | Job Import Audit Detail API | 已完成 |
-| 9 | 最小 Web E2E | 下一步 |
+| 9 | Candidate Evidence Persistence | 已完成 |
+| 10 | 最小 Web E2E | 下一步 |
 
 采用该顺序的原因：
 
@@ -89,7 +90,9 @@ Job Pool 页面
 >
 > Slice 7 状态（2026-08-02）：已实现独立 Job Query Read Model、`AbstractJobQueryRepository`、SQLAlchemy 查询实现、`ListJobsUseCase` / `GetJobUseCase`、`GET /api/v1/jobs` 和 `GET /api/v1/jobs/{id}`。支持关键词、城市、最低薪资、远程状态、来源、稳定排序和分页；多来源 Job 只返回一次，主来源按 `last_seen_at DESC + source_id ASC` 确定；列表固定两条 SELECT、详情一条 SELECT。
 >
-> Slice 8 状态（2026-08-02）：已实现 `GET /api/v1/job-imports/{importId}`、独立审计 Read Model、Query Repository 和结构化 404。返回批次统计、SearchIntent/Source Snapshot 与按 inputIndex 排序的逐条 outcome；数据库可保留错误 raw，但公开 API 仅返回 index/stage/code/message。详情固定两条 SELECT，无写 SQL。当前后端测试为 88 passed。
+> Slice 8 状态（2026-08-02）：已实现 `GET /api/v1/job-imports/{importId}`、独立审计 Read Model、Query Repository 和结构化 404。返回批次统计、SearchIntent/Source Snapshot 与按 inputIndex 排序的逐条 outcome；数据库可保留错误 raw，但公开 API 仅返回 index/stage/code/message。详情固定两条 SELECT，无写 SQL。
+>
+> Slice 9 状态（2026-08-02）：新增 `job_import_candidates` 与 Alembic 0002，完整保存每次 import 的 candidate raw 和 best-effort 诊断字段。Candidates 与 Job/Source/Item 同事务提交，重复导入形成新的不可变快照，致命冲突整体回滚；审计详情增加 candidateSummary，但不公开 candidateRaw。当前后端测试为 92 passed。
 
 ### 第 1 步：技术基线落地
 

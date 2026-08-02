@@ -58,7 +58,7 @@ SQLAlchemy 实现固定使用两条 SELECT：一条批次、一条 items；不�
 - items 当前不分页，超大批次响应可能较大；
 - 尚无管理员 raw 诊断接口；
 - 尚未实现批次列表、重跑或删除；
-- candidates 仍未完整持久化。
+- candidate raw 不通过普通审计 API 返回；完整持久化与汇总规则见 ADR-0013。
 
 ## Verification
 

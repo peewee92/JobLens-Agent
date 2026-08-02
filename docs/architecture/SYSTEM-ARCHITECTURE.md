@@ -255,6 +255,7 @@ evidence
 search_intents
 job_imports
 job_import_items
+job_import_candidates
 jobs
 job_sources
 job_requirements
@@ -269,4 +270,4 @@ eval_runs
 trace_spans
 ```
 
-P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007。
+P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013。
