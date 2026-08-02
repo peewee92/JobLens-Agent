@@ -1,6 +1,9 @@
 """FastAPI dependency providers (Dependency Injection)."""
 from collections.abc import Callable
 
+from fastapi import Depends
+
+from app.application.job_imports import ImportJobsUseCase
 from app.application.ports import AbstractUnitOfWork
 from app.db.session import SessionLocal
 from app.repositories import SqlAlchemyUnitOfWork
@@ -16,3 +19,11 @@ def get_uow_factory() -> UnitOfWorkFactory:
     """
 
     return lambda: SqlAlchemyUnitOfWork(SessionLocal)
+
+
+def get_import_jobs_use_case(
+    uow_factory: UnitOfWorkFactory = Depends(get_uow_factory),
+) -> ImportJobsUseCase:
+    """Assemble the HTTP adapter around the stable application use case."""
+
+    return ImportJobsUseCase(uow_factory)
