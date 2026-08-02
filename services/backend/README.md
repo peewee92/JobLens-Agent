@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key，以及 Repository + Unit of Work 事务边界。尚未实现 ImportJobsUseCase、Job Import API 和 Job Pool API。
+当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work，以及 `ImportJobsUseCase` 的幂等导入与批次统计。尚未实现 Job Import HTTP API 和 Job Pool API。
 
 ## Prerequisites
 
@@ -89,13 +89,13 @@ services/backend/
 │   ├── domain/
 │   │   └── jobs/       # RemoteStatus / RemoteConfidence / ImportOutcome
 │   ├── application/
-│   │   ├── job_imports/ # Adapter / Normalizer / Canonical Key
+│   │   ├── job_imports/ # Adapter / Normalizer / Canonical Key / ImportJobsUseCase
 │   │   └── ports/       # Repository / Unit of Work 接口
 │   ├── repositories/    # SQLAlchemy Repository + Unit of Work
 │   └── db/
 │       ├── session.py  # Engine / Session / SQLite FK enforcement
 │       └── models/     # Job / JobSource / JobImport / JobImportItem ORM
-└── tests/              # health / ORM / migration / adapter / repository / transaction tests
+└── tests/              # health / ORM / migration / adapter / repository / transaction / use-case tests
 ```
 
 分层调用方向：`API → Application → Domain → Repository → Database`。

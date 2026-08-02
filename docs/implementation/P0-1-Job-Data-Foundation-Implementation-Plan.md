@@ -63,8 +63,8 @@ Job Pool 页面
 | 2 | ORM Model + Migration | 已完成 |
 | 3 | Collector Adapter + Normalizer + Canonical Key | 已完成 |
 | 4 | Repository + Transaction Boundary | 已完成 |
-| 5 | ImportJobsUseCase + Idempotency | 下一步 |
-| 6 | `POST /api/v1/job-imports` | 计划中 |
+| 5 | ImportJobsUseCase + Idempotency | 已完成 |
+| 6 | `POST /api/v1/job-imports` | 下一步 |
 | 7 | Job Pool Query API | 计划中 |
 | 8 | 最小 Web E2E | 计划中 |
 
@@ -80,7 +80,9 @@ Job Pool 页面
 
 每层都可以独立测试，避免在 Router 中同时完成 JSON 解析、去重、SQLAlchemy 写入和事务处理。
 
-> Slice 4 状态（2026-08-02）：已新增 Application-owned Repository / Unit of Work Port、SQLAlchemy Repository、SQLAlchemy Unit of Work 和 FastAPI UoW Factory。Repository 只负责 query / add / update / flush，不负责 commit / rollback；Application 在一个 Unit of Work 中显式提交整条业务链。事务测试证明：显式 commit 后四表共同持久化，忘记 commit 或中途异常时四表全部回滚。当前后端测试为 34 passed。
+> Slice 4 状态（2026-08-02）：已新增 Application-owned Repository / Unit of Work Port、SQLAlchemy Repository、SQLAlchemy Unit of Work 和 FastAPI UoW Factory。Repository 只负责 query / add / update / flush，不负责 commit / rollback；Application 在一个 Unit of Work 中显式提交整条业务链。事务测试证明：显式 commit 后四表共同持久化，忘记 commit 或中途异常时四表全部回滚。
+>
+> Slice 5 状态（2026-08-02）：已实现 `ImportJobsUseCase`，完成首次 `created`、重复导入 `updated`、单条 Adapter/Normalizer 问题 `error + skipped`、批次统计不变量和单事务提交。身份冲突会回滚整个新批次；不支持的 Collector 版本在事务前失败。当前后端测试为 41 passed。
 
 ### 第 1 步：技术基线落地
 
