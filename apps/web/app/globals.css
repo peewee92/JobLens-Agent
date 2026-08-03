@@ -832,6 +832,69 @@ h3 {
   border-color: #f5c6c1;
 }
 
+.requirement-section {
+  display: grid;
+  gap: 16px;
+}
+
+.requirement-lede {
+  margin: 6px 0 0;
+  font-size: 14px;
+}
+
+.requirement-run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.requirement-list {
+  display: grid;
+  gap: 14px;
+}
+
+.requirement-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.requirement-card p {
+  margin: 14px 0 10px;
+  line-height: 1.65;
+}
+
+.requirement-card blockquote {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--brand);
+  background: white;
+  color: #465268;
+  line-height: 1.6;
+}
+
+.importance-must_have {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: #f5c6c1;
+}
+
+.importance-preferred {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: #efd99a;
+}
+
+.importance-bonus {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: #bfe6cf;
+}
+
 @media (max-width: 800px) {
   .filter-form,
   .detail-grid,

@@ -2,6 +2,14 @@ export type RemoteStatus = "confirmed" | "rejected" | "unknown";
 export type RemoteConfidence = "high" | "medium" | "low";
 export type JobSort = "latest" | "salaryDesc" | "salaryAsc";
 export type ImportOutcome = "created" | "updated" | "skipped" | "error";
+export type RequirementType =
+  | "skill"
+  | "experience"
+  | "education"
+  | "responsibility"
+  | "domain"
+  | "constraint";
+export type RequirementImportance = "must_have" | "preferred" | "bonus";
 export type EvidenceType =
   | "work"
   | "project"
@@ -141,6 +149,34 @@ export interface JobPage {
   limit: number;
   offset: number;
   items: JobListItem[];
+}
+
+export interface JobRequirement {
+  id: string;
+  jobId: string;
+  extractionId: string;
+  requirementIndex: number;
+  type: RequirementType;
+  originalText: string;
+  normalizedCapability: string | null;
+  importance: RequirementImportance;
+  evidenceSpan: string;
+  confidence: number;
+  extractorVersion: string;
+}
+
+export interface JobRequirementExtraction {
+  extractionId: string;
+  jobId: string;
+  inputHash: string;
+  extractorVersion: string;
+  provider: string;
+  model: string;
+  promptVersion: string;
+  traceRunId: string;
+  requirementCount: number;
+  createdAt: string;
+  requirements: JobRequirement[];
 }
 
 export interface ImportResultError {

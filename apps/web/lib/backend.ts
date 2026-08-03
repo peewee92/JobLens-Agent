@@ -6,6 +6,7 @@ import type {
   JobImportDetail,
   AcceptedProfileEvalBaseline,
   JobPage,
+  JobRequirementExtraction,
   ProfileEvalRunDetail,
   ProfileEvalRunPage,
   SearchIntent,
@@ -85,6 +86,14 @@ export function fetchJobPage(query: URLSearchParams): Promise<JobPage> {
 
 export function fetchJobDetail(jobId: string): Promise<JobDetail> {
   return backendJson<JobDetail>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function fetchLatestJobRequirements(
+  jobId: string,
+): Promise<JobRequirementExtraction | null> {
+  return optionalJson<JobRequirementExtraction>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/requirements`,
+  );
 }
 
 export function fetchImportDetail(importId: string): Promise<JobImportDetail> {
