@@ -1,0 +1,40 @@
+{
+  "extractionId": "reqrun_example",
+  "jobId": "job_example",
+  "inputHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "extractorVersion": "requirement-extractor-v1",
+  "provider": "fixture",
+  "model": "fixture-requirement-extractor",
+  "promptVersion": "requirement-extraction-v1",
+  "traceRunId": "run_example",
+  "requirementCount": 2,
+  "createdAt": "2026-08-03T08:00:00Z",
+  "requirements": [
+    {
+      "id": "req_example_1",
+      "jobId": "job_example",
+      "extractionId": "reqrun_example",
+      "requirementIndex": 0,
+      "type": "skill",
+      "originalText": "熟练掌握 Python 和 FastAPI",
+      "normalizedCapability": "Python",
+      "importance": "must_have",
+      "evidenceSpan": "熟练掌握 Python 和 FastAPI",
+      "confidence": 0.95,
+      "extractorVersion": "requirement-extractor-v1"
+    },
+    {
+      "id": "req_example_2",
+      "jobId": "job_example",
+      "extractionId": "reqrun_example",
+      "requirementIndex": 1,
+      "type": "experience",
+      "originalText": "具备 3 年以上后端开发经验",
+      "normalizedCapability": "Backend Development Experience",
+      "importance": "must_have",
+      "evidenceSpan": "具备 3 年以上后端开发经验",
+      "confidence": 0.94,
+      "extractorVersion": "requirement-extractor-v1"
+    }
+  ]
+}
