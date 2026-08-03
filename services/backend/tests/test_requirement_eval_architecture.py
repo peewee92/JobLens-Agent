@@ -49,17 +49,19 @@ def test_requirement_eval_router_does_not_run_provider_or_touch_repositories() -
     )
 
 
-def test_requirement_eval_repository_does_not_manage_transactions() -> None:
-    tree = ast.parse(
-        _source("app/repositories/sqlalchemy_requirement_eval_repository.py")
-    )
-    forbidden_calls = {"commit", "rollback", "delete"}
-    calls = {
-        node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert not (calls & forbidden_calls)
+def test_requirement_eval_repositories_do_not_manage_transactions() -> None:
+    for path in [
+        "app/repositories/sqlalchemy_requirement_eval_repository.py",
+        "app/repositories/sqlalchemy_requirement_eval_review_repository.py",
+    ]:
+        tree = ast.parse(_source(path))
+        forbidden_calls = {"commit", "rollback", "delete"}
+        calls = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        assert not (calls & forbidden_calls), path
 
 
 def test_requirement_release_eligibility_requires_live_mode_and_gate_pass() -> None:
@@ -82,3 +84,9 @@ def test_requirement_eval_use_cases_remain_application_only() -> None:
         for module in imports
         for prefix in forbidden_prefixes
     )
+
+
+def test_requirement_eval_router_does_not_implement_review_policy() -> None:
+    source = _source("app/api/v1/requirement_evals.py")
+    for forbidden in ["release_eligible", "gate_passed", "mode ==", "mode !="]:
+        assert forbidden not in source

@@ -122,8 +122,11 @@ JobLens-Agent/
 - [Profile Eval Review Web Boundary ADR](docs/decisions/0020-profile-eval-review-web-boundary.md)
 - [Versioned JobRequirement Fact Base ADR](docs/decisions/0021-versioned-job-requirement-fact-base.md)
 - [Requirement Eval Run / Live Eligibility ADR](docs/decisions/0022-requirement-eval-runs-and-live-release-eligibility.md)
-- [Requirement Eval Read API Contract](docs/integration/REQUIREMENT-EVAL-API-CONTRACT.md)
-- [Requirement Eval 学习记录](docs/implementation/P0-3B-Requirement-Eval-Learning-Record.md)
+- [Requirement Eval Governance API Contract](docs/integration/REQUIREMENT-EVAL-API-CONTRACT.md)
+- [Requirement Eval Run 学习记录](docs/implementation/P0-3B-Requirement-Eval-Learning-Record.md)
+- [Requirement Eval Human Review ADR](docs/decisions/0023-requirement-eval-human-review-and-accepted-baseline.md)
+- [Requirement Eval Human Review 实施计划](docs/implementation/P0-3B2-Requirement-Eval-Human-Review-Implementation-Plan.md)
+- [Requirement Eval Human Review 学习记录](docs/implementation/P0-3B2-Requirement-Eval-Human-Review-Learning-Record.md)
 
 ## 当前阶段
 
@@ -141,7 +144,8 @@ Phase 2B-5：Eval Review Web ✅
 Phase 2B-6：Credential-backed Live Provider Quality ⏳ 等待运行凭据
 Phase 3A：JobRequirement Fact Base + Fixture Eval + Web ✅
 Phase 3B-1：Requirement Eval Run + Baseline Comparison + Read API ✅
-Phase 3B-2：Credential-backed Quality + Human Review ← 下一阶段
+Phase 3B-2：Human Review + Accepted Baseline + Web ✅
+Phase 3B-3：Credential-backed Quality + 20 Real Jobs Review ← 下一阶段
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
 Phase 6：Target Cohort + Skill Gap

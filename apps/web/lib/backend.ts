@@ -9,6 +9,9 @@ import type {
   JobRequirementExtraction,
   ProfileEvalRunDetail,
   ProfileEvalRunPage,
+  AcceptedRequirementEvalBaseline,
+  RequirementEvalRunDetail,
+  RequirementEvalRunPage,
   SearchIntent,
   UserProfile,
 } from "@/lib/contracts";
@@ -143,5 +146,32 @@ export function fetchProfileEvalRun(
 export function fetchAcceptedProfileEvalBaseline(): Promise<AcceptedProfileEvalBaseline | null> {
   return optionalJson<AcceptedProfileEvalBaseline>(
     "/api/v1/profile-evals/baseline/accepted",
+  );
+}
+
+export function fetchRequirementEvalRuns(
+  limit = 20,
+  offset = 0,
+): Promise<RequirementEvalRunPage> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return backendJson<RequirementEvalRunPage>(
+    `/api/v1/requirement-evals?${query}`,
+  );
+}
+
+export function fetchRequirementEvalRun(
+  evalRunId: string,
+): Promise<RequirementEvalRunDetail> {
+  return backendJson<RequirementEvalRunDetail>(
+    `/api/v1/requirement-evals/${encodeURIComponent(evalRunId)}`,
+  );
+}
+
+export function fetchAcceptedRequirementEvalBaseline(): Promise<AcceptedRequirementEvalBaseline | null> {
+  return optionalJson<AcceptedRequirementEvalBaseline>(
+    "/api/v1/requirement-evals/baseline/accepted",
   );
 }

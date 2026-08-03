@@ -1,13 +1,15 @@
 # JobLens Web
 
-Browser product loop for Job Data, confirmed career context, grounded Profile proposals and Profile Eval governance.
+Browser product loop for Job Data, confirmed career context, grounded Profile proposals, Profile Eval governance and Requirement Eval governance.
 
 ## Current routes
 
 ```text
 /profile                    Generate/review Profile proposal, then confirm Profile/Evidence and SearchIntent
-/evals/profile              View Profile Eval history and accepted baseline
-/evals/profile/{evalRunId}  Inspect cases/Trace IDs and submit immutable Review
+/evals/profile                  View Profile Eval history and accepted baseline
+/evals/profile/{evalRunId}      Inspect Profile cases/Trace IDs and submit immutable Review
+/evals/requirements             View Requirement Eval history and accepted baseline
+/evals/requirements/{evalRunId} Inspect Requirement cases/Trace IDs and submit immutable Review
 /import                     Upload Collector report JSON
 /imports/{importId}         View import audit detail
 /jobs                       Filtered and paginated Job Pool
@@ -22,6 +24,7 @@ Browser
 → review/apply in local form state
 → PUT /api/profile | PUT /api/search-intent | POST /api/job-imports
 → POST /api/profile-evals/{id}/review
+→ POST /api/requirement-evals/{id}/review
 → POST /api/jobs/{id}/requirement-extractions
 → FastAPI Workflow / Application Use Cases
 ```
@@ -61,6 +64,7 @@ Open:
 ```text
 http://127.0.0.1:3000/profile
 http://127.0.0.1:3000/evals/profile
+http://127.0.0.1:3000/evals/requirements
 http://127.0.0.1:3000/import
 http://127.0.0.1:3000/jobs
 ```
@@ -74,6 +78,7 @@ pnpm typecheck
 pnpm build
 pnpm smoke:e2e
 pnpm smoke:eval-review
+pnpm smoke:requirement-review
 ```
 
 `smoke:e2e` creates a temporary SQLite database, migrates it, starts real FastAPI and production Next processes, then verifies:
@@ -91,9 +96,11 @@ DOCX upload → extracted text → Profile Proposal
 → Import audit detail
 ```
 
-`smoke:eval-review` seeds deterministic test-only Fixture/failed-live/eligible-live runs, then verifies history rendering, failed-case Trace display, Fixture 422, reject 201, accept 201, duplicate 409 and accepted baseline refresh through real FastAPI and production Next processes.
+`smoke:eval-review` seeds deterministic test-only Profile Fixture/failed-live/eligible-live runs, then verifies history rendering, failed-case Trace display, Fixture 422, reject 201, accept 201, duplicate 409 and accepted baseline refresh.
 
-Both scripts clean up processes and temporary data after completion.
+`smoke:requirement-review` runs the equivalent Requirement governance path and additionally shows missing Requirement and wrong-importance evidence through real FastAPI and production Next processes.
+
+All smoke scripts clean up processes and temporary data after completion.
 
 ## Boundary rules
 
@@ -108,7 +115,7 @@ Both scripts clean up processes and temporary data after completion.
 ## Out of scope
 
 - OCR, image resumes, encrypted PDF passwords and legacy DOC;
-- live-provider Profile quality claims without a credential-backed Eval run;
+- live-provider Profile or Requirement quality claims without credential-backed Eval runs and human review;
 - Match / Ranking / Agent Chat;
 - authentication;
 - favorites and ignore state;

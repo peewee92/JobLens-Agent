@@ -37,6 +37,7 @@ JOB_REQUIREMENT_TABLES = {
 REQUIREMENT_EVAL_TABLES = {
     "requirement_eval_runs",
     "requirement_eval_case_results",
+    "requirement_eval_reviews",
 }
 EXPECTED_TABLES = (
     JOB_TABLES
@@ -175,6 +176,26 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         and item["referred_table"] == "requirement_eval_runs"
         for item in requirement_eval_foreign_keys
     )
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("requirement_eval_reviews")
+    } == {"uq_requirement_eval_reviews_eval_run_id"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("requirement_eval_reviews")
+    } >= {"ck_requirement_eval_reviews_decision"}
+    requirement_eval_review_columns = {
+        item["name"]: item for item in inspector.get_columns("requirement_eval_reviews")
+    }
+    assert requirement_eval_review_columns["eval_run_id"]["type"].length == 90
+    requirement_eval_review_foreign_keys = inspector.get_foreign_keys(
+        "requirement_eval_reviews"
+    )
+    assert any(
+        item["constrained_columns"] == ["eval_run_id"]
+        and item["referred_table"] == "requirement_eval_runs"
+        for item in requirement_eval_review_foreign_keys
+    )
     requirement_eval_case_foreign_keys = inspector.get_foreign_keys(
         "requirement_eval_case_results"
     )
@@ -190,6 +211,19 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         item["constrained_columns"] == ["job_id"]
         and item["referred_table"] == "jobs"
         for item in extraction_foreign_keys
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260803_0008")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        JOB_TABLES
+        | CAREER_CONTEXT_TABLES
+        | TRACE_TABLES
+        | PROFILE_EVAL_TABLES
+        | JOB_REQUIREMENT_TABLES
+        | {"requirement_eval_runs", "requirement_eval_case_results"}
     )
     engine.dispose()
 

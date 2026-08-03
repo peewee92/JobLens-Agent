@@ -24,7 +24,8 @@ export default function RootLayout({children}: {children: ReactNode}) {
             </Link>
             <nav className="site-nav" aria-label="主导航">
               <Link href="/profile">职业画像</Link>
-              <Link href="/evals/profile">模型评测</Link>
+              <Link href="/evals/profile">画像评测</Link>
+              <Link href="/evals/requirements">要求评测</Link>
               <Link href="/jobs">岗位池</Link>
               <Link href="/import">导入岗位</Link>
             </nav>

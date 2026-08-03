@@ -158,6 +158,56 @@ def test_requirement_eval_cli_rejects_missing_baseline_without_trace(
     engine.dispose()
 
 
+def test_fixture_cli_rejects_accepted_baseline_before_any_workflow_run(
+    tmp_path: Path,
+) -> None:
+    database_url, env = _environment(
+        tmp_path,
+        "requirement-eval-fixture-accepted-baseline.db",
+        "fixture",
+    )
+    _migrate(env)
+
+    result = _run(env, "--accepted-baseline")
+
+    assert result.returncode == 1
+    assert "only valid for a live Provider Eval" in result.stdout
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+        assert int(
+            session.scalar(select(func.count()).select_from(RequirementEvalRunORM))
+            or 0
+        ) == 0
+    engine.dispose()
+
+
+def test_live_cli_rejects_missing_accepted_baseline_before_provider_setup(
+    tmp_path: Path,
+) -> None:
+    database_url, env = _environment(
+        tmp_path,
+        "requirement-eval-live-accepted-baseline.db",
+        "openai",
+    )
+    env["REQUIREMENT_EXTRACTOR_MODEL"] = ""
+    env["OPENAI_API_KEY"] = ""
+    _migrate(env)
+
+    result = _run(env, "--accepted-baseline")
+
+    assert result.returncode == 1
+    assert "No human-accepted live Requirement Eval baseline exists" in result.stdout
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+        assert int(
+            session.scalar(select(func.count()).select_from(RequirementEvalRunORM))
+            or 0
+        ) == 0
+    engine.dispose()
+
+
 def test_requirement_eval_cli_rejects_disabled_provider_without_trace(
     tmp_path: Path,
 ) -> None:

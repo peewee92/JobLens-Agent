@@ -314,6 +314,86 @@ export interface ProfileEvalReviewPayload {
   notes: string;
 }
 
+export type RequirementEvalMode = "fixture" | "live";
+export type RequirementEvalReviewDecision = "accepted" | "rejected";
+
+export interface RequirementEvalRunSummary {
+  id: string;
+  datasetVersion: string;
+  mode: RequirementEvalMode;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  gateVersion: string;
+  baselineRunId: string | null;
+  totalCases: number;
+  passedCases: number;
+  casePassRate: number;
+  workflowSuccessRate: number;
+  capabilityRecall: number;
+  importanceAccuracy: number;
+  forbiddenCapabilityRate: number;
+  gatePassed: boolean;
+  releaseEligible: boolean;
+  createdAt: string;
+}
+
+export interface RequirementEvalReview {
+  id: string;
+  evalRunId: string;
+  decision: RequirementEvalReviewDecision;
+  reviewer: string;
+  notes: string;
+  reviewedAt: string;
+}
+
+export interface RequirementEvalCaseResult {
+  caseId: string;
+  traceRunId: string | null;
+  workflowSucceeded: boolean;
+  passed: boolean;
+  missingRequirements: string[];
+  wrongImportance: string[];
+  observedForbiddenCapabilities: string[];
+  actualRequirements: string[];
+  error: string | null;
+}
+
+export interface RequirementEvalComparison {
+  baselineRunId: string;
+  casePassRateDelta: number;
+  workflowSuccessRateDelta: number;
+  capabilityRecallDelta: number;
+  importanceAccuracyDelta: number;
+  forbiddenCapabilityRateDelta: number;
+}
+
+export interface RequirementEvalRunDetail {
+  summary: RequirementEvalRunSummary;
+  cases: RequirementEvalCaseResult[];
+  comparison: RequirementEvalComparison | null;
+  review: RequirementEvalReview | null;
+}
+
+export interface RequirementEvalRunPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: RequirementEvalRunSummary[];
+}
+
+export interface AcceptedRequirementEvalBaseline {
+  review: RequirementEvalReview;
+  run: RequirementEvalRunSummary;
+}
+
+export interface RequirementEvalReviewPayload {
+  decision: RequirementEvalReviewDecision;
+  reviewer: string;
+  notes: string;
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;

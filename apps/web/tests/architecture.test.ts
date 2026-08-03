@@ -94,6 +94,31 @@ test("Profile Eval pages consume review facts instead of implementing backend po
   }
 });
 
+test("Requirement Eval Review Client calls only its same-origin command proxy", async () => {
+  const source = await readFile(
+    join(webRoot, "components/requirement-eval-review-form.tsx"),
+    "utf8",
+  );
+  assert.match(source, /fetch\(\s*`\/api\/requirement-evals\/\$\{encodeURIComponent\(run\.id\)\}\/review`/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
+  assert.doesNotMatch(source, /run_requirement_eval|OPENAI_API_KEY/);
+});
+
+test("Requirement Eval pages consume review facts instead of implementing backend policy", async () => {
+  const listPage = await readFile(
+    join(webRoot, "app/evals/requirements/page.tsx"),
+    "utf8",
+  );
+  const detailPage = await readFile(
+    join(webRoot, "app/evals/requirements/[id]/page.tsx"),
+    "utf8",
+  );
+  for (const source of [listPage, detailPage]) {
+    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /JOBLENS_BACKEND_URL/);
+  }
+});
+
 test("public contract types exclude raw and internal stream fields", async () => {
   const source = await readFile(join(webRoot, "lib/contracts.ts"), "utf8");
   for (const forbidden of [

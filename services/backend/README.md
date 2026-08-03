@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座，以及 Phase 3B-1 Requirement Eval Run/Case 持久化、Trace 回查、Baseline 对比和只读 API。Profile/Requirement 的真实 Provider 质量仍需运行凭据和人工审查；尚未进入 Eligibility / Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化，以及 Phase 3B-2 不可变人工 Review、Accepted Baseline、Web 审查与 CLI baseline 选择机制。Requirement 的真实 Provider 质量、20 个真实岗位人工验收仍未完成；尚未进入 Eligibility / Match。
 
 ## Prerequisites
 
@@ -142,16 +142,30 @@ uv run python -m scripts.run_requirement_eval
 REQUIREMENT_EXTRACTOR_PROVIDER=fixture \
 uv run python -m scripts.run_requirement_eval \
   --baseline-run-id reqeval_xxx
+
+# Live Provider 使用最近一次人工接受的正式 baseline
+REQUIREMENT_EXTRACTOR_PROVIDER=openai \
+uv run python -m scripts.run_requirement_eval --accepted-baseline
 ```
 
-查询质量证据：
+查询质量证据和正式 baseline：
 
 ```bash
 curl http://127.0.0.1:8000/api/v1/requirement-evals
 curl http://127.0.0.1:8000/api/v1/requirement-evals/reqeval_xxx
+curl http://127.0.0.1:8000/api/v1/requirement-evals/baseline/accepted
 ```
 
-Fixture 10/10 只证明 Dataset / Workflow / Validator / Trace / Gate / Persistence 可重复，`releaseEligible` 始终为 false，不代表真实模型质量。只有 Live Run 且 Gate 通过时才可能成为人工审查候选；当前尚未实现 Requirement 人工 Review 或正式 accepted baseline。
+提交一次不可变人工 Review：
+
+```bash
+curl -X POST \
+  http://127.0.0.1:8000/api/v1/requirement-evals/reqeval_xxx/review \
+  -H 'Content-Type: application/json' \
+  --data '{"decision":"accepted","reviewer":"local-reviewer","notes":"Reviewed every Requirement case and linked Trace before accepting."}'
+```
+
+Fixture 10/10 只证明 Dataset / Workflow / Validator / Trace / Gate / Persistence 可重复，`releaseEligible` 始终为 false，也不能接受或拒绝正式 Review。Gate 失败的 Live Run 只能记录 rejected；只有 Gate 通过且 `releaseEligible=true` 的 Live Run 才能 accepted。Accepted Baseline 是最近一次有效的不可变人工接受记录，不代表本仓库已经完成真实 OpenAI 质量验收。
 
 ### Import Collector report
 
@@ -217,7 +231,8 @@ Alembic 已指向 `Base.metadata`：
 - `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果；
 - `20260803_0006_create_profile_eval_reviews.py` 创建不可变人工 Review 与正式 baseline 治理记录；
 - `20260803_0007_create_job_requirements.py` 创建版本化 JobRequirement Extraction Run 与逐条 Requirement；
-- `20260803_0008_create_requirement_eval_runs.py` 创建不可变 Requirement Eval Run 与逐 Case 结果。
+- `20260803_0008_create_requirement_eval_runs.py` 创建不可变 Requirement Eval Run 与逐 Case 结果；
+- `20260803_0009_create_requirement_eval_reviews.py` 创建不可变 Requirement Eval 人工 Review 与正式 baseline 治理记录。
 
 ```bash
 # 查看当前迁移版本

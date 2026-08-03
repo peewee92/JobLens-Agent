@@ -62,6 +62,7 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
         "job_requirements",
         "requirement_eval_runs",
         "requirement_eval_case_results",
+        "requirement_eval_reviews",
     }
 
     engine.dispose()

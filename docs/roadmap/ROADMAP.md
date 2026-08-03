@@ -147,9 +147,11 @@ Profile 页面可以明确区分：
 - strict Structured Output Adapter、exact `originalText/evidenceSpan` 门禁与 Requirement Trace 已完成；
 - POST 抽取、GET 最新版本、GET 历史版本 API 已完成；
 - 10-case 脱敏 Requirement Eval、Fixture Gate、失败案例解释和独立 CLI 已完成；
-- Requirement Eval Run / Case Result 已不可变持久化，支持 Trace 回查、Fixture/Live 发布资格隔离、历史 baseline 对比与只读 API；
+- Requirement Eval Run / Case Result 已不可变持久化，支持 Trace 回查、Fixture/Live 发布资格隔离和历史 baseline 对比；
+- 不可变 Requirement 人工 Review、Accepted Baseline、CLI baseline 选择、质量历史页与逐 Case Web 审查已完成；
+- Fixture 不能正式 Review，失败 Live 只能 rejected，合格 Live accepted 后才能成为正式 baseline；
 - Job 详情页可显式触发新版本并展示 Requirement ID、importance、evidenceSpan、confidence 与 Trace；
-- 尚未完成真实 Provider 评测、20 个真实岗位人工验收、Requirement 人工 Review 与 accepted baseline，因此不能将 Fixture 结果视为生产质量结论，也不进入 Match。
+- 尚未完成真实 Provider 评测和 20 个真实岗位人工验收，因此当前 Accepted Baseline 机制只有 simulated-live/Smoke 工程证据，不能将其视为生产模型质量结论，也不进入 Match。
 
 ### 验收
 
