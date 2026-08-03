@@ -9,7 +9,8 @@
     "start": "env -u NODE_OPTIONS next start",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "smoke:e2e": "node scripts/smoke-e2e.mjs"
+    "smoke:e2e": "node scripts/smoke-e2e.mjs",
+    "smoke:eval-review": "node scripts/profile-eval-review-smoke.mjs"
   },
   "dependencies": {
     "next": "16.2.12",
