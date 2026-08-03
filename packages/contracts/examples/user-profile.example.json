@@ -1,0 +1,37 @@
+{
+  "id": "prof_example",
+  "version": 1,
+  "headline": "8 年前端经验，正在转向 AI 应用工程",
+  "yearsOfExperience": 8,
+  "skills": [
+    {
+      "id": "skill_react",
+      "name": "React",
+      "level": "strong",
+      "evidenceIds": ["ev_spinach"]
+    },
+    {
+      "id": "skill_agent",
+      "name": "Agent Application Engineering",
+      "level": "working",
+      "evidenceIds": ["ev_spinach", "ev_joblens"]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev_spinach",
+      "key": "spinach-desktop",
+      "type": "work",
+      "summary": "负责 Electron 协作与 Agent 功能。",
+      "source": "confirmed by user"
+    },
+    {
+      "id": "ev_joblens",
+      "key": "joblens",
+      "type": "project",
+      "summary": "构建 FastAPI + Next.js 的求职研究产品。",
+      "source": "confirmed by user"
+    }
+  ],
+  "createdAt": "2026-08-03T00:00:00Z"
+}

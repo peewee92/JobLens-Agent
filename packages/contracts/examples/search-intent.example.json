@@ -1,0 +1,14 @@
+{
+  "id": "intent_example",
+  "version": 1,
+  "targetRoles": ["Agent Engineer", "AI Application Engineer"],
+  "cities": ["武汉"],
+  "remoteAccepted": true,
+  "minimumSalaryK": 20,
+  "seniority": "senior",
+  "employmentTypes": ["full_time"],
+  "excludeKeywords": ["博彩"],
+  "hardConstraints": ["不接受长期驻场"],
+  "softPreferences": ["AI 产品有真实用户"],
+  "createdAt": "2026-08-03T00:00:00Z"
+}

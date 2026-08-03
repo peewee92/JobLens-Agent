@@ -3,46 +3,56 @@
   "$id": "https://joblens.local/schemas/user-profile.schema.json",
   "title": "UserProfile",
   "type": "object",
-  "required": ["id", "version", "headline", "skills", "evidence", "preferences"],
+  "required": [
+    "id",
+    "version",
+    "headline",
+    "yearsOfExperience",
+    "skills",
+    "evidence",
+    "createdAt"
+  ],
   "properties": {
     "id": {"type": "string"},
     "version": {"type": "integer", "minimum": 1},
-    "headline": {"type": "string"},
-    "yearsOfExperience": {"type": ["number", "null"]},
+    "headline": {"type": "string", "minLength": 1},
+    "yearsOfExperience": {"type": ["number", "null"], "minimum": 0},
     "skills": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "level", "evidenceIds"],
+        "required": ["id", "name", "level", "evidenceIds"],
         "properties": {
-          "name": {"type": "string"},
+          "id": {"type": "string"},
+          "name": {"type": "string", "minLength": 1},
           "level": {"enum": ["strong", "working", "basic", "unknown"]},
-          "evidenceIds": {"type": "array", "items": {"type": "string"}}
-        }
+          "evidenceIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string"}
+          }
+        },
+        "additionalProperties": false
       }
     },
     "evidence": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "type", "summary", "source"],
+        "required": ["id", "key", "type", "summary", "source"],
         "properties": {
           "id": {"type": "string"},
-          "type": {"enum": ["work", "project", "education", "achievement", "self_report"]},
-          "summary": {"type": "string"},
-          "source": {"type": "string"}
-        }
+          "key": {"type": "string", "minLength": 1},
+          "type": {
+            "enum": ["work", "project", "education", "achievement", "self_report"]
+          },
+          "summary": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
       }
     },
-    "preferences": {
-      "type": "object",
-      "properties": {
-        "targetRoles": {"type": "array", "items": {"type": "string"}},
-        "cities": {"type": "array", "items": {"type": "string"}},
-        "remoteAccepted": {"type": ["boolean", "null"]},
-        "minimumSalaryK": {"type": ["number", "null"]},
-        "constraints": {"type": "array", "items": {"type": "string"}}
-      }
-    }
-  }
+    "createdAt": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
 }
