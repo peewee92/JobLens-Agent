@@ -57,3 +57,11 @@ def new_search_intent_id() -> str:
 
 def new_trace_run_id() -> str:
     return new_prefixed_id("run")
+
+
+def new_profile_eval_run_id() -> str:
+    return new_prefixed_id("eval")
+
+
+def new_profile_eval_case_result_id() -> str:
+    return new_prefixed_id("evalcase")
