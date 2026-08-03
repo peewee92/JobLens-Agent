@@ -17,6 +17,11 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     database_url: str = "sqlite:///./data/joblens.db"
+    profile_extractor_provider: str = "disabled"
+    profile_extractor_model: str = ""
+    profile_extractor_timeout_seconds: float = 60.0
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
 
 
 @lru_cache
