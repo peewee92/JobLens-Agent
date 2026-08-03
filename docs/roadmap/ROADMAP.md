@@ -100,6 +100,12 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 5. `SearchIntent` 定义（目标角色 / 城市 / 远程 / 薪资下限 / 级别 / 硬约束 / 软偏好）；
 6. `Profile Eval` 数据集与断言（从第一个 LLM Pipeline 开始，见 ADR-0005）。
 
+### 当前进度（2026-08-03）
+
+- 手工确认的 Profile + Evidence + Skill 链接已完成；
+- Profile/SearchIntent 不可变版本、`expectedVersion` 冲突保护、API 与 Web 编辑闭环已完成；
+- 下一步是简历文本输入、LLM Structured Output 与 Profile Eval；模型输出必须先作为待确认提案，不能直接成为事实。
+
 ### 验收
 
 Profile 页面可以明确区分：

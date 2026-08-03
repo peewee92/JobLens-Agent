@@ -173,8 +173,9 @@ v0.1 先把“哪些岗位值得投”做扎实。`JobRequirement` 成为后续 
 - 项目；
 - 行业与业务领域；
 - 可迁移优势；
-- 职业偏好；
 - `Evidence` 列表。
+
+职业偏好不再重复内嵌于 UserProfile，由独立版本化 `SearchIntent` 作为唯一事实来源。
 
 ### 关键要求
 
@@ -187,7 +188,7 @@ React
 └── 复杂业务结果
 ```
 
-无证据的能力标签是 v0.1 必须避免的（见 P1 的 `user-profile.schema.json` 增强：`ProfileFact` / `Evidence` / `CapabilityAssessment`）。
+无证据的能力标签是 v0.1 必须避免的（见 P1 的 `user-profile.schema.json` 增强：`ProfileFact` / `Evidence` / `CapabilityAssessment`）。当前手工确认闭环已实现；简历/LLM 抽取只能生成“待确认提案”，不能直接写入已确认 Profile。
 
 ---
 

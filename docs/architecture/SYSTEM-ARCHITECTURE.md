@@ -249,10 +249,12 @@ created_at
 MVP 使用 SQLite（ADR-0003），表建议：
 
 ```text
-users
-user_profiles
-evidence
-search_intents
+users                    （认证/多用户后续）
+user_profiles             # 不可变 Profile 版本
+profile_evidence           # 每个 Profile 版本的确认事实
+profile_skills             # 每个 Profile 版本的技能断言
+profile_skill_evidence     # Skill → Evidence 可追溯关系
+search_intents             # 不可变求职意向版本
 job_imports
 job_import_items
 job_import_candidates
@@ -270,4 +272,4 @@ eval_runs
 trace_spans
 ```
 
-P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013。
+P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013；版本化 Profile / Evidence / SearchIntent 见 ADR-0015。

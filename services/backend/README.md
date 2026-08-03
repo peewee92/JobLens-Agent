@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：HTTP 运行时、配置、数据库基础设施、Alembic 迁移、P0-1 数据模型、Collector Adapter / Normalizer / Canonical Key、Repository + Unit of Work、`ImportJobsUseCase`、`POST /api/v1/job-imports`、Job Pool 列表/详情查询、导入批次审计详情，以及 candidates 完整持久化。P0-1 主要剩余最小 Web E2E。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E，以及 Phase 2A 手工确认的版本化 Profile / Evidence / SearchIntent。下一步是简历输入、LLM Structured Output 与 Profile Eval，不提前进入 Match。
 
 ## Prerequisites
 
@@ -29,6 +29,25 @@ uv run fastapi dev
 - Health：`http://127.0.0.1:8000/api/v1/health`
 - 交互式文档：`http://127.0.0.1:8000/docs`
 - OpenAPI：`http://127.0.0.1:8000/openapi.json`
+
+### Confirm Profile and SearchIntent
+
+当前为本地单用户。首次保存使用 `expectedVersion=0`，之后使用当前版本；陈旧版本返回 409。
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/v1/profile \
+  -H 'Content-Type: application/json' \
+  --data '{"expectedVersion":0,"headline":"Frontend to AI Application Engineer","yearsOfExperience":8,"evidence":[{"key":"joblens","type":"project","summary":"Built JobLens","source":"confirmed by user"}],"skills":[{"name":"Agent Application Engineering","level":"working","evidenceKeys":["joblens"]}]}'
+```
+
+查询当前版本：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/profile
+curl http://127.0.0.1:8000/api/v1/search-intent
+```
+
+每个 Skill 必须关联同一 Profile 请求中的 Evidence key；保存后 API 返回服务器生成的 Evidence IDs。
 
 ### Import Collector report
 
@@ -88,7 +107,8 @@ uv run pytest
 Alembic 已指向 `Base.metadata`：
 
 - `20260801_0001_create_job_data_foundation.py` 创建 `jobs / job_sources / job_imports / job_import_items`；
-- `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`。
+- `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`；
+- `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent。
 
 ```bash
 # 查看当前迁移版本
@@ -133,8 +153,10 @@ services/backend/
 │   ├── core/config.py  # 配置（pydantic-settings）
 │   ├── api/            # HTTP Router / DTO / DI / Error Mapping
 │   ├── domain/
-│   │   └── jobs/       # RemoteStatus / RemoteConfidence / ImportOutcome
+│   │   ├── jobs/       # RemoteStatus / RemoteConfidence / ImportOutcome
+│   │   └── career_context/ # EvidenceType / SkillLevel / Seniority
 │   ├── application/
+│   │   ├── career_context/ # versioned Profile/SearchIntent commands and queries
 │   │   ├── job_imports/ # Adapter / Normalizer / Canonical Key / ImportJobsUseCase
 │   │   ├── job_queries/ # Job Read Models / ListJobs / GetJob
 │   │   ├── job_import_queries/ # Import Audit Read Model / Get Detail
@@ -142,7 +164,7 @@ services/backend/
 │   ├── repositories/    # SQLAlchemy write/query repositories + Unit of Work
 │   └── db/
 │       ├── session.py  # Engine / Session / SQLite FK enforcement
-│       └── models/     # Job / Source / Import / Item / Candidate ORM
+│       └── models/     # Job data + versioned career-context ORM
 └── tests/              # health / ORM / migration / import / query / architecture / HTTP integration tests
 ```
 

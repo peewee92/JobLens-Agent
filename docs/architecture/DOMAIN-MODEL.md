@@ -6,10 +6,12 @@
 
 ### UserProfile
 
-用户的事实底座。由简历/经历抽取，经用户确认。
+用户的事实底座。当前支持手工确认；下一切片接入简历/经历抽取，经用户确认后才形成新版本。
 
 - 关键约束：**技能必须关联 Evidence**，禁止只存“React：熟练”这类无证据标签（v0.1 起步即遵守，P1 进一步拆为 `ProfileFact` / `Evidence` / `CapabilityAssessment`）。
-- 关联：`Evidence`（1—N）。
+- 每次确认创建不可变 `version`，不覆盖旧版本；未来 MatchReport 必须记录使用的 Profile version。
+- 关联：`Evidence`（1—N）与 Skill—Evidence 关系。
+- 职业偏好不重复内嵌，统一由独立 `SearchIntent` 管理。
 
 ### Evidence
 
@@ -23,6 +25,7 @@
 “用户想找什么”的明确、可计算约束。
 
 - 字段见 `search-intent.schema.json`：`targetRoles` / `cities` / `remoteAccepted` / `minimumSalaryK` / `seniority` / `employmentTypes` / `excludeKeywords` / `hardConstraints` / `softPreferences`。
+- 每次确认创建不可变 `version`；保存使用 `expectedVersion` 防止陈旧页面静默覆盖。
 - 作用：驱动 `Eligibility` 硬判定、`Ranking` 软加权、Collector 复现分析快照。
 
 ### Job

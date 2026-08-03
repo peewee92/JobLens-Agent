@@ -113,6 +113,8 @@ JobLens-Agent/
 - [Eval 从第一天开始 ADR](docs/decisions/0005-eval-from-day-one.md)
 - [仓库策略 ADR（Monorepo + Modular Monolith）](docs/decisions/0006-repository-strategy.md)
 - [Job 身份、来源与远程状态 ADR](docs/decisions/0007-job-identity-source-and-remote-model.md)
+- [Profile + SearchIntent 实施计划](docs/implementation/P0-2-Profile-SearchIntent-Implementation-Plan.md)
+- [版本化 Profile / Evidence / SearchIntent ADR](docs/decisions/0015-versioned-profile-evidence-and-search-intent.md)
 
 ## 当前阶段
 
@@ -121,7 +123,8 @@ Phase 0.5 已完成（产品与领域模型冻结）。当前主线（详见 [�
 ```text
 Phase 0.5：产品与领域模型冻结 ✅
 Phase 1：Job Data Foundation   ✅ Backend + Minimal Web E2E
-Phase 2：Profile + SearchIntent ← 下一阶段
+Phase 2A：Confirmed Profile + SearchIntent ✅ 手工确认、版本化、Web 闭环
+Phase 2B：Resume Extraction + Profile Eval ← 下一阶段
 Phase 3：Requirement Intelligence
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
