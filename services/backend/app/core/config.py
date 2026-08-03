@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     profile_extractor_provider: str = "disabled"
     profile_extractor_model: str = ""
     profile_extractor_timeout_seconds: float = 60.0
+    requirement_extractor_provider: str = "disabled"
+    requirement_extractor_model: str = ""
+    requirement_extractor_timeout_seconds: float = 60.0
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
 
