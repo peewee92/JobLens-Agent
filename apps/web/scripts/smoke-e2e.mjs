@@ -77,6 +77,85 @@ try {
   );
   await waitFor(`${webUrl}/import`);
 
+  console.log("[smoke] saving Profile and SearchIntent through Next proxies");
+  const profilePayload = {
+    expectedVersion: 0,
+    headline: "8 年前端经验，正在转向 AI 应用工程",
+    yearsOfExperience: 8,
+    evidence: [
+      {
+        key: "spinach-desktop",
+        type: "work",
+        summary: "负责 Electron 协作与 Agent 功能。",
+        source: "confirmed by user",
+      },
+      {
+        key: "joblens",
+        type: "project",
+        summary: "构建 FastAPI + Next.js 的求职研究产品。",
+        source: "confirmed by user",
+      },
+    ],
+    skills: [
+      {
+        name: "React",
+        level: "strong",
+        evidenceKeys: ["spinach-desktop"],
+      },
+      {
+        name: "Agent Application Engineering",
+        level: "working",
+        evidenceKeys: ["spinach-desktop", "joblens"],
+      },
+    ],
+  };
+  const savedProfile = await fetch(`${webUrl}/api/profile`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(profilePayload),
+  });
+  assert.equal(savedProfile.status, 200);
+  const profileResult = await savedProfile.json();
+  assert.equal(profileResult.version, 1);
+  assert.equal(profileResult.skills[1].evidenceIds.length, 2);
+
+  const intentPayload = {
+    expectedVersion: 0,
+    targetRoles: ["Agent Engineer", "AI Application Engineer"],
+    cities: ["武汉"],
+    remoteAccepted: true,
+    minimumSalaryK: 20,
+    seniority: "senior",
+    employmentTypes: ["full_time"],
+    excludeKeywords: ["博彩"],
+    hardConstraints: ["不接受长期驻场"],
+    softPreferences: ["AI 产品有真实用户"],
+  };
+  const savedIntent = await fetch(`${webUrl}/api/search-intent`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(intentPayload),
+  });
+  assert.equal(savedIntent.status, 200);
+  assert.equal((await savedIntent.json()).version, 1);
+
+  const staleProfile = await fetch(`${webUrl}/api/profile`, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({...profilePayload, headline: "stale edit"}),
+  });
+  assert.equal(staleProfile.status, 409);
+
+  const profileHtml = await html("/profile");
+  assert.match(profileHtml, /8 年前端经验，正在转向 AI 应用工程/);
+  assert.match(profileHtml, /Agent Application Engineering/);
+  assert.match(profileHtml, /不接受长期驻场/);
+  assert.match(profileHtml, /当前版本[\s\S]{0,30}1/);
+  assert.doesNotMatch(
+    profileHtml,
+    /profileKey|intentKey|sourceRaw|candidateRaw|canonicalKey/,
+  );
+
   console.log("[smoke] checking import page");
   const importHtml = await html("/import");
   assert.match(importHtml, /选择 Collector report/);
@@ -121,7 +200,9 @@ try {
   assert.match(auditHtml, /Candidate 汇总/);
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
-  console.log("Web smoke E2E passed: import → jobs → detail → audit.");
+  console.log(
+    "Web smoke E2E passed: profile → intent → import → jobs → detail → audit.",
+  );
 } catch (error) {
   for (const processInfo of children) {
     console.error(`\n--- ${processInfo.name} ---\n${processInfo.logs.join("")}`);

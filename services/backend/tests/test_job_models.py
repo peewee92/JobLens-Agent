@@ -49,6 +49,11 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
         "job_imports",
         "job_import_items",
         "job_import_candidates",
+        "user_profiles",
+        "profile_evidence",
+        "profile_skills",
+        "profile_skill_evidence",
+        "search_intents",
     }
 
     engine.dispose()

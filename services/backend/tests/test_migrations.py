@@ -16,7 +16,15 @@ BASE_TABLES = {
     "job_imports",
     "job_import_items",
 }
-EXPECTED_TABLES = BASE_TABLES | {"job_import_candidates"}
+JOB_TABLES = BASE_TABLES | {"job_import_candidates"}
+CAREER_CONTEXT_TABLES = {
+    "user_profiles",
+    "profile_evidence",
+    "profile_skills",
+    "profile_skill_evidence",
+    "search_intents",
+}
+EXPECTED_TABLES = JOB_TABLES | CAREER_CONTEXT_TABLES
 
 
 def _run_alembic(database_url: str, *args: str) -> None:
@@ -61,6 +69,18 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         "remote_confidence_enum",
         "ck_jobs_salary_range",
     }
+    assert {
+        item["name"] for item in inspector.get_unique_constraints("user_profiles")
+    } == {"uq_user_profiles_key_version"}
+    assert {
+        item["name"] for item in inspector.get_unique_constraints("search_intents")
+    } == {"uq_search_intents_key_version"}
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260802_0002")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == JOB_TABLES
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "20260801_0001")
