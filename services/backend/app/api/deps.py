@@ -13,8 +13,10 @@ from app.application.job_import_queries.use_cases import GetJobImportDetailUseCa
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
 from app.application.profile_evals.use_cases import (
+    GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
     ListProfileEvalRunsUseCase,
+    ReviewProfileEvalRunUseCase,
 )
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
@@ -22,6 +24,7 @@ from app.application.ports import (
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
     AbstractProfileEvalQueryRepository,
+    AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
     AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
@@ -37,6 +40,7 @@ from app.repositories import (
     SqlAlchemyJobImportQueryRepository,
     SqlAlchemyJobQueryRepository,
     SqlAlchemyProfileEvalQueryRepository,
+    SqlAlchemyProfileEvalReviewUnitOfWork,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
@@ -48,6 +52,7 @@ from app.workflows import (
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
+ProfileEvalReviewUnitOfWorkFactory = Callable[[], AbstractProfileEvalReviewUnitOfWork]
 
 
 def get_uow_factory() -> UnitOfWorkFactory:
@@ -96,6 +101,10 @@ def get_profile_eval_query_repository() -> AbstractProfileEvalQueryRepository:
     return SqlAlchemyProfileEvalQueryRepository(SessionLocal)
 
 
+def get_profile_eval_review_uow_factory() -> ProfileEvalReviewUnitOfWorkFactory:
+    return lambda: SqlAlchemyProfileEvalReviewUnitOfWork(SessionLocal)
+
+
 def get_list_profile_eval_runs_use_case(
     repository: AbstractProfileEvalQueryRepository = Depends(
         get_profile_eval_query_repository
@@ -110,6 +119,25 @@ def get_get_profile_eval_run_use_case(
     ),
 ) -> GetProfileEvalRunUseCase:
     return GetProfileEvalRunUseCase(repository)
+
+
+def get_review_profile_eval_run_use_case(
+    repository: AbstractProfileEvalQueryRepository = Depends(
+        get_profile_eval_query_repository
+    ),
+    uow_factory: ProfileEvalReviewUnitOfWorkFactory = Depends(
+        get_profile_eval_review_uow_factory
+    ),
+) -> ReviewProfileEvalRunUseCase:
+    return ReviewProfileEvalRunUseCase(repository, uow_factory)
+
+
+def get_accepted_profile_eval_baseline_use_case(
+    repository: AbstractProfileEvalQueryRepository = Depends(
+        get_profile_eval_query_repository
+    ),
+) -> GetAcceptedProfileEvalBaselineUseCase:
+    return GetAcceptedProfileEvalBaselineUseCase(repository)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:

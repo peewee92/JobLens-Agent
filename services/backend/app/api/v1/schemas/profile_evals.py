@@ -6,8 +6,11 @@ from datetime import datetime
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.application.profile_evals import (
+    AcceptedProfileEvalBaseline,
     ProfileEvalCaseDetail,
     ProfileEvalMetricComparison,
+    ProfileEvalReviewDecision,
+    ProfileEvalReviewDetail,
     ProfileEvalRunDetail,
     ProfileEvalRunPage,
     ProfileEvalRunSummary,
@@ -93,10 +96,46 @@ class ProfileEvalComparisonResponse(CamelCaseModel):
         return cls(**asdict(comparison))
 
 
+class ProfileEvalReviewRequest(CamelCaseModel):
+    decision: ProfileEvalReviewDecision
+    reviewer: str
+    notes: str
+
+
+class ProfileEvalReviewResponse(CamelCaseModel):
+    id: str
+    eval_run_id: str
+    decision: ProfileEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+    @classmethod
+    def from_detail(
+        cls, detail: ProfileEvalReviewDetail
+    ) -> "ProfileEvalReviewResponse":
+        return cls(**asdict(detail))
+
+
+class AcceptedProfileEvalBaselineResponse(CamelCaseModel):
+    review: ProfileEvalReviewResponse
+    run: ProfileEvalRunSummaryResponse
+
+    @classmethod
+    def from_baseline(
+        cls, baseline: AcceptedProfileEvalBaseline
+    ) -> "AcceptedProfileEvalBaselineResponse":
+        return cls(
+            review=ProfileEvalReviewResponse.from_detail(baseline.review),
+            run=ProfileEvalRunSummaryResponse.from_summary(baseline.run),
+        )
+
+
 class ProfileEvalRunDetailResponse(CamelCaseModel):
     summary: ProfileEvalRunSummaryResponse
     cases: list[ProfileEvalCaseResponse]
     comparison: ProfileEvalComparisonResponse | None
+    review: ProfileEvalReviewResponse | None
 
     @classmethod
     def from_detail(cls, detail: ProfileEvalRunDetail) -> "ProfileEvalRunDetailResponse":
@@ -106,6 +145,11 @@ class ProfileEvalRunDetailResponse(CamelCaseModel):
             comparison=(
                 ProfileEvalComparisonResponse.from_comparison(detail.comparison)
                 if detail.comparison
+                else None
+            ),
+            review=(
+                ProfileEvalReviewResponse.from_detail(detail.review)
+                if detail.review
                 else None
             ),
         )

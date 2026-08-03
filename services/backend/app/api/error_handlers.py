@@ -21,7 +21,12 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
-from app.application.profile_evals import ProfileEvalRunNotFoundError
+from app.application.profile_evals import (
+    AcceptedProfileEvalBaselineNotFoundError,
+    InvalidProfileEvalReviewError,
+    ProfileEvalRunAlreadyReviewedError,
+    ProfileEvalRunNotFoundError,
+)
 from app.application.profile_extraction import (
     InvalidProfileExtractorOutputError,
     InvalidResumeTextError,
@@ -211,6 +216,39 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_404_NOT_FOUND,
             "profile_eval_run_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(AcceptedProfileEvalBaselineNotFoundError)
+    async def handle_accepted_profile_eval_baseline_not_found(
+        _request: Request,
+        error: AcceptedProfileEvalBaselineNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "accepted_profile_eval_baseline_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(ProfileEvalRunAlreadyReviewedError)
+    async def handle_profile_eval_run_already_reviewed(
+        _request: Request,
+        error: ProfileEvalRunAlreadyReviewedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "profile_eval_run_already_reviewed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidProfileEvalReviewError)
+    async def handle_invalid_profile_eval_review(
+        _request: Request,
+        error: InvalidProfileEvalReviewError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_profile_eval_review",
             str(error),
         )
 
