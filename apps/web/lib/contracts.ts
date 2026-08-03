@@ -75,6 +75,32 @@ export interface SearchIntent {
   createdAt: string;
 }
 
+export interface ProposedProfileEvidence {
+  key: string;
+  type: EvidenceType;
+  summary: string;
+  source: string;
+  evidenceSpan: string;
+}
+
+export interface ProposedProfileSkill {
+  name: string;
+  level: SkillLevel;
+  evidenceKeys: string[];
+}
+
+export interface ProfileExtractionProposal {
+  runId: string;
+  extractorVersion: string;
+  model: string;
+  promptVersion: string;
+  headline: string;
+  yearsOfExperience: number | null;
+  evidence: ProposedProfileEvidence[];
+  skills: ProposedProfileSkill[];
+  warnings: string[];
+}
+
 export interface SaveSearchIntentPayload {
   expectedVersion: number;
   targetRoles: string[];

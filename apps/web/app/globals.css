@@ -611,9 +611,61 @@ h3 {
   word-break: break-all;
 }
 
+.proposal-panel textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cbd3df;
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.65;
+}
+
+.proposal-actions {
+  margin-top: 12px;
+  align-items: center;
+}
+
+.proposal-result {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.proposal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.proposal-item {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+
+.proposal-item strong {
+  margin-right: 8px;
+}
+
+.proposal-item blockquote {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--brand);
+  background: white;
+  color: #465268;
+  line-height: 1.6;
+}
+
 @media (max-width: 800px) {
   .filter-form,
   .detail-grid,
+  .proposal-grid,
   .profile-grid,
   .editor-card-grid {
     grid-template-columns: 1fr;

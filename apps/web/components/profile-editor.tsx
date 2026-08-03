@@ -3,9 +3,12 @@
 import {useRouter} from "next/navigation";
 import {FormEvent, useMemo, useState} from "react";
 
+import {ResumeProposalPanel} from "@/components/resume-proposal-panel";
+import {proposalToProfileDraft} from "@/lib/profile-proposal";
 import type {
   ApiErrorBody,
   EvidenceType,
+  ProfileExtractionProposal,
   SaveProfilePayload,
   SaveSearchIntentPayload,
   SearchIntent,
@@ -189,6 +192,18 @@ export function ProfileEditor({
     }
   }
 
+  function applyProposal(proposal: ProfileExtractionProposal) {
+    const draft = proposalToProfileDraft(proposal);
+    setHeadline(draft.headline);
+    setYears(draft.years);
+    setEvidence(draft.evidence);
+    setSkills(draft.skills);
+    setProfileState({
+      kind: "idle",
+      message: `已采用提案 ${proposal.runId} 到编辑表单；请继续核对并手动保存。`,
+    });
+  }
+
   async function saveIntent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIntentState({kind: "saving", message: "正在保存求职意向…"});
@@ -230,6 +245,7 @@ export function ProfileEditor({
 
   return (
     <div className="profile-layout">
+      <ResumeProposalPanel onApply={applyProposal} />
       <form className="panel profile-form" onSubmit={saveProfile}>
         <div className="section-title-row">
           <div>
