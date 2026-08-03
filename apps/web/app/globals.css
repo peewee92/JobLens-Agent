@@ -623,6 +623,32 @@ h3 {
   line-height: 1.65;
 }
 
+.proposal-file-form {
+  margin-top: 18px;
+}
+
+.compact-file-field {
+  margin: 0 0 12px;
+  padding: 14px;
+}
+
+.proposal-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.proposal-divider::before,
+.proposal-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
 .proposal-actions {
   margin-top: 12px;
   align-items: center;
