@@ -155,14 +155,26 @@ Profile Eval dataset
 
 Fixture runs can pass the engineering Gate but always keep `releaseEligible=false`. The environment did not provide a live API credential, so no live quality conclusion was created.
 
+## Slice 11 result · Human Review and Accepted Baseline
+
+```text
+live Eval Run
+→ immutable accept/reject Review
+→ reviewer + notes + reviewedAt
+→ latest accepted Review selects official baseline
+→ live CLI can resolve baseline before Provider execution
+```
+
+Technical Gate results and human governance decisions are stored separately. Fixture runs cannot receive formal Reviews. A live Run can be accepted only when it is gate-passed and release-eligible; rejected Runs remain auditable. One Run can have only one immutable Review.
+
 ## Next slice
 
 ```text
-configure real provider/model
-→ run credential-backed Profile Eval
-→ review every failed Case Result and Trace
-→ compare against accepted baseline
-→ manually approve or revise prompt/model/gate
+Profile Eval review Web
+→ list Run history and current accepted baseline
+→ inspect Case Results and Trace IDs
+→ submit accepted/rejected Review through same-origin proxy
+→ then run credential-backed live Profile Eval when credentials exist
 ```
 
-Do not proceed to Match until a real provider run is reviewed and Profile proposal quality is acceptable.
+Do not proceed to Requirement Intelligence until a real provider run is reviewed and Profile proposal quality is acceptable.

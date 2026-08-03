@@ -82,6 +82,10 @@ uv run python -m scripts.run_profile_eval --baseline-run-id eval_xxx
 
 # live provider（需先配置模型和 API Key）
 PROFILE_EXTRACTOR_PROVIDER=openai uv run python -m scripts.run_profile_eval
+
+# 使用人工接受的正式 live baseline
+PROFILE_EXTRACTOR_PROVIDER=openai \
+uv run python -m scripts.run_profile_eval --accepted-baseline
 ```
 
 查看不可变历史与逐案例失败：
@@ -92,6 +96,18 @@ curl http://127.0.0.1:8000/api/v1/profile-evals/eval_xxx
 ```
 
 `profile-eval-gate-v1` 检查案例通过率、Workflow 成功率、技能召回、年限准确率和禁用事实率。Fixture 结果只证明 Pipeline/Eval/Trace 可重复；只有 `mode=live` 且 Gate 通过时 `releaseEligible` 才可能为 true。
+
+人工审查与正式 baseline：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/profile-evals/eval_xxx/review \
+  -H 'Content-Type: application/json' \
+  --data '{"decision":"accepted","reviewer":"local-user","notes":"Reviewed every case and Trace; no unsupported career facts."}'
+
+curl http://127.0.0.1:8000/api/v1/profile-evals/baseline/accepted
+```
+
+`releaseEligible=true` 只允许进入人工审查，不等于已批准。Fixture Run 不能正式审查；一个 Run 只能保存一条不可变 Review。
 
 ### Import Collector report
 
@@ -154,7 +170,8 @@ Alembic 已指向 `Base.metadata`：
 - `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`；
 - `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent；
 - `20260803_0004_create_trace_spans.py` 创建通用能力 Trace；
-- `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果。
+- `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果；
+- `20260803_0006_create_profile_eval_reviews.py` 创建不可变人工 Review 与正式 baseline 治理记录。
 
 ```bash
 # 查看当前迁移版本

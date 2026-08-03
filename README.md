@@ -118,6 +118,7 @@ JobLens-Agent/
 - [Profile Extraction Proposal / Eval / Trace ADR](docs/decisions/0016-profile-extraction-proposal-eval-and-trace.md)
 - [Resume Document Parsing / Privacy ADR](docs/decisions/0017-resume-document-parsing-and-privacy-boundary.md)
 - [Profile Eval Run / Gate / Live Eligibility ADR](docs/decisions/0018-profile-eval-runs-gates-and-live-eligibility.md)
+- [Profile Eval Human Review / Accepted Baseline ADR](docs/decisions/0019-profile-eval-human-review-and-accepted-baseline.md)
 
 ## 当前阶段
 
@@ -130,7 +131,8 @@ Phase 2A：Confirmed Profile + SearchIntent ✅ 手工确认、版本化、Web �
 Phase 2B-1：Resume Text Proposal + Eval + Trace ✅
 Phase 2B-2：PDF/DOCX Resume Input ✅
 Phase 2B-3：Eval Run + Gate + Baseline ✅
-Phase 2B-4：Credential-backed Live Provider Quality ← 下一阶段
+Phase 2B-4：Human Review + Accepted Baseline ✅
+Phase 2B-5：Eval Review Web + Credential-backed Live Quality ← 下一阶段
 Phase 3：Requirement Intelligence
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
