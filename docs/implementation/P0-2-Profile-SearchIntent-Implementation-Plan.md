@@ -167,14 +167,26 @@ live Eval Run
 
 Technical Gate results and human governance decisions are stored separately. Fixture runs cannot receive formal Reviews. A live Run can be accepted only when it is gate-passed and release-eligible; rejected Runs remain auditable. One Run can have only one immutable Review.
 
+## Slice 12 result · Eval Review Web
+
+```text
+Profile Eval history + accepted baseline
+→ failed Case Results shown first
+→ Trace IDs and metric deltas
+→ same-origin accept/reject Review command
+→ Server Component refresh from Backend facts
+```
+
+The Web guides actions but does not implement final policy. Fixture review is rejected, failed live Runs can be rejected, eligible live Runs can be accepted, and immutable duplicate Reviews return 409. A real FastAPI + production Next smoke verifies history → cases → reject/accept → baseline.
+
 ## Next slice
 
 ```text
-Profile Eval review Web
-→ list Run history and current accepted baseline
-→ inspect Case Results and Trace IDs
-→ submit accepted/rejected Review through same-origin proxy
-→ then run credential-backed live Profile Eval when credentials exist
+configure credential-backed live Provider/model
+→ run Profile Eval against accepted baseline when available
+→ review every failed Case and Trace in the Web
+→ accept or reject the live Run
+→ decide whether Profile Extraction quality is sufficient for Phase 3
 ```
 
 Do not proceed to Requirement Intelligence until a real provider run is reviewed and Profile proposal quality is acceptable.

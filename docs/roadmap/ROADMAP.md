@@ -105,7 +105,7 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - 手工确认的 Profile + Evidence + Skill 链接已完成；
 - Profile/SearchIntent 不可变版本、`expectedVersion` 冲突保护、API 与 Web 编辑闭环已完成；
 - Resume Text → Profile Proposal、strict Structured Output、evidenceSpan/reference 门禁、Trace 0004 和 10-case Profile Eval 已完成；
-- PDF/DOCX 文本摄取、文件隐私边界与 Web 上传已完成；Eval Run/Case Result、`profile-eval-gate-v1`、baseline 对比、人工 accept/reject Review 与正式 accepted baseline 已完成；下一步是 Eval Review Web 与带真实凭据的 Provider Eval。Fixture 通过仍不代表生产模型质量。
+- PDF/DOCX 文本摄取、文件隐私边界与 Web 上传已完成；Eval Run/Case Result、`profile-eval-gate-v1`、baseline 对比、人工 accept/reject Review、正式 accepted baseline 与 Eval Review Web 已完成；下一步是带真实凭据的 Provider Eval 和人工质量结论。Fixture 通过仍不代表生产模型质量。
 
 ### 验收
 

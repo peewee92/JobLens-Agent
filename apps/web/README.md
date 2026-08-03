@@ -1,15 +1,17 @@
 # JobLens Web
 
-Browser product loop for P0-1 Job Data Foundation, confirmed career context and Phase 2B Profile Extraction proposals from text, PDF and DOCX.
+Browser product loop for Job Data, confirmed career context, grounded Profile proposals and Profile Eval governance.
 
 ## Current routes
 
 ```text
-/profile             Generate/review Profile proposal, then confirm Profile/Evidence and SearchIntent
-/import              Upload Collector report JSON
-/imports/{importId}  View import audit detail
-/jobs                Filtered and paginated Job Pool
-/jobs/{jobId}        Public Job detail
+/profile                    Generate/review Profile proposal, then confirm Profile/Evidence and SearchIntent
+/evals/profile              View Profile Eval history and accepted baseline
+/evals/profile/{evalRunId}  Inspect cases/Trace IDs and submit immutable Review
+/import                     Upload Collector report JSON
+/imports/{importId}         View import audit detail
+/jobs                       Filtered and paginated Job Pool
+/jobs/{jobId}               Public Job detail
 ```
 
 The browser submits Profile/SearchIntent commands and imports to same-origin Next Route Handlers:
@@ -19,6 +21,7 @@ Browser
 → POST /api/profile-proposals or /api/profile-proposals/file
 → review/apply in local form state
 → PUT /api/profile | PUT /api/search-intent | POST /api/job-imports
+→ POST /api/profile-evals/{id}/review
 → FastAPI Workflow / Application Use Cases
 ```
 
@@ -56,6 +59,7 @@ Open:
 
 ```text
 http://127.0.0.1:3000/profile
+http://127.0.0.1:3000/evals/profile
 http://127.0.0.1:3000/import
 http://127.0.0.1:3000/jobs
 ```
@@ -68,6 +72,7 @@ pnpm test
 pnpm typecheck
 pnpm build
 pnpm smoke:e2e
+pnpm smoke:eval-review
 ```
 
 `smoke:e2e` creates a temporary SQLite database, migrates it, starts real FastAPI and production Next processes, then verifies:
@@ -83,17 +88,19 @@ DOCX upload → extracted text → Profile Proposal
 → Import audit detail
 ```
 
-The script cleans up processes and temporary data after completion.
+`smoke:eval-review` seeds deterministic test-only Fixture/failed-live/eligible-live runs, then verifies history rendering, failed-case Trace display, Fixture 422, reject 201, accept 201, duplicate 409 and accepted baseline refresh through real FastAPI and production Next processes.
+
+Both scripts clean up processes and temporary data after completion.
 
 ## Boundary rules
 
-- Client Components are limited to genuine browser interaction: resume/Collector file input, proposal review and Profile/SearchIntent editing.
+- Client Components are limited to genuine browser interaction: resume/Collector file input, proposal review, Profile/SearchIntent editing and Eval Review commands.
 - Job Pool filters live in URL search params.
-- Server Components fetch list/detail/audit data.
+- Server Components fetch list/detail/audit/Eval governance data.
 - Public Web types do not include `sourceRaw`, `candidateRaw`, `canonicalKey`, `profileKey`, or `intentKey`.
 - Profile Proposal never auto-calls the confirmed Profile API; the user must adopt, review and save explicitly.
 - Profile Skills reference Evidence through request-local keys; the Backend returns opaque Evidence IDs.
-- The Web does not reimplement idempotency, transaction, or audit decisions.
+- The Web does not reimplement idempotency, transaction or Eval acceptance policy; Backend 201/404/409/422 remains authoritative.
 
 ## Out of scope
 
