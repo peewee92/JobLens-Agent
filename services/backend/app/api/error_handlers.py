@@ -21,6 +21,7 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
+from app.application.profile_evals import ProfileEvalRunNotFoundError
 from app.application.profile_extraction import (
     InvalidProfileExtractorOutputError,
     InvalidResumeTextError,
@@ -199,6 +200,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "resume_text_not_extractable",
+            str(error),
+        )
+
+    @app.exception_handler(ProfileEvalRunNotFoundError)
+    async def handle_profile_eval_run_not_found(
+        _request: Request,
+        error: ProfileEvalRunNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "profile_eval_run_not_found",
             str(error),
         )
 

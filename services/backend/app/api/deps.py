@@ -12,11 +12,16 @@ from app.application.career_context.use_cases import (
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
+from app.application.profile_evals.use_cases import (
+    GetProfileEvalRunUseCase,
+    ListProfileEvalRunsUseCase,
+)
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
     AbstractCareerContextUnitOfWork,
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
+    AbstractProfileEvalQueryRepository,
     AbstractProfileExtractor,
     AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
@@ -31,6 +36,7 @@ from app.repositories import (
     SqlAlchemyCareerContextUnitOfWork,
     SqlAlchemyJobImportQueryRepository,
     SqlAlchemyJobQueryRepository,
+    SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
@@ -84,6 +90,26 @@ def get_profile_document_workflow(
     ),
 ) -> ProposeProfileFromDocumentWorkflow:
     return ProposeProfileFromDocumentWorkflow(parser, profile_workflow)
+
+
+def get_profile_eval_query_repository() -> AbstractProfileEvalQueryRepository:
+    return SqlAlchemyProfileEvalQueryRepository(SessionLocal)
+
+
+def get_list_profile_eval_runs_use_case(
+    repository: AbstractProfileEvalQueryRepository = Depends(
+        get_profile_eval_query_repository
+    ),
+) -> ListProfileEvalRunsUseCase:
+    return ListProfileEvalRunsUseCase(repository)
+
+
+def get_get_profile_eval_run_use_case(
+    repository: AbstractProfileEvalQueryRepository = Depends(
+        get_profile_eval_query_repository
+    ),
+) -> GetProfileEvalRunUseCase:
+    return GetProfileEvalRunUseCase(repository)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
