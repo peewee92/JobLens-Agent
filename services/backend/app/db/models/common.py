@@ -37,3 +37,19 @@ def new_job_import_item_id() -> str:
 
 def new_job_import_candidate_id() -> str:
     return new_prefixed_id("cand")
+
+
+def new_profile_id() -> str:
+    return new_prefixed_id("prof")
+
+
+def new_evidence_id() -> str:
+    return new_prefixed_id("ev")
+
+
+def new_skill_id() -> str:
+    return new_prefixed_id("skill")
+
+
+def new_search_intent_id() -> str:
+    return new_prefixed_id("intent")
