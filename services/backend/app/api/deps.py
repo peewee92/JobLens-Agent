@@ -17,19 +17,26 @@ from app.application.ports import (
     AbstractCareerContextUnitOfWork,
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
+    AbstractProfileExtractor,
+    AbstractTraceUnitOfWork,
     AbstractUnitOfWork,
 )
+from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.llm import build_profile_extractor
 from app.repositories import (
     SqlAlchemyCareerContextQueryRepository,
     SqlAlchemyCareerContextUnitOfWork,
     SqlAlchemyJobImportQueryRepository,
     SqlAlchemyJobQueryRepository,
+    SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
+from app.workflows import ProposeProfileFromResumeWorkflow
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
+TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 
 def get_uow_factory() -> UnitOfWorkFactory:
@@ -44,6 +51,21 @@ def get_uow_factory() -> UnitOfWorkFactory:
 
 def get_career_context_uow_factory() -> CareerContextUnitOfWorkFactory:
     return lambda: SqlAlchemyCareerContextUnitOfWork(SessionLocal)
+
+
+def get_trace_uow_factory() -> TraceUnitOfWorkFactory:
+    return lambda: SqlAlchemyTraceUnitOfWork(SessionLocal)
+
+
+def get_profile_extractor() -> AbstractProfileExtractor:
+    return build_profile_extractor(get_settings())
+
+
+def get_profile_extraction_workflow(
+    extractor: AbstractProfileExtractor = Depends(get_profile_extractor),
+    trace_uow_factory: TraceUnitOfWorkFactory = Depends(get_trace_uow_factory),
+) -> ProposeProfileFromResumeWorkflow:
+    return ProposeProfileFromResumeWorkflow(extractor, trace_uow_factory)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:

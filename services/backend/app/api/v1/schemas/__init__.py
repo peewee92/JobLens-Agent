@@ -18,6 +18,10 @@ from app.api.v1.schemas.job_queries import (
     JobListItemResponse,
     JobListResponse,
 )
+from app.api.v1.schemas.profile_extraction import (
+    ProfileExtractionProposalResponse,
+    ProfileExtractionRequest,
+)
 
 __all__ = [
     "ApiError",
@@ -28,6 +32,8 @@ __all__ = [
     "JobImportResponse",
     "JobListItemResponse",
     "JobListResponse",
+    "ProfileExtractionProposalResponse",
+    "ProfileExtractionRequest",
     "ProfileResponse",
     "SaveProfileRequest",
     "SaveSearchIntentRequest",

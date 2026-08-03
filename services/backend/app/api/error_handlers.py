@@ -21,6 +21,12 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
+from app.application.profile_extraction import (
+    InvalidProfileExtractorOutputError,
+    InvalidResumeTextError,
+    ProfileExtractorFailedError,
+    ProfileExtractorUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +149,50 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "import_identity_conflict",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidResumeTextError)
+    async def handle_invalid_resume_text(
+        _request: Request,
+        error: InvalidResumeTextError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_resume_text",
+            str(error),
+        )
+
+    @app.exception_handler(ProfileExtractorUnavailableError)
+    async def handle_profile_extractor_unavailable(
+        _request: Request,
+        error: ProfileExtractorUnavailableError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "profile_extractor_unavailable",
+            str(error),
+        )
+
+    @app.exception_handler(ProfileExtractorFailedError)
+    async def handle_profile_extractor_failed(
+        _request: Request,
+        error: ProfileExtractorFailedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "profile_extractor_failed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidProfileExtractorOutputError)
+    async def handle_invalid_profile_extractor_output(
+        _request: Request,
+        error: InvalidProfileExtractorOutputError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "invalid_profile_extractor_output",
             str(error),
         )
 
