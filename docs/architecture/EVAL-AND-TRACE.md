@@ -17,11 +17,18 @@
 
 评估简历 → `UserProfile` 的抽取质量。
 
-- 数据集：≥ 10 条真实/脱敏简历；
+- 数据集：≥ 10 条真实/脱敏简历；当前 `profile-extraction-v1.jsonl` 已提供 10 条脱敏代表性文本；
 - 断言：
   - 关键技能必须关联到至少一个 `Evidence` 或显式标记“缺少证据”；
   - 不得编造简历中不存在的项目/公司/成绩；
   - `yearsOfExperience` 与原文一致（容差范围内）。
+
+当前 Phase 2B 实现区分：
+
+- Fixture CI Gate：验证 Structured Output、evidenceSpan、引用、Trace 和 Eval 机制；
+- Live Provider Eval：使用配置模型和凭证运行，衡量真实模型质量。
+
+Fixture 通过率不能作为生产模型质量结论。当前验证环境尚未执行 live-provider Eval。
 
 ### 2.2 Requirement Eval（Requirement Extraction）
 
@@ -88,7 +95,7 @@ error           错误信息（若有）
 created_at      时间
 ```
 
-落库表建议：`trace_spans`（见 SYSTEM-ARCHITECTURE §9）。
+落库表：`trace_spans`（Alembic 0004）。Profile Extraction Trace 只保存简历 SHA-256 与字符数，不保存完整简历文本；结构化 proposal 作为 output 保存，供 Eval/问题定位使用。
 
 ### Trace 用途
 

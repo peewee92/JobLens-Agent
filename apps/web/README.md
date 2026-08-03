@@ -1,11 +1,11 @@
 # JobLens Web
 
-Minimal browser product loop for P0-1 Job Data Foundation and Phase 2A confirmed career context.
+Browser product loop for P0-1 Job Data Foundation, confirmed career context and Phase 2B-1 Profile Extraction proposals.
 
 ## Current routes
 
 ```text
-/profile             Confirm versioned Profile/Evidence and SearchIntent
+/profile             Generate/review Profile proposal, then confirm Profile/Evidence and SearchIntent
 /import              Upload Collector report JSON
 /imports/{importId}  View import audit detail
 /jobs                Filtered and paginated Job Pool
@@ -16,8 +16,10 @@ The browser submits Profile/SearchIntent commands and imports to same-origin Nex
 
 ```text
 Browser
+→ POST /api/profile-proposals
+→ review/apply in local form state
 → PUT /api/profile | PUT /api/search-intent | POST /api/job-imports
-→ FastAPI Application Use Cases
+→ FastAPI Workflow / Application Use Cases
 ```
 
 Server-rendered pages call FastAPI using the server-only `JOBLENS_BACKEND_URL` environment variable. The Backend URL is never exposed as a `NEXT_PUBLIC_*` value.
@@ -71,7 +73,8 @@ pnpm smoke:e2e
 `smoke:e2e` creates a temporary SQLite database, migrates it, starts real FastAPI and production Next processes, then verifies:
 
 ```text
-Profile + Evidence v1
+resume text → Profile Proposal
+→ explicit Profile + Evidence v1 confirmation
 → SearchIntent v1
 → stale-version 409
 → same-origin import proxy
@@ -84,17 +87,18 @@ The script cleans up processes and temporary data after completion.
 
 ## Boundary rules
 
-- Client Components are limited to genuine browser interaction: file import and Profile/SearchIntent editing.
+- Client Components are limited to genuine browser interaction: file import, proposal review and Profile/SearchIntent editing.
 - Job Pool filters live in URL search params.
 - Server Components fetch list/detail/audit data.
 - Public Web types do not include `sourceRaw`, `candidateRaw`, `canonicalKey`, `profileKey`, or `intentKey`.
+- Profile Proposal never auto-calls the confirmed Profile API; the user must adopt, review and save explicitly.
 - Profile Skills reference Evidence through request-local keys; the Backend returns opaque Evidence IDs.
 - The Web does not reimplement idempotency, transaction, or audit decisions.
 
 ## Out of scope
 
-- resume PDF/text parsing and LLM Profile Extraction;
-- Profile Eval;
+- resume PDF/DOCX parsing;
+- live-provider Profile quality claims without a credential-backed Eval run;
 - Match / Ranking / Agent Chat;
 - authentication;
 - favorites and ignore state;

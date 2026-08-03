@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E，以及 Phase 2A 手工确认的版本化 Profile / Evidence / SearchIntent。下一步是简历输入、LLM Structured Output 与 Profile Eval，不提前进入 Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B-1 简历文本 → Profile Proposal + deterministic grounding + Eval + Trace。下一步是 PDF/DOCX 文本摄取和真实 Provider 质量评测，不提前进入 Match。
 
 ## Prerequisites
 
@@ -48,6 +48,30 @@ curl http://127.0.0.1:8000/api/v1/search-intent
 ```
 
 每个 Skill 必须关联同一 Profile 请求中的 Evidence key；保存后 API 返回服务器生成的 Evidence IDs。
+
+### Propose Profile from resume text
+
+默认 Provider 为 `disabled`。测试/演示可以使用 `fixture`，真实调用使用 `openai` 并从环境变量读取模型和 Key。
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/profile-proposals \
+  -H 'Content-Type: application/json' \
+  --data '{"resumeText":"8 年前端经验。负责 Electron 桌面端与 React、TypeScript 业务开发，并参与 Agent 功能落地。"}'
+```
+
+返回的是待确认 Proposal，不会写 confirmed Profile。每个 Evidence 都必须包含简历中的原文 `evidenceSpan`；每次成功/失败运行写入 `trace_spans`，Trace 只保存简历 SHA-256 与字符数，不保存完整简历文本。
+
+Eval：
+
+```bash
+# deterministic CI Gate
+PROFILE_EXTRACTOR_PROVIDER=fixture uv run python -m scripts.run_profile_eval
+
+# live provider（需先配置模型和 API Key）
+PROFILE_EXTRACTOR_PROVIDER=openai uv run python -m scripts.run_profile_eval
+```
+
+Fixture 结果只证明 Pipeline/Eval/Trace 可重复，不代表真实模型质量。
 
 ### Import Collector report
 
@@ -108,7 +132,8 @@ Alembic 已指向 `Base.metadata`：
 
 - `20260801_0001_create_job_data_foundation.py` 创建 `jobs / job_sources / job_imports / job_import_items`；
 - `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`；
-- `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent。
+- `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent；
+- `20260803_0004_create_trace_spans.py` 创建通用能力 Trace。
 
 ```bash
 # 查看当前迁移版本
@@ -135,6 +160,11 @@ uv run alembic check
 | --- | --- | --- |
 | `APP_ENV` | 运行环境 | `local` |
 | `DATABASE_URL` | 数据库连接串 | `sqlite:///./data/joblens.db` |
+| `PROFILE_EXTRACTOR_PROVIDER` | `disabled / fixture / openai` | `disabled` |
+| `PROFILE_EXTRACTOR_MODEL` | 运行时模型名，不在代码硬编码 | 空 |
+| `PROFILE_EXTRACTOR_TIMEOUT_SECONDS` | Provider 超时 | `60` |
+| `OPENAI_API_KEY` | OpenAI API Key，仅服务端读取 | 空 |
+| `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` |
 
 生产 Secret 不要写死在代码里。
 
@@ -161,7 +191,10 @@ services/backend/
 │   │   ├── job_queries/ # Job Read Models / ListJobs / GetJob
 │   │   ├── job_import_queries/ # Import Audit Read Model / Get Detail
 │   │   └── ports/       # Write Repository / Query Repository / Unit of Work
-│   ├── repositories/    # SQLAlchemy write/query repositories + Unit of Work
+│   ├── llm/             # disabled / fixture / OpenAI Profile Extractor adapters
+│   ├── workflows/       # Profile Extraction orchestration and deterministic gates
+│   ├── evals/           # repeatable Profile Eval runner
+│   ├── repositories/    # SQLAlchemy write/query/trace repositories + Unit of Work
 │   └── db/
 │       ├── session.py  # Engine / Session / SQLite FK enforcement
 │       └── models/     # Job data + versioned career-context ORM

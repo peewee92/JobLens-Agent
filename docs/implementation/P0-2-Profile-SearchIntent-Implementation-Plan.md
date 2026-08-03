@@ -12,7 +12,7 @@ manual Profile confirmation
 → Web edit/read loop
 ```
 
-This is Phase 2A. Phase 2B will add resume text/PDF ingestion, LLM structured extraction and Profile Eval against this confirmed Contract.
+Phase 2A established confirmed facts. Phase 2B now starts with resume-text extraction proposals, deterministic grounding, Eval and Trace before any PDF parser or automatic confirmation.
 
 ## Current status · 2026-08-03
 
@@ -25,7 +25,8 @@ This is Phase 2A. Phase 2B will add resume text/PDF ingestion, LLM structured ex
 | 5 | GET/PUT Profile + SearchIntent API | Completed |
 | 6 | Web `/profile` confirmation loop | Completed |
 | 7 | Backend/Web integration verification | Completed |
-| 8 | Resume input + LLM extraction + Profile Eval | Next |
+| 8 | Resume text → Profile Proposal + Eval + Trace | Completed |
+| 9 | PDF/DOCX text ingestion + live-provider quality run | Next |
 
 ## Frozen scope
 
@@ -45,9 +46,9 @@ This is Phase 2A. Phase 2B will add resume text/PDF ingestion, LLM structured ex
 
 - authentication and multiple users;
 - resume PDF upload or parsing;
-- LLM extraction;
-- model/provider selection;
-- Profile Eval dataset;
+- automatic confirmed writes from extractor output;
+- production model hard-coding;
+- Match/Ranking/Agent;
 - Match/Ranking/Agent;
 - Profile history/diff API;
 - deletion or rollback to a previous version.
@@ -110,15 +111,29 @@ Before this slice, JobLens knew only jobs. After this slice, a user can explicit
 
 This gives future matching a trustworthy input instead of a chat-memory guess.
 
+## Slice 8 result · Profile Extraction Proposal
+
+```text
+resume text
+→ configured Profile Extractor
+→ strict structured output
+→ deterministic evidenceSpan/reference gates
+→ trace_spans
+→ 10-case Profile Eval
+→ Web review/apply
+→ explicit existing Profile confirmation
+```
+
+The repository includes disabled, fixture and OpenAI adapters. Fixture is limited to deterministic CI/demo. The OpenAI network path is implemented and request-contract tested, but a live-provider Eval was not run because no API credential was supplied.
+
 ## Next slice
 
 ```text
-resume text input
-→ Profile Extraction structured output
-→ proposed facts separated from confirmed facts
-→ user confirmation/edit
-→ Profile Eval dataset and assertions
-→ save confirmed Profile version
+PDF/DOCX text ingestion
+→ parsing provenance
+→ proposal input from uploaded file
+→ live-provider Profile Eval
+→ quality comparison by model/prompt version
 ```
 
-The first LLM pipeline must not ship without Eval and evidence-span checks.
+Do not proceed to Match until a real provider run is reviewed and Profile proposal quality is acceptable.

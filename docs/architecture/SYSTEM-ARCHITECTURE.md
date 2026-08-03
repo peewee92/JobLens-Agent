@@ -172,6 +172,7 @@ LLM Capability（最小可评估）
    Semantic Match
 
 Domain Workflow（组合 Capability + 确定性代码）
+   Profile Extraction Proposal（已实现：grounding + Trace + Eval）
    JobRequirement Extraction
    Single Job Match
    Batch Ranking
@@ -269,7 +270,7 @@ action_items         （v0.2）
 preparation_packs    （v0.2）
 agent_runs
 eval_runs
-trace_spans
+trace_spans               # Alembic 0004，AI/Workflow 运行追踪
 ```
 
-P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013；版本化 Profile / Evidence / SearchIntent 见 ADR-0015。
+当前 Profile Extraction 已将 provider output 先转为 Proposal，经过 evidenceSpan/引用确定性门禁后写 Trace；用户确认才进入 versioned Profile。P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013；版本化 Profile / Evidence / SearchIntent 见 ADR-0015；首个 LLM Workflow 见 ADR-0016。

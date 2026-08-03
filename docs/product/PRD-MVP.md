@@ -188,7 +188,7 @@ React
 └── 复杂业务结果
 ```
 
-无证据的能力标签是 v0.1 必须避免的（见 P1 的 `user-profile.schema.json` 增强：`ProfileFact` / `Evidence` / `CapabilityAssessment`）。当前手工确认闭环已实现；简历/LLM 抽取只能生成“待确认提案”，不能直接写入已确认 Profile。
+无证据的能力标签是 v0.1 必须避免的（见 P1 的 `user-profile.schema.json` 增强：`ProfileFact` / `Evidence` / `CapabilityAssessment`）。当前手工确认闭环与 Resume Text → Profile Proposal 已实现；模型输出必须经过 exact evidenceSpan / Skill→Evidence 门禁、Trace 和人工审查，不能直接写入已确认 Profile。PDF/DOCX 解析与真实 Provider 质量评测仍未完成。
 
 ---
 

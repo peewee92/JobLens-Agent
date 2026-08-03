@@ -115,6 +115,7 @@ JobLens-Agent/
 - [Job 身份、来源与远程状态 ADR](docs/decisions/0007-job-identity-source-and-remote-model.md)
 - [Profile + SearchIntent 实施计划](docs/implementation/P0-2-Profile-SearchIntent-Implementation-Plan.md)
 - [版本化 Profile / Evidence / SearchIntent ADR](docs/decisions/0015-versioned-profile-evidence-and-search-intent.md)
+- [Profile Extraction Proposal / Eval / Trace ADR](docs/decisions/0016-profile-extraction-proposal-eval-and-trace.md)
 
 ## 当前阶段
 
@@ -124,7 +125,8 @@ Phase 0.5 已完成（产品与领域模型冻结）。当前主线（详见 [�
 Phase 0.5：产品与领域模型冻结 ✅
 Phase 1：Job Data Foundation   ✅ Backend + Minimal Web E2E
 Phase 2A：Confirmed Profile + SearchIntent ✅ 手工确认、版本化、Web 闭环
-Phase 2B：Resume Extraction + Profile Eval ← 下一阶段
+Phase 2B-1：Resume Text Proposal + Eval + Trace ✅
+Phase 2B-2：PDF/DOCX + Live Provider Quality ← 下一阶段
 Phase 3：Requirement Intelligence
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
