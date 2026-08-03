@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/profile-eval-run-detail.schema.json",
+  "title": "Profile Eval Run Detail",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "cases", "comparison"],
+  "properties": {
+    "summary": {"$ref": "#/$defs/summary"},
+    "cases": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/case"}
+    },
+    "comparison": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/comparison"}
+      ]
+    }
+  },
+  "$defs": {
+    "rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "datasetVersion", "mode", "provider", "model",
+        "extractorVersion", "promptVersion", "gateVersion", "baselineRunId",
+        "totalCases", "passedCases", "casePassRate", "workflowSuccessRate",
+        "skillRecall", "yearsAccuracy", "forbiddenFactRate", "gatePassed",
+        "releaseEligible", "createdAt"
+      ],
+      "properties": {
+        "id": {"type": "string", "pattern": "^eval_"},
+        "datasetVersion": {"type": "string", "minLength": 1},
+        "mode": {"enum": ["fixture", "live"]},
+        "provider": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "extractorVersion": {"type": "string", "minLength": 1},
+        "promptVersion": {"type": "string", "minLength": 1},
+        "gateVersion": {"type": "string", "minLength": 1},
+        "baselineRunId": {"type": ["string", "null"]},
+        "totalCases": {"type": "integer", "minimum": 0},
+        "passedCases": {"type": "integer", "minimum": 0},
+        "casePassRate": {"$ref": "#/$defs/rate"},
+        "workflowSuccessRate": {"$ref": "#/$defs/rate"},
+        "skillRecall": {"$ref": "#/$defs/rate"},
+        "yearsAccuracy": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/rate"}]
+        },
+        "forbiddenFactRate": {"$ref": "#/$defs/rate"},
+        "gatePassed": {"type": "boolean"},
+        "releaseEligible": {"type": "boolean"},
+        "createdAt": {"type": "string", "format": "date-time"}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId", "traceRunId", "workflowSucceeded", "passed",
+        "failureCodes", "failureReasons", "expectedSkills", "actualSkills",
+        "missingSkills", "expectedYears", "actualYears", "forbiddenTerms",
+        "observedForbiddenTerms", "diagnostics"
+      ],
+      "properties": {
+        "caseId": {"type": "string", "minLength": 1},
+        "traceRunId": {"type": ["string", "null"]},
+        "workflowSucceeded": {"type": "boolean"},
+        "passed": {"type": "boolean"},
+        "failureCodes": {"type": "array", "items": {"type": "string"}},
+        "failureReasons": {"type": "array", "items": {"type": "string"}},
+        "expectedSkills": {"type": "array", "items": {"type": "string"}},
+        "actualSkills": {"type": "array", "items": {"type": "string"}},
+        "missingSkills": {"type": "array", "items": {"type": "string"}},
+        "expectedYears": {"type": ["number", "null"], "minimum": 0},
+        "actualYears": {"type": ["number", "null"], "minimum": 0},
+        "forbiddenTerms": {"type": "array", "items": {"type": "string"}},
+        "observedForbiddenTerms": {"type": "array", "items": {"type": "string"}},
+        "diagnostics": {"type": "object"}
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baselineRunId", "casePassRateDelta", "workflowSuccessRateDelta",
+        "skillRecallDelta", "yearsAccuracyDelta", "forbiddenFactRateDelta"
+      ],
+      "properties": {
+        "baselineRunId": {"type": "string", "pattern": "^eval_"},
+        "casePassRateDelta": {"type": "number"},
+        "workflowSuccessRateDelta": {"type": "number"},
+        "skillRecallDelta": {"type": "number"},
+        "yearsAccuracyDelta": {"type": ["number", "null"]},
+        "forbiddenFactRateDelta": {"type": "number"}
+      }
+    }
+  }
+}

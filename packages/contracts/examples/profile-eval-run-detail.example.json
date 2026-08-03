@@ -1,0 +1,42 @@
+{
+  "summary": {
+    "id": "eval_example",
+    "datasetVersion": "profile-extraction-v1",
+    "mode": "fixture",
+    "provider": "fixture",
+    "model": "fixture-profile-extractor",
+    "extractorVersion": "profile-extractor-v1",
+    "promptVersion": "profile-proposal-v1",
+    "gateVersion": "profile-eval-gate-v1",
+    "baselineRunId": null,
+    "totalCases": 10,
+    "passedCases": 10,
+    "casePassRate": 1.0,
+    "workflowSuccessRate": 1.0,
+    "skillRecall": 1.0,
+    "yearsAccuracy": 1.0,
+    "forbiddenFactRate": 0.0,
+    "gatePassed": true,
+    "releaseEligible": false,
+    "createdAt": "2026-08-03T12:00:00Z"
+  },
+  "cases": [
+    {
+      "caseId": "profile-react-electron",
+      "traceRunId": "run_example",
+      "workflowSucceeded": true,
+      "passed": true,
+      "failureCodes": [],
+      "failureReasons": [],
+      "expectedSkills": ["React", "Electron"],
+      "actualSkills": ["React", "Electron"],
+      "missingSkills": [],
+      "expectedYears": 8.0,
+      "actualYears": 8.0,
+      "forbiddenTerms": ["千万级增长"],
+      "observedForbiddenTerms": [],
+      "diagnostics": {}
+    }
+  ],
+  "comparison": null
+}
