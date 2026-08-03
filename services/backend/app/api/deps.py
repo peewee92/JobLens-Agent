@@ -3,22 +3,33 @@ from collections.abc import Callable
 
 from fastapi import Depends
 
+from app.application.career_context.use_cases import (
+    GetProfileUseCase,
+    GetSearchIntentUseCase,
+    SaveProfileUseCase,
+    SaveSearchIntentUseCase,
+)
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
 from app.application.ports import (
+    AbstractCareerContextQueryRepository,
+    AbstractCareerContextUnitOfWork,
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
     AbstractUnitOfWork,
 )
 from app.db.session import SessionLocal
 from app.repositories import (
+    SqlAlchemyCareerContextQueryRepository,
+    SqlAlchemyCareerContextUnitOfWork,
     SqlAlchemyJobImportQueryRepository,
     SqlAlchemyJobQueryRepository,
     SqlAlchemyUnitOfWork,
 )
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
+CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
 
 
 def get_uow_factory() -> UnitOfWorkFactory:
@@ -29,6 +40,46 @@ def get_uow_factory() -> UnitOfWorkFactory:
     """
 
     return lambda: SqlAlchemyUnitOfWork(SessionLocal)
+
+
+def get_career_context_uow_factory() -> CareerContextUnitOfWorkFactory:
+    return lambda: SqlAlchemyCareerContextUnitOfWork(SessionLocal)
+
+
+def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
+    return SqlAlchemyCareerContextQueryRepository(SessionLocal)
+
+
+def get_get_profile_use_case(
+    repository: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+) -> GetProfileUseCase:
+    return GetProfileUseCase(repository)
+
+
+def get_save_profile_use_case(
+    uow_factory: CareerContextUnitOfWorkFactory = Depends(
+        get_career_context_uow_factory
+    ),
+) -> SaveProfileUseCase:
+    return SaveProfileUseCase(uow_factory)
+
+
+def get_get_search_intent_use_case(
+    repository: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+) -> GetSearchIntentUseCase:
+    return GetSearchIntentUseCase(repository)
+
+
+def get_save_search_intent_use_case(
+    uow_factory: CareerContextUnitOfWorkFactory = Depends(
+        get_career_context_uow_factory
+    ),
+) -> SaveSearchIntentUseCase:
+    return SaveSearchIntentUseCase(uow_factory)
 
 
 def get_job_import_query_repository() -> AbstractJobImportQueryRepository:

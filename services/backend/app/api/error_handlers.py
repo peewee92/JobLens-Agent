@@ -8,6 +8,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1.schemas import ApiError, ApiErrorResponse
+from app.application.career_context import (
+    ContextVersionConflictError,
+    InvalidCareerContextError,
+    ProfileNotFoundError,
+    SearchIntentNotFoundError,
+)
 from app.application.job_import_queries import JobImportNotFoundError
 from app.application.job_imports.errors import (
     ImportIdentityConflictError,
@@ -39,6 +45,50 @@ def register_exception_handlers(app: FastAPI) -> None:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "request_validation_error",
             "Request body or parameters are invalid.",
+        )
+
+    @app.exception_handler(ProfileNotFoundError)
+    async def handle_profile_not_found(
+        _request: Request,
+        error: ProfileNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "profile_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(SearchIntentNotFoundError)
+    async def handle_search_intent_not_found(
+        _request: Request,
+        error: SearchIntentNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "search_intent_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(ContextVersionConflictError)
+    async def handle_context_version_conflict(
+        _request: Request,
+        error: ContextVersionConflictError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "context_version_conflict",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidCareerContextError)
+    async def handle_invalid_career_context(
+        _request: Request,
+        error: InvalidCareerContextError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_career_context",
+            str(error),
         )
 
     @app.exception_handler(InvalidCollectorReportError)
