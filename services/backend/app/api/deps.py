@@ -12,6 +12,11 @@ from app.application.career_context.use_cases import (
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
+from app.application.job_requirements.use_cases import (
+    ExtractJobRequirementsUseCase,
+    GetJobRequirementExtractionUseCase,
+    GetLatestJobRequirementsUseCase,
+)
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
@@ -23,6 +28,9 @@ from app.application.ports import (
     AbstractCareerContextUnitOfWork,
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
+    AbstractJobRequirementExtractor,
+    AbstractJobRequirementQueryRepository,
+    AbstractJobRequirementUnitOfWork,
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
@@ -33,18 +41,21 @@ from app.application.ports import (
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.document_parsers import ResumeDocumentParser
-from app.llm import build_profile_extractor
+from app.llm import build_job_requirement_extractor, build_profile_extractor
 from app.repositories import (
     SqlAlchemyCareerContextQueryRepository,
     SqlAlchemyCareerContextUnitOfWork,
     SqlAlchemyJobImportQueryRepository,
     SqlAlchemyJobQueryRepository,
+    SqlAlchemyJobRequirementQueryRepository,
+    SqlAlchemyJobRequirementUnitOfWork,
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
 from app.workflows import (
+    ExtractJobRequirementsWorkflow,
     ProposeProfileFromDocumentWorkflow,
     ProposeProfileFromResumeWorkflow,
 )
@@ -53,6 +64,7 @@ UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 ProfileEvalReviewUnitOfWorkFactory = Callable[[], AbstractProfileEvalReviewUnitOfWork]
+JobRequirementUnitOfWorkFactory = Callable[[], AbstractJobRequirementUnitOfWork]
 
 
 def get_uow_factory() -> UnitOfWorkFactory:
@@ -95,6 +107,27 @@ def get_profile_document_workflow(
     ),
 ) -> ProposeProfileFromDocumentWorkflow:
     return ProposeProfileFromDocumentWorkflow(parser, profile_workflow)
+
+
+def get_job_requirement_extractor() -> AbstractJobRequirementExtractor:
+    return build_job_requirement_extractor(get_settings())
+
+
+def get_job_requirement_workflow(
+    extractor: AbstractJobRequirementExtractor = Depends(
+        get_job_requirement_extractor
+    ),
+    trace_uow_factory: TraceUnitOfWorkFactory = Depends(get_trace_uow_factory),
+) -> ExtractJobRequirementsWorkflow:
+    return ExtractJobRequirementsWorkflow(extractor, trace_uow_factory)
+
+
+def get_job_requirement_query_repository() -> AbstractJobRequirementQueryRepository:
+    return SqlAlchemyJobRequirementQueryRepository(SessionLocal)
+
+
+def get_job_requirement_uow_factory() -> JobRequirementUnitOfWorkFactory:
+    return lambda: SqlAlchemyJobRequirementUnitOfWork(SessionLocal)
 
 
 def get_profile_eval_query_repository() -> AbstractProfileEvalQueryRepository:
@@ -194,6 +227,45 @@ def get_job_query_repository() -> AbstractJobQueryRepository:
     """Provide the read-only Job Pool repository."""
 
     return SqlAlchemyJobQueryRepository(SessionLocal)
+
+
+def get_extract_job_requirements_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    workflow: ExtractJobRequirementsWorkflow = Depends(
+        get_job_requirement_workflow
+    ),
+    uow_factory: JobRequirementUnitOfWorkFactory = Depends(
+        get_job_requirement_uow_factory
+    ),
+    repository: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> ExtractJobRequirementsUseCase:
+    return ExtractJobRequirementsUseCase(
+        jobs=jobs,
+        workflow=workflow,
+        uow_factory=uow_factory,
+        query_repository=repository,
+        provider=get_settings().requirement_extractor_provider,
+    )
+
+
+def get_latest_job_requirements_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    repository: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> GetLatestJobRequirementsUseCase:
+    return GetLatestJobRequirementsUseCase(jobs=jobs, repository=repository)
+
+
+def get_job_requirement_extraction_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    repository: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> GetJobRequirementExtractionUseCase:
+    return GetJobRequirementExtractionUseCase(jobs=jobs, repository=repository)
 
 
 def get_list_jobs_use_case(

@@ -21,6 +21,13 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
+from app.application.job_requirements import (
+    InvalidRequirementExtractorOutputError,
+    JobDescriptionNotExtractableError,
+    JobRequirementExtractionNotFoundError,
+    RequirementExtractorFailedError,
+    RequirementExtractorUnavailableError,
+)
 from app.application.profile_evals import (
     AcceptedProfileEvalBaselineNotFoundError,
     InvalidProfileEvalReviewError,
@@ -150,6 +157,61 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_404_NOT_FOUND,
             "job_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(JobRequirementExtractionNotFoundError)
+    async def handle_job_requirement_extraction_not_found(
+        _request: Request,
+        error: JobRequirementExtractionNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "job_requirement_extraction_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(JobDescriptionNotExtractableError)
+    async def handle_job_description_not_extractable(
+        _request: Request,
+        error: JobDescriptionNotExtractableError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "job_description_not_extractable",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementExtractorUnavailableError)
+    async def handle_requirement_extractor_unavailable(
+        _request: Request,
+        error: RequirementExtractorUnavailableError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "requirement_extractor_unavailable",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementExtractorFailedError)
+    async def handle_requirement_extractor_failed(
+        _request: Request,
+        error: RequirementExtractorFailedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "requirement_extractor_failed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementExtractorOutputError)
+    async def handle_invalid_requirement_extractor_output(
+        _request: Request,
+        error: InvalidRequirementExtractorOutputError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "invalid_requirement_extractor_output",
             str(error),
         )
 
