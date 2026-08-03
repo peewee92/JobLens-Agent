@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.models.common import (
     new_requirement_eval_case_result_id,
+    new_requirement_eval_review_id,
     new_requirement_eval_run_id,
     utc_now,
 )
@@ -97,6 +98,12 @@ class RequirementEvalRunORM(Base):
         passive_deletes=True,
         order_by="RequirementEvalCaseResultORM.case_id",
     )
+    review: Mapped["RequirementEvalReviewORM | None"] = relationship(
+        back_populates="eval_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
 
 
 class RequirementEvalCaseResultORM(Base):
@@ -141,3 +148,40 @@ class RequirementEvalCaseResultORM(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
 
     eval_run: Mapped[RequirementEvalRunORM] = relationship(back_populates="cases")
+
+
+class RequirementEvalReviewORM(Base):
+    """One immutable human governance decision for a live Requirement Eval Run."""
+
+    __tablename__ = "requirement_eval_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "eval_run_id",
+            name="uq_requirement_eval_reviews_eval_run_id",
+        ),
+        CheckConstraint(
+            "decision IN ('accepted', 'rejected')",
+            name="ck_requirement_eval_reviews_decision",
+        ),
+        Index(
+            "ix_requirement_eval_reviews_decision_reviewed_at",
+            "decision",
+            "reviewed_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(100),
+        primary_key=True,
+        default=new_requirement_eval_review_id,
+    )
+    eval_run_id: Mapped[str] = mapped_column(
+        ForeignKey("requirement_eval_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(160), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+    eval_run: Mapped[RequirementEvalRunORM] = relationship(back_populates="review")

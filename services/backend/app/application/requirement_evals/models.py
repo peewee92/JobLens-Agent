@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,11 +88,43 @@ class RequirementEvalMetricComparison:
     forbidden_capability_rate_delta: float
 
 
+class RequirementEvalReviewDecision(StrEnum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+@dataclass(frozen=True, slots=True)
+class RequirementEvalReviewWrite:
+    review_id: str
+    eval_run_id: str
+    decision: RequirementEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RequirementEvalReviewDetail:
+    id: str
+    eval_run_id: str
+    decision: RequirementEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class RequirementEvalRunDetail:
     summary: RequirementEvalRunSummary
     cases: tuple[RequirementEvalCaseDetail, ...]
     comparison: RequirementEvalMetricComparison | None
+    review: RequirementEvalReviewDetail | None
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedRequirementEvalBaseline:
+    review: RequirementEvalReviewDetail
+    run: RequirementEvalRunSummary
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,6 +4,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.application.requirement_evals.models import (
+    AcceptedRequirementEvalBaseline,
+    RequirementEvalReviewDetail,
     RequirementEvalRunDetail,
     RequirementEvalRunPage,
     RequirementEvalRunSummary,
@@ -28,4 +30,12 @@ class AbstractRequirementEvalQueryRepository(ABC):
 
     @abstractmethod
     def get_summary(self, eval_run_id: str) -> RequirementEvalRunSummary | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_review(self, eval_run_id: str) -> RequirementEvalReviewDetail | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_accepted_baseline(self) -> AcceptedRequirementEvalBaseline | None:
         raise NotImplementedError

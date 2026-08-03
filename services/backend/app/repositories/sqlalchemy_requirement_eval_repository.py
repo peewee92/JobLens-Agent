@@ -12,14 +12,21 @@ from app.application.ports.requirement_eval_repository import (
     AbstractRequirementEvalRepository,
 )
 from app.application.requirement_evals.models import (
+    AcceptedRequirementEvalBaseline,
     RequirementEvalCaseDetail,
     RequirementEvalMetricComparison,
+    RequirementEvalReviewDecision,
+    RequirementEvalReviewDetail,
     RequirementEvalRunDetail,
     RequirementEvalRunPage,
     RequirementEvalRunSummary,
     RequirementEvalRunWrite,
 )
-from app.db.models import RequirementEvalCaseResultORM, RequirementEvalRunORM
+from app.db.models import (
+    RequirementEvalCaseResultORM,
+    RequirementEvalReviewORM,
+    RequirementEvalRunORM,
+)
 
 SessionFactory = Callable[[], Session]
 
@@ -112,18 +119,62 @@ class SqlAlchemyRequirementEvalQueryRepository(
                 if record.baseline_run_id
                 else None
             )
+            review = session.scalar(
+                select(RequirementEvalReviewORM).where(
+                    RequirementEvalReviewORM.eval_run_id == eval_run_id
+                )
+            )
             return RequirementEvalRunDetail(
                 summary=_summary(record),
                 cases=tuple(_case_detail(item) for item in cases),
                 comparison=(
                     _comparison(record, baseline) if baseline is not None else None
                 ),
+                review=_review_detail(review) if review is not None else None,
             )
 
     def get_summary(self, eval_run_id: str) -> RequirementEvalRunSummary | None:
         with self._session_factory() as session:
             record = session.get(RequirementEvalRunORM, eval_run_id)
             return _summary(record) if record is not None else None
+
+    def get_review(self, eval_run_id: str) -> RequirementEvalReviewDetail | None:
+        with self._session_factory() as session:
+            record = session.scalar(
+                select(RequirementEvalReviewORM).where(
+                    RequirementEvalReviewORM.eval_run_id == eval_run_id
+                )
+            )
+            return _review_detail(record) if record is not None else None
+
+    def get_accepted_baseline(self) -> AcceptedRequirementEvalBaseline | None:
+        with self._session_factory() as session:
+            row = session.execute(
+                select(RequirementEvalReviewORM, RequirementEvalRunORM)
+                .join(
+                    RequirementEvalRunORM,
+                    RequirementEvalRunORM.id == RequirementEvalReviewORM.eval_run_id,
+                )
+                .where(
+                    RequirementEvalReviewORM.decision
+                    == RequirementEvalReviewDecision.ACCEPTED.value,
+                    RequirementEvalRunORM.mode == "live",
+                    RequirementEvalRunORM.gate_passed.is_(True),
+                    RequirementEvalRunORM.release_eligible.is_(True),
+                )
+                .order_by(
+                    RequirementEvalReviewORM.reviewed_at.desc(),
+                    RequirementEvalReviewORM.id.desc(),
+                )
+                .limit(1)
+            ).first()
+            if row is None:
+                return None
+            review, run = row
+            return AcceptedRequirementEvalBaseline(
+                review=_review_detail(review),
+                run=_summary(run),
+            )
 
 
 def _summary(record: RequirementEvalRunORM) -> RequirementEvalRunSummary:
@@ -150,6 +201,21 @@ def _summary(record: RequirementEvalRunORM) -> RequirementEvalRunSummary:
             record.created_at.replace(tzinfo=timezone.utc)
             if record.created_at.tzinfo is None
             else record.created_at.astimezone(timezone.utc)
+        ),
+    )
+
+
+def _review_detail(record: RequirementEvalReviewORM) -> RequirementEvalReviewDetail:
+    return RequirementEvalReviewDetail(
+        id=record.id,
+        eval_run_id=record.eval_run_id,
+        decision=RequirementEvalReviewDecision(record.decision),
+        reviewer=record.reviewer,
+        notes=record.notes,
+        reviewed_at=(
+            record.reviewed_at.replace(tzinfo=timezone.utc)
+            if record.reviewed_at.tzinfo is None
+            else record.reviewed_at.astimezone(timezone.utc)
         ),
     )
 

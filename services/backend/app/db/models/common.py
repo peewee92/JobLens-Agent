@@ -85,3 +85,7 @@ def new_requirement_eval_run_id() -> str:
 
 def new_requirement_eval_case_result_id() -> str:
     return new_prefixed_id("reqevalcase")
+
+
+def new_requirement_eval_review_id() -> str:
+    return new_prefixed_id("reqreview")

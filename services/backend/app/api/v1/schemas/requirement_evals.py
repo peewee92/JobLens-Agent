@@ -6,8 +6,11 @@ from datetime import datetime
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.application.requirement_evals import (
+    AcceptedRequirementEvalBaseline,
     RequirementEvalCaseDetail,
     RequirementEvalMetricComparison,
+    RequirementEvalReviewDecision,
+    RequirementEvalReviewDetail,
     RequirementEvalRunDetail,
     RequirementEvalRunPage,
     RequirementEvalRunSummary,
@@ -87,10 +90,46 @@ class RequirementEvalComparisonResponse(CamelCaseModel):
         return cls(**asdict(comparison))
 
 
+class RequirementEvalReviewRequest(CamelCaseModel):
+    decision: RequirementEvalReviewDecision
+    reviewer: str
+    notes: str
+
+
+class RequirementEvalReviewResponse(CamelCaseModel):
+    id: str
+    eval_run_id: str
+    decision: RequirementEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+    @classmethod
+    def from_detail(
+        cls, detail: RequirementEvalReviewDetail
+    ) -> "RequirementEvalReviewResponse":
+        return cls(**asdict(detail))
+
+
+class AcceptedRequirementEvalBaselineResponse(CamelCaseModel):
+    review: RequirementEvalReviewResponse
+    run: RequirementEvalRunSummaryResponse
+
+    @classmethod
+    def from_baseline(
+        cls, baseline: AcceptedRequirementEvalBaseline
+    ) -> "AcceptedRequirementEvalBaselineResponse":
+        return cls(
+            review=RequirementEvalReviewResponse.from_detail(baseline.review),
+            run=RequirementEvalRunSummaryResponse.from_summary(baseline.run),
+        )
+
+
 class RequirementEvalRunDetailResponse(CamelCaseModel):
     summary: RequirementEvalRunSummaryResponse
     cases: list[RequirementEvalCaseResponse]
     comparison: RequirementEvalComparisonResponse | None
+    review: RequirementEvalReviewResponse | None
 
     @classmethod
     def from_detail(
@@ -102,6 +141,11 @@ class RequirementEvalRunDetailResponse(CamelCaseModel):
             comparison=(
                 RequirementEvalComparisonResponse.from_comparison(detail.comparison)
                 if detail.comparison
+                else None
+            ),
+            review=(
+                RequirementEvalReviewResponse.from_detail(detail.review)
+                if detail.review
                 else None
             ),
         )

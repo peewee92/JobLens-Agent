@@ -24,8 +24,10 @@ from app.application.profile_evals.use_cases import (
     ReviewProfileEvalRunUseCase,
 )
 from app.application.requirement_evals.use_cases import (
+    GetAcceptedRequirementEvalBaselineUseCase,
     GetRequirementEvalRunUseCase,
     ListRequirementEvalRunsUseCase,
+    ReviewRequirementEvalRunUseCase,
 )
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
@@ -39,6 +41,7 @@ from app.application.ports import (
     AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
     AbstractRequirementEvalQueryRepository,
+    AbstractRequirementEvalReviewUnitOfWork,
     AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
     AbstractUnitOfWork,
@@ -57,6 +60,7 @@ from app.repositories import (
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
     SqlAlchemyRequirementEvalQueryRepository,
+    SqlAlchemyRequirementEvalReviewUnitOfWork,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
@@ -70,6 +74,9 @@ UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 ProfileEvalReviewUnitOfWorkFactory = Callable[[], AbstractProfileEvalReviewUnitOfWork]
+RequirementEvalReviewUnitOfWorkFactory = Callable[
+    [], AbstractRequirementEvalReviewUnitOfWork
+]
 JobRequirementUnitOfWorkFactory = Callable[[], AbstractJobRequirementUnitOfWork]
 
 
@@ -183,6 +190,10 @@ def get_requirement_eval_query_repository() -> AbstractRequirementEvalQueryRepos
     return SqlAlchemyRequirementEvalQueryRepository(SessionLocal)
 
 
+def get_requirement_eval_review_uow_factory() -> RequirementEvalReviewUnitOfWorkFactory:
+    return lambda: SqlAlchemyRequirementEvalReviewUnitOfWork(SessionLocal)
+
+
 def get_list_requirement_eval_runs_use_case(
     repository: AbstractRequirementEvalQueryRepository = Depends(
         get_requirement_eval_query_repository
@@ -197,6 +208,25 @@ def get_get_requirement_eval_run_use_case(
     ),
 ) -> GetRequirementEvalRunUseCase:
     return GetRequirementEvalRunUseCase(repository)
+
+
+def get_review_requirement_eval_run_use_case(
+    repository: AbstractRequirementEvalQueryRepository = Depends(
+        get_requirement_eval_query_repository
+    ),
+    uow_factory: RequirementEvalReviewUnitOfWorkFactory = Depends(
+        get_requirement_eval_review_uow_factory
+    ),
+) -> ReviewRequirementEvalRunUseCase:
+    return ReviewRequirementEvalRunUseCase(repository, uow_factory)
+
+
+def get_accepted_requirement_eval_baseline_use_case(
+    repository: AbstractRequirementEvalQueryRepository = Depends(
+        get_requirement_eval_query_repository
+    ),
+) -> GetAcceptedRequirementEvalBaselineUseCase:
+    return GetAcceptedRequirementEvalBaselineUseCase(repository)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:

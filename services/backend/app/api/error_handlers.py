@@ -34,7 +34,12 @@ from app.application.profile_evals import (
     ProfileEvalRunAlreadyReviewedError,
     ProfileEvalRunNotFoundError,
 )
-from app.application.requirement_evals import RequirementEvalRunNotFoundError
+from app.application.requirement_evals import (
+    AcceptedRequirementEvalBaselineNotFoundError,
+    InvalidRequirementEvalReviewError,
+    RequirementEvalRunAlreadyReviewedError,
+    RequirementEvalRunNotFoundError,
+)
 from app.application.profile_extraction import (
     InvalidProfileExtractorOutputError,
     InvalidResumeTextError,
@@ -323,6 +328,39 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_404_NOT_FOUND,
             "requirement_eval_run_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(AcceptedRequirementEvalBaselineNotFoundError)
+    async def handle_accepted_requirement_eval_baseline_not_found(
+        _request: Request,
+        error: AcceptedRequirementEvalBaselineNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "accepted_requirement_eval_baseline_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementEvalRunAlreadyReviewedError)
+    async def handle_requirement_eval_run_already_reviewed(
+        _request: Request,
+        error: RequirementEvalRunAlreadyReviewedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "requirement_eval_run_already_reviewed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementEvalReviewError)
+    async def handle_invalid_requirement_eval_review(
+        _request: Request,
+        error: InvalidRequirementEvalReviewError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_requirement_eval_review",
             str(error),
         )
 
