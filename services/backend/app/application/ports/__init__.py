@@ -1,5 +1,12 @@
 """Application-owned ports implemented by infrastructure adapters."""
 
+from app.application.ports.career_context_repository import (
+    AbstractCareerContextQueryRepository,
+    AbstractCareerContextRepository,
+)
+from app.application.ports.career_context_unit_of_work import (
+    AbstractCareerContextUnitOfWork,
+)
 from app.application.ports.job_import_query_repository import (
     AbstractJobImportQueryRepository,
 )
@@ -15,6 +22,9 @@ from app.application.ports.job_repository import (
 from app.application.ports.unit_of_work import AbstractUnitOfWork
 
 __all__ = [
+    "AbstractCareerContextQueryRepository",
+    "AbstractCareerContextRepository",
+    "AbstractCareerContextUnitOfWork",
     "AbstractJobImportQueryRepository",
     "AbstractJobQueryRepository",
     "AbstractJobRepository",
