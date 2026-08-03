@@ -14,6 +14,13 @@ from app.repositories.sqlalchemy_job_query_repository import (
     SqlAlchemyJobQueryRepository,
 )
 from app.repositories.sqlalchemy_job_repository import SqlAlchemyJobRepository
+from app.repositories.sqlalchemy_profile_eval_repository import (
+    SqlAlchemyProfileEvalQueryRepository,
+    SqlAlchemyProfileEvalRepository,
+)
+from app.repositories.sqlalchemy_profile_eval_unit_of_work import (
+    SqlAlchemyProfileEvalUnitOfWork,
+)
 from app.repositories.sqlalchemy_trace_repository import SqlAlchemyTraceRepository
 from app.repositories.sqlalchemy_trace_unit_of_work import SqlAlchemyTraceUnitOfWork
 from app.repositories.sqlalchemy_unit_of_work import SqlAlchemyUnitOfWork
@@ -25,6 +32,9 @@ __all__ = [
     "SqlAlchemyJobImportQueryRepository",
     "SqlAlchemyJobQueryRepository",
     "SqlAlchemyJobRepository",
+    "SqlAlchemyProfileEvalQueryRepository",
+    "SqlAlchemyProfileEvalRepository",
+    "SqlAlchemyProfileEvalUnitOfWork",
     "SqlAlchemyTraceRepository",
     "SqlAlchemyTraceUnitOfWork",
     "SqlAlchemyUnitOfWork",
