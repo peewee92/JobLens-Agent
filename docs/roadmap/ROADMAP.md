@@ -141,6 +141,15 @@ Profile 页面可以明确区分：
 6. `confidence` / `extractorVersion`；
 7. `Requirement Eval` 数据集与断言。
 
+### 当前进度（2026-08-03）
+
+- `JobRequirementExtraction` 与逐条 `JobRequirement` 已按不可变版本持久化；
+- strict Structured Output Adapter、exact `originalText/evidenceSpan` 门禁与 Requirement Trace 已完成；
+- POST 抽取、GET 最新版本、GET 历史版本 API 已完成；
+- 10-case 脱敏 Requirement Eval、Fixture Gate、失败案例解释和独立 CLI 已完成；
+- Job 详情页可显式触发新版本并展示 Requirement ID、importance、evidenceSpan、confidence 与 Trace；
+- 尚未完成真实 Provider 评测、20 个真实岗位人工验收和 Requirement 人工 Review，因此不能将 Fixture 结果视为生产质量结论，也不进入 Match。
+
 ### 验收
 
 抽样 20 个岗位，人工检查：

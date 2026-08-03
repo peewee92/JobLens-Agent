@@ -11,7 +11,7 @@ Browser product loop for Job Data, confirmed career context, grounded Profile pr
 /import                     Upload Collector report JSON
 /imports/{importId}         View import audit detail
 /jobs                       Filtered and paginated Job Pool
-/jobs/{jobId}               Public Job detail
+/jobs/{jobId}               Job detail + latest JobRequirements + explicit re-extraction
 ```
 
 The browser submits Profile/SearchIntent commands and imports to same-origin Next Route Handlers:
@@ -22,6 +22,7 @@ Browser
 → review/apply in local form state
 → PUT /api/profile | PUT /api/search-intent | POST /api/job-imports
 → POST /api/profile-evals/{id}/review
+→ POST /api/jobs/{id}/requirement-extractions
 → FastAPI Workflow / Application Use Cases
 ```
 
@@ -85,6 +86,8 @@ DOCX upload → extracted text → Profile Proposal
 → same-origin import proxy
 → filtered Job Pool
 → Job detail
+→ two immutable Requirement Extraction versions
+→ latest evidence-grounded Requirements
 → Import audit detail
 ```
 
@@ -94,13 +97,13 @@ Both scripts clean up processes and temporary data after completion.
 
 ## Boundary rules
 
-- Client Components are limited to genuine browser interaction: resume/Collector file input, proposal review, Profile/SearchIntent editing and Eval Review commands.
+- Client Components are limited to genuine browser interaction: resume/Collector file input, proposal review, Profile/SearchIntent editing, Eval Review commands and explicit Requirement extraction.
 - Job Pool filters live in URL search params.
-- Server Components fetch list/detail/audit/Eval governance data.
+- Server Components fetch list/detail/audit/Eval governance/latest Requirement data.
 - Public Web types do not include `sourceRaw`, `candidateRaw`, `canonicalKey`, `profileKey`, or `intentKey`.
 - Profile Proposal never auto-calls the confirmed Profile API; the user must adopt, review and save explicitly.
 - Profile Skills reference Evidence through request-local keys; the Backend returns opaque Evidence IDs.
-- The Web does not reimplement idempotency, transaction or Eval acceptance policy; Backend 201/404/409/422 remains authoritative.
+- The Web does not run Requirement providers or reimplement idempotency, transaction, grounding or Eval acceptance policy; Backend responses remain authoritative.
 
 ## Out of scope
 

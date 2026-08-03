@@ -120,6 +120,7 @@ JobLens-Agent/
 - [Profile Eval Run / Gate / Live Eligibility ADR](docs/decisions/0018-profile-eval-runs-gates-and-live-eligibility.md)
 - [Profile Eval Human Review / Accepted Baseline ADR](docs/decisions/0019-profile-eval-human-review-and-accepted-baseline.md)
 - [Profile Eval Review Web Boundary ADR](docs/decisions/0020-profile-eval-review-web-boundary.md)
+- [Versioned JobRequirement Fact Base ADR](docs/decisions/0021-versioned-job-requirement-fact-base.md)
 
 ## 当前阶段
 
@@ -134,8 +135,9 @@ Phase 2B-2：PDF/DOCX Resume Input ✅
 Phase 2B-3：Eval Run + Gate + Baseline ✅
 Phase 2B-4：Human Review + Accepted Baseline ✅
 Phase 2B-5：Eval Review Web ✅
-Phase 2B-6：Credential-backed Live Provider Quality ← 下一阶段
-Phase 3：Requirement Intelligence
+Phase 2B-6：Credential-backed Live Provider Quality ⏳ 等待运行凭据
+Phase 3A：JobRequirement Fact Base + Fixture Eval + Web ✅
+Phase 3B：Credential-backed Requirement Quality + Human Review ← 下一阶段
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
 Phase 6：Target Cohort + Skill Gap

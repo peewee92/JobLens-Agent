@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B 的文本/PDF/DOCX → Profile Proposal、deterministic grounding、Trace、不可变 Eval Run、Gate v1 与 baseline 对比。下一步是带真实凭据的 Provider 质量评测，不提前进入 Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review，以及 Phase 3A 的版本化 JobRequirement 事实底座、Trace、10-case Requirement Eval 与 Job 详情展示。Profile/Requirement 的真实 Provider 质量仍需运行凭据和人工审查；尚未进入 Eligibility / Match。
 
 ## Prerequisites
 
@@ -109,6 +109,38 @@ curl http://127.0.0.1:8000/api/v1/profile-evals/baseline/accepted
 
 `releaseEligible=true` 只允许进入人工审查，不等于已批准。Fixture Run 不能正式审查；一个 Run 只能保存一条不可变 Review。
 
+### Extract JobRequirements
+
+默认 Requirement Provider 为 `disabled`。本地工程验证可使用 `fixture`；真实模型使用 `openai`：
+
+```bash
+REQUIREMENT_EXTRACTOR_PROVIDER=fixture uv run fastapi dev
+```
+
+对已保存 Job 创建一个不可变 Extraction Run：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirement-extractions
+```
+
+读取最新版本和历史版本：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirements
+curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirement-extractions/reqrun_xxx
+```
+
+每条 Requirement 都必须有命中 JD 原文的 `evidenceSpan`；重新抽取会创建新 Run，不覆盖历史。Trace input 只保存 Job ID、JD SHA-256 与字符数。后续 Eligibility / Match / Gap 必须复用 JobRequirement，不应重新解释 raw JD。
+
+Requirement Eval：
+
+```bash
+REQUIREMENT_EXTRACTOR_PROVIDER=fixture \
+uv run python -m scripts.run_requirement_eval
+```
+
+Fixture 10/10 只证明 Dataset / Workflow / Validator / Trace / Gate 可重复，不代表真实模型质量。
+
 ### Import Collector report
 
 ```bash
@@ -171,7 +203,8 @@ Alembic 已指向 `Base.metadata`：
 - `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent；
 - `20260803_0004_create_trace_spans.py` 创建通用能力 Trace；
 - `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果；
-- `20260803_0006_create_profile_eval_reviews.py` 创建不可变人工 Review 与正式 baseline 治理记录。
+- `20260803_0006_create_profile_eval_reviews.py` 创建不可变人工 Review 与正式 baseline 治理记录；
+- `20260803_0007_create_job_requirements.py` 创建版本化 JobRequirement Extraction Run 与逐条 Requirement。
 
 ```bash
 # 查看当前迁移版本
@@ -200,7 +233,10 @@ uv run alembic check
 | `DATABASE_URL` | 数据库连接串 | `sqlite:///./data/joblens.db` |
 | `PROFILE_EXTRACTOR_PROVIDER` | `disabled / fixture / openai` | `disabled` |
 | `PROFILE_EXTRACTOR_MODEL` | 运行时模型名，不在代码硬编码 | 空 |
-| `PROFILE_EXTRACTOR_TIMEOUT_SECONDS` | Provider 超时 | `60` |
+| `PROFILE_EXTRACTOR_TIMEOUT_SECONDS` | Profile Provider 超时 | `60` |
+| `REQUIREMENT_EXTRACTOR_PROVIDER` | `disabled / fixture / openai` | `disabled` |
+| `REQUIREMENT_EXTRACTOR_MODEL` | Requirement 运行时模型名 | 空 |
+| `REQUIREMENT_EXTRACTOR_TIMEOUT_SECONDS` | Requirement Provider 超时 | `60` |
 | `OPENAI_API_KEY` | OpenAI API Key，仅服务端读取 | 空 |
 | `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` |
 

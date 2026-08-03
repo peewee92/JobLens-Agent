@@ -67,6 +67,7 @@ try {
       APP_ENV: "test",
       DATABASE_URL: databaseUrl,
       PROFILE_EXTRACTOR_PROVIDER: "fixture",
+      REQUIREMENT_EXTRACTOR_PROVIDER: "fixture",
     },
   });
   await waitFor(`${backendUrl}/api/v1/health`);
@@ -191,6 +192,11 @@ try {
 
   console.log("[smoke] importing Collector report through Next proxy");
   const report = JSON.parse(await readFile(samplePath, "utf8"));
+  report.jobs[0].description = [
+    "负责 AI 应用、RAG 和 Agent 能力建设。",
+    "要求熟练掌握 Python 和 FastAPI。",
+    "有 Docker 使用经验者优先。",
+  ].join("\n");
   const imported = await fetch(`${webUrl}/api/job-imports`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -216,9 +222,37 @@ try {
   const jobMatch = jobsHtml.match(/\/jobs\/(job_[a-z0-9]+)/);
   assert.ok(jobMatch, "Job list should include a detail link");
 
-  console.log("[smoke] rendering Job detail");
+  console.log("[smoke] rendering Job detail and extracting Requirements");
+  const detailBefore = await html(`/jobs/${jobMatch[1]}`);
+  assert.match(detailBefore, /负责 AI 应用、RAG 和 Agent 能力建设/);
+  assert.match(detailBefore, /尚未生成 JobRequirement/);
+  const firstRequirementRun = await fetch(
+    `${webUrl}/api/jobs/${jobMatch[1]}/requirement-extractions`,
+    {method: "POST"},
+  );
+  assert.equal(firstRequirementRun.status, 201);
+  const firstRequirements = await firstRequirementRun.json();
+  assert.match(firstRequirements.extractionId, /^reqrun_/);
+  assert.match(firstRequirements.traceRunId, /^run_/);
+  assert.ok(firstRequirements.requirements.length >= 4);
+  assert.ok(
+    firstRequirements.requirements.every((item) =>
+      report.jobs[0].description.includes(item.evidenceSpan),
+    ),
+  );
+  const secondRequirementRun = await fetch(
+    `${webUrl}/api/jobs/${jobMatch[1]}/requirement-extractions`,
+    {method: "POST"},
+  );
+  assert.equal(secondRequirementRun.status, 201);
+  const secondRequirements = await secondRequirementRun.json();
+  assert.notEqual(secondRequirements.extractionId, firstRequirements.extractionId);
   const detailHtml = await html(`/jobs/${jobMatch[1]}`);
-  assert.match(detailHtml, /负责 AI 应用、RAG 和 Agent 能力建设/);
+  assert.match(detailHtml, /结构化岗位要求/);
+  assert.match(detailHtml, /Fixture 抽取结果/);
+  assert.match(detailHtml, /Python/);
+  assert.match(detailHtml, /FastAPI/);
+  assert.match(detailHtml, /Trace：[\s\S]{0,30}run_/);
   assert.match(detailHtml, /打开原始岗位/);
   assert.doesNotMatch(detailHtml, /sourceRaw|canonicalKey|normalizedSourceUrl/);
 
@@ -230,7 +264,7 @@ try {
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
   console.log(
-    "Web smoke E2E passed: DOCX → proposal → profile → intent → import → jobs → detail → audit.",
+    "Web smoke E2E passed: DOCX → proposal → profile → intent → import → requirements → jobs → audit.",
   );
 } catch (error) {
   for (const processInfo of children) {

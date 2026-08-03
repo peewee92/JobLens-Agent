@@ -1,0 +1,98 @@
+"""Provider-adapter tests for Job Requirement Extraction."""
+from __future__ import annotations
+
+import json
+
+import httpx
+import pytest
+
+from app.application.job_requirements import (
+    RequirementExtractorFailedError,
+    RequirementExtractorUnavailableError,
+)
+from app.llm import OpenAIJobRequirementExtractor
+
+
+def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python 和 FastAPI",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "evidenceSpan": "熟练掌握 Python 和 FastAPI",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {"type": "output_text", "text": json.dumps(output)}
+                        ],
+                    }
+                ],
+                "usage": {"input_tokens": 100, "output_tokens": 40},
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            client=client,
+        ).extract("岗位要求：熟练掌握 Python 和 FastAPI，并具备后端系统设计经验。")
+
+    assert captured["model"] == "test-model"
+    assert captured["store"] is False
+    assert captured["text"]["format"]["type"] == "json_schema"
+    assert captured["text"]["format"]["strict"] is True
+    assert captured["text"]["format"]["schema"]["additionalProperties"] is False
+    assert result.output.requirements[0].normalized_capability == "Python"
+    assert result.input_tokens == 100
+    assert result.output_tokens == 40
+
+
+def test_openai_requirement_adapter_requires_configuration() -> None:
+    extractor = OpenAIJobRequirementExtractor(api_key=None, model="")
+
+    with pytest.raises(RequirementExtractorUnavailableError):
+        extractor.extract("岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。")
+
+
+def test_openai_requirement_adapter_maps_refusal() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {"type": "refusal", "refusal": "cannot comply"}
+                        ],
+                    }
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            client=client,
+        )
+        with pytest.raises(RequirementExtractorFailedError, match="refused"):
+            extractor.extract(
+                "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"
+            )

@@ -53,6 +53,25 @@ test("the Resume Proposal Client Component calls only the same-origin proxy", as
   assert.doesNotMatch(source, /fetch\("\/api\/profile"/);
 });
 
+test("the Job Requirement Client calls only its same-origin command proxy", async () => {
+  const source = await readFile(
+    join(webRoot, "components/job-requirement-extract-button.tsx"),
+    "utf8",
+  );
+  assert.match(source, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/requirement-extractions`/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
+  assert.doesNotMatch(source, /openai|requirement_extractor_provider/i);
+});
+
+test("the Job Requirement Route Handler delegates to Backend without extraction logic", async () => {
+  const source = await readFile(
+    join(webRoot, "app/api/jobs/[id]/requirement-extractions/route.ts"),
+    "utf8",
+  );
+  assert.match(source, /backendResponse/);
+  assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
+});
+
 test("the Profile Eval Review Client calls only its same-origin command proxy", async () => {
   const source = await readFile(
     join(webRoot, "components/profile-eval-review-form.tsx"),

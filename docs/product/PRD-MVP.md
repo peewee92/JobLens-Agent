@@ -560,8 +560,10 @@ v0.2 / P1 才重启的能力（不在 v0.1）：Skill Gap、Action Plan、Resume
 
 ### JobRequirement
 
-- [ ] 每个岗位产出结构化 JobRequirement
-- [ ] 每条 Requirement 有 `type` / `importance` / `evidenceSpan` / `confidence`
+- [x] 用户可对已保存岗位显式生成版本化 JobRequirement；自动批量覆盖仍未实现
+- [x] 每条 Requirement 有 `type` / `importance` / `evidenceSpan` / `confidence`
+- [x] 抽取 Run 记录 input hash / model / prompt / Trace，旧版本可历史查询
+- [ ] 使用真实 Provider 对 20 个真实岗位完成人工质量验收
 
 ### Match
 
