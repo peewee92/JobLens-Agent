@@ -15,7 +15,11 @@ from app.db.models.job_import import JobImportORM
 from app.db.models.job_import_candidate import JobImportCandidateORM
 from app.db.models.job_import_item import JobImportItemORM
 from app.db.models.job_source import JobSourceORM
-from app.db.models.profile_eval import ProfileEvalCaseResultORM, ProfileEvalRunORM
+from app.db.models.profile_eval import (
+    ProfileEvalCaseResultORM,
+    ProfileEvalReviewORM,
+    ProfileEvalRunORM,
+)
 from app.db.models.trace_span import TraceSpanORM
 
 __all__ = [
@@ -30,6 +34,7 @@ __all__ = [
     "JobImportItemORM",
     "JobSourceORM",
     "ProfileEvalCaseResultORM",
+    "ProfileEvalReviewORM",
     "ProfileEvalRunORM",
     "TraceSpanORM",
 ]

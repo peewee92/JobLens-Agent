@@ -65,3 +65,7 @@ def new_profile_eval_run_id() -> str:
 
 def new_profile_eval_case_result_id() -> str:
     return new_prefixed_id("evalcase")
+
+
+def new_profile_eval_review_id() -> str:
+    return new_prefixed_id("review")

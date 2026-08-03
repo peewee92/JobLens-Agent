@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.models.common import (
     new_profile_eval_case_result_id,
+    new_profile_eval_review_id,
     new_profile_eval_run_id,
     utc_now,
 )
@@ -65,6 +66,12 @@ class ProfileEvalRunORM(Base):
         passive_deletes=True,
         order_by="ProfileEvalCaseResultORM.case_id",
     )
+    review: Mapped["ProfileEvalReviewORM | None"] = relationship(
+        back_populates="eval_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
+    )
 
 
 class ProfileEvalCaseResultORM(Base):
@@ -102,3 +109,34 @@ class ProfileEvalCaseResultORM(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
 
     eval_run: Mapped[ProfileEvalRunORM] = relationship(back_populates="cases")
+
+
+class ProfileEvalReviewORM(Base):
+    """One immutable human governance decision for a live Eval Run."""
+
+    __tablename__ = "profile_eval_reviews"
+    __table_args__ = (
+        UniqueConstraint("eval_run_id", name="uq_profile_eval_reviews_eval_run_id"),
+        CheckConstraint(
+            "decision IN ('accepted', 'rejected')",
+            name="ck_profile_eval_reviews_decision",
+        ),
+        Index(
+            "ix_profile_eval_reviews_decision_reviewed_at",
+            "decision",
+            "reviewed_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(90), primary_key=True, default=new_profile_eval_review_id
+    )
+    eval_run_id: Mapped[str] = mapped_column(
+        ForeignKey("profile_eval_runs.id", ondelete="CASCADE"), nullable=False
+    )
+    decision: Mapped[str] = mapped_column(String(20), nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(160), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+    eval_run: Mapped[ProfileEvalRunORM] = relationship(back_populates="review")
