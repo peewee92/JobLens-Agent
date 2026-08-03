@@ -2,6 +2,91 @@ export type RemoteStatus = "confirmed" | "rejected" | "unknown";
 export type RemoteConfidence = "high" | "medium" | "low";
 export type JobSort = "latest" | "salaryDesc" | "salaryAsc";
 export type ImportOutcome = "created" | "updated" | "skipped" | "error";
+export type EvidenceType =
+  | "work"
+  | "project"
+  | "education"
+  | "achievement"
+  | "self_report";
+export type SkillLevel = "strong" | "working" | "basic" | "unknown";
+export type Seniority =
+  | "intern"
+  | "junior"
+  | "mid"
+  | "senior"
+  | "staff"
+  | "lead"
+  | "principal";
+
+export interface ProfileEvidence {
+  id: string;
+  key: string;
+  type: EvidenceType;
+  summary: string;
+  source: string;
+}
+
+export interface ProfileSkill {
+  id: string;
+  name: string;
+  level: SkillLevel;
+  evidenceIds: string[];
+}
+
+export interface UserProfile {
+  id: string;
+  version: number;
+  headline: string;
+  yearsOfExperience: number | null;
+  evidence: ProfileEvidence[];
+  skills: ProfileSkill[];
+  createdAt: string;
+}
+
+export interface SaveProfilePayload {
+  expectedVersion: number;
+  headline: string;
+  yearsOfExperience: number | null;
+  evidence: Array<{
+    key: string;
+    type: EvidenceType;
+    summary: string;
+    source: string;
+  }>;
+  skills: Array<{
+    name: string;
+    level: SkillLevel;
+    evidenceKeys: string[];
+  }>;
+}
+
+export interface SearchIntent {
+  id: string;
+  version: number;
+  targetRoles: string[];
+  cities: string[];
+  remoteAccepted: boolean | null;
+  minimumSalaryK: number | null;
+  seniority: Seniority | null;
+  employmentTypes: string[];
+  excludeKeywords: string[];
+  hardConstraints: string[];
+  softPreferences: string[];
+  createdAt: string;
+}
+
+export interface SaveSearchIntentPayload {
+  expectedVersion: number;
+  targetRoles: string[];
+  cities: string[];
+  remoteAccepted: boolean | null;
+  minimumSalaryK: number | null;
+  seniority: Seniority | null;
+  employmentTypes: string[];
+  excludeKeywords: string[];
+  hardConstraints: string[];
+  softPreferences: string[];
+}
 
 export interface JobListItem {
   id: string;

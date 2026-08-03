@@ -337,7 +337,8 @@ h3 {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
@@ -345,6 +346,114 @@ h3 {
   border-radius: 10px;
   background: white;
   color: var(--ink);
+}
+
+.field textarea {
+  min-height: 92px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.profile-layout {
+  display: grid;
+  gap: 22px;
+}
+
+.profile-form {
+  display: grid;
+  gap: 22px;
+}
+
+.section-title-row,
+.subsection-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.section-title-row h2,
+.subsection-heading h3 {
+  margin: 0;
+}
+
+.subsection-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.version-badge {
+  display: inline-flex;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.profile-grid,
+.editor-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-span-2 {
+  grid-column: 1 / -1;
+}
+
+.editor-list {
+  display: grid;
+  gap: 14px;
+}
+
+.editor-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.evidence-picker {
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+
+.evidence-picker legend {
+  padding: 0 6px;
+  font-weight: 750;
+}
+
+.evidence-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 8px 14px 0 0;
+}
+
+.evidence-picker input {
+  width: auto;
+  min-height: auto;
+}
+
+.danger-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.danger-link:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .filter-actions {
@@ -504,8 +613,19 @@ h3 {
 
 @media (max-width: 800px) {
   .filter-form,
-  .detail-grid {
+  .detail-grid,
+  .profile-grid,
+  .editor-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .profile-span-2 {
+    grid-column: auto;
+  }
+
+  .section-title-row,
+  .subsection-heading {
+    flex-direction: column;
   }
 
   .summary-grid {

@@ -5,6 +5,8 @@ import type {
   JobDetail,
   JobImportDetail,
   JobPage,
+  SearchIntent,
+  UserProfile,
 } from "@/lib/contracts";
 
 export class BackendApiError extends Error {
@@ -86,4 +88,23 @@ export function fetchImportDetail(importId: string): Promise<JobImportDetail> {
   return backendJson<JobImportDetail>(
     `/api/v1/job-imports/${encodeURIComponent(importId)}`,
   );
+}
+
+async function optionalJson<T>(path: string): Promise<T | null> {
+  try {
+    return await backendJson<T>(path);
+  } catch (error) {
+    if (error instanceof BackendApiError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export function fetchCurrentProfile(): Promise<UserProfile | null> {
+  return optionalJson<UserProfile>("/api/v1/profile");
+}
+
+export function fetchCurrentSearchIntent(): Promise<SearchIntent | null> {
+  return optionalJson<SearchIntent>("/api/v1/search-intent");
 }
