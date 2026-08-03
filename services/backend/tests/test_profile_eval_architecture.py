@@ -49,16 +49,19 @@ def test_profile_eval_router_does_not_run_provider_or_touch_repositories() -> No
     )
 
 
-def test_profile_eval_repository_does_not_manage_transactions() -> None:
-    source = _source("app/repositories/sqlalchemy_profile_eval_repository.py")
-    tree = ast.parse(source)
-    forbidden_calls = {"commit", "rollback", "delete"}
-    calls = {
-        node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert not (calls & forbidden_calls)
+def test_profile_eval_repositories_do_not_manage_transactions() -> None:
+    for path in [
+        "app/repositories/sqlalchemy_profile_eval_repository.py",
+        "app/repositories/sqlalchemy_profile_eval_review_repository.py",
+    ]:
+        tree = ast.parse(_source(path))
+        forbidden_calls = {"commit", "rollback", "delete"}
+        calls = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        assert not (calls & forbidden_calls), path
 
 
 def test_release_eligibility_requires_live_mode_and_gate_pass() -> None:
@@ -70,3 +73,19 @@ def test_eval_read_contract_does_not_expose_resume_text() -> None:
     source = _source("app/api/v1/schemas/profile_evals.py")
     assert "resume_text" not in source
     assert "resumeSha256" not in source
+
+
+def test_review_use_cases_remain_application_only() -> None:
+    imports = _imports("app/application/profile_evals/use_cases.py")
+    forbidden_prefixes = ("fastapi", "sqlalchemy", "app.db", "app.repositories")
+    assert not any(
+        module.startswith(prefix)
+        for module in imports
+        for prefix in forbidden_prefixes
+    )
+
+
+def test_profile_eval_router_does_not_implement_review_policy() -> None:
+    source = _source("app/api/v1/profile_evals.py")
+    for forbidden in ["release_eligible", "gate_passed", "mode ==", "mode !="]:
+        assert forbidden not in source

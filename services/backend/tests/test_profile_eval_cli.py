@@ -109,3 +109,81 @@ def test_cli_rejects_missing_baseline_without_persisting_a_run(tmp_path: Path) -
         ) == 0
         assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
     engine.dispose()
+
+
+def test_fixture_cli_rejects_accepted_baseline_before_any_workflow_run(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'profile-eval-cli-fixture-baseline.db'}"
+    env = {
+        **os.environ,
+        "APP_ENV": "test",
+        "DATABASE_URL": database_url,
+        "PROFILE_EXTRACTOR_PROVIDER": "fixture",
+    }
+    migration = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=BACKEND_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert migration.returncode == 0, migration.stdout + migration.stderr
+
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.run_profile_eval", "--accepted-baseline"],
+        cwd=BACKEND_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "only valid for a live Provider Eval" in result.stdout
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        assert int(session.scalar(select(func.count()).select_from(ProfileEvalRunORM)) or 0) == 0
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+    engine.dispose()
+
+
+def test_live_cli_rejects_missing_accepted_baseline_before_provider_setup(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'profile-eval-cli-live-baseline.db'}"
+    env = {
+        **os.environ,
+        "APP_ENV": "test",
+        "DATABASE_URL": database_url,
+        "PROFILE_EXTRACTOR_PROVIDER": "openai",
+        "PROFILE_EXTRACTOR_MODEL": "",
+        "OPENAI_API_KEY": "",
+    }
+    migration = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=BACKEND_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert migration.returncode == 0, migration.stdout + migration.stderr
+
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.run_profile_eval", "--accepted-baseline"],
+        cwd=BACKEND_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "No human-accepted live Profile Eval baseline exists" in result.stdout
+    engine = create_engine(database_url)
+    with Session(engine) as session:
+        assert int(session.scalar(select(func.count()).select_from(ProfileEvalRunORM)) or 0) == 0
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+    engine.dispose()

@@ -57,6 +57,7 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
         "trace_spans",
         "profile_eval_runs",
         "profile_eval_case_results",
+        "profile_eval_reviews",
     }
 
     engine.dispose()
