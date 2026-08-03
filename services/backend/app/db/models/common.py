@@ -77,3 +77,11 @@ def new_job_requirement_extraction_id() -> str:
 
 def new_job_requirement_id() -> str:
     return new_prefixed_id("req")
+
+
+def new_requirement_eval_run_id() -> str:
+    return new_prefixed_id("reqeval")
+
+
+def new_requirement_eval_case_result_id() -> str:
+    return new_prefixed_id("reqevalcase")

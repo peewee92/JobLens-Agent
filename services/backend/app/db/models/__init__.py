@@ -24,6 +24,10 @@ from app.db.models.profile_eval import (
     ProfileEvalReviewORM,
     ProfileEvalRunORM,
 )
+from app.db.models.requirement_eval import (
+    RequirementEvalCaseResultORM,
+    RequirementEvalRunORM,
+)
 from app.db.models.trace_span import TraceSpanORM
 
 __all__ = [
@@ -42,5 +46,7 @@ __all__ = [
     "ProfileEvalCaseResultORM",
     "ProfileEvalReviewORM",
     "ProfileEvalRunORM",
+    "RequirementEvalCaseResultORM",
+    "RequirementEvalRunORM",
     "TraceSpanORM",
 ]

@@ -5,6 +5,7 @@ from app.evals.job_requirement_extraction import (
     JobRequirementEvalCase,
     JobRequirementEvalCaseResult,
     JobRequirementEvalReport,
+    RequirementEvalMode,
     load_job_requirement_eval_cases,
     run_job_requirement_eval,
 )
@@ -21,6 +22,7 @@ from app.evals.profile_extraction import (
     load_profile_eval_cases,
     run_profile_eval,
 )
+from app.evals.requirement_eval_runs import RunRequirementEvalUseCase
 
 __all__ = [
     "DEFAULT_PROFILE_EVAL_GATE",
@@ -35,7 +37,9 @@ __all__ = [
     "ProfileEvalMetrics",
     "ProfileEvalMode",
     "ProfileEvalReport",
+    "RequirementEvalMode",
     "RunProfileEvalUseCase",
+    "RunRequirementEvalUseCase",
     "load_job_requirement_eval_cases",
     "load_profile_eval_cases",
     "run_job_requirement_eval",

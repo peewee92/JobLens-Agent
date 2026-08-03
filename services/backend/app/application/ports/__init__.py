@@ -24,6 +24,13 @@ from app.application.ports.profile_eval_repository import (
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalRepository,
 )
+from app.application.ports.requirement_eval_repository import (
+    AbstractRequirementEvalQueryRepository,
+    AbstractRequirementEvalRepository,
+)
+from app.application.ports.requirement_eval_unit_of_work import (
+    AbstractRequirementEvalUnitOfWork,
+)
 from app.application.ports.profile_eval_review_repository import (
     AbstractProfileEvalReviewRepository,
 )
@@ -63,6 +70,9 @@ __all__ = [
     "AbstractProfileEvalReviewUnitOfWork",
     "AbstractProfileEvalUnitOfWork",
     "AbstractProfileExtractor",
+    "AbstractRequirementEvalQueryRepository",
+    "AbstractRequirementEvalRepository",
+    "AbstractRequirementEvalUnitOfWork",
     "AbstractResumeDocumentParser",
     "AbstractTraceRepository",
     "AbstractTraceUnitOfWork",

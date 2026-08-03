@@ -34,6 +34,13 @@ from app.repositories.sqlalchemy_profile_eval_review_unit_of_work import (
 from app.repositories.sqlalchemy_profile_eval_unit_of_work import (
     SqlAlchemyProfileEvalUnitOfWork,
 )
+from app.repositories.sqlalchemy_requirement_eval_repository import (
+    SqlAlchemyRequirementEvalQueryRepository,
+    SqlAlchemyRequirementEvalRepository,
+)
+from app.repositories.sqlalchemy_requirement_eval_unit_of_work import (
+    SqlAlchemyRequirementEvalUnitOfWork,
+)
 from app.repositories.sqlalchemy_trace_repository import SqlAlchemyTraceRepository
 from app.repositories.sqlalchemy_trace_unit_of_work import SqlAlchemyTraceUnitOfWork
 from app.repositories.sqlalchemy_unit_of_work import SqlAlchemyUnitOfWork
@@ -53,6 +60,9 @@ __all__ = [
     "SqlAlchemyProfileEvalReviewRepository",
     "SqlAlchemyProfileEvalReviewUnitOfWork",
     "SqlAlchemyProfileEvalUnitOfWork",
+    "SqlAlchemyRequirementEvalQueryRepository",
+    "SqlAlchemyRequirementEvalRepository",
+    "SqlAlchemyRequirementEvalUnitOfWork",
     "SqlAlchemyTraceRepository",
     "SqlAlchemyTraceUnitOfWork",
     "SqlAlchemyUnitOfWork",

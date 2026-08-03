@@ -3,11 +3,17 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from app.application.job_requirements import JobRequirementExtractionExecutionError
 from app.domain.job_requirements import RequirementImportance, RequirementType
 from app.workflows import ExtractJobRequirementsWorkflow
+
+
+class RequirementEvalMode(StrEnum):
+    FIXTURE = "fixture"
+    LIVE = "live"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +48,7 @@ class JobRequirementEvalCaseResult:
 @dataclass(frozen=True, slots=True)
 class JobRequirementEvalReport:
     dataset_version: str
+    gate_version: str
     total_cases: int
     passed_cases: int
     case_pass_rate: float
@@ -53,6 +60,7 @@ class JobRequirementEvalReport:
     cases: tuple[JobRequirementEvalCaseResult, ...]
 
 
+GATE_VERSION = "requirement-eval-gate-v1"
 CASE_PASS_THRESHOLD = 0.9
 WORKFLOW_SUCCESS_THRESHOLD = 1.0
 CAPABILITY_RECALL_THRESHOLD = 0.95
@@ -219,6 +227,7 @@ def run_job_requirement_eval(
     )
     return JobRequirementEvalReport(
         dataset_version=dataset_version,
+        gate_version=GATE_VERSION,
         total_cases=total,
         passed_cases=passed_cases,
         case_pass_rate=case_rate,
