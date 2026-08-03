@@ -27,6 +27,12 @@ from app.application.profile_extraction import (
     ProfileExtractorFailedError,
     ProfileExtractorUnavailableError,
 )
+from app.application.resume_documents import (
+    InvalidResumeDocumentError,
+    ResumeDocumentTooLargeError,
+    ResumeTextNotExtractableError,
+    UnsupportedResumeDocumentError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +155,50 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "import_identity_conflict",
+            str(error),
+        )
+
+    @app.exception_handler(ResumeDocumentTooLargeError)
+    async def handle_resume_document_too_large(
+        _request: Request,
+        error: ResumeDocumentTooLargeError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            "resume_document_too_large",
+            str(error),
+        )
+
+    @app.exception_handler(UnsupportedResumeDocumentError)
+    async def handle_unsupported_resume_document(
+        _request: Request,
+        error: UnsupportedResumeDocumentError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            "unsupported_resume_document",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidResumeDocumentError)
+    async def handle_invalid_resume_document(
+        _request: Request,
+        error: InvalidResumeDocumentError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_resume_document",
+            str(error),
+        )
+
+    @app.exception_handler(ResumeTextNotExtractableError)
+    async def handle_resume_text_not_extractable(
+        _request: Request,
+        error: ResumeTextNotExtractableError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "resume_text_not_extractable",
             str(error),
         )
 

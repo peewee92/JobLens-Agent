@@ -18,11 +18,13 @@ from app.application.ports import (
     AbstractJobImportQueryRepository,
     AbstractJobQueryRepository,
     AbstractProfileExtractor,
+    AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
     AbstractUnitOfWork,
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.document_parsers import ResumeDocumentParser
 from app.llm import build_profile_extractor
 from app.repositories import (
     SqlAlchemyCareerContextQueryRepository,
@@ -32,7 +34,10 @@ from app.repositories import (
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
-from app.workflows import ProposeProfileFromResumeWorkflow
+from app.workflows import (
+    ProposeProfileFromDocumentWorkflow,
+    ProposeProfileFromResumeWorkflow,
+)
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
@@ -66,6 +71,19 @@ def get_profile_extraction_workflow(
     trace_uow_factory: TraceUnitOfWorkFactory = Depends(get_trace_uow_factory),
 ) -> ProposeProfileFromResumeWorkflow:
     return ProposeProfileFromResumeWorkflow(extractor, trace_uow_factory)
+
+
+def get_resume_document_parser() -> AbstractResumeDocumentParser:
+    return ResumeDocumentParser()
+
+
+def get_profile_document_workflow(
+    parser: AbstractResumeDocumentParser = Depends(get_resume_document_parser),
+    profile_workflow: ProposeProfileFromResumeWorkflow = Depends(
+        get_profile_extraction_workflow
+    ),
+) -> ProposeProfileFromDocumentWorkflow:
+    return ProposeProfileFromDocumentWorkflow(parser, profile_workflow)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
