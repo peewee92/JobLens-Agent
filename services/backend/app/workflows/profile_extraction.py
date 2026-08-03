@@ -70,6 +70,7 @@ class ProposeProfileFromResumeWorkflow:
             ProfileExtractorFailedError,
             InvalidProfileExtractorOutputError,
         ) as error:
+            error.run_id = run_id
             self._record_trace(
                 run_id=run_id,
                 resume_text=normalized_text,
@@ -83,7 +84,8 @@ class ProposeProfileFromResumeWorkflow:
             raise
         except Exception as error:
             wrapped = ProfileExtractorFailedError(
-                "Profile extractor failed before producing a usable proposal"
+                "Profile extractor failed before producing a usable proposal",
+                run_id=run_id,
             )
             self._record_trace(
                 run_id=run_id,

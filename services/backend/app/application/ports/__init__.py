@@ -10,6 +10,11 @@ from app.application.ports.career_context_unit_of_work import (
 from app.application.ports.job_import_query_repository import (
     AbstractJobImportQueryRepository,
 )
+from app.application.ports.profile_eval_repository import (
+    AbstractProfileEvalQueryRepository,
+    AbstractProfileEvalRepository,
+)
+from app.application.ports.profile_eval_unit_of_work import AbstractProfileEvalUnitOfWork
 from app.application.ports.profile_extractor import AbstractProfileExtractor
 from app.application.ports.resume_document_parser import AbstractResumeDocumentParser
 from app.application.ports.trace_repository import AbstractTraceRepository
@@ -32,6 +37,9 @@ __all__ = [
     "AbstractJobImportQueryRepository",
     "AbstractJobQueryRepository",
     "AbstractJobRepository",
+    "AbstractProfileEvalQueryRepository",
+    "AbstractProfileEvalRepository",
+    "AbstractProfileEvalUnitOfWork",
     "AbstractProfileExtractor",
     "AbstractResumeDocumentParser",
     "AbstractTraceRepository",
