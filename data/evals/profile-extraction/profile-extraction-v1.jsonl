@@ -1,0 +1,10 @@
+{"id":"frontend-electron","resumeText":"8 年前端开发经验。\n工作经历：负责 Electron 桌面端与 React、TypeScript 业务开发，交付企业办公产品。\n项目成果均来自真实团队经历。","expectedSkills":["React","TypeScript","Electron"],"expectedYears":8,"forbiddenTerms":["阿里巴巴","100%提升"]}
+{"id":"agent-app","resumeText":"3 年 AI 应用相关项目经验。\n项目：使用 Agent 与 RAG 构建岗位分析工具，所有结论均引用真实岗位数据。\n负责需求拆解和前后端落地。","expectedSkills":["Agent","RAG"],"expectedYears":3,"forbiddenTerms":["OpenAI员工","融资"]}
+{"id":"python-fastapi","resumeText":"5 年软件开发经验。\n工作经历：使用 Python 和 FastAPI 开发内部服务，并维护接口测试。\n没有管理团队经历。","expectedSkills":["Python","FastAPI"],"expectedYears":5,"forbiddenTerms":["团队负责人","千万用户"]}
+{"id":"sqlalchemy-backend","resumeText":"2 年后端实践经验。\n项目：使用 SQLAlchemy 完成数据模型、Repository 和事务边界开发。\n该项目为个人作品集项目。","expectedSkills":["SQLAlchemy"],"expectedYears":2,"forbiddenTerms":["PostgreSQL专家","商业化收入"]}
+{"id":"next-web","resumeText":"4 年 Web 开发经验。\n项目：使用 Next.js 和 React 实现服务端渲染页面与前后端联调。\n负责页面状态和 API 边界设计。","expectedSkills":["Next.js","React"],"expectedYears":4,"forbiddenTerms":["移动端原生","CTO"]}
+{"id":"typescript-platform","resumeText":"6 年前端工程经验。\n工作经历：长期使用 TypeScript 开发复杂业务模块和公共组件。\n没有声称从事机器学习研究。","expectedSkills":["TypeScript"],"expectedYears":6,"forbiddenTerms":["机器学习专家","论文"]}
+{"id":"rag-knowledge","resumeText":"1.5 年 AI 产品实践。\n项目：基于 RAG 构建企业知识检索原型，并完成检索结果验证。\n项目仍处于内部试用阶段。","expectedSkills":["RAG"],"expectedYears":1.5,"forbiddenTerms":["大规模商业部署","百万收入"]}
+{"id":"electron-product","resumeText":"7 年产品前端经验。\n负责 Electron 桌面应用的聊天、任务和公告模块开发。\n工作内容不包含操作系统内核开发。","expectedSkills":["Electron"],"expectedYears":7,"forbiddenTerms":["内核工程师","Rust"]}
+{"id":"agent-fastapi","resumeText":"2.5 年全栈项目实践。\n项目：使用 FastAPI 提供 Agent 工作流接口，并通过测试验证错误边界。\n没有自动投递招聘岗位功能。","expectedSkills":["FastAPI","Agent"],"expectedYears":2.5,"forbiddenTerms":["自动投递","招聘机器人商业化"]}
+{"id":"react-rag","resumeText":"5 年前端及 AI 应用经验。\n项目：使用 React 展示 RAG 检索结果，并对引用来源进行可追溯展示。\n所有数据来自脱敏测试集。","expectedSkills":["React","RAG"],"expectedYears":5,"forbiddenTerms":["真实客户隐私","销售冠军"]}
