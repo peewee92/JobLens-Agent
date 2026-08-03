@@ -82,16 +82,40 @@ try {
   );
   await waitFor(`${webUrl}/import`);
 
-  console.log("[smoke] proposing, confirming Profile and saving SearchIntent");
+  console.log("[smoke] uploading DOCX, confirming Profile and saving SearchIntent");
   const resumeText = [
     "8 年前端经验，正在转向 AI 应用工程。",
     "工作经历：负责 Electron 桌面端与 React、TypeScript 业务开发。",
     "项目：参与 Agent 功能设计与前后端落地，所有内容均来自真实简历。",
   ].join("\n");
-  const proposedProfile = await fetch(`${webUrl}/api/profile-proposals`, {
+  const resumeDocxPath = join(tempRoot, "resume.docx");
+  const makeDocx = spawnSync(
+    "uv",
+    [
+      "run",
+      "python",
+      "-c",
+      "import html,os,sys,zipfile; ps=''.join('<w:p><w:r><w:t>'+html.escape(x)+'</w:t></w:r></w:p>' for x in os.environ['RESUME_TEXT'].splitlines()); xml='<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>'+ps+'</w:body></w:document>'; z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); z.writestr('[Content_Types].xml','<Types/>'); z.writestr('word/document.xml',xml); z.close()",
+      resumeDocxPath,
+    ],
+    {
+      cwd: backendRoot,
+      env: {...process.env, RESUME_TEXT: resumeText},
+      encoding: "utf8",
+    },
+  );
+  assert.equal(makeDocx.status, 0, makeDocx.stdout + makeDocx.stderr);
+  const proposalForm = new FormData();
+  proposalForm.set(
+    "file",
+    new Blob([await readFile(resumeDocxPath)], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }),
+    "resume.docx",
+  );
+  const proposedProfile = await fetch(`${webUrl}/api/profile-proposals/file`, {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({resumeText}),
+    body: proposalForm,
   });
   assert.equal(proposedProfile.status, 200);
   const proposal = await proposedProfile.json();
@@ -152,7 +176,8 @@ try {
   const profileHtml = await html("/profile");
   assert.match(profileHtml, /8 年前端经验，正在转向 AI 应用工程/);
   assert.match(profileHtml, /Agent/);
-  assert.match(profileHtml, /从简历文本生成待确认提案/);
+  assert.match(profileHtml, /从简历生成待确认提案/);
+  assert.match(profileHtml, /上传 PDF 或 DOCX/);
   assert.match(profileHtml, /不接受长期驻场/);
   assert.match(profileHtml, /当前版本[\s\S]{0,30}1/);
   assert.doesNotMatch(
@@ -205,7 +230,7 @@ try {
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
   console.log(
-    "Web smoke E2E passed: proposal → profile → intent → import → jobs → detail → audit.",
+    "Web smoke E2E passed: DOCX → proposal → profile → intent → import → jobs → detail → audit.",
   );
 } catch (error) {
   for (const processInfo of children) {
