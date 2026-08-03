@@ -34,12 +34,17 @@ JOB_REQUIREMENT_TABLES = {
     "job_requirement_extractions",
     "job_requirements",
 }
+REQUIREMENT_EVAL_TABLES = {
+    "requirement_eval_runs",
+    "requirement_eval_case_results",
+}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
     | TRACE_TABLES
     | PROFILE_EVAL_TABLES
     | JOB_REQUIREMENT_TABLES
+    | REQUIREMENT_EVAL_TABLES
 )
 
 
@@ -146,6 +151,38 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         "ck_job_requirements_importance",
         "ck_job_requirements_confidence_range",
     }
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("requirement_eval_case_results")
+    } == {"uq_requirement_eval_case_run_case"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("requirement_eval_runs")
+    } >= {
+        "ck_requirement_eval_runs_case_rate_range",
+        "ck_requirement_eval_runs_workflow_rate_range",
+        "ck_requirement_eval_runs_capability_recall_range",
+        "ck_requirement_eval_runs_importance_accuracy_range",
+        "ck_requirement_eval_runs_forbidden_rate_range",
+        "ck_requirement_eval_runs_mode",
+        "ck_requirement_eval_runs_release_eligibility",
+    }
+    requirement_eval_foreign_keys = inspector.get_foreign_keys(
+        "requirement_eval_runs"
+    )
+    assert any(
+        item["constrained_columns"] == ["baseline_run_id"]
+        and item["referred_table"] == "requirement_eval_runs"
+        for item in requirement_eval_foreign_keys
+    )
+    requirement_eval_case_foreign_keys = inspector.get_foreign_keys(
+        "requirement_eval_case_results"
+    )
+    assert any(
+        item["constrained_columns"] == ["trace_run_id"]
+        and item["referred_table"] == "trace_spans"
+        for item in requirement_eval_case_foreign_keys
+    )
     extraction_foreign_keys = inspector.get_foreign_keys(
         "job_requirement_extractions"
     )
@@ -153,6 +190,18 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         item["constrained_columns"] == ["job_id"]
         and item["referred_table"] == "jobs"
         for item in extraction_foreign_keys
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260803_0007")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        JOB_TABLES
+        | CAREER_CONTEXT_TABLES
+        | TRACE_TABLES
+        | PROFILE_EVAL_TABLES
+        | JOB_REQUIREMENT_TABLES
     )
     engine.dispose()
 

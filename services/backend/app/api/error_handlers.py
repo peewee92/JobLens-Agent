@@ -34,6 +34,7 @@ from app.application.profile_evals import (
     ProfileEvalRunAlreadyReviewedError,
     ProfileEvalRunNotFoundError,
 )
+from app.application.requirement_evals import RequirementEvalRunNotFoundError
 from app.application.profile_extraction import (
     InvalidProfileExtractorOutputError,
     InvalidResumeTextError,
@@ -311,6 +312,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "invalid_profile_eval_review",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementEvalRunNotFoundError)
+    async def handle_requirement_eval_run_not_found(
+        _request: Request,
+        error: RequirementEvalRunNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "requirement_eval_run_not_found",
             str(error),
         )
 

@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review，以及 Phase 3A 的版本化 JobRequirement 事实底座、Trace、10-case Requirement Eval 与 Job 详情展示。Profile/Requirement 的真实 Provider 质量仍需运行凭据和人工审查；尚未进入 Eligibility / Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座，以及 Phase 3B-1 Requirement Eval Run/Case 持久化、Trace 回查、Baseline 对比和只读 API。Profile/Requirement 的真实 Provider 质量仍需运行凭据和人工审查；尚未进入 Eligibility / Match。
 
 ## Prerequisites
 
@@ -132,14 +132,26 @@ curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirement-extractions/reqrun_xx
 
 每条 Requirement 都必须有命中 JD 原文的 `evidenceSpan`；重新抽取会创建新 Run，不覆盖历史。Trace input 只保存 Job ID、JD SHA-256 与字符数。后续 Eligibility / Match / Gap 必须复用 JobRequirement，不应重新解释 raw JD。
 
-Requirement Eval：
+Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 
 ```bash
 REQUIREMENT_EXTRACTOR_PROVIDER=fixture \
 uv run python -m scripts.run_requirement_eval
+
+# 与历史 Run 比较
+REQUIREMENT_EXTRACTOR_PROVIDER=fixture \
+uv run python -m scripts.run_requirement_eval \
+  --baseline-run-id reqeval_xxx
 ```
 
-Fixture 10/10 只证明 Dataset / Workflow / Validator / Trace / Gate 可重复，不代表真实模型质量。
+查询质量证据：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/requirement-evals
+curl http://127.0.0.1:8000/api/v1/requirement-evals/reqeval_xxx
+```
+
+Fixture 10/10 只证明 Dataset / Workflow / Validator / Trace / Gate / Persistence 可重复，`releaseEligible` 始终为 false，不代表真实模型质量。只有 Live Run 且 Gate 通过时才可能成为人工审查候选；当前尚未实现 Requirement 人工 Review 或正式 accepted baseline。
 
 ### Import Collector report
 
@@ -204,7 +216,8 @@ Alembic 已指向 `Base.metadata`：
 - `20260803_0004_create_trace_spans.py` 创建通用能力 Trace；
 - `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果；
 - `20260803_0006_create_profile_eval_reviews.py` 创建不可变人工 Review 与正式 baseline 治理记录；
-- `20260803_0007_create_job_requirements.py` 创建版本化 JobRequirement Extraction Run 与逐条 Requirement。
+- `20260803_0007_create_job_requirements.py` 创建版本化 JobRequirement Extraction Run 与逐条 Requirement；
+- `20260803_0008_create_requirement_eval_runs.py` 创建不可变 Requirement Eval Run 与逐 Case 结果。
 
 ```bash
 # 查看当前迁移版本

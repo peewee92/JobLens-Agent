@@ -12,6 +12,7 @@ from app.api.v1.job_requirements import router as job_requirements_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.profile_evals import router as profile_evals_router
 from app.api.v1.profile_proposals import router as profile_proposals_router
+from app.api.v1.requirement_evals import router as requirement_evals_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -21,3 +22,4 @@ api_router.include_router(jobs_router, tags=["jobs"])
 api_router.include_router(job_requirements_router, tags=["job-requirements"])
 api_router.include_router(profile_proposals_router, tags=["profile-proposals"])
 api_router.include_router(profile_evals_router, tags=["profile-evals"])
+api_router.include_router(requirement_evals_router, tags=["requirement-evals"])

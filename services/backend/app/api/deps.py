@@ -23,6 +23,10 @@ from app.application.profile_evals.use_cases import (
     ListProfileEvalRunsUseCase,
     ReviewProfileEvalRunUseCase,
 )
+from app.application.requirement_evals.use_cases import (
+    GetRequirementEvalRunUseCase,
+    ListRequirementEvalRunsUseCase,
+)
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
     AbstractCareerContextUnitOfWork,
@@ -34,6 +38,7 @@ from app.application.ports import (
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
+    AbstractRequirementEvalQueryRepository,
     AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
     AbstractUnitOfWork,
@@ -51,6 +56,7 @@ from app.repositories import (
     SqlAlchemyJobRequirementUnitOfWork,
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
+    SqlAlchemyRequirementEvalQueryRepository,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
@@ -171,6 +177,26 @@ def get_accepted_profile_eval_baseline_use_case(
     ),
 ) -> GetAcceptedProfileEvalBaselineUseCase:
     return GetAcceptedProfileEvalBaselineUseCase(repository)
+
+
+def get_requirement_eval_query_repository() -> AbstractRequirementEvalQueryRepository:
+    return SqlAlchemyRequirementEvalQueryRepository(SessionLocal)
+
+
+def get_list_requirement_eval_runs_use_case(
+    repository: AbstractRequirementEvalQueryRepository = Depends(
+        get_requirement_eval_query_repository
+    ),
+) -> ListRequirementEvalRunsUseCase:
+    return ListRequirementEvalRunsUseCase(repository)
+
+
+def get_get_requirement_eval_run_use_case(
+    repository: AbstractRequirementEvalQueryRepository = Depends(
+        get_requirement_eval_query_repository
+    ),
+) -> GetRequirementEvalRunUseCase:
+    return GetRequirementEvalRunUseCase(repository)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
