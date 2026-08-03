@@ -28,7 +28,9 @@ DATASET = (
 
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--baseline-run-id")
+    baseline_group = parser.add_mutually_exclusive_group()
+    baseline_group.add_argument("--baseline-run-id")
+    baseline_group.add_argument("--accepted-baseline", action="store_true")
     return parser.parse_args()
 
 
@@ -47,12 +49,24 @@ def main() -> int:
         )
         return 1
 
+    query_repository = SqlAlchemyProfileEvalQueryRepository(SessionLocal)
+    baseline_run_id = args.baseline_run_id
+    if args.accepted_baseline:
+        if mode is not ProfileEvalMode.LIVE:
+            print("--accepted-baseline is only valid for a live Provider Eval.")
+            return 1
+        accepted_baseline = query_repository.get_accepted_baseline()
+        if accepted_baseline is None:
+            print("No human-accepted live Profile Eval baseline exists.")
+            return 1
+        baseline_run_id = accepted_baseline.run.id
+        print(f"Using accepted baseline {baseline_run_id}.")
+
     extractor = build_profile_extractor(settings)
     workflow = ProposeProfileFromResumeWorkflow(
         extractor,
         lambda: SqlAlchemyTraceUnitOfWork(SessionLocal),
     )
-    query_repository = SqlAlchemyProfileEvalQueryRepository(SessionLocal)
     try:
         detail = RunProfileEvalUseCase(
             workflow=workflow,
@@ -64,7 +78,7 @@ def main() -> int:
             model=extractor.model_name,
         ).execute(
             load_profile_eval_cases(DATASET),
-            baseline_run_id=args.baseline_run_id,
+            baseline_run_id=baseline_run_id,
         )
     except ProfileEvalRunNotFoundError as error:
         print(str(error))

@@ -12,14 +12,21 @@ from app.application.ports.profile_eval_repository import (
     AbstractProfileEvalRepository,
 )
 from app.application.profile_evals.models import (
+    AcceptedProfileEvalBaseline,
     ProfileEvalCaseDetail,
     ProfileEvalMetricComparison,
+    ProfileEvalReviewDecision,
+    ProfileEvalReviewDetail,
     ProfileEvalRunDetail,
     ProfileEvalRunPage,
     ProfileEvalRunSummary,
     ProfileEvalRunWrite,
 )
-from app.db.models import ProfileEvalCaseResultORM, ProfileEvalRunORM
+from app.db.models import (
+    ProfileEvalCaseResultORM,
+    ProfileEvalReviewORM,
+    ProfileEvalRunORM,
+)
 
 SessionFactory = Callable[[], Session]
 
@@ -110,18 +117,62 @@ class SqlAlchemyProfileEvalQueryRepository(AbstractProfileEvalQueryRepository):
                 if record.baseline_run_id
                 else None
             )
+            review = session.scalar(
+                select(ProfileEvalReviewORM).where(
+                    ProfileEvalReviewORM.eval_run_id == eval_run_id
+                )
+            )
             return ProfileEvalRunDetail(
                 summary=_summary(record),
                 cases=tuple(_case_detail(item) for item in cases),
                 comparison=(
                     _comparison(record, baseline) if baseline is not None else None
                 ),
+                review=_review_detail(review) if review is not None else None,
             )
 
     def get_summary(self, eval_run_id: str) -> ProfileEvalRunSummary | None:
         with self._session_factory() as session:
             record = session.get(ProfileEvalRunORM, eval_run_id)
             return _summary(record) if record is not None else None
+
+    def get_review(self, eval_run_id: str) -> ProfileEvalReviewDetail | None:
+        with self._session_factory() as session:
+            record = session.scalar(
+                select(ProfileEvalReviewORM).where(
+                    ProfileEvalReviewORM.eval_run_id == eval_run_id
+                )
+            )
+            return _review_detail(record) if record is not None else None
+
+    def get_accepted_baseline(self) -> AcceptedProfileEvalBaseline | None:
+        with self._session_factory() as session:
+            row = session.execute(
+                select(ProfileEvalReviewORM, ProfileEvalRunORM)
+                .join(
+                    ProfileEvalRunORM,
+                    ProfileEvalRunORM.id == ProfileEvalReviewORM.eval_run_id,
+                )
+                .where(
+                    ProfileEvalReviewORM.decision
+                    == ProfileEvalReviewDecision.ACCEPTED.value,
+                    ProfileEvalRunORM.mode == "live",
+                    ProfileEvalRunORM.gate_passed.is_(True),
+                    ProfileEvalRunORM.release_eligible.is_(True),
+                )
+                .order_by(
+                    ProfileEvalReviewORM.reviewed_at.desc(),
+                    ProfileEvalReviewORM.id.desc(),
+                )
+                .limit(1)
+            ).first()
+            if row is None:
+                return None
+            review, run = row
+            return AcceptedProfileEvalBaseline(
+                review=_review_detail(review),
+                run=_summary(run),
+            )
 
 
 def _summary(record: ProfileEvalRunORM) -> ProfileEvalRunSummary:
@@ -148,6 +199,21 @@ def _summary(record: ProfileEvalRunORM) -> ProfileEvalRunSummary:
             record.created_at.replace(tzinfo=timezone.utc)
             if record.created_at.tzinfo is None
             else record.created_at.astimezone(timezone.utc)
+        ),
+    )
+
+
+def _review_detail(record: ProfileEvalReviewORM) -> ProfileEvalReviewDetail:
+    return ProfileEvalReviewDetail(
+        id=record.id,
+        eval_run_id=record.eval_run_id,
+        decision=ProfileEvalReviewDecision(record.decision),
+        reviewer=record.reviewer,
+        notes=record.notes,
+        reviewed_at=(
+            record.reviewed_at.replace(tzinfo=timezone.utc)
+            if record.reviewed_at.tzinfo is None
+            else record.reviewed_at.astimezone(timezone.utc)
         ),
     )
 

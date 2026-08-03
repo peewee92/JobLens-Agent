@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,11 +98,43 @@ class ProfileEvalMetricComparison:
     forbidden_fact_rate_delta: float
 
 
+class ProfileEvalReviewDecision(StrEnum):
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileEvalReviewWrite:
+    review_id: str
+    eval_run_id: str
+    decision: ProfileEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileEvalReviewDetail:
+    id: str
+    eval_run_id: str
+    decision: ProfileEvalReviewDecision
+    reviewer: str
+    notes: str
+    reviewed_at: datetime
+
+
 @dataclass(frozen=True, slots=True)
 class ProfileEvalRunDetail:
     summary: ProfileEvalRunSummary
     cases: tuple[ProfileEvalCaseDetail, ...]
     comparison: ProfileEvalMetricComparison | None
+    review: ProfileEvalReviewDetail | None
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedProfileEvalBaseline:
+    review: ProfileEvalReviewDetail
+    run: ProfileEvalRunSummary
 
 
 @dataclass(frozen=True, slots=True)
