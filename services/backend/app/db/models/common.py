@@ -53,3 +53,7 @@ def new_skill_id() -> str:
 
 def new_search_intent_id() -> str:
     return new_prefixed_id("intent")
+
+
+def new_trace_run_id() -> str:
+    return new_prefixed_id("run")

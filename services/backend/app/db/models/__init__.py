@@ -15,6 +15,7 @@ from app.db.models.job_import import JobImportORM
 from app.db.models.job_import_candidate import JobImportCandidateORM
 from app.db.models.job_import_item import JobImportItemORM
 from app.db.models.job_source import JobSourceORM
+from app.db.models.trace_span import TraceSpanORM
 
 __all__ = [
     "JobORM",
@@ -27,4 +28,5 @@ __all__ = [
     "JobImportCandidateORM",
     "JobImportItemORM",
     "JobSourceORM",
+    "TraceSpanORM",
 ]
