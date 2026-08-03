@@ -193,6 +193,91 @@ export interface JobImportDetail {
   items: JobImportAuditItem[];
 }
 
+export type ProfileEvalMode = "fixture" | "live";
+export type ProfileEvalReviewDecision = "accepted" | "rejected";
+
+export interface ProfileEvalRunSummary {
+  id: string;
+  datasetVersion: string;
+  mode: ProfileEvalMode;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  gateVersion: string;
+  baselineRunId: string | null;
+  totalCases: number;
+  passedCases: number;
+  casePassRate: number;
+  workflowSuccessRate: number;
+  skillRecall: number;
+  yearsAccuracy: number | null;
+  forbiddenFactRate: number;
+  gatePassed: boolean;
+  releaseEligible: boolean;
+  createdAt: string;
+}
+
+export interface ProfileEvalReview {
+  id: string;
+  evalRunId: string;
+  decision: ProfileEvalReviewDecision;
+  reviewer: string;
+  notes: string;
+  reviewedAt: string;
+}
+
+export interface ProfileEvalCaseResult {
+  caseId: string;
+  traceRunId: string | null;
+  workflowSucceeded: boolean;
+  passed: boolean;
+  failureCodes: string[];
+  failureReasons: string[];
+  expectedSkills: string[];
+  actualSkills: string[];
+  missingSkills: string[];
+  expectedYears: number | null;
+  actualYears: number | null;
+  forbiddenTerms: string[];
+  observedForbiddenTerms: string[];
+  diagnostics: Record<string, unknown>;
+}
+
+export interface ProfileEvalComparison {
+  baselineRunId: string;
+  casePassRateDelta: number;
+  workflowSuccessRateDelta: number;
+  skillRecallDelta: number;
+  yearsAccuracyDelta: number | null;
+  forbiddenFactRateDelta: number;
+}
+
+export interface ProfileEvalRunDetail {
+  summary: ProfileEvalRunSummary;
+  cases: ProfileEvalCaseResult[];
+  comparison: ProfileEvalComparison | null;
+  review: ProfileEvalReview | null;
+}
+
+export interface ProfileEvalRunPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: ProfileEvalRunSummary[];
+}
+
+export interface AcceptedProfileEvalBaseline {
+  review: ProfileEvalReview;
+  run: ProfileEvalRunSummary;
+}
+
+export interface ProfileEvalReviewPayload {
+  decision: ProfileEvalReviewDecision;
+  reviewer: string;
+  notes: string;
+}
+
 export interface ApiErrorBody {
   error: {
     code: string;

@@ -688,6 +688,150 @@ h3 {
   line-height: 1.6;
 }
 
+.baseline-card,
+.eval-run-card,
+.eval-case,
+.review-result {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.baseline-card,
+.eval-run-card,
+.eval-case {
+  padding: 18px;
+}
+
+.baseline-card,
+.eval-run-card-heading,
+.eval-case-heading,
+.section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.compact-meta {
+  min-width: 280px;
+}
+
+.eval-run-list,
+.review-form {
+  display: grid;
+  gap: 16px;
+}
+
+.eval-run-card h3 {
+  margin: 14px 0 6px;
+}
+
+.eval-run-card time,
+.muted {
+  color: var(--muted);
+}
+
+.eval-summary-grid {
+  margin-block: 14px;
+}
+
+.status-chip {
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.status-live,
+.status-pass {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.status-fixture {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.status-fail {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.eval-case {
+  margin-top: 14px;
+}
+
+.eval-case-fail {
+  border-color: #efaaa3;
+  background: #fff8f7;
+}
+
+.eval-case-pass {
+  border-color: #cce7d7;
+}
+
+.eval-case-heading strong {
+  margin-left: 8px;
+}
+
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.case-grid > div {
+  padding: 12px;
+  border-radius: 10px;
+  background: white;
+}
+
+.review-form label {
+  display: grid;
+  gap: 7px;
+  color: #465268;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.review-form input,
+.review-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd3df;
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+}
+
+.review-form textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.review-result {
+  padding: 16px;
+}
+
+.review-accepted {
+  color: var(--success);
+  background: var(--success-soft);
+  border-color: #bfe6cf;
+}
+
+.review-rejected {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: #f5c6c1;
+}
+
 @media (max-width: 800px) {
   .filter-form,
   .detail-grid,

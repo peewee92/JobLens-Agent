@@ -4,7 +4,10 @@ import type {
   ApiErrorBody,
   JobDetail,
   JobImportDetail,
+  AcceptedProfileEvalBaseline,
   JobPage,
+  ProfileEvalRunDetail,
+  ProfileEvalRunPage,
   SearchIntent,
   UserProfile,
 } from "@/lib/contracts";
@@ -107,4 +110,29 @@ export function fetchCurrentProfile(): Promise<UserProfile | null> {
 
 export function fetchCurrentSearchIntent(): Promise<SearchIntent | null> {
   return optionalJson<SearchIntent>("/api/v1/search-intent");
+}
+
+export function fetchProfileEvalRuns(
+  limit = 20,
+  offset = 0,
+): Promise<ProfileEvalRunPage> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return backendJson<ProfileEvalRunPage>(`/api/v1/profile-evals?${query}`);
+}
+
+export function fetchProfileEvalRun(
+  evalRunId: string,
+): Promise<ProfileEvalRunDetail> {
+  return backendJson<ProfileEvalRunDetail>(
+    `/api/v1/profile-evals/${encodeURIComponent(evalRunId)}`,
+  );
+}
+
+export function fetchAcceptedProfileEvalBaseline(): Promise<AcceptedProfileEvalBaseline | null> {
+  return optionalJson<AcceptedProfileEvalBaseline>(
+    "/api/v1/profile-evals/baseline/accepted",
+  );
 }
