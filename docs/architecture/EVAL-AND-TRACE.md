@@ -28,7 +28,7 @@
 - Fixture CI Gate：验证 Structured Output、evidenceSpan、引用、Trace 和 Eval 机制；
 - Live Provider Eval：使用配置模型和凭证运行，衡量真实模型质量。
 
-Fixture 通过率不能作为生产模型质量结论。当前验证环境尚未执行 live-provider Eval。
+Fixture 通过率不能作为生产模型质量结论。每次运行现在会保存不可变 `profile_eval_runs` 与逐案例 `profile_eval_case_results`，并关联对应 Trace。`profile-eval-gate-v1` 检查案例通过率、Workflow 成功率、技能召回、年限准确率和禁用事实率；只有 `mode=live` 且 Gate 通过时 `releaseEligible` 才可能为 true。当前验证环境尚未执行 live-provider Eval。
 
 ### 2.2 Requirement Eval（Requirement Extraction）
 
@@ -67,13 +67,26 @@ Fixture 通过率不能作为生产模型质量结论。当前验证环境尚未
 
 ## 3. 门禁（Gate）
 
-任何 LLM Capability 合并前必须满足：
+门禁必须版本化，历史 Eval Run 记录当时使用的 gate version。当前 Profile Gate：
 
-- Structured Output 解析成功率 ≥ 98%；
-- 不得生成 `UserProfile` 中不存在的项目事实；
+```text
+profile-eval-gate-v1
+casePassRate          >= 0.90
+workflowSuccessRate   == 1.00
+skillRecall           >= 0.95
+yearsAccuracy         >= 0.90（有年限期望时）
+forbiddenFactRate     == 0.00
+```
+
+通用原则：
+
+- Structured Output 解析与 Workflow 成功率必须显式测量；
+- 不得生成来源中不存在的项目事实；
 - `MatchReport` 必须有 evidence；
 - `Gap`（v0.2）P0 必须至少被目标岗位集中的真实 `JobRequirement` 支持；
-- 所有运行有 Trace 落库。
+- 所有 Provider 尝试有 Trace；
+- 聚合指标不能替代逐案例失败审查；
+- Fixture Gate 通过不能升级为 live release 资格。
 
 ---
 

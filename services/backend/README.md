@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B 的文本/PDF/DOCX → Profile Proposal + deterministic grounding + Eval + Trace。下一步是真实 Provider 质量评测，不提前进入 Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B 的文本/PDF/DOCX → Profile Proposal、deterministic grounding、Trace、不可变 Eval Run、Gate v1 与 baseline 对比。下一步是带真实凭据的 Provider 质量评测，不提前进入 Match。
 
 ## Prerequisites
 
@@ -73,14 +73,25 @@ curl -X POST http://127.0.0.1:8000/api/v1/profile-proposals/file \
 Eval：
 
 ```bash
-# deterministic CI Gate
+# deterministic CI Gate，并持久化 Eval Run / Case Result
 PROFILE_EXTRACTOR_PROVIDER=fixture uv run python -m scripts.run_profile_eval
+
+# 与历史 baseline 比较
+PROFILE_EXTRACTOR_PROVIDER=fixture \
+uv run python -m scripts.run_profile_eval --baseline-run-id eval_xxx
 
 # live provider（需先配置模型和 API Key）
 PROFILE_EXTRACTOR_PROVIDER=openai uv run python -m scripts.run_profile_eval
 ```
 
-Fixture 结果只证明 Pipeline/Eval/Trace 可重复，不代表真实模型质量。
+查看不可变历史与逐案例失败：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/profile-evals
+curl http://127.0.0.1:8000/api/v1/profile-evals/eval_xxx
+```
+
+`profile-eval-gate-v1` 检查案例通过率、Workflow 成功率、技能召回、年限准确率和禁用事实率。Fixture 结果只证明 Pipeline/Eval/Trace 可重复；只有 `mode=live` 且 Gate 通过时 `releaseEligible` 才可能为 true。
 
 ### Import Collector report
 
@@ -142,7 +153,8 @@ Alembic 已指向 `Base.metadata`：
 - `20260801_0001_create_job_data_foundation.py` 创建 `jobs / job_sources / job_imports / job_import_items`；
 - `20260802_0002_create_job_import_candidates.py` 创建 `job_import_candidates`；
 - `20260803_0003_create_career_context.py` 创建版本化 Profile / Evidence / Skill links / SearchIntent；
-- `20260803_0004_create_trace_spans.py` 创建通用能力 Trace。
+- `20260803_0004_create_trace_spans.py` 创建通用能力 Trace；
+- `20260803_0005_create_profile_eval_runs.py` 创建不可变 Profile Eval Run 与逐案例结果。
 
 ```bash
 # 查看当前迁移版本

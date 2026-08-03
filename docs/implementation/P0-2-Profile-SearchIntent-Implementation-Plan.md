@@ -27,7 +27,8 @@ Phase 2A established confirmed facts. Phase 2B now supports grounded proposals f
 | 7 | Backend/Web integration verification | Completed |
 | 8 | Resume text → Profile Proposal + Eval + Trace | Completed |
 | 9 | PDF/DOCX text ingestion + Web upload | Completed |
-| 10 | Live-provider quality run and review | Next |
+| 10 | Eval Run persistence, Gate v1 and baseline comparison | Completed |
+| 11 | Credential-backed live-provider quality run and review | Next |
 
 ## Frozen scope
 
@@ -140,13 +141,28 @@ PDF / DOCX upload
 
 The original document is request-scoped and never persisted. Text-only PDF and DOCX are supported; scanned PDFs return a stable OCR-not-supported error. Parser, API, privacy and architecture tests plus a real production Next + FastAPI DOCX smoke flow are included.
 
+## Slice 10 result · Eval Governance
+
+```text
+Profile Eval dataset
+→ full Proposal Workflow per case
+→ one Trace per provider attempt
+→ immutable ProfileEvalRun + Case Results
+→ profile-eval-gate-v1
+→ optional baseline metric deltas
+→ read-only history/detail API
+```
+
+Fixture runs can pass the engineering Gate but always keep `releaseEligible=false`. The environment did not provide a live API credential, so no live quality conclusion was created.
+
 ## Next slice
 
 ```text
-live-provider Profile Eval
-→ review failed cases and Trace
-→ compare model/prompt versions
-→ freeze acceptable quality gate
+configure real provider/model
+→ run credential-backed Profile Eval
+→ review every failed Case Result and Trace
+→ compare against accepted baseline
+→ manually approve or revise prompt/model/gate
 ```
 
 Do not proceed to Match until a real provider run is reviewed and Profile proposal quality is acceptable.

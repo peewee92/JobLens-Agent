@@ -269,8 +269,9 @@ skill_gaps           （v0.2）
 action_items         （v0.2）
 preparation_packs    （v0.2）
 agent_runs
-eval_runs
-trace_spans               # Alembic 0004，AI/Workflow 运行追踪
+profile_eval_runs          # Alembic 0005，不可变 Profile Eval 汇总
+profile_eval_case_results  # Alembic 0005，逐案例结果与 Trace 引用
+trace_spans                # Alembic 0004，AI/Workflow 运行追踪
 ```
 
-当前 Profile Extraction 已将 provider output 先转为 Proposal，经过 evidenceSpan/引用确定性门禁后写 Trace；用户确认才进入 versioned Profile。P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013；版本化 Profile / Evidence / SearchIntent 见 ADR-0015；首个 LLM Workflow 见 ADR-0016。
+当前 Profile Extraction 已将 provider output 先转为 Proposal，经过 evidenceSpan/引用确定性门禁后写 Trace；用户确认才进入 versioned Profile。Eval Run 通过版本化 Gate、逐案例结果和 baseline 对比治理模型质量，Fixture 结果不会成为 live release 资格。P1 再迁移 PostgreSQL（同一 SQLAlchemy 模型，仅换 engine）。Job / JobSource / JobImportItem 的身份与来源边界见 ADR-0007；Candidate 审计证据持久化见 ADR-0013；版本化 Profile / Evidence / SearchIntent 见 ADR-0015；首个 LLM Workflow 见 ADR-0016；Eval Run 与 Gate 见 ADR-0018。
