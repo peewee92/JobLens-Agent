@@ -25,7 +25,8 @@ CAREER_CONTEXT_TABLES = {
     "search_intents",
 }
 TRACE_TABLES = {"trace_spans"}
-EXPECTED_TABLES = JOB_TABLES | CAREER_CONTEXT_TABLES | TRACE_TABLES
+PROFILE_EVAL_TABLES = {"profile_eval_runs", "profile_eval_case_results"}
+EXPECTED_TABLES = JOB_TABLES | CAREER_CONTEXT_TABLES | TRACE_TABLES | PROFILE_EVAL_TABLES
 
 
 def _run_alembic(database_url: str, *args: str) -> None:
@@ -83,6 +84,35 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         "ck_trace_spans_input_tokens_non_negative",
         "ck_trace_spans_output_tokens_non_negative",
     }
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("profile_eval_case_results")
+    } == {"uq_profile_eval_case_run_case"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("profile_eval_runs")
+    } >= {
+        "ck_profile_eval_runs_case_rate_range",
+        "ck_profile_eval_runs_workflow_rate_range",
+        "ck_profile_eval_runs_skill_recall_range",
+        "ck_profile_eval_runs_forbidden_rate_range",
+        "ck_profile_eval_runs_mode",
+        "ck_profile_eval_runs_release_eligibility",
+    }
+    baseline_foreign_keys = inspector.get_foreign_keys("profile_eval_runs")
+    assert any(
+        item["constrained_columns"] == ["baseline_run_id"]
+        and item["referred_table"] == "profile_eval_runs"
+        for item in baseline_foreign_keys
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260803_0004")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        JOB_TABLES | CAREER_CONTEXT_TABLES | TRACE_TABLES
+    )
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "20260803_0003")

@@ -1,0 +1,72 @@
+"""Architecture guards for Profile Eval execution and read APIs."""
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _source(path: str) -> str:
+    return (BACKEND_ROOT / path).read_text(encoding="utf-8")
+
+
+def _imports(path: str) -> set[str]:
+    tree = ast.parse(_source(path))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+    return modules
+
+
+def test_eval_execution_does_not_import_sqlalchemy_or_orm_models() -> None:
+    for path in [
+        "app/evals/profile_extraction.py",
+        "app/evals/profile_eval_runs.py",
+        "app/application/profile_evals/models.py",
+        "app/application/profile_evals/use_cases.py",
+    ]:
+        imports = _imports(path)
+        assert not any(module.startswith("sqlalchemy") for module in imports), path
+        assert not any(module.startswith("app.db.models") for module in imports), path
+
+
+def test_profile_eval_router_does_not_run_provider_or_touch_repositories() -> None:
+    imports = _imports("app/api/v1/profile_evals.py")
+    forbidden_prefixes = (
+        "app.llm",
+        "app.repositories",
+        "app.db",
+        "sqlalchemy",
+    )
+    assert not any(
+        module.startswith(prefix)
+        for module in imports
+        for prefix in forbidden_prefixes
+    )
+
+
+def test_profile_eval_repository_does_not_manage_transactions() -> None:
+    source = _source("app/repositories/sqlalchemy_profile_eval_repository.py")
+    tree = ast.parse(source)
+    forbidden_calls = {"commit", "rollback", "delete"}
+    calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert not (calls & forbidden_calls)
+
+
+def test_release_eligibility_requires_live_mode_and_gate_pass() -> None:
+    source = _source("app/evals/profile_eval_runs.py")
+    assert "ProfileEvalMode.LIVE and report.gate_passed" in source
+
+
+def test_eval_read_contract_does_not_expose_resume_text() -> None:
+    source = _source("app/api/v1/schemas/profile_evals.py")
+    assert "resume_text" not in source
+    assert "resumeSha256" not in source
