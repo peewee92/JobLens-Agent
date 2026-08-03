@@ -62,7 +62,12 @@ try {
   console.log("[smoke] starting FastAPI");
   start("uv", ["run", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
     cwd: backendRoot,
-    env: {...process.env, APP_ENV: "test", DATABASE_URL: databaseUrl},
+    env: {
+      ...process.env,
+      APP_ENV: "test",
+      DATABASE_URL: databaseUrl,
+      PROFILE_EXTRACTOR_PROVIDER: "fixture",
+    },
   });
   await waitFor(`${backendUrl}/api/v1/health`);
 
@@ -77,37 +82,34 @@ try {
   );
   await waitFor(`${webUrl}/import`);
 
-  console.log("[smoke] saving Profile and SearchIntent through Next proxies");
+  console.log("[smoke] proposing, confirming Profile and saving SearchIntent");
+  const resumeText = [
+    "8 年前端经验，正在转向 AI 应用工程。",
+    "工作经历：负责 Electron 桌面端与 React、TypeScript 业务开发。",
+    "项目：参与 Agent 功能设计与前后端落地，所有内容均来自真实简历。",
+  ].join("\n");
+  const proposedProfile = await fetch(`${webUrl}/api/profile-proposals`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({resumeText}),
+  });
+  assert.equal(proposedProfile.status, 200);
+  const proposal = await proposedProfile.json();
+  assert.match(proposal.runId, /^run_/);
+  assert.equal(proposal.yearsOfExperience, 8);
+  assert.ok(proposal.evidence.every((item) => resumeText.includes(item.evidenceSpan)));
+
   const profilePayload = {
     expectedVersion: 0,
-    headline: "8 年前端经验，正在转向 AI 应用工程",
-    yearsOfExperience: 8,
-    evidence: [
-      {
-        key: "spinach-desktop",
-        type: "work",
-        summary: "负责 Electron 协作与 Agent 功能。",
-        source: "confirmed by user",
-      },
-      {
-        key: "joblens",
-        type: "project",
-        summary: "构建 FastAPI + Next.js 的求职研究产品。",
-        source: "confirmed by user",
-      },
-    ],
-    skills: [
-      {
-        name: "React",
-        level: "strong",
-        evidenceKeys: ["spinach-desktop"],
-      },
-      {
-        name: "Agent Application Engineering",
-        level: "working",
-        evidenceKeys: ["spinach-desktop", "joblens"],
-      },
-    ],
+    headline: proposal.headline,
+    yearsOfExperience: proposal.yearsOfExperience,
+    evidence: proposal.evidence.map((item) => ({
+      key: item.key,
+      type: item.type,
+      summary: item.summary,
+      source: `resume proposal ${proposal.runId}`,
+    })),
+    skills: proposal.skills,
   };
   const savedProfile = await fetch(`${webUrl}/api/profile`, {
     method: "PUT",
@@ -117,7 +119,8 @@ try {
   assert.equal(savedProfile.status, 200);
   const profileResult = await savedProfile.json();
   assert.equal(profileResult.version, 1);
-  assert.equal(profileResult.skills[1].evidenceIds.length, 2);
+  assert.ok(profileResult.skills.length >= 4);
+  assert.ok(profileResult.skills.every((item) => item.evidenceIds.length >= 1));
 
   const intentPayload = {
     expectedVersion: 0,
@@ -148,7 +151,8 @@ try {
 
   const profileHtml = await html("/profile");
   assert.match(profileHtml, /8 年前端经验，正在转向 AI 应用工程/);
-  assert.match(profileHtml, /Agent Application Engineering/);
+  assert.match(profileHtml, /Agent/);
+  assert.match(profileHtml, /从简历文本生成待确认提案/);
   assert.match(profileHtml, /不接受长期驻场/);
   assert.match(profileHtml, /当前版本[\s\S]{0,30}1/);
   assert.doesNotMatch(
@@ -201,7 +205,7 @@ try {
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
   console.log(
-    "Web smoke E2E passed: profile → intent → import → jobs → detail → audit.",
+    "Web smoke E2E passed: proposal → profile → intent → import → jobs → detail → audit.",
   );
 } catch (error) {
   for (const processInfo of children) {

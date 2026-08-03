@@ -42,6 +42,16 @@ test("the Profile Client Component calls only same-origin proxies", async () => 
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
 });
 
+test("the Resume Proposal Client Component calls only the same-origin proxy", async () => {
+  const source = await readFile(
+    join(webRoot, "components/resume-proposal-panel.tsx"),
+    "utf8",
+  );
+  assert.match(source, /fetch\("\/api\/profile-proposals"/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
+  assert.doesNotMatch(source, /fetch\("\/api\/profile"/);
+});
+
 test("public contract types exclude raw and internal stream fields", async () => {
   const source = await readFile(join(webRoot, "lib/contracts.ts"), "utf8");
   for (const forbidden of [

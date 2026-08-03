@@ -24,7 +24,8 @@ CAREER_CONTEXT_TABLES = {
     "profile_skill_evidence",
     "search_intents",
 }
-EXPECTED_TABLES = JOB_TABLES | CAREER_CONTEXT_TABLES
+TRACE_TABLES = {"trace_spans"}
+EXPECTED_TABLES = JOB_TABLES | CAREER_CONTEXT_TABLES | TRACE_TABLES
 
 
 def _run_alembic(database_url: str, *args: str) -> None:
@@ -75,6 +76,21 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     assert {
         item["name"] for item in inspector.get_unique_constraints("search_intents")
     } == {"uq_search_intents_key_version"}
+    assert {
+        item["name"] for item in inspector.get_check_constraints("trace_spans")
+    } >= {
+        "ck_trace_spans_latency_non_negative",
+        "ck_trace_spans_input_tokens_non_negative",
+        "ck_trace_spans_output_tokens_non_negative",
+    }
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260803_0003")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        JOB_TABLES | CAREER_CONTEXT_TABLES
+    )
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "20260802_0002")
