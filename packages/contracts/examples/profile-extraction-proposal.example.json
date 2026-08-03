@@ -1,0 +1,27 @@
+{
+  "runId": "run_example",
+  "extractorVersion": "profile-extractor-v1",
+  "model": "configured-model",
+  "promptVersion": "profile-proposal-v1",
+  "headline": "8 年前端工程师，具备 AI 应用项目经验",
+  "yearsOfExperience": 8,
+  "evidence": [
+    {
+      "key": "spinach-desktop",
+      "type": "work",
+      "summary": "负责 Electron 桌面端与 React 业务开发",
+      "source": "resume",
+      "evidenceSpan": "负责 Electron 桌面端与 React 业务开发"
+    }
+  ],
+  "skills": [
+    {
+      "name": "React",
+      "level": "strong",
+      "evidenceKeys": ["spinach-desktop"]
+    }
+  ],
+  "warnings": [
+    "求职偏好必须在 SearchIntent 中单独确认。"
+  ]
+}

@@ -10,6 +10,7 @@ Layout:
 Schemas:
 
 - `user-profile.schema.json` — 已确认的版本化职业画像；每个 Skill 至少关联一个 Evidence ID，偏好不再重复内嵌
+- `profile-extraction-proposal.schema.json` — 简历文本生成的待确认 Profile Proposal，包含 evidenceSpan 与 run/model/prompt 版本，不代表 confirmed fact
 - `job.schema.json` — 标准化 Job 读模型；`id` 为 JobLens internal ID，包含三态远程信息；`sourceRaw` 由 Backend 的 JobSource 持久化，不进入普通 Job Contract
 - `job-page.schema.json` — Job Pool 分页响应，包含 `total / limit / offset / items`
 - `job-import-detail.schema.json` — 单次导入审计详情，包含批次统计、快照、candidateSummary 和逐条 outcome；错误 raw / candidateRaw 不进入公开契约

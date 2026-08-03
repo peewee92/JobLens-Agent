@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/profile-extraction-proposal.schema.json",
+  "title": "ProfileExtractionProposal",
+  "type": "object",
+  "required": [
+    "runId",
+    "extractorVersion",
+    "model",
+    "promptVersion",
+    "headline",
+    "yearsOfExperience",
+    "evidence",
+    "skills",
+    "warnings"
+  ],
+  "properties": {
+    "runId": {"type": "string"},
+    "extractorVersion": {"type": "string"},
+    "model": {"type": "string"},
+    "promptVersion": {"type": "string"},
+    "headline": {"type": "string", "minLength": 1},
+    "yearsOfExperience": {"type": ["number", "null"], "minimum": 0},
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key", "type", "summary", "source", "evidenceSpan"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "type": {
+            "enum": ["work", "project", "education", "achievement", "self_report"]
+          },
+          "summary": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1},
+          "evidenceSpan": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "level", "evidenceKeys"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "level": {"enum": ["strong", "working", "basic", "unknown"]},
+          "evidenceKeys": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": false
+}
