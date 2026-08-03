@@ -69,3 +69,11 @@ def new_profile_eval_case_result_id() -> str:
 
 def new_profile_eval_review_id() -> str:
     return new_prefixed_id("review")
+
+
+def new_job_requirement_extraction_id() -> str:
+    return new_prefixed_id("reqrun")
+
+
+def new_job_requirement_id() -> str:
+    return new_prefixed_id("req")
