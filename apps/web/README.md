@@ -1,6 +1,6 @@
 # JobLens Web
 
-Browser product loop for P0-1 Job Data Foundation, confirmed career context and Phase 2B-1 Profile Extraction proposals.
+Browser product loop for P0-1 Job Data Foundation, confirmed career context and Phase 2B Profile Extraction proposals from text, PDF and DOCX.
 
 ## Current routes
 
@@ -16,7 +16,7 @@ The browser submits Profile/SearchIntent commands and imports to same-origin Nex
 
 ```text
 Browser
-→ POST /api/profile-proposals
+→ POST /api/profile-proposals or /api/profile-proposals/file
 → review/apply in local form state
 → PUT /api/profile | PUT /api/search-intent | POST /api/job-imports
 → FastAPI Workflow / Application Use Cases
@@ -73,7 +73,7 @@ pnpm smoke:e2e
 `smoke:e2e` creates a temporary SQLite database, migrates it, starts real FastAPI and production Next processes, then verifies:
 
 ```text
-resume text → Profile Proposal
+DOCX upload → extracted text → Profile Proposal
 → explicit Profile + Evidence v1 confirmation
 → SearchIntent v1
 → stale-version 409
@@ -87,7 +87,7 @@ The script cleans up processes and temporary data after completion.
 
 ## Boundary rules
 
-- Client Components are limited to genuine browser interaction: file import, proposal review and Profile/SearchIntent editing.
+- Client Components are limited to genuine browser interaction: resume/Collector file input, proposal review and Profile/SearchIntent editing.
 - Job Pool filters live in URL search params.
 - Server Components fetch list/detail/audit data.
 - Public Web types do not include `sourceRaw`, `candidateRaw`, `canonicalKey`, `profileKey`, or `intentKey`.
@@ -97,7 +97,7 @@ The script cleans up processes and temporary data after completion.
 
 ## Out of scope
 
-- resume PDF/DOCX parsing;
+- OCR, image resumes, encrypted PDF passwords and legacy DOC;
 - live-provider Profile quality claims without a credential-backed Eval run;
 - Match / Ranking / Agent Chat;
 - authentication;

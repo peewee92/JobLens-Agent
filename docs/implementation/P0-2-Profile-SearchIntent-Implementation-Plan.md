@@ -12,7 +12,7 @@ manual Profile confirmation
 → Web edit/read loop
 ```
 
-Phase 2A established confirmed facts. Phase 2B now starts with resume-text extraction proposals, deterministic grounding, Eval and Trace before any PDF parser or automatic confirmation.
+Phase 2A established confirmed facts. Phase 2B now supports grounded proposals from pasted text and bounded PDF/DOCX documents, while preserving explicit human confirmation.
 
 ## Current status · 2026-08-03
 
@@ -26,7 +26,8 @@ Phase 2A established confirmed facts. Phase 2B now starts with resume-text extra
 | 6 | Web `/profile` confirmation loop | Completed |
 | 7 | Backend/Web integration verification | Completed |
 | 8 | Resume text → Profile Proposal + Eval + Trace | Completed |
-| 9 | PDF/DOCX text ingestion + live-provider quality run | Next |
+| 9 | PDF/DOCX text ingestion + Web upload | Completed |
+| 10 | Live-provider quality run and review | Next |
 
 ## Frozen scope
 
@@ -45,10 +46,9 @@ Phase 2A established confirmed facts. Phase 2B now starts with resume-text extra
 ### Excluded
 
 - authentication and multiple users;
-- resume PDF upload or parsing;
+- OCR, image resumes and encrypted PDF passwords;
 - automatic confirmed writes from extractor output;
 - production model hard-coding;
-- Match/Ranking/Agent;
 - Match/Ranking/Agent;
 - Profile history/diff API;
 - deletion or rollback to a previous version.
@@ -126,14 +126,27 @@ resume text
 
 The repository includes disabled, fixture and OpenAI adapters. Fixture is limited to deterministic CI/demo. The OpenAI network path is implemented and request-contract tested, but a live-provider Eval was not run because no API credential was supplied.
 
+## Slice 9 result · Resume Document Input
+
+```text
+PDF / DOCX upload
+→ byte/type/structure limits
+→ deterministic text extraction
+→ existing grounded Proposal Workflow
+→ Trace
+→ Web review/apply
+→ explicit Profile confirmation
+```
+
+The original document is request-scoped and never persisted. Text-only PDF and DOCX are supported; scanned PDFs return a stable OCR-not-supported error. Parser, API, privacy and architecture tests plus a real production Next + FastAPI DOCX smoke flow are included.
+
 ## Next slice
 
 ```text
-PDF/DOCX text ingestion
-→ parsing provenance
-→ proposal input from uploaded file
-→ live-provider Profile Eval
-→ quality comparison by model/prompt version
+live-provider Profile Eval
+→ review failed cases and Trace
+→ compare model/prompt versions
+→ freeze acceptable quality gate
 ```
 
 Do not proceed to Match until a real provider run is reviewed and Profile proposal quality is acceptable.

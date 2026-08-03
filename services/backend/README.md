@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B-1 简历文本 → Profile Proposal + deterministic grounding + Eval + Trace。下一步是 PDF/DOCX 文本摄取和真实 Provider 质量评测，不提前进入 Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent，以及 Phase 2B 的文本/PDF/DOCX → Profile Proposal + deterministic grounding + Eval + Trace。下一步是真实 Provider 质量评测，不提前进入 Match。
 
 ## Prerequisites
 
@@ -60,6 +60,15 @@ curl -X POST http://127.0.0.1:8000/api/v1/profile-proposals \
 ```
 
 返回的是待确认 Proposal，不会写 confirmed Profile。每个 Evidence 都必须包含简历中的原文 `evidenceSpan`；每次成功/失败运行写入 `trace_spans`，Trace 只保存简历 SHA-256 与字符数，不保存完整简历文本。
+
+文件上传复用同一 Workflow：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/profile-proposals/file \
+  -F 'file=@./resume.docx'
+```
+
+支持 5 MiB 内的文本型 PDF 和 DOCX。PDF 最多 20 页；加密 PDF、扫描/图片 PDF、伪装文件会返回稳定 4xx。原始文件不落库、不进入 Trace；OCR 不在当前范围。
 
 Eval：
 

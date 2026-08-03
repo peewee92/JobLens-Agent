@@ -126,7 +126,8 @@ Phase 0.5：产品与领域模型冻结 ✅
 Phase 1：Job Data Foundation   ✅ Backend + Minimal Web E2E
 Phase 2A：Confirmed Profile + SearchIntent ✅ 手工确认、版本化、Web 闭环
 Phase 2B-1：Resume Text Proposal + Eval + Trace ✅
-Phase 2B-2：PDF/DOCX + Live Provider Quality ← 下一阶段
+Phase 2B-2：PDF/DOCX Resume Input ✅
+Phase 2B-3：Live Provider Quality ← 下一阶段
 Phase 3：Requirement Intelligence
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
