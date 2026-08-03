@@ -11,6 +11,7 @@ from app.application.ports.job_import_query_repository import (
     AbstractJobImportQueryRepository,
 )
 from app.application.ports.profile_extractor import AbstractProfileExtractor
+from app.application.ports.resume_document_parser import AbstractResumeDocumentParser
 from app.application.ports.trace_repository import AbstractTraceRepository
 from app.application.ports.trace_unit_of_work import AbstractTraceUnitOfWork
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
@@ -32,6 +33,7 @@ __all__ = [
     "AbstractJobQueryRepository",
     "AbstractJobRepository",
     "AbstractProfileExtractor",
+    "AbstractResumeDocumentParser",
     "AbstractTraceRepository",
     "AbstractTraceUnitOfWork",
     "AbstractUnitOfWork",
