@@ -15,7 +15,11 @@ vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../runner.js'), 'utf8'), context);
 
 const { assessDescriptionQuality } = context.BossJobFilterLib;
-const { normalizeJob, buildRequirementReviewDataset } = context.BossAiRunnerInternals;
+const {
+  normalizeJob,
+  buildStatistics,
+  buildRequirementReviewDataset
+} = context.BossAiRunnerInternals;
 
 const fullDescription = [
   '岗位职责：',
@@ -63,7 +67,11 @@ const broadWithoutStructure = assessDescriptionQuality({
   detailSucceeded: true
 });
 assert.strictEqual(broadWithoutStructure.requirementReviewEligible, false);
-assert.ok(broadWithoutStructure.requirementReviewIneligibilityReasons.includes('broad_selector_not_trusted'));
+assert.ok(
+  broadWithoutStructure.requirementReviewIneligibilityReasons.includes(
+    'broad_selector_not_sanitized'
+  )
+);
 
 function eligibleJob(index) {
   return normalizeJob({
@@ -118,6 +126,15 @@ assert.strictEqual(readyDataset.qualityGate.eligibleCount, 20);
 assert.strictEqual(readyDataset.jobs.length, 20);
 assert.ok(readyDataset.jobs.every(job => job.requirementReviewEligible));
 assert.ok(readyDataset.jobs.every(job => job.descriptionQuality === 'full_jd'));
-assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.0'));
+assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.1'));
+
+const finalJobs = [eligibleJob(1), twentyPlusCard.at(-1)];
+const detailCohort = [eligibleJob(1), eligibleJob(2), eligibleJob(3), twentyPlusCard.at(-1)];
+const statistics = buildStatistics(finalJobs, detailCohort);
+assert.strictEqual(statistics.totals.finalJobs, 2);
+assert.strictEqual(statistics.totals.fullJd, 1);
+assert.strictEqual(statistics.totals.requirementReviewEligible, 1);
+assert.strictEqual(statistics.totals.detailCohortFullJd, 3);
+assert.strictEqual(statistics.totals.detailCohortRequirementReviewEligible, 3);
 
 console.log('Requirement review dataset quality-gate tests passed.');

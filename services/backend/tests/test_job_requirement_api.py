@@ -287,7 +287,7 @@ def test_collector_v140_ineligible_description_is_blocked_before_model_call(
         ) == 0
 
 
-def test_collector_v140_full_jd_can_run_requirement_extraction(
+def test_collector_v141_full_jd_can_run_requirement_extraction(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
     client, factory = api_environment
@@ -299,7 +299,7 @@ def test_collector_v140_full_jd_can_run_requirement_extraction(
             "任职要求：熟练掌握 Python 和 FastAPI，具备三年以上后端开发经验。\n"
             "有 Docker、RAG 和工具调用工作流经验者优先。"
         ),
-        source_version="1.4.0",
+        source_version="1.4.1",
         source_raw={
             "descriptionQuality": "full_jd",
             "requirementReviewEligible": True,

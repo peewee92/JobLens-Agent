@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "generatedAt": "2026-08-03T14:30:00.000Z",
   "purpose": "requirement_manual_quality_review",
   "qualityGate": {
@@ -27,13 +27,16 @@
       "url": "https://www.zhipin.com/job_detail/example.html",
       "description": "岗位职责：\n1. 负责企业级 AI Agent 应用的设计、开发、测试和上线，建设可观测的工具调用工作流。\n2. 负责 RAG 检索、提示词和评测数据集的持续优化。\n任职要求：\n1. 熟悉 Python、FastAPI 和主流大模型 API。\n2. 理解 Agent Loop、Tool Calling 和结构化输出。\n3. 具备真实项目交付、测试和线上问题排查经验。",
       "descriptionSource": "selector:.job-sec-text",
+      "descriptionSelectorTrust": "trusted",
+      "descriptionSanitized": false,
       "descriptionQuality": "full_jd",
       "descriptionLength": 184,
       "descriptionHash": "fnv1a32:46d415be",
+      "descriptionNoiseCount": 0,
       "detailSucceeded": true,
       "requirementReviewEligible": true,
       "requirementReviewIneligibilityReasons": [],
-      "sourceVersion": "1.4.0"
+      "sourceVersion": "1.4.1"
     }
   ],
   "candidates": []

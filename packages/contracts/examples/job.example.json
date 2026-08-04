@@ -13,7 +13,7 @@
   "remoteConfidence": "low",
   "source": "boss_zhipin",
   "sourceUrl": "https://www.zhipin.com/job_detail/example.html",
-  "sourceVersion": "1.4.0",
+  "sourceVersion": "1.4.1",
   "descriptionQuality": "full_jd",
   "requirementReviewEligible": true,
   "requirementReviewIneligibilityReasons": [],

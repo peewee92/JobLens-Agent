@@ -18,7 +18,7 @@ from app.application.job_imports.models import (
     ImportIssue,
 )
 
-SUPPORTED_COLLECTOR_VERSIONS = frozenset({"1.3.1", "1.4.0"})
+SUPPORTED_COLLECTOR_VERSIONS = frozenset({"1.3.1", "1.4.0", "1.4.1"})
 
 
 def _format_validation_error(error: ValidationError) -> str:

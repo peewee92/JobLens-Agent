@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.0';
+  const VERSION = '1.4.1';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 
@@ -113,7 +113,7 @@
     return map;
   }
 
-  function decodeBossText(value, customMap = {}) {
+  function decodeBossTextWithNormalizer(value, customMap = {}, normalizer = clean) {
     const text = String(value ?? '');
     const digitMap = normalizeDigitMap(customMap);
     let output = '';
@@ -145,11 +145,19 @@
     }
 
     return {
-      text: clean(output),
+      text: normalizer(output),
       decodedCount,
       hadPua: /[\uE000-\uF8FF]/.test(text),
       unknownPua: [...unknownPua]
     };
+  }
+
+  function decodeBossText(value, customMap = {}) {
+    return decodeBossTextWithNormalizer(value, customMap, clean);
+  }
+
+  function decodeBossMultilineText(value, customMap = {}) {
+    return decodeBossTextWithNormalizer(value, customMap, cleanMultiline);
   }
 
   function normalizeText(value, customMap = {}) {
@@ -385,7 +393,56 @@
   }
 
   const JD_SECTION_SIGNAL = /(岗位职责|职位职责|工作职责|任职要求|职位要求|岗位要求|工作内容|职责描述|你将负责|我们希望|我们需要)/i;
-  const JD_PAGE_NOISE = /(BOSS直聘|职位搜索|投资者关系|求职技巧|猜你喜欢|推荐职位|公司介绍|工商信息|相似职位)/gi;
+  const JD_LIST_SIGNAL = /(?:^|[\s\n])(?:\d{1,2}[.、]|[一二三四五六七八九十]+[、.])\s*[^\s]/m;
+  const JD_ACTION_SIGNAL = /(负责|参与|主导|开发|设计|建设|优化|维护|熟悉|掌握|具备|要求|优先)/g;
+  const JD_PAGE_NOISE = /(BOSS直聘|BOSS\s*安全提示|竞争力分析|查看完整个人竞争力|职位搜索|投资者关系|求职技巧|猜你喜欢|推荐职位|更多职位|精选职位|看过该职位的人还看了|城市招聘|热门职位|推荐公司|热门企业|页面更新时间|企业服务热线|隐私政策|防骗指南|电子营业执照|人力资源服务许可证)/gi;
+  const JD_START_MARKER = /(?:职位描述|岗位描述)[ \t]*[:：]?/i;
+  const JD_STOP_MARKERS = [
+    '认证资质',
+    '竞争力分析',
+    'BOSS 安全提示',
+    '更多职位',
+    '看过该职位的人还看了',
+    '精选职位',
+    '城市招聘',
+    '页面更新时间',
+    '企业服务热线',
+    '职位搜索 BOSS直聘APP'
+  ];
+
+  function extractJobDescriptionSegment(value = '') {
+    const original = cleanMultiline(value);
+    let text = original;
+    let startMarker = '';
+    let stopMarker = '';
+
+    const startMatch = JD_START_MARKER.exec(text);
+    if (startMatch) {
+      startMarker = startMatch[0];
+      text = text.slice(startMatch.index + startMatch[0].length);
+    }
+
+    let stopIndex = -1;
+    for (const marker of JD_STOP_MARKERS) {
+      const index = text.indexOf(marker);
+      if (index < 80 || (stopIndex >= 0 && index >= stopIndex)) continue;
+      stopIndex = index;
+      stopMarker = marker;
+    }
+    if (stopIndex >= 0) text = text.slice(0, stopIndex);
+
+    text = cleanMultiline(text)
+      .replace(/^(?:(?:下载App[^\n]{0,80})?\s*)?(?:微信扫码分享\s*)?(?:举\s*报|举报)?\s*/i, '')
+      .replace(/\s+[\u4e00-\u9fa5A-Za-z·（）()]{1,30}\s+(?:刚刚活跃|今日活跃|本周活跃|近两周活跃|本月活跃)(?:\s|$)[\s\S]*$/i, '')
+      .trim();
+
+    return {
+      text,
+      sanitized: Boolean(startMarker || stopMarker || text !== original),
+      startMarker,
+      stopMarker
+    };
+  }
 
   function stableTextHash(value = '') {
     const text = String(value ?? '');
@@ -400,15 +457,23 @@
   function assessDescriptionQuality(input = {}) {
     const description = cleanMultiline(input.description || '');
     const descriptionSource = clean(input.descriptionSource || '');
+    const descriptionSelectorTrust = clean(input.descriptionSelectorTrust || '');
+    const descriptionSanitized = Boolean(input.descriptionSanitized);
     const detailAttempted = Boolean(input.detailAttempted);
     const detailSucceeded = Boolean(input.detailSucceeded);
     const descriptionLength = description.length;
     const hasSectionSignal = JD_SECTION_SIGNAL.test(description);
+    const hasListSignal = JD_LIST_SIGNAL.test(description);
+    const actionSignalCount = (description.match(JD_ACTION_SIGNAL) || []).length;
+    const hasContentSignal = hasSectionSignal || hasListSignal || actionSignalCount >= 3;
     const noiseMatches = description.match(JD_PAGE_NOISE) || [];
     const isBodyFallback = descriptionSource === 'body_fallback';
-    const isBroadSelector = descriptionSource === 'selector:.job-detail-section'
+    const isBroadSelector = descriptionSelectorTrust === 'broad'
+      || descriptionSource === 'selector:.job-detail-section'
       || descriptionSource === 'selector:.job-detail'
       || descriptionSource === 'selector:[class*="job-detail"]';
+    const trustedSource = descriptionSelectorTrust === 'trusted' || (!isBroadSelector && !isBodyFallback);
+    const sourceEligible = trustedSource || (isBroadSelector && descriptionSanitized);
     const reasons = [];
 
     let descriptionQuality = 'unavailable';
@@ -424,16 +489,18 @@
       reasons.push('body_fallback_not_trusted', 'missing_full_jd');
     } else if (
       descriptionLength >= 180
-      && noiseMatches.length <= 2
-      && (!isBroadSelector || hasSectionSignal)
+      && noiseMatches.length === 0
+      && hasContentSignal
+      && sourceEligible
     ) {
       descriptionQuality = 'full_jd';
     } else if (descriptionLength >= 80) {
       descriptionQuality = 'partial_jd';
       if (descriptionLength < 180) reasons.push('description_too_short');
-      if (noiseMatches.length > 2) reasons.push('page_noise_detected');
-      if (!hasSectionSignal) reasons.push('weak_jd_structure');
-      if (isBroadSelector) reasons.push('broad_selector_not_trusted');
+      if (noiseMatches.length > 0) reasons.push('page_noise_detected');
+      if (!hasContentSignal) reasons.push('weak_jd_structure');
+      if (isBroadSelector && !descriptionSanitized) reasons.push('broad_selector_not_sanitized');
+      if (!sourceEligible) reasons.push('description_source_not_trusted');
       reasons.push('missing_full_jd');
     } else {
       reasons.push('description_too_short', 'missing_full_jd');
@@ -445,6 +512,8 @@
       descriptionLength,
       descriptionHash: description ? stableTextHash(description) : '',
       descriptionHasSectionSignal: hasSectionSignal,
+      descriptionHasContentSignal: hasContentSignal,
+      descriptionNoiseCount: noiseMatches.length,
       requirementReviewEligible,
       requirementReviewIneligibilityReasons: requirementReviewEligible ? [] : [...new Set(reasons)]
     };
@@ -567,12 +636,14 @@
     mergeSearchMetadata,
     normalizeDigitMap,
     decodeBossText,
+    decodeBossMultilineText,
     normalizeText,
     findSalaryInText,
     parseSalary,
     extractPuaSalaryToken,
     inferDigitMap,
     detectRemote,
+    extractJobDescriptionSegment,
     stableTextHash,
     assessDescriptionQuality,
     classifyCategory,

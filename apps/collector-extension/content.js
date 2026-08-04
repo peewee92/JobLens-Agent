@@ -5,6 +5,9 @@
     clean,
     cleanMultiline,
     decodeBossText,
+    decodeBossMultilineText,
+    extractJobDescriptionSegment,
+    assessDescriptionQuality,
     findSalaryInText,
     inferDigitMap,
     detectRemote,
@@ -24,15 +27,23 @@
 
   function getElementText(element, digitMap = {}) {
     if (!element) return '';
-    const values = [element.innerText, element.textContent];
-    for (const attr of TEXT_ATTRS) values.push(element.getAttribute?.(attr));
-    return clean(values.map(value => decodeBossText(value || '', digitMap).text).filter(Boolean).join(' '));
+    const values = [];
+    const seen = new Set();
+    const push = raw => {
+      const value = decodeBossText(raw || '', digitMap).text;
+      if (!value || seen.has(value)) return;
+      seen.add(value);
+      values.push(value);
+    };
+    push(element.innerText || element.textContent);
+    for (const attr of TEXT_ATTRS) push(element.getAttribute?.(attr));
+    return clean(values.join(' '));
   }
 
   function getElementMultilineText(element, digitMap = {}) {
     if (!element) return '';
     const raw = element.innerText || element.textContent || '';
-    return cleanMultiline(decodeBossText(raw, digitMap).text);
+    return decodeBossMultilineText(raw, digitMap).text;
   }
 
   function pickText(root, selectors, digitMap = {}) {
@@ -263,39 +274,72 @@
     };
   }
 
-  function extractDetail(meta = {}, digitMap = {}) {
-    const bodyOriginal = cleanMultiline(document.body?.innerText || document.body?.textContent || '');
-    const bodyDecoded = decodeBossText(bodyOriginal, digitMap);
-    const bodyText = bodyDecoded.text;
-    const descriptionSelectors = [
-      '.job-detail-section .job-sec-text',
-      '.job-detail-section',
-      '.job-sec-text',
-      '[class*="job-description"]',
-      '[class*="job-sec-text"]',
-      '[class*="detail-content"]',
-      '.job-detail',
-      '[class*="job-detail"]'
-    ];
-    let description = '';
-    let descriptionSource = '';
-    for (const selector of descriptionSelectors) {
-      const elements = [...document.querySelectorAll(selector)];
-      const text = cleanMultiline(
-        elements
-          .map(element => getElementMultilineText(element, digitMap))
-          .filter(Boolean)
-          .join('\n\n')
-      );
-      if (text.length > description.length) {
-        description = text;
-        descriptionSource = `selector:${selector}`;
+  const DESCRIPTION_SELECTOR_RULES = [
+    { selector: '.job-detail-section .job-sec-text', trust: 'trusted' },
+    { selector: '.job-sec-text', trust: 'trusted' },
+    { selector: '[class*="job-sec-text"]', trust: 'trusted' },
+    { selector: '[class*="job-description"]', trust: 'trusted' },
+    { selector: '[class*="detail-content"]', trust: 'trusted' },
+    { selector: '.job-detail-section', trust: 'broad' },
+    { selector: '.job-detail', trust: 'broad' },
+    { selector: '[class*="job-detail"]', trust: 'broad' }
+  ];
+
+  function chooseDescriptionCandidate(digitMap = {}, bodyText = '') {
+    const candidates = [];
+    for (const rule of DESCRIPTION_SELECTOR_RULES) {
+      for (const element of document.querySelectorAll(rule.selector)) {
+        const rawText = getElementMultilineText(element, digitMap);
+        if (!rawText) continue;
+        const segment = extractJobDescriptionSegment(rawText);
+        if (!segment.text) continue;
+        const source = `selector:${rule.selector}`;
+        const quality = assessDescriptionQuality({
+          description: segment.text,
+          descriptionSource: source,
+          descriptionSelectorTrust: rule.trust,
+          descriptionSanitized: segment.sanitized,
+          detailAttempted: true,
+          detailSucceeded: true
+        });
+        const score = (quality.requirementReviewEligible ? 1_000_000 : 0)
+          + (rule.trust === 'trusted' ? 100_000 : 0)
+          - quality.descriptionNoiseCount * 50_000
+          + Math.min(quality.descriptionLength, 30_000);
+        candidates.push({
+          description: segment.text,
+          descriptionSource: source,
+          descriptionSelectorTrust: rule.trust,
+          descriptionSanitized: segment.sanitized,
+          descriptionStartMarker: segment.startMarker,
+          descriptionStopMarker: segment.stopMarker,
+          score
+        });
       }
     }
-    if (!description) {
-      description = bodyText.slice(0, 12000);
-      descriptionSource = 'body_fallback';
+
+    if (candidates.length) {
+      return candidates.sort((left, right) => right.score - left.score)[0];
     }
+
+    const fallback = extractJobDescriptionSegment(bodyText.slice(0, 30000));
+    return {
+      description: fallback.text,
+      descriptionSource: 'body_fallback',
+      descriptionSelectorTrust: 'fallback',
+      descriptionSanitized: fallback.sanitized,
+      descriptionStartMarker: fallback.startMarker,
+      descriptionStopMarker: fallback.stopMarker,
+      score: 0
+    };
+  }
+
+  function extractDetail(meta = {}, digitMap = {}) {
+    const bodyOriginal = cleanMultiline(document.body?.innerText || document.body?.textContent || '');
+    const bodyDecoded = decodeBossMultilineText(bodyOriginal, digitMap);
+    const bodyText = bodyDecoded.text;
+    const selectedDescription = chooseDescriptionCandidate(digitMap, bodyText);
+    const description = selectedDescription.description;
 
     const salary = findSalaryInText(bodyText, digitMap);
     const remote = detectRemote({ detailText: bodyText, description });
@@ -307,7 +351,11 @@
       ...meta,
       salary,
       description: description.slice(0, 30000),
-      descriptionSource,
+      descriptionSource: selectedDescription.descriptionSource,
+      descriptionSelectorTrust: selectedDescription.descriptionSelectorTrust,
+      descriptionSanitized: selectedDescription.descriptionSanitized,
+      descriptionStartMarker: selectedDescription.descriptionStartMarker,
+      descriptionStopMarker: selectedDescription.descriptionStopMarker,
       detailText: bodyText.slice(0, 50000),
       remoteMatched: remote.matched,
       remoteStatus: remote.status,
@@ -323,7 +371,12 @@
     };
   }
 
-  globalThis.BossAiContentInternals = { findAreaInText, escapeRegExp };
+  globalThis.BossAiContentInternals = {
+    findAreaInText,
+    escapeRegExp,
+    getElementText,
+    chooseDescriptionCandidate
+  };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

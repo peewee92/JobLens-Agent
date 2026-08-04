@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://joblens.local/schemas/collector-requirement-review-dataset.schema.json",
-  "title": "Collector Requirement Review Dataset v1.4.0",
+  "title": "Collector Requirement Review Dataset v1.4.1",
   "type": "object",
   "required": [
     "version",
@@ -14,7 +14,7 @@
     "candidates"
   ],
   "properties": {
-    "version": {"const": "1.4.0"},
+    "version": {"const": "1.4.1"},
     "generatedAt": {"type": "string", "format": "date-time"},
     "purpose": {"const": "requirement_manual_quality_review"},
     "qualityGate": {
@@ -52,9 +52,12 @@
           "url",
           "description",
           "descriptionSource",
+          "descriptionSelectorTrust",
+          "descriptionSanitized",
           "descriptionQuality",
           "descriptionLength",
           "descriptionHash",
+          "descriptionNoiseCount",
           "detailSucceeded",
           "requirementReviewEligible",
           "requirementReviewIneligibilityReasons",
@@ -66,16 +69,22 @@
           "url": {"type": "string", "minLength": 1},
           "description": {"type": "string", "minLength": 1},
           "descriptionSource": {"type": "string", "minLength": 1},
+          "descriptionSelectorTrust": {
+            "type": "string",
+            "enum": ["trusted", "broad"]
+          },
+          "descriptionSanitized": {"type": "boolean"},
           "descriptionQuality": {"const": "full_jd"},
           "descriptionLength": {"type": "integer", "minimum": 180},
           "descriptionHash": {"type": "string", "pattern": "^fnv1a32:[0-9a-f]{8}$"},
+          "descriptionNoiseCount": {"const": 0},
           "detailSucceeded": {"const": true},
           "requirementReviewEligible": {"const": true},
           "requirementReviewIneligibilityReasons": {
             "type": "array",
             "maxItems": 0
           },
-          "sourceVersion": {"const": "1.4.0"}
+          "sourceVersion": {"const": "1.4.1"}
         },
         "additionalProperties": true
       }

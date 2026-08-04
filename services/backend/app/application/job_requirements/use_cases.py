@@ -46,14 +46,14 @@ class ExtractJobRequirementsUseCase:
         if job is None:
             raise JobNotFoundError(f"Job {job_id!r} was not found")
         if (
-            job.source_version == "1.4.0"
+            (job.source_version or "").startswith("1.4.")
             and job.requirement_review_eligible is not True
         ):
             reasons = ", ".join(job.requirement_review_ineligibility_reasons) or (
                 "missing_requirement_review_eligibility"
             )
             raise JobDescriptionNotExtractableError(
-                "Collector v1.4.0 job is not eligible for Requirement Extraction: "
+                f"Collector v{job.source_version} job is not eligible for Requirement Extraction: "
                 f"descriptionQuality={job.description_quality or 'unknown'}; "
                 f"reasons={reasons}"
             )

@@ -16,6 +16,58 @@ assert.strictEqual(
   lib.limitMultilineText('职责：\n1. 开发\n2. 测试', 100),
   '职责：\n1. 开发\n2. 测试'
 );
+assert.strictEqual(
+  lib.decodeBossMultilineText('岗位职责：\n. 负责 Agent 开发').text,
+  '岗位职责：\n1. 负责 Agent 开发'
+);
+
+const noisyBossPage = [
+  '下载App, 不错过Boss每一条消息',
+  '微信扫码分享 举报 职位描述',
+  '岗位职责：',
+  '1. 负责企业级 AI Agent 应用设计、开发和上线。',
+  '2. 建设工具调用、RAG 和可观测工作流。',
+  '任职要求：',
+  '1. 熟悉 Python、FastAPI 和主流大模型 API。',
+  '2. 具备真实项目交付与测试经验。',
+  '3. 能够编写自动化测试、分析 Trace、定位工具调用失败并持续改进系统可靠性。',
+  '4. 与产品和业务团队协作，完成需求分析、方案评审、上线验证和持续迭代。',
+  '认证资质 人力资源服务许可证',
+  '竞争力分析 查看完整个人竞争力',
+  'BOSS 安全提示',
+  '更多职位 看过该职位的人还看了'
+].join('\n');
+const segment = lib.extractJobDescriptionSegment(noisyBossPage);
+assert.strictEqual(segment.startMarker, '职位描述');
+assert.strictEqual(segment.stopMarker, '认证资质');
+assert.ok(segment.sanitized);
+assert.ok(segment.text.startsWith('岗位职责：'));
+assert.ok(!segment.text.includes('BOSS 安全提示'));
+assert.ok(!segment.text.includes('更多职位'));
+
+const sanitizedQuality = lib.assessDescriptionQuality({
+  description: segment.text,
+  descriptionSource: 'selector:[class*="job-detail"]',
+  descriptionSelectorTrust: 'broad',
+  descriptionSanitized: true,
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(sanitizedQuality.descriptionQuality, 'full_jd');
+assert.strictEqual(sanitizedQuality.requirementReviewEligible, true);
+assert.strictEqual(sanitizedQuality.descriptionNoiseCount, 0);
+
+const noisyQuality = lib.assessDescriptionQuality({
+  description: noisyBossPage,
+  descriptionSource: 'selector:[class*="job-detail"]',
+  descriptionSelectorTrust: 'broad',
+  descriptionSanitized: false,
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(noisyQuality.descriptionQuality, 'partial_jd');
+assert.strictEqual(noisyQuality.requirementReviewEligible, false);
+assert.ok(noisyQuality.requirementReviewIneligibilityReasons.includes('page_noise_detected'));
 
 const cases = [
   ['-K', 15, 30],
