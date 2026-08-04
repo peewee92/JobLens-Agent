@@ -1,4 +1,4 @@
-const VERSION = '1.4.2';
+const VERSION = '1.4.3';
 const MAX_SELECTED_CITIES = 20;
 const DEFAULT_KEYWORDS = [
   'AI 应用开发工程师',
@@ -324,7 +324,7 @@ el('downloadDiagnostics').addEventListener('click', async () => {
 el('downloadRequirementReview').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.requirementReviewJson) {
-    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.2 重新采集。');
+    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.3 重新采集。');
   }
   await downloadData(
     lastRun.requirementReviewFilename || 'boss-job-filter-requirement-review.json',

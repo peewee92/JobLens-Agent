@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.2';
+  const VERSION = '1.4.3';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 

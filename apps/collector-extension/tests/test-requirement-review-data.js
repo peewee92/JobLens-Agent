@@ -20,6 +20,9 @@ const {
   buildStatistics,
   buildRequirementReviewDataset,
   descriptionSimilarity,
+  selectDetailTargets,
+  prioritizeAcceptedTargetsForReview,
+  detailCardIdentity,
   uniqueJobsByUrl
 } = context.BossAiRunnerInternals;
 
@@ -140,7 +143,7 @@ assert.strictEqual(readyDataset.qualityGate.nearDuplicateCount, 0);
 assert.strictEqual(readyDataset.jobs.length, 20);
 assert.ok(readyDataset.jobs.every(job => job.requirementReviewEligible));
 assert.ok(readyDataset.jobs.every(job => job.descriptionQuality === 'full_jd'));
-assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.2'));
+assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.3'));
 
 const duplicateDescription = uniqueDescription(50);
 const nearDuplicateJobs = [
@@ -167,6 +170,54 @@ assert.strictEqual(diverseDataset.qualityGate.nearDuplicateCount, 2);
 assert.strictEqual(diverseDataset.jobs.length, 20);
 assert.strictEqual(diverseDataset.excludedNearDuplicates.length, 2);
 assert.ok(diverseDataset.excludedNearDuplicates.every(item => item.similarity >= 0.82));
+
+function detailTarget(index, kind = 'accepted', overrides = {}) {
+  const job = {
+    title: `AI Agent 工程师 ${index}`,
+    company: `详情公司 ${index}`,
+    area: '武汉·洪山区',
+    salary: '20-30K',
+    url: `https://www.zhipin.com/job_detail/detail-target-${kind}-${index}.html`,
+    ...overrides
+  };
+  return {
+    job,
+    initialClass: {
+      keep: kind === 'accepted',
+      pendingDetail: kind === 'remote'
+    }
+  };
+}
+
+const acceptedDetailTargets = Array.from({ length: 35 }, (_, index) => detailTarget(index));
+const duplicateCardTarget = detailTarget(999, 'accepted', {
+  title: 'AI  Agent工程师 0',
+  company: '详情公司 0',
+  area: '武汉·洪山区',
+  salary: '20-30K'
+});
+assert.strictEqual(
+  detailCardIdentity(acceptedDetailTargets[0].job),
+  detailCardIdentity(duplicateCardTarget.job)
+);
+const prioritizedAccepted = prioritizeAcceptedTargetsForReview([
+  acceptedDetailTargets[0],
+  duplicateCardTarget,
+  ...acceptedDetailTargets.slice(1)
+]);
+assert.strictEqual(prioritizedAccepted.at(-1).job.url, duplicateCardTarget.job.url);
+
+const remoteDetailTargets = Array.from({ length: 20 }, (_, index) => detailTarget(index, 'remote'));
+const plannedDetailTargets = selectDetailTargets(
+  [acceptedDetailTargets[0], duplicateCardTarget, ...acceptedDetailTargets.slice(1), ...remoteDetailTargets],
+  'matched',
+  40
+);
+assert.strictEqual(plannedDetailTargets.length, 40);
+assert.strictEqual(plannedDetailTargets.filter(target => target.initialClass.keep).length, 30);
+assert.strictEqual(plannedDetailTargets.filter(target => target.initialClass.pendingDetail).length, 10);
+assert.ok(!plannedDetailTargets.some(target => target.job.url === duplicateCardTarget.job.url));
+assert.strictEqual(selectDetailTargets(remoteDetailTargets, 'remote', 12).length, 12);
 
 const finalJobs = [eligibleJob(1), twentyPlusCard.at(-1)];
 const duplicateScopeJob = {

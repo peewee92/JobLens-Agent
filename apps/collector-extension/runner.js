@@ -18,6 +18,9 @@
     normalizeDigitMap
   } = globalThis.BossJobFilterLib;
 
+  const REQUIREMENT_REVIEW_SAMPLE_SIZE = 20;
+  const REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR = 1.5;
+
   const state = {
     aborted: false,
     jobs: [],
@@ -26,7 +29,15 @@
     lastRun: null,
     pageStats: [],
     digitMap: normalizeDigitMap({}),
-    detailStats: { attempted: 0, succeeded: 0, failed: 0, blocked: 0 }
+    detailStats: {
+      plannedAccepted: 0,
+      plannedRemoteCandidates: 0,
+      deferredAccepted: 0,
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      blocked: 0
+    }
   };
 
   const el = id => document.getElementById(id);
@@ -522,6 +533,9 @@
         wuhan: finalJobs.filter(job => job.searchCities?.includes('武汉') || job.scope.split('/').includes('武汉')).length,
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
         puaSalaryDecoded: candidates.filter(job => job.salaryHadPua && job.salaryMinK != null).length,
+        detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
+        detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
+        detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
         detailEnriched: finalJobs.filter(job => job.detailSucceeded).length,
         fullJd: finalJobs.filter(job => job.descriptionQuality === 'full_jd').length,
         requirementReviewEligible: finalJobs.filter(job => job.requirementReviewEligible).length,
@@ -626,6 +640,9 @@
         salaryDecodedFromPua: classified.filter(item => item.salary.minK != null && item.job.salaryHadPua).length,
         salaryPassed: classified.filter(item => item.salary.minK != null && salaryPasses(item.salary, config)).length,
         remoteConfirmed: classified.filter(item => item.remote.matched).length,
+        detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
+        detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
+        detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
         detailAttempted: state.detailStats.attempted,
         detailSucceeded: state.detailStats.succeeded,
         detailFailed: state.detailStats.failed,
@@ -712,7 +729,7 @@
   }
 
   function buildRequirementReviewDataset(finalJobs, config, statistics) {
-    const requiredSampleSize = 20;
+    const requiredSampleSize = REQUIREMENT_REVIEW_SAMPLE_SIZE;
     const similarityThreshold = 0.82;
     const eligibleJobs = finalJobs.filter(job => job.requirementReviewEligible);
     const { distinctJobs, excludedNearDuplicates } = selectDistinctRequirementReviewJobs(
@@ -895,6 +912,66 @@
     return score;
   }
 
+  function normalizeCardIdentityPart(value = '') {
+    return String(value ?? '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '');
+  }
+
+  function detailCardIdentity(job = {}) {
+    const parts = [job.title, job.company, job.area, job.salary]
+      .map(normalizeCardIdentityPart);
+    return parts.some(Boolean) ? parts.join('|') : '';
+  }
+
+  function prioritizeAcceptedTargetsForReview(targets) {
+    const primary = [];
+    const deferredDuplicates = [];
+    const seen = new Set();
+    for (const target of targets) {
+      const identity = detailCardIdentity(target.job);
+      if (identity && seen.has(identity)) {
+        deferredDuplicates.push(target);
+        continue;
+      }
+      if (identity) seen.add(identity);
+      primary.push(target);
+    }
+    return [...primary, ...deferredDuplicates];
+  }
+
+  function selectDetailTargets(uniqueTargets, detailMode, detailLimit) {
+    const limit = Math.max(0, Number(detailLimit || 0));
+    if (!limit) return [];
+    if (detailMode !== 'matched') return uniqueTargets.slice(0, limit);
+
+    const acceptedTargets = prioritizeAcceptedTargetsForReview(
+      uniqueTargets.filter(target => target.initialClass.keep)
+    );
+    const pendingRemoteTargets = uniqueTargets.filter(target => target.initialClass.pendingDetail);
+    const reviewQuota = Math.min(
+      Math.ceil(REQUIREMENT_REVIEW_SAMPLE_SIZE * REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR),
+      limit,
+      acceptedTargets.length
+    );
+    const ordered = [
+      ...acceptedTargets.slice(0, reviewQuota),
+      ...pendingRemoteTargets,
+      ...acceptedTargets.slice(reviewQuota)
+    ];
+    const selected = [];
+    const seenUrls = new Set();
+    for (const target of ordered) {
+      const url = target.job.url;
+      if (!url || seenUrls.has(url)) continue;
+      seenUrls.add(url);
+      selected.push(target);
+      if (selected.length >= limit) break;
+    }
+    return selected;
+  }
+
   async function enrichDetails(uniqueJobs, config) {
     if (config.detailMode === 'off' || Number(config.detailLimit || 0) <= 0) return uniqueJobs;
 
@@ -921,25 +998,20 @@
     const detailLimit = Number(config.detailLimit || 40);
     const uniqueTargets = [...targetMap.values()]
       .sort((a, b) => detailPriority(b.job, b.initialClass) - detailPriority(a.job, a.initialClass));
-    if (config.detailMode === 'matched') {
-      const acceptedTargets = uniqueTargets.filter(target => target.initialClass.keep);
-      const pendingRemoteTargets = uniqueTargets.filter(target => target.initialClass.pendingDetail);
-      const reviewQuota = Math.min(20, detailLimit, acceptedTargets.length);
-      targets = [
-        ...acceptedTargets.slice(0, reviewQuota),
-        ...pendingRemoteTargets,
-        ...acceptedTargets.slice(reviewQuota)
-      ].slice(0, detailLimit);
-    } else {
-      targets = uniqueTargets.slice(0, detailLimit);
-    }
+    targets = selectDetailTargets(uniqueTargets, config.detailMode, detailLimit);
+    state.detailStats.plannedAccepted = targets.filter(target => target.initialClass.keep).length;
+    state.detailStats.plannedRemoteCandidates = targets.filter(target => target.initialClass.pendingDetail).length;
+    state.detailStats.deferredAccepted = Math.max(
+      0,
+      uniqueTargets.filter(target => target.initialClass.keep).length - state.detailStats.plannedAccepted
+    );
 
     if (!targets.length) {
       log('没有需要补采详情的岗位。');
       return uniqueJobs;
     }
 
-    log(`开始详情补采：${targets.length} 条。优先确认全国远程，其次补充技能与职位描述。`);
+    log(`开始详情补采：${targets.length} 条。已通过岗位 ${state.detailStats.plannedAccepted} 条，全国远程候选 ${state.detailStats.plannedRemoteCandidates} 条；正式验收优先为通过岗位预取去重缓冲。`);
     const detailsByUrl = new Map();
     let index = 0;
     for (const { job } of targets) {
@@ -1123,6 +1195,9 @@
     buildRequirementReviewDataset,
     descriptionSimilarity,
     selectDistinctRequirementReviewJobs,
+    selectDetailTargets,
+    prioritizeAcceptedTargetsForReview,
+    detailCardIdentity,
     uniqueJobsByUrl
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
