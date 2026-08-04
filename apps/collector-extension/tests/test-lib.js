@@ -69,6 +69,38 @@ assert.strictEqual(noisyQuality.descriptionQuality, 'partial_jd');
 assert.strictEqual(noisyQuality.requirementReviewEligible, false);
 assert.ok(noisyQuality.requirementReviewIneligibilityReasons.includes('page_noise_detected'));
 
+const recruiterTailDescription = [
+  '岗位职责:',
+  '1. 参与大模型相关应用的设计与开发工作',
+  '2. 协同团队完成技术方案的实施与优化',
+  '3. 探索大模型在实际业务场景中的创新应用',
+  '任职要求：',
+  '1. 善于沟通、按时完成工作',
+  '2. 拥有良好的团队合作精神',
+  '3. 具备良好的学习能力',
+  '周先生',
+  '2月内活跃',
+  '谷宇云',
+  '·',
+  'HR'
+].join('\n');
+const recruiterSegment = lib.extractJobDescriptionSegment(recruiterTailDescription);
+assert.strictEqual(recruiterSegment.stopMarker, 'recruiter_profile');
+assert.ok(recruiterSegment.sanitized);
+assert.ok(!recruiterSegment.text.includes('周先生'));
+assert.ok(!recruiterSegment.text.includes('2月内活跃'));
+assert.ok(!recruiterSegment.text.endsWith('HR'));
+const unsanitizedRecruiterQuality = lib.assessDescriptionQuality({
+  description: `${'补充职责与要求。\n'.repeat(20)}${recruiterTailDescription}`,
+  descriptionSource: 'selector:.job-sec-text',
+  descriptionSelectorTrust: 'trusted',
+  descriptionSanitized: false,
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(unsanitizedRecruiterQuality.requirementReviewEligible, false);
+assert.ok(unsanitizedRecruiterQuality.requirementReviewIneligibilityReasons.includes('page_noise_detected'));
+
 const cases = [
   ['-K', 15, 30],
   ['-K', 25, 50],

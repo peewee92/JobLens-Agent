@@ -96,12 +96,14 @@ def test_post_job_imports_returns_201_and_persists_complete_batch(
         assert item.outcome is ImportOutcome.CREATED
 
 
-def test_collector_v141_quality_evidence_is_accepted_and_preserved(
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2"])
+def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
     api_environment: tuple[TestClient, sessionmaker[Session]],
+    collector_version: str,
 ) -> None:
     client, factory = api_environment
     payload = load_report()
-    payload["version"] = "1.4.1"
+    payload["version"] = collector_version
     payload["jobs"][0].update(
         {
             "detailAttempted": True,
@@ -121,11 +123,11 @@ def test_collector_v141_quality_evidence_is_accepted_and_preserved(
     response = client.post("/api/v1/job-imports", json=payload)
 
     assert response.status_code == 201
-    assert response.json()["sourceVersion"] == "1.4.1"
+    assert response.json()["sourceVersion"] == collector_version
     with factory() as session:
         source = session.scalar(select(JobSourceORM))
         assert source is not None
-        assert source.source_version == "1.4.1"
+        assert source.source_version == collector_version
         assert source.source_raw["descriptionQuality"] == "full_jd"
         assert source.source_raw["descriptionSelectorTrust"] == "trusted"
         assert source.source_raw["descriptionNoiseCount"] == 0

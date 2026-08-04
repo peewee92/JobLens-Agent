@@ -1,14 +1,21 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "generatedAt": "2026-08-03T14:30:00.000Z",
   "purpose": "requirement_manual_quality_review",
   "qualityGate": {
     "requiredSampleSize": 20,
     "eligibleCount": 1,
+    "distinctEligibleCount": 1,
+    "nearDuplicateCount": 0,
     "selectedCount": 1,
     "status": "blocked",
-    "blockers": ["insufficient_full_jd_jobs"]
+    "blockers": ["insufficient_distinct_full_jd_jobs"]
   },
+  "selectionPolicy": {
+    "descriptionSimilarity": "nfkc_alphanumeric_5gram_jaccard",
+    "nearDuplicateThreshold": 0.82
+  },
+  "excludedNearDuplicates": [],
   "config": {
     "detailMode": "matched",
     "detailLimit": 40
@@ -17,6 +24,8 @@
     "requirementReviewDataset": {
       "requiredSampleSize": 20,
       "eligibleCount": 1,
+      "distinctEligibleCount": 1,
+      "nearDuplicateCount": 0,
       "selectedCount": 1
     }
   },
@@ -36,7 +45,7 @@
       "detailSucceeded": true,
       "requirementReviewEligible": true,
       "requirementReviewIneligibilityReasons": [],
-      "sourceVersion": "1.4.1"
+      "sourceVersion": "1.4.2"
     }
   ],
   "candidates": []

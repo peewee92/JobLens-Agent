@@ -1,20 +1,22 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://joblens.local/schemas/collector-requirement-review-dataset.schema.json",
-  "title": "Collector Requirement Review Dataset v1.4.1",
+  "title": "Collector Requirement Review Dataset v1.4.2",
   "type": "object",
   "required": [
     "version",
     "generatedAt",
     "purpose",
     "qualityGate",
+    "selectionPolicy",
+    "excludedNearDuplicates",
     "config",
     "statistics",
     "jobs",
     "candidates"
   ],
   "properties": {
-    "version": {"const": "1.4.1"},
+    "version": {"const": "1.4.2"},
     "generatedAt": {"type": "string", "format": "date-time"},
     "purpose": {"const": "requirement_manual_quality_review"},
     "qualityGate": {
@@ -22,6 +24,8 @@
       "required": [
         "requiredSampleSize",
         "eligibleCount",
+        "distinctEligibleCount",
+        "nearDuplicateCount",
         "selectedCount",
         "status",
         "blockers"
@@ -29,6 +33,8 @@
       "properties": {
         "requiredSampleSize": {"const": 20},
         "eligibleCount": {"type": "integer", "minimum": 0},
+        "distinctEligibleCount": {"type": "integer", "minimum": 0},
+        "nearDuplicateCount": {"type": "integer", "minimum": 0},
         "selectedCount": {"type": "integer", "minimum": 0, "maximum": 20},
         "status": {"type": "string", "enum": ["ready", "blocked"]},
         "blockers": {
@@ -38,6 +44,38 @@
         }
       },
       "additionalProperties": false
+    },
+    "selectionPolicy": {
+      "type": "object",
+      "required": ["descriptionSimilarity", "nearDuplicateThreshold"],
+      "properties": {
+        "descriptionSimilarity": {"const": "nfkc_alphanumeric_5gram_jaccard"},
+        "nearDuplicateThreshold": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "excludedNearDuplicates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "url",
+          "title",
+          "company",
+          "duplicateOfUrl",
+          "duplicateOfTitle",
+          "similarity"
+        ],
+        "properties": {
+          "url": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "company": {"type": "string", "minLength": 1},
+          "duplicateOfUrl": {"type": "string", "minLength": 1},
+          "duplicateOfTitle": {"type": "string", "minLength": 1},
+          "similarity": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "additionalProperties": false
+      }
     },
     "config": {"type": "object"},
     "statistics": {"type": "object"},
@@ -84,7 +122,7 @@
             "type": "array",
             "maxItems": 0
           },
-          "sourceVersion": {"const": "1.4.1"}
+          "sourceVersion": {"const": "1.4.2"}
         },
         "additionalProperties": true
       }
@@ -106,6 +144,7 @@
           "jobs": {"minItems": 20, "maxItems": 20},
           "qualityGate": {
             "properties": {
+              "distinctEligibleCount": {"minimum": 20},
               "selectedCount": {"const": 20},
               "blockers": {"maxItems": 0}
             }

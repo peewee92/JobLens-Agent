@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.1';
+  const VERSION = '1.4.2';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 
@@ -409,6 +409,7 @@
     '企业服务热线',
     '职位搜索 BOSS直聘APP'
   ];
+  const JD_RECRUITER_TAIL = /(?:^|\n)[^\n]{1,40}(?:先生|女士)?[ \t]*\n(?:刚刚|今日|本周|近两周|本月|\d+\s*月内)活跃(?:\n[\s\S]{0,160})?$/i;
 
   function extractJobDescriptionSegment(value = '') {
     const original = cleanMultiline(value);
@@ -430,6 +431,12 @@
       stopMarker = marker;
     }
     if (stopIndex >= 0) text = text.slice(0, stopIndex);
+
+    const recruiterTailMatch = JD_RECRUITER_TAIL.exec(text);
+    if (recruiterTailMatch && recruiterTailMatch.index >= 80) {
+      text = text.slice(0, recruiterTailMatch.index);
+      stopMarker = 'recruiter_profile';
+    }
 
     text = cleanMultiline(text)
       .replace(/^(?:(?:下载App[^\n]{0,80})?\s*)?(?:微信扫码分享\s*)?(?:举\s*报|举报)?\s*/i, '')
@@ -467,6 +474,7 @@
     const actionSignalCount = (description.match(JD_ACTION_SIGNAL) || []).length;
     const hasContentSignal = hasSectionSignal || hasListSignal || actionSignalCount >= 3;
     const noiseMatches = description.match(JD_PAGE_NOISE) || [];
+    if (JD_RECRUITER_TAIL.test(description)) noiseMatches.push('recruiter_profile');
     const isBodyFallback = descriptionSource === 'body_fallback';
     const isBroadSelector = descriptionSelectorTrust === 'broad'
       || descriptionSource === 'selector:.job-detail-section'

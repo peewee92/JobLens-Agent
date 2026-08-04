@@ -437,6 +437,68 @@
     return counts;
   }
 
+  function uniqueJobsByUrl(items) {
+    const map = new Map();
+    for (const job of items) {
+      const key = job.sourceUrl || job.url || `${job.title}|${job.company}|${job.descriptionHash}`;
+      const previous = map.get(key);
+      if (!previous || (!previous.requirementReviewEligible && job.requirementReviewEligible)) map.set(key, job);
+    }
+    return [...map.values()];
+  }
+
+  function normalizeDescriptionForDiversity(value = '') {
+    return String(value ?? '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '')
+      .slice(0, 10_000);
+  }
+
+  function descriptionShingles(value = '', size = 5) {
+    const text = normalizeDescriptionForDiversity(value);
+    if (!text) return new Set();
+    if (text.length <= size) return new Set([text]);
+    const result = new Set();
+    for (let index = 0; index <= text.length - size; index += 1) {
+      result.add(text.slice(index, index + size));
+    }
+    return result;
+  }
+
+  function descriptionSimilarity(left = '', right = '') {
+    const leftSet = descriptionShingles(left);
+    const rightSet = descriptionShingles(right);
+    if (!leftSet.size && !rightSet.size) return 1;
+    if (!leftSet.size || !rightSet.size) return 0;
+    let intersection = 0;
+    for (const item of leftSet) if (rightSet.has(item)) intersection += 1;
+    return intersection / (leftSet.size + rightSet.size - intersection);
+  }
+
+  function selectDistinctRequirementReviewJobs(eligibleJobs, threshold = 0.82) {
+    const distinctJobs = [];
+    const excludedNearDuplicates = [];
+    for (const job of eligibleJobs) {
+      const duplicate = distinctJobs
+        .map(candidate => ({ candidate, similarity: descriptionSimilarity(job.description, candidate.description) }))
+        .find(item => item.similarity >= threshold);
+      if (duplicate) {
+        excludedNearDuplicates.push({
+          url: job.url,
+          title: job.title,
+          company: job.company,
+          duplicateOfUrl: duplicate.candidate.url,
+          duplicateOfTitle: duplicate.candidate.title,
+          similarity: Math.round(duplicate.similarity * 10_000) / 10_000
+        });
+        continue;
+      }
+      distinctJobs.push(job);
+    }
+    return { distinctJobs, excludedNearDuplicates };
+  }
+
   function salaryBand(job) {
     const value = Number(job.salaryMinK);
     if (!Number.isFinite(value)) return '无法解析';
@@ -451,6 +513,7 @@
     const averageMinSalaryK = finalJobs.length
       ? Math.round(finalJobs.reduce((sum, job) => sum + Number(job.salaryMinK || 0), 0) / finalJobs.length * 100) / 100
       : null;
+    const uniqueDetailCohort = uniqueJobsByUrl(candidates.filter(job => job.detailSucceeded));
     return {
       totals: {
         finalJobs: finalJobs.length,
@@ -462,9 +525,9 @@
         detailEnriched: finalJobs.filter(job => job.detailSucceeded).length,
         fullJd: finalJobs.filter(job => job.descriptionQuality === 'full_jd').length,
         requirementReviewEligible: finalJobs.filter(job => job.requirementReviewEligible).length,
-        detailCohortEnriched: candidates.filter(job => job.detailSucceeded).length,
-        detailCohortFullJd: candidates.filter(job => job.descriptionQuality === 'full_jd').length,
-        detailCohortRequirementReviewEligible: candidates.filter(job => job.requirementReviewEligible).length,
+        detailCohortEnriched: uniqueDetailCohort.length,
+        detailCohortFullJd: uniqueDetailCohort.filter(job => job.descriptionQuality === 'full_jd').length,
+        detailCohortRequirementReviewEligible: uniqueDetailCohort.filter(job => job.requirementReviewEligible).length,
         averageMinSalaryK,
         totalCandidateHits: candidates.reduce((sum, job) => sum + Number(job.hitCount || 1), 0),
         duplicateCandidateHits: candidates.reduce((sum, job) => sum + Math.max(0, Number(job.hitCount || 1) - 1), 0),
@@ -545,6 +608,7 @@
     }
 
     const salarySources = countBy(uniqueJobs.filter(job => job.salaryMinK != null), job => job.salarySource || 'unknown');
+    const uniqueDetailCohort = uniqueJobsByUrl(uniqueJobs.filter(job => job.detailSucceeded));
     return {
       version: VERSION,
       generatedAt: new Date().toISOString(),
@@ -572,9 +636,9 @@
         unavailableJd: finalJobs.filter(job => job.descriptionQuality === 'unavailable').length,
         requirementReviewEligible: finalJobs.filter(job => job.requirementReviewEligible).length,
         requirementReviewBlocked: finalJobs.filter(job => !job.requirementReviewEligible).length,
-        detailCohortFullJd: uniqueJobs.filter(job => job.descriptionQuality === 'full_jd').length,
-        detailCohortPartialJd: uniqueJobs.filter(job => job.descriptionQuality === 'partial_jd').length,
-        detailCohortRequirementReviewEligible: uniqueJobs.filter(job => job.requirementReviewEligible).length,
+        detailCohortFullJd: uniqueDetailCohort.filter(job => job.descriptionQuality === 'full_jd').length,
+        detailCohortPartialJd: uniqueDetailCohort.filter(job => job.descriptionQuality === 'partial_jd').length,
+        detailCohortRequirementReviewEligible: uniqueDetailCohort.filter(job => job.requirementReviewEligible).length,
         finalKeptBeforeCrossScopeDedupe: classified.filter(item => item.keep).length,
         finalAfterCrossScopeDedupe: finalJobs.length
       },
@@ -649,28 +713,37 @@
 
   function buildRequirementReviewDataset(finalJobs, config, statistics) {
     const requiredSampleSize = 20;
+    const similarityThreshold = 0.82;
     const eligibleJobs = finalJobs.filter(job => job.requirementReviewEligible);
-    const selectedJobs = eligibleJobs.slice(0, requiredSampleSize);
+    const { distinctJobs, excludedNearDuplicates } = selectDistinctRequirementReviewJobs(
+      eligibleJobs,
+      similarityThreshold
+    );
+    const selectedJobs = distinctJobs.slice(0, requiredSampleSize);
     const ready = selectedJobs.length === requiredSampleSize;
+    const qualityGate = {
+      requiredSampleSize,
+      eligibleCount: eligibleJobs.length,
+      distinctEligibleCount: distinctJobs.length,
+      nearDuplicateCount: excludedNearDuplicates.length,
+      selectedCount: selectedJobs.length,
+      status: ready ? 'ready' : 'blocked',
+      blockers: ready ? [] : ['insufficient_distinct_full_jd_jobs']
+    };
     return {
       version: VERSION,
       generatedAt: new Date().toISOString(),
       purpose: 'requirement_manual_quality_review',
-      qualityGate: {
-        requiredSampleSize,
-        eligibleCount: eligibleJobs.length,
-        selectedCount: selectedJobs.length,
-        status: ready ? 'ready' : 'blocked',
-        blockers: ready ? [] : ['insufficient_full_jd_jobs']
+      qualityGate,
+      selectionPolicy: {
+        descriptionSimilarity: 'nfkc_alphanumeric_5gram_jaccard',
+        nearDuplicateThreshold: similarityThreshold
       },
+      excludedNearDuplicates,
       config,
       statistics: {
         ...statistics,
-        requirementReviewDataset: {
-          requiredSampleSize,
-          eligibleCount: eligibleJobs.length,
-          selectedCount: selectedJobs.length
-        }
+        requirementReviewDataset: qualityGate
       },
       jobs: selectedJobs,
       candidates: []
@@ -1033,7 +1106,7 @@
     el('requirementReview').disabled = false;
     const reviewGate = requirementReviewDataset.qualityGate;
     el('summary').textContent = `完成：最终 ${finalJobs.length} 条，完整 JD ${diagnostics.counts.fullJd} 条，Requirement 验收样本 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}（${reviewGate.status}）。`;
-    log(`Requirement 验收数据：${reviewGate.status}，可用 ${reviewGate.eligibleCount} 条，已选 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}。`);
+    log(`Requirement 验收数据：${reviewGate.status}，原始合格 ${reviewGate.eligibleCount} 条，独立合格 ${reviewGate.distinctEligibleCount} 条，近重复排除 ${reviewGate.nearDuplicateCount} 条，已选 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}。`);
     log('运行完成，已下载 CSV、完整报告、诊断 JSON 和 Requirement 验收数据集。');
     document.title = `完成：筛选出 ${finalJobs.length} 条岗位`;
   }
@@ -1047,7 +1120,10 @@
     classify,
     sortFinalJobs,
     buildStatistics,
-    buildRequirementReviewDataset
+    buildRequirementReviewDataset,
+    descriptionSimilarity,
+    selectDistinctRequirementReviewJobs,
+    uniqueJobsByUrl
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
 

@@ -18,7 +18,9 @@ const { assessDescriptionQuality } = context.BossJobFilterLib;
 const {
   normalizeJob,
   buildStatistics,
-  buildRequirementReviewDataset
+  buildRequirementReviewDataset,
+  descriptionSimilarity,
+  uniqueJobsByUrl
 } = context.BossAiRunnerInternals;
 
 const fullDescription = [
@@ -73,7 +75,17 @@ assert.ok(
   )
 );
 
-function eligibleJob(index) {
+function uniqueDescription(index) {
+  return [
+    fullDescription,
+    `专项领域 ${index}：`,
+    ...Array.from({ length: 12 }, (_, part) => (
+      `${part + 1}. 场景 ${index}-${part} 负责独立业务链路、工具契约、评测样本和上线证据治理。`
+    ))
+  ].join('\n');
+}
+
+function eligibleJob(index, description = uniqueDescription(index)) {
   return normalizeJob({
     scope: '武汉',
     scopeType: 'city',
@@ -85,7 +97,7 @@ function eligibleJob(index) {
     area: '武汉·洪山区',
     url: `https://www.zhipin.com/job_detail/review-${index}.html`,
     rawText: `AI Agent 工程师 ${index} 15-25K`,
-    description: fullDescription,
+    description,
     descriptionSource: 'selector:.job-sec-text',
     detailAttempted: true,
     detailSucceeded: true
@@ -93,9 +105,9 @@ function eligibleJob(index) {
 }
 
 const normalizedExample = eligibleJob(999);
-assert.strictEqual(normalizedExample.description, fullDescription);
+assert.strictEqual(normalizedExample.description, uniqueDescription(999));
 assert.ok(normalizedExample.description.includes('\n任职要求：\n'));
-assert.strictEqual(normalizedExample.descriptionLength, fullDescription.length);
+assert.strictEqual(normalizedExample.descriptionLength, uniqueDescription(999).length);
 
 const nineteen = Array.from({ length: 19 }, (_, index) => eligibleJob(index));
 const blockedDataset = buildRequirementReviewDataset(nineteen, { detailMode: 'matched' }, {});
@@ -103,7 +115,7 @@ assert.strictEqual(blockedDataset.qualityGate.status, 'blocked');
 assert.strictEqual(blockedDataset.qualityGate.selectedCount, 19);
 assert.deepStrictEqual(
   Array.from(blockedDataset.qualityGate.blockers),
-  ['insufficient_full_jd_jobs']
+  ['insufficient_distinct_full_jd_jobs']
 );
 
 const twentyPlusCard = [
@@ -123,13 +135,53 @@ const twentyPlusCard = [
 const readyDataset = buildRequirementReviewDataset(twentyPlusCard, { detailMode: 'matched' }, {});
 assert.strictEqual(readyDataset.qualityGate.status, 'ready');
 assert.strictEqual(readyDataset.qualityGate.eligibleCount, 20);
+assert.strictEqual(readyDataset.qualityGate.distinctEligibleCount, 20);
+assert.strictEqual(readyDataset.qualityGate.nearDuplicateCount, 0);
 assert.strictEqual(readyDataset.jobs.length, 20);
 assert.ok(readyDataset.jobs.every(job => job.requirementReviewEligible));
 assert.ok(readyDataset.jobs.every(job => job.descriptionQuality === 'full_jd'));
-assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.1'));
+assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.2'));
+
+const duplicateDescription = uniqueDescription(50);
+const nearDuplicateJobs = [
+  ...Array.from({ length: 20 }, (_, index) => eligibleJob(index)),
+  eligibleJob(50, duplicateDescription),
+  eligibleJob(51, duplicateDescription.replace('专项领域 50', '专项领域 51')),
+  eligibleJob(52, duplicateDescription.replace('专项领域 50：', '专项领域 50'))
+];
+assert.ok(
+  descriptionSimilarity(
+    nearDuplicateJobs.at(-3).description,
+    nearDuplicateJobs.at(-2).description
+  ) >= 0.82
+);
+const diverseDataset = buildRequirementReviewDataset(
+  nearDuplicateJobs,
+  { detailMode: 'matched' },
+  {}
+);
+assert.strictEqual(diverseDataset.qualityGate.status, 'ready');
+assert.strictEqual(diverseDataset.qualityGate.eligibleCount, 23);
+assert.strictEqual(diverseDataset.qualityGate.distinctEligibleCount, 21);
+assert.strictEqual(diverseDataset.qualityGate.nearDuplicateCount, 2);
+assert.strictEqual(diverseDataset.jobs.length, 20);
+assert.strictEqual(diverseDataset.excludedNearDuplicates.length, 2);
+assert.ok(diverseDataset.excludedNearDuplicates.every(item => item.similarity >= 0.82));
 
 const finalJobs = [eligibleJob(1), twentyPlusCard.at(-1)];
-const detailCohort = [eligibleJob(1), eligibleJob(2), eligibleJob(3), twentyPlusCard.at(-1)];
+const duplicateScopeJob = {
+  ...eligibleJob(1),
+  scope: '全国远程',
+  scopeType: 'remote'
+};
+const detailCohort = [
+  eligibleJob(1),
+  duplicateScopeJob,
+  eligibleJob(2),
+  eligibleJob(3),
+  twentyPlusCard.at(-1)
+];
+assert.strictEqual(uniqueJobsByUrl(detailCohort.filter(job => job.detailSucceeded)).length, 3);
 const statistics = buildStatistics(finalJobs, detailCohort);
 assert.strictEqual(statistics.totals.finalJobs, 2);
 assert.strictEqual(statistics.totals.fullJd, 1);
