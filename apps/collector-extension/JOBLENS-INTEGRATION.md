@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.5, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.6, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -12,17 +12,17 @@ Upload the full report to:
 
 ```text
 POST /api/v1/job-imports
-boss-job-filter-report-v1.4.5-*.json
+boss-job-filter-report-v1.4.6-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 through v1.4.5. Collector v1.4.5 preserves the v1.4.4 role-evidence gate, restricts remote detection to bounded job evidence, separates remote-work wording from remote support/monitoring semantics, and normalizes compatibility ideographs and zero-width spaces while keeping the raw source payload in `JobSource.source_raw`.
+The backend remains compatible with Collector v1.3.1 through v1.4.6. Collector v1.4.6 preserves the v1.4.5 remote-evidence rules and extends visible-text normalization to observed CJK Radicals Supplement characters such as `⻓` → `长`, while keeping the raw source payload in `JobSource.source_raw`.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.5-*.json
+boss-job-filter-requirement-review-v1.4.6-*.json
 ```
 
 The dataset contains only jobs where:
@@ -39,7 +39,7 @@ The dataset contains only jobs where:
 
 `qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
 
-In `matched` detail mode, v1.4.5 keeps the v1.4.3 allocation policy and plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. In diagnostics, `remoteConfirmed` now uses the final-job scope and `candidateRemoteConfirmed` keeps the all-candidate scope.
+In `matched` detail mode, v1.4.6 keeps the v1.4.3 allocation policy and plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. In diagnostics, `remoteConfirmed` now uses the final-job scope and `candidateRemoteConfirmed` keeps the all-candidate scope.
 
 ## Runtime guard
 

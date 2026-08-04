@@ -1,5 +1,6 @@
 import type {
   RequirementReviewBatchCase,
+  RequirementReviewBatchFinalDecisionValue,
   RequirementReviewBatchSummary,
   RequirementReviewCandidate,
   RequirementReviewIssueCode,
@@ -48,6 +49,26 @@ export function sortRequirementReviewCases(
     if (left.isCurrent !== right.isCurrent) return left.isCurrent ? 1 : -1;
     return left.caseIndex - right.caseIndex;
   });
+}
+
+export function requirementReviewFinalDecisionLabel(
+  decision: RequirementReviewBatchFinalDecisionValue,
+): string {
+  return decision === "accept_for_match"
+    ? "人工接受：允许进入 Match"
+    : "人工拒绝：禁止进入 Match";
+}
+
+export function requirementReviewMatchGateLabel(
+  summary: RequirementReviewBatchSummary,
+): string {
+  if (summary.matchReleaseEligible) return "Match 门禁已放行";
+  if (summary.finalDecision === "accept_for_match" && summary.staleCaseCount > 0) {
+    return "历史已接受，但当前证据已过期";
+  }
+  if (summary.finalDecision === "reject_for_match") return "Match 门禁已拒绝";
+  if (summary.formalEvidenceEligible) return "等待人工最终质量结论";
+  return "尚未具备最终判断条件";
 }
 
 export function requirementReviewEvidenceLabel(

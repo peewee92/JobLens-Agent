@@ -34,6 +34,12 @@ from app.application.profile_evals import (
     ProfileEvalRunAlreadyReviewedError,
     ProfileEvalRunNotFoundError,
 )
+from app.application.requirement_acceptance.errors import (
+    InvalidRequirementAcceptanceCanaryReviewError,
+    RequirementAcceptanceCanaryGateError,
+    RequirementAcceptanceCanaryReviewAlreadyExistsError,
+    RequirementAcceptanceRunNotFoundError,
+)
 from app.application.requirement_evals import (
     AcceptedRequirementEvalBaselineNotFoundError,
     InvalidRequirementEvalReviewError,
@@ -41,8 +47,11 @@ from app.application.requirement_evals import (
     RequirementEvalRunNotFoundError,
 )
 from app.application.requirement_reviews import (
+    AcceptedRequirementReviewBaselineNotFoundError,
     InvalidRequirementCaseReviewError,
     InvalidRequirementReviewBatchError,
+    InvalidRequirementReviewBatchFinalDecisionError,
+    RequirementReviewBatchFinalDecisionAlreadyExistsError,
     RequirementReviewBatchNotFoundError,
     RequirementReviewCaseAlreadyReviewedError,
     RequirementReviewCaseNotFoundError,
@@ -371,6 +380,50 @@ def register_exception_handlers(app: FastAPI) -> None:
             str(error),
         )
 
+    @app.exception_handler(RequirementAcceptanceRunNotFoundError)
+    async def handle_requirement_acceptance_run_not_found(
+        _request: Request,
+        error: RequirementAcceptanceRunNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "requirement_acceptance_run_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementAcceptanceCanaryReviewAlreadyExistsError)
+    async def handle_requirement_acceptance_canary_review_exists(
+        _request: Request,
+        error: RequirementAcceptanceCanaryReviewAlreadyExistsError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "requirement_acceptance_canary_review_already_exists",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementAcceptanceCanaryGateError)
+    async def handle_requirement_acceptance_canary_gate(
+        _request: Request,
+        error: RequirementAcceptanceCanaryGateError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "requirement_acceptance_canary_gate_blocked",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementAcceptanceCanaryReviewError)
+    async def handle_invalid_requirement_acceptance_canary_review(
+        _request: Request,
+        error: InvalidRequirementAcceptanceCanaryReviewError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_requirement_acceptance_canary_review",
+            str(error),
+        )
+
     @app.exception_handler(RequirementReviewBatchNotFoundError)
     async def handle_requirement_review_batch_not_found(
         _request: Request,
@@ -423,6 +476,39 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "invalid_requirement_case_review",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementReviewBatchFinalDecisionError)
+    async def handle_invalid_requirement_review_batch_final_decision(
+        _request: Request,
+        error: InvalidRequirementReviewBatchFinalDecisionError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_requirement_review_batch_final_decision",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementReviewBatchFinalDecisionAlreadyExistsError)
+    async def handle_requirement_review_batch_final_decision_exists(
+        _request: Request,
+        error: RequirementReviewBatchFinalDecisionAlreadyExistsError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "requirement_review_batch_final_decision_already_exists",
+            str(error),
+        )
+
+    @app.exception_handler(AcceptedRequirementReviewBaselineNotFoundError)
+    async def handle_accepted_requirement_review_baseline_not_found(
+        _request: Request,
+        error: AcceptedRequirementReviewBaselineNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "accepted_requirement_review_baseline_not_found",
             str(error),
         )
 

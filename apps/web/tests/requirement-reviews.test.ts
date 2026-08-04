@@ -10,6 +10,8 @@ import {
   canSelectRequirementCandidate,
   requirementReviewCohortKey,
   requirementReviewEvidenceLabel,
+  requirementReviewFinalDecisionLabel,
+  requirementReviewMatchGateLabel,
   sortRequirementReviewCases,
 } from "../lib/requirement-reviews";
 
@@ -51,6 +53,8 @@ function summary(
     staleCaseCount: 0,
     completed: true,
     formalEvidenceEligible: true,
+    finalDecision: null,
+    matchReleaseEligible: false,
     createdAt: "2026-08-03T00:00:00Z",
     ...overrides,
   };
@@ -118,6 +122,48 @@ test("pending and stale cases sort before completed current cases", () => {
   assert.deepEqual(sorted.map((item) => item.id), ["case_2", "case_1", "case_0"]);
   assert.deepEqual(input.map((item) => item.id), ["case_0", "case_1", "case_2"]);
 });
+
+test("final decision and Match gate labels keep evidence and approval separate", () => {
+  assert.equal(
+    requirementReviewMatchGateLabel(summary()),
+    "等待人工最终质量结论",
+  );
+  assert.equal(
+    requirementReviewMatchGateLabel(
+      summary({finalDecision: "reject_for_match"}),
+    ),
+    "Match 门禁已拒绝",
+  );
+  assert.equal(
+    requirementReviewMatchGateLabel(
+      summary({
+        finalDecision: "accept_for_match",
+        matchReleaseEligible: true,
+      }),
+    ),
+    "Match 门禁已放行",
+  );
+  assert.match(
+    requirementReviewMatchGateLabel(
+      summary({
+        finalDecision: "accept_for_match",
+        formalEvidenceEligible: false,
+        matchReleaseEligible: false,
+        staleCaseCount: 1,
+      }),
+    ),
+    /历史已接受.*过期/,
+  );
+  assert.match(
+    requirementReviewFinalDecisionLabel("accept_for_match"),
+    /允许进入 Match/,
+  );
+  assert.match(
+    requirementReviewFinalDecisionLabel("reject_for_match"),
+    /禁止进入 Match/,
+  );
+});
+
 
 test("evidence labels distinguish formal practice pending fixture and stale", () => {
   assert.equal(

@@ -73,7 +73,7 @@ JobLens-Agent/
 
 ## 现有资产
 
-`apps/collector-extension` 已包含岗位筛选插件 v1.4.5，当前负责：
+`apps/collector-extension` 已包含岗位筛选插件 v1.4.6，当前负责：
 
 - BOSS 岗位搜索与采集
 - 多城市与全国远程
@@ -113,6 +113,7 @@ JobLens-Agent/
 - [Collector v1.4.2 真实数据验收与 v1.4.3 修复记录](docs/implementation/Collector-v1.4.2-Real-Data-Acceptance-2026-08-04.md)
 - [Collector v1.4.3 真实数据验收与 v1.4.4 修复记录](docs/implementation/Collector-v1.4.3-Real-Data-Acceptance-2026-08-04.md)
 - [Collector v1.4.4 真实数据验收与 v1.4.5 修复记录](docs/implementation/Collector-v1.4.4-Real-Data-Acceptance-2026-08-04.md)
+- [Collector v1.4.5 真实数据验收与 v1.4.6 修复记录](docs/implementation/Collector-v1.4.5-Real-Data-Acceptance-2026-08-04.md)
 - [MVP 范围决策](docs/decisions/0001-mvp-scope.md)
 - [后端技术栈 ADR](docs/decisions/0002-backend-stack.md)
 - [数据库策略 ADR](docs/decisions/0003-database-strategy.md)
@@ -134,6 +135,41 @@ JobLens-Agent/
 - [Requirement Eval Human Review ADR](docs/decisions/0023-requirement-eval-human-review-and-accepted-baseline.md)
 - [Requirement Eval Human Review 实施计划](docs/implementation/P0-3B2-Requirement-Eval-Human-Review-Implementation-Plan.md)
 - [Requirement Eval Human Review 学习记录](docs/implementation/P0-3B2-Requirement-Eval-Human-Review-Learning-Record.md)
+- [Requirement Manual Quality Review 实施计划](docs/implementation/P0-3B3A-Requirement-Manual-Quality-Review-Implementation-Plan.md)
+- [真实 Requirement 验收准备实施计划](docs/implementation/P0-3B3B-Requirement-Acceptance-Preparation-Implementation-Plan.md)
+- [真实 Requirement 验收准备学习记录](docs/implementation/P0-3B3B-Requirement-Acceptance-Preparation-Learning-Record.md)
+- [Requirement 验收准备 CLI 契约](docs/integration/REQUIREMENT-ACCEPTANCE-PREPARATION-CLI.md)
+- [可恢复 Requirement 验收准备 ADR](docs/decisions/0024-resumable-requirement-acceptance-preparation.md)
+- [Requirement Acceptance Run Control 实施计划](docs/implementation/P0-3B3C-Requirement-Acceptance-Run-Control-Implementation-Plan.md)
+- [Requirement Acceptance Run Control 学习记录](docs/implementation/P0-3B3C-Requirement-Acceptance-Run-Control-Learning-Record.md)
+- [Requirement Acceptance Run / Canary Review API](docs/integration/REQUIREMENT-ACCEPTANCE-RUN-API.md)
+- [Persistent Acceptance Run / Canary Control ADR](docs/decisions/0025-persistent-requirement-acceptance-runs-and-canary-control.md)
+- [Requirement Canary Human Gate 实施计划](docs/implementation/P0-3B3D-Requirement-Canary-Human-Gate-Implementation-Plan.md)
+- [Requirement Canary Human Gate 学习记录](docs/implementation/P0-3B3D-Requirement-Canary-Human-Gate-Learning-Record.md)
+- [Immutable Requirement Canary Human Gate ADR](docs/decisions/0026-immutable-requirement-canary-human-gate.md)
+- [Requirement Canary Review Workbench 实施计划](docs/implementation/P0-3B3E-Requirement-Canary-Review-Workbench-Implementation-Plan.md)
+- [Requirement Canary Review Workbench 学习记录](docs/implementation/P0-3B3E-Requirement-Canary-Review-Workbench-Learning-Record.md)
+- [Requirement Canary Review Workbench ADR](docs/decisions/0027-requirement-canary-review-workbench.md)
+- [Requirement Live Readiness Gate 实施计划](docs/implementation/P0-3B3F-Requirement-Live-Readiness-Gate-Implementation-Plan.md)
+- [Requirement Live Readiness Gate 学习记录](docs/implementation/P0-3B3F-Requirement-Live-Readiness-Gate-Learning-Record.md)
+- [Requirement Live Readiness CLI](docs/integration/REQUIREMENT-ACCEPTANCE-READINESS-CLI.md)
+- [Requirement Live Readiness Gate ADR](docs/decisions/0028-requirement-live-readiness-gate.md)
+- [Requirement Live Session Manifest 实施计划](docs/implementation/P0-3B3G-Requirement-Live-Session-Manifest-Implementation-Plan.md)
+- [Requirement Live Session Manifest 学习记录](docs/implementation/P0-3B3G-Requirement-Live-Session-Manifest-Learning-Record.md)
+- [Requirement Acceptance Session Manifest 契约](docs/integration/REQUIREMENT-ACCEPTANCE-SESSION-MANIFEST.md)
+- [Requirement Live Session Manifest ADR](docs/decisions/0029-requirement-live-session-manifest.md)
+- [Requirement Local Live Bootstrap 实施计划](docs/implementation/P0-3B3H-Requirement-Local-Live-Bootstrap-Implementation-Plan.md)
+- [Requirement Local Live Bootstrap 学习记录](docs/implementation/P0-3B3H-Requirement-Local-Live-Bootstrap-Learning-Record.md)
+- [Requirement Local Live Bootstrap CLI](docs/integration/REQUIREMENT-ACCEPTANCE-LOCAL-BOOTSTRAP.md)
+- [Requirement Local Live Bootstrap ADR](docs/decisions/0030-requirement-local-live-bootstrap.md)
+- [Requirement Database Checkpoint 实施计划](docs/implementation/P0-3B3I-Requirement-Database-Checkpoint-Implementation-Plan.md)
+- [Requirement Database Checkpoint 学习记录](docs/implementation/P0-3B3I-Requirement-Database-Checkpoint-Learning-Record.md)
+- [Requirement Database Checkpoint CLI](docs/integration/REQUIREMENT-ACCEPTANCE-DATABASE-CHECKPOINT.md)
+- [Requirement Database Checkpoint ADR](docs/decisions/0031-requirement-database-preparation-checkpoint.md)
+- [Explicit Live Canary Operator 实施计划](docs/implementation/P0-3B3J-Requirement-Explicit-Live-Canary-Operator-Implementation-Plan.md)
+- [Explicit Live Canary Operator 学习记录](docs/implementation/P0-3B3J-Requirement-Explicit-Live-Canary-Operator-Learning-Record.md)
+- [Live Canary Operator CLI](docs/integration/REQUIREMENT-ACCEPTANCE-LIVE-CANARY-OPERATOR.md)
+- [Explicit Live Canary Operator ADR](docs/decisions/0032-explicit-live-requirement-canary-operator.md)
 
 ## 当前阶段
 
@@ -152,7 +188,17 @@ Phase 2B-6：Credential-backed Live Provider Quality ⏳ 等待运行凭据
 Phase 3A：JobRequirement Fact Base + Fixture Eval + Web ✅
 Phase 3B-1：Requirement Eval Run + Baseline Comparison + Read API ✅
 Phase 3B-2：Human Review + Accepted Baseline + Web ✅
-Phase 3B-3：Credential-backed Quality + 20 Real Jobs Review ← 下一阶段
+Phase 3B-3A：20 Real Jobs Review Batch + Web ✅
+Phase 3B-3B：Resumable Real Acceptance Preparation CLI ✅
+Phase 3B-3C：Persistent Run + Preflight + Canary Control + Read API ✅
+Phase 3B-3D：Immutable Human Canary Gate ✅
+Phase 3B-3E：Canary Review Web Workbench ✅
+Phase 3B-3F：Live Acceptance Readiness Gate ✅
+Phase 3B-3G：Live Canary Session Manifest + Evidence Pack ✅
+Phase 3B-3H：Guarded Local Live Bootstrap ✅
+Phase 3B-3I：Resumable Database Preparation Checkpoint ✅
+Phase 3B-3J：Explicit Live Canary Operator ✅
+Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ← 下一阶段
 Phase 4：Single Job Match
 Phase 5：Batch Ranking + UserFeedback
 Phase 6：Target Cohort + Skill Gap

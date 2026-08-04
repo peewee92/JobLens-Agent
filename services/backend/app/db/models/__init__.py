@@ -24,6 +24,14 @@ from app.db.models.profile_eval import (
     ProfileEvalReviewORM,
     ProfileEvalRunORM,
 )
+from app.db.models.requirement_acceptance_execution_lease import (
+    RequirementAcceptanceExecutionLeaseORM,
+)
+from app.db.models.requirement_acceptance_run import (
+    RequirementAcceptanceCanaryReviewORM,
+    RequirementAcceptanceRunCaseORM,
+    RequirementAcceptanceRunORM,
+)
 from app.db.models.requirement_eval import (
     RequirementEvalCaseResultORM,
     RequirementEvalReviewORM,
@@ -31,6 +39,7 @@ from app.db.models.requirement_eval import (
 )
 from app.db.models.requirement_review import (
     RequirementReviewBatchCaseORM,
+    RequirementReviewBatchFinalDecisionORM,
     RequirementReviewBatchORM,
     RequirementReviewCaseReviewORM,
 )
@@ -52,10 +61,15 @@ __all__ = [
     "ProfileEvalCaseResultORM",
     "ProfileEvalReviewORM",
     "ProfileEvalRunORM",
+    "RequirementAcceptanceCanaryReviewORM",
+    "RequirementAcceptanceExecutionLeaseORM",
+    "RequirementAcceptanceRunCaseORM",
+    "RequirementAcceptanceRunORM",
     "RequirementEvalCaseResultORM",
     "RequirementEvalReviewORM",
     "RequirementEvalRunORM",
     "RequirementReviewBatchCaseORM",
+    "RequirementReviewBatchFinalDecisionORM",
     "RequirementReviewBatchORM",
     "RequirementReviewCaseReviewORM",
     "TraceSpanORM",

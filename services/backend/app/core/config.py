@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     requirement_extractor_provider: str = "disabled"
     requirement_extractor_model: str = ""
     requirement_extractor_timeout_seconds: float = 60.0
+    requirement_acceptance_private_root: str | None = None
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
+    web_base_url: str = "http://localhost:3000"
 
 
 @lru_cache

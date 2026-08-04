@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.deps import (
@@ -19,6 +20,7 @@ from app.db.models import (
     JobORM,
     JobRequirementExtractionORM,
     JobRequirementORM,
+    RequirementReviewBatchFinalDecisionORM,
     TraceSpanORM,
 )
 from app.main import app
@@ -60,6 +62,7 @@ def _seed_extraction(factory: sessionmaker[Session], index: int) -> str:
     trace_id = f"run_review_api_{index}"
     extraction_id = f"reqrun_review_api_{index}"
     created_at = datetime(2026, 8, 3, 13, index, tzinfo=timezone.utc)
+    description = "负责 Python、FastAPI 与 Agent 工作流开发，要求输出可追溯。"
     with factory() as session:
         session.add(
             JobORM(
@@ -67,7 +70,7 @@ def _seed_extraction(factory: sessionmaker[Session], index: int) -> str:
                 canonical_key=f"review-api:{index}",
                 title=f"Agent Engineer {index}",
                 company=f"API Company {index}",
-                description="负责 Python、FastAPI 与 Agent 工作流开发，要求输出可追溯。",
+                description=description,
                 skills=["Python", "FastAPI", "Agent"],
             )
         )
@@ -91,7 +94,7 @@ def _seed_extraction(factory: sessionmaker[Session], index: int) -> str:
         extraction = JobRequirementExtractionORM(
             id=extraction_id,
             job_id=job_id,
-            input_hash=f"api-{index}".ljust(64, "0"),
+            input_hash=sha256(description.encode("utf-8")).hexdigest(),
             description_characters=55,
             extractor_version="requirement-extractor-v1",
             provider="openai",
@@ -121,6 +124,51 @@ def _seed_extraction(factory: sessionmaker[Session], index: int) -> str:
     return extraction_id
 
 
+def _create_completed_batch(
+    client: TestClient,
+    factory: sessionmaker[Session],
+    *,
+    start_index: int,
+    rejected_indexes: set[int] | None = None,
+) -> dict:
+    rejected_indexes = rejected_indexes or set()
+    extraction_ids = [
+        _seed_extraction(factory, start_index + index)
+        for index in range(20)
+    ]
+    created = client.post(
+        "/api/v1/requirement-review-batches",
+        json={
+            "title": f"Formal API batch {start_index}",
+            "reviewer": "will",
+            "extractionIds": extraction_ids,
+        },
+    )
+    assert created.status_code == 201, created.text
+    detail = created.json()
+    batch_id = detail["summary"]["id"]
+    for index, case in enumerate(detail["cases"]):
+        rejected = index in rejected_indexes
+        response = client.post(
+            f"/api/v1/requirement-review-batches/{batch_id}/cases/{case['id']}/review",
+            json={
+                "decision": "rejected" if rejected else "accepted",
+                "issueCodes": ["missing_requirement"] if rejected else [],
+                "notes": (
+                    "The frozen extraction omits one grounded Requirement from this JD."
+                    if rejected
+                    else "The frozen extraction is grounded in the reviewed JD evidence."
+                ),
+            },
+        )
+        assert response.status_code == 201, response.text
+    completed = client.get(
+        f"/api/v1/requirement-review-batches/{batch_id}"
+    )
+    assert completed.status_code == 200
+    return completed.json()
+
+
 def test_candidate_create_detail_and_review_flow(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
@@ -147,6 +195,9 @@ def test_candidate_create_detail_and_review_flow(
     batch_id = detail["summary"]["id"]
     assert detail["summary"]["sampleSize"] == 2
     assert detail["summary"]["formalEvidenceEligible"] is False
+    assert detail["summary"]["finalDecision"] is None
+    assert detail["summary"]["matchReleaseEligible"] is False
+    assert detail["finalDecision"] is None
     assert detail["cases"][0]["description"]
     assert detail["cases"][0]["requirements"][0]["evidenceSpan"]
     assert detail["cases"][0]["traceRunId"].startswith("run_review_api_")
@@ -278,6 +329,129 @@ def test_missing_batch_and_case_return_distinct_404_codes(
     assert missing_case.json()["error"]["code"] == "requirement_review_case_not_found"
 
 
+def test_final_decision_api_and_accepted_baseline_lifecycle(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    missing = client.get(
+        "/api/v1/requirement-review-batches/accepted-baseline"
+    )
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == (
+        "accepted_requirement_review_baseline_not_found"
+    )
+
+    completed = _create_completed_batch(
+        client,
+        factory,
+        start_index=20,
+        rejected_indexes={3},
+    )
+    batch_id = completed["summary"]["id"]
+    assert completed["summary"]["formalEvidenceEligible"] is True
+    assert completed["summary"]["matchReleaseEligible"] is False
+
+    accepted = client.post(
+        f"/api/v1/requirement-review-batches/{batch_id}/final-decision",
+        json={
+            "decision": "accept_for_match",
+            "reviewer": "will",
+            "notes": (
+                "I reviewed all twenty frozen Cases and accept this exact model cohort "
+                "as the current Requirement baseline for the first Match slice."
+            ),
+        },
+    )
+    assert accepted.status_code == 201, accepted.text
+    decision = accepted.json()
+    assert decision["decision"] == "accept_for_match"
+    assert decision["acceptedCount"] == 19
+    assert decision["rejectedCount"] == 1
+    assert decision["issueCodeCounts"] == {"missing_requirement": 1}
+    assert len(decision["evidenceFingerprint"]) == 64
+
+    duplicate = client.post(
+        f"/api/v1/requirement-review-batches/{batch_id}/final-decision",
+        json={
+            "decision": "reject_for_match",
+            "reviewer": "will",
+            "notes": "A second final decision must not overwrite the immutable first decision.",
+        },
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["code"] == (
+        "requirement_review_batch_final_decision_already_exists"
+    )
+
+    refreshed = client.get(
+        f"/api/v1/requirement-review-batches/{batch_id}"
+    ).json()
+    assert refreshed["summary"]["finalDecision"] == "accept_for_match"
+    assert refreshed["summary"]["matchReleaseEligible"] is True
+    assert refreshed["finalDecision"]["id"] == decision["id"]
+
+    baseline = client.get(
+        "/api/v1/requirement-review-batches/accepted-baseline"
+    )
+    assert baseline.status_code == 200
+    assert baseline.json()["batch"]["id"] == batch_id
+    assert baseline.json()["decision"]["id"] == decision["id"]
+
+    with factory() as session:
+        job = session.get(JobORM, "job_review_api_20")
+        assert job is not None
+        job.description = (job.description or "") + " 新增必须掌握生产级评测治理。"
+        session.commit()
+
+    stale = client.get(
+        f"/api/v1/requirement-review-batches/{batch_id}"
+    ).json()
+    assert stale["summary"]["staleCaseCount"] == 1
+    assert stale["summary"]["matchReleaseEligible"] is False
+    assert stale["finalDecision"]["id"] == decision["id"]
+    missing_after_stale = client.get(
+        "/api/v1/requirement-review-batches/accepted-baseline"
+    )
+    assert missing_after_stale.status_code == 404
+
+
+def test_incomplete_final_decision_returns_422_without_db_write(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    extraction_id = _seed_extraction(factory, 45)
+    created = client.post(
+        "/api/v1/requirement-review-batches",
+        json={
+            "title": "incomplete final API decision",
+            "reviewer": "will",
+            "extractionIds": [extraction_id],
+        },
+    ).json()
+
+    response = client.post(
+        f"/api/v1/requirement-review-batches/{created['summary']['id']}/final-decision",
+        json={
+            "decision": "accept_for_match",
+            "reviewer": "will",
+            "notes": "This practice Batch must not authorize the production Match fact baseline.",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == (
+        "invalid_requirement_review_batch_final_decision"
+    )
+    with factory() as session:
+        assert int(
+            session.scalar(
+                select(func.count()).select_from(
+                    RequirementReviewBatchFinalDecisionORM
+                )
+            )
+            or 0
+        ) == 0
+
+
 def test_requirement_review_openapi_contract_is_registered(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
@@ -288,6 +462,13 @@ def test_requirement_review_openapi_contract_is_registered(
     assert paths["/api/v1/requirement-review-batches/candidates"]["get"]
     assert paths["/api/v1/requirement-review-batches"]["post"]["responses"]["201"]
     assert paths["/api/v1/requirement-review-batches/{batch_id}"]["get"]
+    assert paths["/api/v1/requirement-review-batches/accepted-baseline"]["get"]
+    final_decision = paths[
+        "/api/v1/requirement-review-batches/{batch_id}/final-decision"
+    ]["post"]
+    assert final_decision["responses"]["201"]
+    assert final_decision["responses"]["409"]
+    assert final_decision["responses"]["422"]
     review = paths[
         "/api/v1/requirement-review-batches/{batch_id}/cases/{case_id}/review"
     ]["post"]

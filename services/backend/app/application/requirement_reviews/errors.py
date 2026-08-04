@@ -19,3 +19,15 @@ class InvalidRequirementCaseReviewError(ValueError):
 
 class RequirementReviewCaseAlreadyReviewedError(RuntimeError):
     """Raised when one immutable case judgment already exists."""
+
+
+class InvalidRequirementReviewBatchFinalDecisionError(ValueError):
+    """Raised when a batch cannot receive an official final quality decision."""
+
+
+class RequirementReviewBatchFinalDecisionAlreadyExistsError(RuntimeError):
+    """Raised when one immutable batch final decision already exists."""
+
+
+class AcceptedRequirementReviewBaselineNotFoundError(LookupError):
+    """Raised when no current human-accepted Requirement baseline exists."""

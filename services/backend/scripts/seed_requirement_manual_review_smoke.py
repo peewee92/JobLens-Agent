@@ -6,6 +6,7 @@ human quality evidence; they only exercise the review workflow.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 
 from app.core.config import get_settings
 from app.db.models import (
@@ -68,8 +69,24 @@ def main() -> int:
             version="requirement-extractor-v1",
             model="simulated-live-requirement-model",
             prompt_version="requirement-extraction-v1",
-            input_refs={"jobId": job_id, "descriptionSha256": f"manual-smoke-{index:02d}"},
-            output={"requirements": [{"normalizedCapability": "Python"}]},
+            input_refs={
+                "jobId": job_id,
+                "descriptionSha256": sha256(
+                    (job.description or "").strip().encode("utf-8")
+                ).hexdigest(),
+            },
+            output={
+                "requirements": [
+                    {
+                        "type": "skill",
+                        "originalText": "要求具备 Python 和 FastAPI 开发经验",
+                        "normalizedCapability": "Python",
+                        "importance": "must_have",
+                        "evidenceSpan": "使用 Python 和 FastAPI 构建 Agent 工作流",
+                        "confidence": 0.92,
+                    }
+                ]
+            },
             latency_ms=15,
             input_tokens=30,
             output_tokens=20,
@@ -79,7 +96,7 @@ def main() -> int:
         extraction = JobRequirementExtractionORM(
             id=extraction_id,
             job_id=job_id,
-            input_hash=f"manual-smoke-{index:02d}".ljust(64, "0"),
+            input_hash=sha256((job.description or "").encode("utf-8")).hexdigest(),
             description_characters=len(job.description or ""),
             extractor_version="requirement-extractor-v1",
             provider="simulated-live",

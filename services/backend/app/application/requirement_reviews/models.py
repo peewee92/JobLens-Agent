@@ -13,6 +13,11 @@ class RequirementReviewDecision(StrEnum):
     REJECTED = "rejected"
 
 
+class RequirementReviewBatchFinalDecision(StrEnum):
+    ACCEPT_FOR_MATCH = "accept_for_match"
+    REJECT_FOR_MATCH = "reject_for_match"
+
+
 class RequirementReviewIssueCode(StrEnum):
     MISSING_REQUIREMENT = "missing_requirement"
     UNSUPPORTED_REQUIREMENT = "unsupported_requirement"
@@ -105,6 +110,40 @@ class RequirementReviewCaseReviewDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class RequirementReviewBatchFinalDecisionWrite:
+    decision_id: str
+    batch_id: str
+    decision: RequirementReviewBatchFinalDecision
+    reviewer: str
+    notes: str
+    sample_size: int
+    reviewed_count: int
+    accepted_count: int
+    rejected_count: int
+    stale_case_count: int
+    issue_code_counts: dict[str, int]
+    evidence_fingerprint: str
+    decided_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class RequirementReviewBatchFinalDecisionDetail:
+    id: str
+    batch_id: str
+    decision: RequirementReviewBatchFinalDecision
+    reviewer: str
+    notes: str
+    sample_size: int
+    reviewed_count: int
+    accepted_count: int
+    rejected_count: int
+    stale_case_count: int
+    issue_code_counts: dict[str, int]
+    evidence_fingerprint: str
+    decided_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class RequirementReviewBatchCaseLookup:
     batch_id: str
     batch_case_id: str
@@ -147,6 +186,8 @@ class RequirementReviewBatchSummary:
     stale_case_count: int
     completed: bool
     formal_evidence_eligible: bool
+    final_decision: RequirementReviewBatchFinalDecision | None
+    match_release_eligible: bool
     created_at: datetime
 
 
@@ -155,6 +196,14 @@ class RequirementReviewBatchDetail:
     summary: RequirementReviewBatchSummary
     issue_code_counts: dict[str, int]
     cases: tuple[RequirementReviewBatchCaseDetail, ...]
+    final_decision: RequirementReviewBatchFinalDecisionDetail | None
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptedRequirementReviewBaseline:
+    decision: RequirementReviewBatchFinalDecisionDetail
+    batch: RequirementReviewBatchSummary
+    issue_code_counts: dict[str, int]
 
 
 @dataclass(frozen=True, slots=True)

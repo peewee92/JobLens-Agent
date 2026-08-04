@@ -28,6 +28,8 @@ def test_requirement_application_does_not_import_http_sqlalchemy_or_orm() -> Non
         "app/application/job_requirements/errors.py",
         "app/application/job_requirements/validation.py",
         "app/application/job_requirements/use_cases.py",
+        "app/application/job_requirements/release.py",
+        "app/application/ports/job_requirement_release_repository.py",
         "app/evals/job_requirement_extraction.py",
     ]:
         imports = _imports(path)
@@ -69,6 +71,27 @@ def test_requirement_repository_does_not_manage_transactions() -> None:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
     }
     assert not (calls & forbidden_calls)
+
+    release_source = _source(
+        "app/repositories/sqlalchemy_job_requirement_release_repository.py"
+    )
+    release_tree = ast.parse(release_source)
+    release_calls = {
+        node.func.attr
+        for node in ast.walk(release_tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    assert not (release_calls & forbidden_calls)
+
+
+def test_requirement_release_gate_is_read_only_and_has_no_hidden_score_threshold() -> None:
+    source = _source("app/application/job_requirements/release.py")
+    assert "accepted_count /" not in source
+    assert "rejected_count /" not in source
+    assert "0.9" not in source
+    assert "openai" not in source.casefold()
+    assert "commit(" not in source
+    assert "add(" not in source
 
 
 def test_requirement_api_contract_does_not_return_full_job_description() -> None:

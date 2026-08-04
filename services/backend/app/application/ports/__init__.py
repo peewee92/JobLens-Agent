@@ -13,6 +13,10 @@ from app.application.ports.job_import_query_repository import (
 from app.application.ports.job_requirement_extractor import (
     AbstractJobRequirementExtractor,
 )
+from app.application.ports.job_requirement_release_repository import (
+    AbstractJobRequirementReleaseQueryRepository,
+    JobRequirementTraceFact,
+)
 from app.application.ports.job_requirement_repository import (
     AbstractJobRequirementQueryRepository,
     AbstractJobRequirementRepository,
@@ -23,6 +27,13 @@ from app.application.ports.job_requirement_unit_of_work import (
 from app.application.ports.profile_eval_repository import (
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalRepository,
+)
+from app.application.ports.requirement_acceptance_run_repository import (
+    AbstractRequirementAcceptanceRunQueryRepository,
+    AbstractRequirementAcceptanceRunRepository,
+)
+from app.application.ports.requirement_acceptance_run_unit_of_work import (
+    AbstractRequirementAcceptanceRunUnitOfWork,
 )
 from app.application.ports.requirement_eval_repository import (
     AbstractRequirementEvalQueryRepository,
@@ -74,6 +85,7 @@ __all__ = [
     "AbstractJobQueryRepository",
     "AbstractJobRequirementExtractor",
     "AbstractJobRequirementQueryRepository",
+    "AbstractJobRequirementReleaseQueryRepository",
     "AbstractJobRequirementRepository",
     "AbstractJobRequirementUnitOfWork",
     "AbstractJobRepository",
@@ -83,6 +95,9 @@ __all__ = [
     "AbstractProfileEvalReviewUnitOfWork",
     "AbstractProfileEvalUnitOfWork",
     "AbstractProfileExtractor",
+    "AbstractRequirementAcceptanceRunQueryRepository",
+    "AbstractRequirementAcceptanceRunRepository",
+    "AbstractRequirementAcceptanceRunUnitOfWork",
     "AbstractRequirementEvalQueryRepository",
     "AbstractRequirementEvalRepository",
     "AbstractRequirementEvalReviewRepository",
@@ -96,6 +111,7 @@ __all__ = [
     "AbstractTraceUnitOfWork",
     "AbstractUnitOfWork",
     "JobImportCandidateWrite",
+    "JobRequirementTraceFact",
     "JobImportItemWrite",
     "JobImportWrite",
     "JobSourceRef",

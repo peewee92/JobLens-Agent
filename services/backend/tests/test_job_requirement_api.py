@@ -12,12 +12,16 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.api.deps import (
     get_extract_job_requirements_use_case,
     get_job_requirement_extraction_use_case,
+    get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
 )
 from app.application.job_requirements import (
     JobRequirementExtractionOutput,
     JobRequirementExtractorResult,
     ProposedJobRequirement,
+)
+from app.application.job_requirements.release import (
+    GetJobRequirementReleaseReadinessUseCase,
 )
 from app.application.job_requirements.use_cases import (
     ExtractJobRequirementsUseCase,
@@ -42,10 +46,14 @@ from app.llm import (
     FixtureJobRequirementExtractor,
 )
 from app.main import app
+from app.repositories.sqlalchemy_job_requirement_release_repository import (
+    SqlAlchemyJobRequirementReleaseQueryRepository,
+)
 from app.repositories import (
     SqlAlchemyJobQueryRepository,
     SqlAlchemyJobRequirementQueryRepository,
     SqlAlchemyJobRequirementUnitOfWork,
+    SqlAlchemyRequirementReviewQueryRepository,
     SqlAlchemyTraceUnitOfWork,
 )
 from app.workflows import ExtractJobRequirementsWorkflow
@@ -110,6 +118,14 @@ def api_environment(tmp_path: Path) -> Iterator[tuple[TestClient, sessionmaker[S
     )
     app.dependency_overrides[get_job_requirement_extraction_use_case] = lambda: (
         GetJobRequirementExtractionUseCase(jobs=jobs, repository=query)
+    )
+    app.dependency_overrides[get_job_requirement_release_readiness_use_case] = lambda: (
+        GetJobRequirementReleaseReadinessUseCase(
+            jobs=jobs,
+            requirements=query,
+            reviews=SqlAlchemyRequirementReviewQueryRepository(factory),
+            traces=SqlAlchemyJobRequirementReleaseQueryRepository(factory),
+        )
     )
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -212,6 +228,62 @@ def test_post_get_latest_and_historical_extractions(
             session.scalar(select(func.count()).select_from(JobRequirementORM)) or 0
         ) > 2
         assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 2
+
+
+def test_requirement_release_readiness_is_read_only_and_fail_closed_without_baseline(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    job_id = _seed_job(
+        factory,
+        suffix="release",
+        description="岗位要求熟练掌握 Python 和 FastAPI，并具备 Agent Trace 与质量评测经验。",
+    )
+    created = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+    assert created.status_code == 201
+
+    with factory() as session:
+        extraction_count_before = int(
+            session.scalar(
+                select(func.count()).select_from(JobRequirementExtractionORM)
+            )
+            or 0
+        )
+        trace_count_before = int(
+            session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0
+        )
+
+    response = client.get(
+        f"/api/v1/jobs/{job_id}/requirement-release-readiness"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["jobId"] == job_id
+    assert body["releaseEligible"] is False
+    assert body["extractionId"] == created.json()["extractionId"]
+    assert [item["code"] for item in body["blockers"]] == [
+        "accepted_baseline_missing"
+    ]
+    assert body["acceptedBaselineBatchId"] is None
+
+    with factory() as session:
+        assert int(
+            session.scalar(
+                select(func.count()).select_from(JobRequirementExtractionORM)
+            )
+            or 0
+        ) == extraction_count_before
+        assert int(
+            session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0
+        ) == trace_count_before
+
+    missing = client.get(
+        "/api/v1/jobs/job_missing/requirement-release-readiness"
+    )
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "job_not_found"
+
 
 
 def test_unknown_job_and_missing_extraction_return_distinct_404s(
@@ -365,6 +437,11 @@ def test_openapi_registers_requirement_routes_and_errors(
     post = paths["/api/v1/jobs/{job_id}/requirement-extractions"]["post"]
     assert {"201", "404", "422", "502", "503"} <= set(post["responses"])
     assert paths["/api/v1/jobs/{job_id}/requirements"]["get"]
+    release = paths[
+        "/api/v1/jobs/{job_id}/requirement-release-readiness"
+    ]["get"]
+    assert release["responses"]["200"]
+    assert release["responses"]["404"]
     assert paths[
         "/api/v1/jobs/{job_id}/requirement-extractions/{extraction_id}"
     ]["get"]

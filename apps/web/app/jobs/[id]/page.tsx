@@ -7,11 +7,14 @@ import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchJobDetail,
+  fetchJobRequirementReleaseReadiness,
   fetchLatestJobRequirements,
 } from "@/lib/backend";
 import {formatDateTime, formatSalary} from "@/lib/format";
 import {
   requirementImportanceLabel,
+  requirementReleaseBlockerLabels,
+  requirementReleaseLabel,
   requirementTypeLabel,
   sortJobRequirements,
 } from "@/lib/job-requirements";
@@ -37,7 +40,9 @@ export default async function JobDetailPage({
   }
 
   let extraction = null;
+  let releaseReadiness = null;
   let requirementError = "";
+  let releaseReadinessError = "";
   try {
     extraction = await fetchLatestJobRequirements(id);
   } catch (caught) {
@@ -45,6 +50,14 @@ export default async function JobDetailPage({
       caught instanceof BackendApiError
         ? caught.message
         : "读取结构化岗位要求时发生未知错误。";
+  }
+  try {
+    releaseReadiness = await fetchJobRequirementReleaseReadiness(id);
+  } catch (caught) {
+    releaseReadinessError =
+      caught instanceof BackendApiError
+        ? caught.message
+        : "读取 Requirement 事实发布门禁时发生未知错误。";
   }
 
   return (
@@ -99,6 +112,36 @@ export default async function JobDetailPage({
             </div>
 
             {requirementError ? <p className="inline-error">{requirementError}</p> : null}
+            {releaseReadinessError ? (
+              <p className="inline-error">门禁状态不可用：{releaseReadinessError}</p>
+            ) : null}
+            {releaseReadiness ? (
+              <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-rejected"}`}>
+                <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
+                {releaseReadiness.releaseEligible ? (
+                  <>
+                    <p>
+                      当前 Extraction、Trace、JD 输入和人工接受基线的模型 cohort 已对齐；未来 Match 只能消费该状态为通过的 Requirement 事实。
+                    </p>
+                    <p className="code">
+                      Baseline：{releaseReadiness.acceptedBaselineBatchId} · Decision：{releaseReadiness.acceptedBaselineDecisionId}
+                    </p>
+                    <p className="code">
+                      Evidence Fingerprint：{releaseReadiness.acceptedBaselineEvidenceFingerprint}
+                    </p>
+                  </>
+                ) : (
+                  <ul>
+                    {releaseReadiness.blockers.map((blocker) => (
+                      <li key={blocker.code}>
+                        {requirementReleaseBlockerLabels[blocker.code] ?? blocker.message}
+                        <span className="code"> · {blocker.code}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
             {extraction ? (
               <>
                 <div className="requirement-run-meta">

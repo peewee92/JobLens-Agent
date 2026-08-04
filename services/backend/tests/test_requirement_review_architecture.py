@@ -87,3 +87,32 @@ def test_formal_evidence_rule_is_derived_in_read_model() -> None:
     assert "formal_evidence_eligible" not in _source(
         "app/db/models/requirement_review.py"
     )
+
+
+def test_match_release_requires_human_acceptance_without_hidden_rate_threshold() -> None:
+    use_cases = _source("app/application/requirement_reviews/use_cases.py")
+    repository = _source(
+        "app/repositories/sqlalchemy_requirement_review_repository.py"
+    )
+    combined = use_cases + repository
+    assert "RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH" in combined
+    assert "formal_evidence_eligible" in combined
+    assert "match_release_eligible" in repository
+    assert "accepted_count /" not in combined
+    assert "rejected_count /" not in combined
+    assert "acceptance_rate" not in combined
+    assert "0.9" not in combined
+    assert "0.95" not in combined
+
+
+def test_final_decision_is_immutable_snapshot_not_a_mutable_batch_flag() -> None:
+    model = _source("app/db/models/requirement_review.py")
+    assert "class RequirementReviewBatchFinalDecisionORM" in model
+    assert "uq_requirement_review_batch_final_decisions_batch" in model
+    assert "evidence_fingerprint" in model
+    assert "match_release_eligible" not in model
+    assert "final_decision" not in {
+        line.strip().split(":", 1)[0]
+        for line in model.splitlines()
+        if "mapped_column" in line
+    }

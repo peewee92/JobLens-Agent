@@ -1,5 +1,6 @@
 """FastAPI dependency providers (Dependency Injection)."""
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import Depends
 
@@ -12,6 +13,9 @@ from app.application.career_context.use_cases import (
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
+from app.application.job_requirements.release import (
+    GetJobRequirementReleaseReadinessUseCase,
+)
 from app.application.job_requirements.use_cases import (
     ExtractJobRequirementsUseCase,
     GetJobRequirementExtractionUseCase,
@@ -23,6 +27,14 @@ from app.application.profile_evals.use_cases import (
     ListProfileEvalRunsUseCase,
     ReviewProfileEvalRunUseCase,
 )
+from app.application.requirement_acceptance.readiness_dashboard import (
+    GetRequirementAcceptanceReadinessDashboardUseCase,
+)
+from app.application.requirement_acceptance.run_use_cases import (
+    GetRequirementAcceptanceRunUseCase,
+    ListRequirementAcceptanceRunsUseCase,
+    ReviewRequirementAcceptanceCanaryUseCase,
+)
 from app.application.requirement_evals.use_cases import (
     GetAcceptedRequirementEvalBaselineUseCase,
     GetRequirementEvalRunUseCase,
@@ -31,10 +43,15 @@ from app.application.requirement_evals.use_cases import (
 )
 from app.application.requirement_reviews.use_cases import (
     CreateRequirementReviewBatchUseCase,
+    FinalizeRequirementReviewBatchUseCase,
+    GetAcceptedRequirementReviewBaselineUseCase,
     GetRequirementReviewBatchUseCase,
     ListRequirementReviewBatchesUseCase,
     ListRequirementReviewCandidatesUseCase,
     ReviewRequirementBatchCaseUseCase,
+)
+from app.application.ports.job_requirement_release_repository import (
+    AbstractJobRequirementReleaseQueryRepository,
 )
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
@@ -47,6 +64,8 @@ from app.application.ports import (
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
+    AbstractRequirementAcceptanceRunQueryRepository,
+    AbstractRequirementAcceptanceRunUnitOfWork,
     AbstractRequirementEvalQueryRepository,
     AbstractRequirementEvalReviewUnitOfWork,
     AbstractRequirementReviewQueryRepository,
@@ -59,6 +78,9 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.document_parsers import ResumeDocumentParser
 from app.llm import build_job_requirement_extractor, build_profile_extractor
+from app.repositories.sqlalchemy_job_requirement_release_repository import (
+    SqlAlchemyJobRequirementReleaseQueryRepository,
+)
 from app.repositories import (
     SqlAlchemyCareerContextQueryRepository,
     SqlAlchemyCareerContextUnitOfWork,
@@ -68,6 +90,8 @@ from app.repositories import (
     SqlAlchemyJobRequirementUnitOfWork,
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
+    SqlAlchemyRequirementAcceptanceRunQueryRepository,
+    SqlAlchemyRequirementAcceptanceRunUnitOfWork,
     SqlAlchemyRequirementEvalQueryRepository,
     SqlAlchemyRequirementEvalReviewUnitOfWork,
     SqlAlchemyRequirementReviewQueryRepository,
@@ -80,6 +104,7 @@ from app.workflows import (
     ProposeProfileFromDocumentWorkflow,
     ProposeProfileFromResumeWorkflow,
 )
+from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION, PROMPT_VERSION
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
@@ -92,6 +117,9 @@ RequirementReviewUnitOfWorkFactory = Callable[
     [], AbstractRequirementReviewUnitOfWork
 ]
 JobRequirementUnitOfWorkFactory = Callable[[], AbstractJobRequirementUnitOfWork]
+RequirementAcceptanceRunUnitOfWorkFactory = Callable[
+    [], AbstractRequirementAcceptanceRunUnitOfWork
+]
 
 
 def get_uow_factory() -> UnitOfWorkFactory:
@@ -243,6 +271,72 @@ def get_accepted_requirement_eval_baseline_use_case(
     return GetAcceptedRequirementEvalBaselineUseCase(repository)
 
 
+def get_requirement_acceptance_run_query_repository() -> (
+    AbstractRequirementAcceptanceRunQueryRepository
+):
+    return SqlAlchemyRequirementAcceptanceRunQueryRepository(SessionLocal)
+
+
+def get_requirement_acceptance_readiness_dashboard_use_case(
+    repository: AbstractRequirementAcceptanceRunQueryRepository = Depends(
+        get_requirement_acceptance_run_query_repository
+    ),
+) -> GetRequirementAcceptanceReadinessDashboardUseCase:
+    settings = get_settings()
+    backend_root = Path(__file__).resolve().parents[2]
+    project_root = backend_root.parents[1]
+    private_root = (
+        Path(settings.requirement_acceptance_private_root).expanduser().resolve()
+        if settings.requirement_acceptance_private_root
+        else project_root / "data" / "private" / "requirement-acceptance"
+    )
+    return GetRequirementAcceptanceReadinessDashboardUseCase(
+        runs=repository,
+        private_root=private_root,
+        backend_root=backend_root,
+        database_url=settings.database_url,
+        provider=settings.requirement_extractor_provider,
+        model=settings.requirement_extractor_model,
+        api_key_configured=bool(settings.openai_api_key),
+        extractor_version=EXTRACTOR_VERSION,
+        prompt_version=PROMPT_VERSION,
+        web_base_url=settings.web_base_url,
+    )
+
+
+def get_list_requirement_acceptance_runs_use_case(
+    repository: AbstractRequirementAcceptanceRunQueryRepository = Depends(
+        get_requirement_acceptance_run_query_repository
+    ),
+) -> ListRequirementAcceptanceRunsUseCase:
+    return ListRequirementAcceptanceRunsUseCase(repository)
+
+
+def get_requirement_acceptance_run_use_case(
+    repository: AbstractRequirementAcceptanceRunQueryRepository = Depends(
+        get_requirement_acceptance_run_query_repository
+    ),
+) -> GetRequirementAcceptanceRunUseCase:
+    return GetRequirementAcceptanceRunUseCase(repository)
+
+
+def get_requirement_acceptance_run_uow_factory() -> (
+    RequirementAcceptanceRunUnitOfWorkFactory
+):
+    return lambda: SqlAlchemyRequirementAcceptanceRunUnitOfWork(SessionLocal)
+
+
+def get_review_requirement_acceptance_canary_use_case(
+    repository: AbstractRequirementAcceptanceRunQueryRepository = Depends(
+        get_requirement_acceptance_run_query_repository
+    ),
+    uow_factory: RequirementAcceptanceRunUnitOfWorkFactory = Depends(
+        get_requirement_acceptance_run_uow_factory
+    ),
+) -> ReviewRequirementAcceptanceCanaryUseCase:
+    return ReviewRequirementAcceptanceCanaryUseCase(repository, uow_factory)
+
+
 def get_requirement_review_query_repository() -> AbstractRequirementReviewQueryRepository:
     return SqlAlchemyRequirementReviewQueryRepository(SessionLocal)
 
@@ -295,6 +389,25 @@ def get_review_requirement_batch_case_use_case(
     ),
 ) -> ReviewRequirementBatchCaseUseCase:
     return ReviewRequirementBatchCaseUseCase(repository, uow_factory)
+
+
+def get_finalize_requirement_review_batch_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+    uow_factory: RequirementReviewUnitOfWorkFactory = Depends(
+        get_requirement_review_uow_factory
+    ),
+) -> FinalizeRequirementReviewBatchUseCase:
+    return FinalizeRequirementReviewBatchUseCase(repository, uow_factory)
+
+
+def get_accepted_requirement_review_baseline_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+) -> GetAcceptedRequirementReviewBaselineUseCase:
+    return GetAcceptedRequirementReviewBaselineUseCase(repository)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
@@ -371,6 +484,32 @@ def get_extract_job_requirements_use_case(
         uow_factory=uow_factory,
         query_repository=repository,
         provider=get_settings().requirement_extractor_provider,
+    )
+
+
+def get_job_requirement_release_query_repository() -> (
+    AbstractJobRequirementReleaseQueryRepository
+):
+    return SqlAlchemyJobRequirementReleaseQueryRepository(SessionLocal)
+
+
+def get_job_requirement_release_readiness_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+    reviews: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+    traces: AbstractJobRequirementReleaseQueryRepository = Depends(
+        get_job_requirement_release_query_repository
+    ),
+) -> GetJobRequirementReleaseReadinessUseCase:
+    return GetJobRequirementReleaseReadinessUseCase(
+        jobs=jobs,
+        requirements=requirements,
+        reviews=reviews,
+        traces=traces,
     )
 
 

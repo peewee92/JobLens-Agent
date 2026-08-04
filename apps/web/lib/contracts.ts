@@ -168,6 +168,29 @@ export interface JobRequirement {
   extractorVersion: string;
 }
 
+export interface JobRequirementReleaseBlocker {
+  code: string;
+  message: string;
+}
+
+export interface JobRequirementReleaseReadiness {
+  jobId: string;
+  releaseEligible: boolean;
+  currentDescriptionSha256: string;
+  extractionId: string | null;
+  extractionInputHash: string | null;
+  provider: string | null;
+  model: string | null;
+  extractorVersion: string | null;
+  promptVersion: string | null;
+  traceRunId: string | null;
+  requirementCount: number;
+  acceptedBaselineBatchId: string | null;
+  acceptedBaselineDecisionId: string | null;
+  acceptedBaselineEvidenceFingerprint: string | null;
+  blockers: JobRequirementReleaseBlocker[];
+}
+
 export interface JobRequirementExtraction {
   extractionId: string;
   jobId: string;
@@ -429,6 +452,10 @@ export interface RequirementReviewCandidatePage {
   items: RequirementReviewCandidate[];
 }
 
+export type RequirementReviewBatchFinalDecisionValue =
+  | "accept_for_match"
+  | "reject_for_match";
+
 export interface RequirementCaseReview {
   id: string;
   batchCaseId: string;
@@ -453,6 +480,8 @@ export interface RequirementReviewBatchSummary {
   staleCaseCount: number;
   completed: boolean;
   formalEvidenceEligible: boolean;
+  finalDecision: RequirementReviewBatchFinalDecisionValue | null;
+  matchReleaseEligible: boolean;
   createdAt: string;
 }
 
@@ -475,10 +504,33 @@ export interface RequirementReviewBatchCase {
   review: RequirementCaseReview | null;
 }
 
+export interface RequirementReviewBatchFinalDecision {
+  id: string;
+  batchId: string;
+  decision: RequirementReviewBatchFinalDecisionValue;
+  reviewer: string;
+  notes: string;
+  sampleSize: number;
+  reviewedCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  staleCaseCount: number;
+  issueCodeCounts: Record<string, number>;
+  evidenceFingerprint: string;
+  decidedAt: string;
+}
+
 export interface RequirementReviewBatchDetail {
   summary: RequirementReviewBatchSummary;
   issueCodeCounts: Record<string, number>;
   cases: RequirementReviewBatchCase[];
+  finalDecision: RequirementReviewBatchFinalDecision | null;
+}
+
+export interface AcceptedRequirementReviewBaseline {
+  decision: RequirementReviewBatchFinalDecision;
+  batch: RequirementReviewBatchSummary;
+  issueCodeCounts: Record<string, number>;
 }
 
 export interface RequirementReviewBatchPage {
@@ -486,6 +538,181 @@ export interface RequirementReviewBatchPage {
   limit: number;
   offset: number;
   items: RequirementReviewBatchSummary[];
+}
+
+export type RequirementAcceptanceDatasetState =
+  | "missing"
+  | "selection_required"
+  | "invalid"
+  | "ready";
+export type RequirementAcceptanceReadinessBlockerScope =
+  | "workflow"
+  | "provider_execution";
+export type RequirementAcceptanceReadinessNextAction =
+  | "fix_blockers"
+  | "run_canary"
+  | "review_canary"
+  | "resume_run"
+  | "open_manual_review"
+  | "stopped";
+
+export interface RequirementAcceptanceReadinessBlocker {
+  scope: RequirementAcceptanceReadinessBlockerScope;
+  code: string;
+  message: string;
+}
+
+export interface RequirementAcceptanceReadiness {
+  datasetState: RequirementAcceptanceDatasetState;
+  datasetCandidateCount: number;
+  datasetFileName: string | null;
+  datasetFingerprint: string | null;
+  sourceVersion: string | null;
+  selectedCount: number;
+  provider: string;
+  model: string;
+  apiKeyConfigured: boolean;
+  reviewer: string;
+  title: string;
+  requestedMaxNewExtractions: number | null;
+  databaseReachable: boolean;
+  databaseRevision: string | null;
+  migrationHead: string;
+  workflowReady: boolean;
+  providerExecutionAllowed: boolean;
+  readyForNextAction: boolean;
+  nextAction: RequirementAcceptanceReadinessNextAction;
+  runId: string | null;
+  runStatus: string | null;
+  attemptedCalls: number;
+  canaryDecision: RequirementAcceptanceCanaryDecision | null;
+  batchId: string | null;
+  workbenchUrl: string | null;
+  manualReviewUrl: string | null;
+  blockers: RequirementAcceptanceReadinessBlocker[];
+  dbWrites: number;
+  providerCalls: number;
+}
+
+export type RequirementAcceptanceRunCaseStatus =
+  | "pending"
+  | "reused"
+  | "extracted"
+  | "failed"
+  | "deferred";
+export type RequirementAcceptanceRunStatus =
+  | "pending"
+  | "partial"
+  | "awaiting_canary_review"
+  | "stopped"
+  | "ready";
+export type RequirementAcceptanceCanaryDecision = "continue" | "stop";
+
+export interface RequirementAcceptanceCanaryReview {
+  id: string;
+  runId: string;
+  reviewer: string;
+  decision: RequirementAcceptanceCanaryDecision;
+  notes: string;
+  reviewedCaseIds: string[];
+  reviewedExtractionIds: string[];
+  reviewedTraceRunIds: string[];
+  reviewedAt: string;
+}
+
+export interface RequirementAcceptanceRunCase {
+  id: string;
+  caseIndex: number;
+  sourceUrl: string;
+  title: string;
+  company: string;
+  descriptionHash: string;
+  descriptionSnapshot: string | null;
+  currentDescriptionHash: string;
+  descriptionIsCurrent: boolean;
+  isCanaryEvidence: boolean;
+  jobId: string;
+  status: RequirementAcceptanceRunCaseStatus;
+  attemptCount: number;
+  extractionId: string | null;
+  traceRunId: string | null;
+  traceCapability: string | null;
+  traceModel: string | null;
+  tracePromptVersion: string | null;
+  traceLatencyMs: number | null;
+  traceInputTokens: number | null;
+  traceOutputTokens: number | null;
+  traceError: string | null;
+  traceCreatedAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequirementAcceptanceRunSummary {
+  id: string;
+  title: string;
+  reviewer: string;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  status: RequirementAcceptanceRunStatus;
+  attemptedCalls: number;
+  completedCaseCount: number;
+  failedCount: number;
+  deferredCount: number;
+  canaryReviewRequired: boolean;
+  canaryDecision: RequirementAcceptanceCanaryDecision | null;
+  batchId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequirementAcceptanceRunPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: RequirementAcceptanceRunSummary[];
+}
+
+export interface RequirementAcceptanceRunDetail {
+  id: string;
+  datasetFingerprint: string;
+  sourceVersion: string;
+  datasetGeneratedAt: string | null;
+  title: string;
+  reviewer: string;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  firstImportId: string;
+  lastImportId: string;
+  batchId: string | null;
+  status: RequirementAcceptanceRunStatus;
+  canaryReviewRequired: boolean;
+  canaryContinueAllowed: boolean;
+  canaryStopAllowed: boolean;
+  canaryReviewBlockReason: string | null;
+  canaryReview: RequirementAcceptanceCanaryReview | null;
+  pendingCount: number;
+  reusedCount: number;
+  extractedCount: number;
+  failedCount: number;
+  deferredCount: number;
+  attemptedCalls: number;
+  completedCaseCount: number;
+  createdAt: string;
+  updatedAt: string;
+  cases: RequirementAcceptanceRunCase[];
+}
+
+export interface RequirementAcceptanceCanaryReviewPayload {
+  reviewer: string;
+  decision: RequirementAcceptanceCanaryDecision;
+  notes: string;
 }
 
 export interface CreateRequirementReviewBatchPayload {

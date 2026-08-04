@@ -8,6 +8,10 @@ from app.application.job_requirements import (
     JobRequirementDetail,
     JobRequirementExtractionDetail,
 )
+from app.application.job_requirements.release import (
+    JobRequirementReleaseBlocker,
+    JobRequirementReleaseReadiness,
+)
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 
@@ -38,6 +42,64 @@ class JobRequirementResponse(CamelCaseModel):
             evidence_span=detail.evidence_span,
             confidence=detail.confidence,
             extractor_version=detail.extractor_version,
+        )
+
+
+class JobRequirementReleaseBlockerResponse(CamelCaseModel):
+    code: str
+    message: str
+
+    @classmethod
+    def from_detail(
+        cls,
+        detail: JobRequirementReleaseBlocker,
+    ) -> "JobRequirementReleaseBlockerResponse":
+        return cls(code=detail.code.value, message=detail.message)
+
+
+class JobRequirementReleaseReadinessResponse(CamelCaseModel):
+    job_id: str
+    release_eligible: bool
+    current_description_sha256: str
+    extraction_id: str | None
+    extraction_input_hash: str | None
+    provider: str | None
+    model: str | None
+    extractor_version: str | None
+    prompt_version: str | None
+    trace_run_id: str | None
+    requirement_count: int
+    accepted_baseline_batch_id: str | None
+    accepted_baseline_decision_id: str | None
+    accepted_baseline_evidence_fingerprint: str | None
+    blockers: list[JobRequirementReleaseBlockerResponse]
+
+    @classmethod
+    def from_detail(
+        cls,
+        detail: JobRequirementReleaseReadiness,
+    ) -> "JobRequirementReleaseReadinessResponse":
+        return cls(
+            job_id=detail.job_id,
+            release_eligible=detail.release_eligible,
+            current_description_sha256=detail.current_description_sha256,
+            extraction_id=detail.extraction_id,
+            extraction_input_hash=detail.extraction_input_hash,
+            provider=detail.provider,
+            model=detail.model,
+            extractor_version=detail.extractor_version,
+            prompt_version=detail.prompt_version,
+            trace_run_id=detail.trace_run_id,
+            requirement_count=detail.requirement_count,
+            accepted_baseline_batch_id=detail.accepted_baseline_batch_id,
+            accepted_baseline_decision_id=detail.accepted_baseline_decision_id,
+            accepted_baseline_evidence_fingerprint=(
+                detail.accepted_baseline_evidence_fingerprint
+            ),
+            blockers=[
+                JobRequirementReleaseBlockerResponse.from_detail(item)
+                for item in detail.blockers
+            ],
         )
 
 

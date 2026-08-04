@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import timezone
+from hashlib import sha256
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -15,10 +16,15 @@ from app.application.ports.requirement_review_repository import (
     AbstractRequirementReviewRepository,
 )
 from app.application.requirement_reviews.errors import (
+    RequirementReviewBatchFinalDecisionAlreadyExistsError,
     RequirementReviewCaseAlreadyReviewedError,
 )
 from app.application.requirement_reviews.models import (
+    AcceptedRequirementReviewBaseline,
     RequirementReviewBatchCaseDetail,
+    RequirementReviewBatchFinalDecision,
+    RequirementReviewBatchFinalDecisionDetail,
+    RequirementReviewBatchFinalDecisionWrite,
     RequirementReviewBatchCaseLookup,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
@@ -37,6 +43,7 @@ from app.db.models import (
     JobRequirementExtractionORM,
     JobRequirementORM,
     RequirementReviewBatchCaseORM,
+    RequirementReviewBatchFinalDecisionORM,
     RequirementReviewBatchORM,
     RequirementReviewCaseReviewORM,
 )
@@ -97,6 +104,40 @@ class SqlAlchemyRequirementReviewRepository(AbstractRequirementReviewRepository)
                 ) from error
             raise
 
+    def add_final_decision(
+        self,
+        decision: RequirementReviewBatchFinalDecisionWrite,
+    ) -> None:
+        self._session.add(
+            RequirementReviewBatchFinalDecisionORM(
+                id=decision.decision_id,
+                batch_id=decision.batch_id,
+                decision=decision.decision.value,
+                reviewer=decision.reviewer,
+                notes=decision.notes,
+                sample_size=decision.sample_size,
+                reviewed_count=decision.reviewed_count,
+                accepted_count=decision.accepted_count,
+                rejected_count=decision.rejected_count,
+                stale_case_count=decision.stale_case_count,
+                issue_code_counts=dict(decision.issue_code_counts),
+                evidence_fingerprint=decision.evidence_fingerprint,
+                decided_at=decision.decided_at,
+            )
+        )
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            message = str(error.orig).casefold()
+            if (
+                "requirement_review_batch_final_decisions.batch_id" in message
+                or "uq_requirement_review_batch_final_decisions_batch" in message
+            ):
+                raise RequirementReviewBatchFinalDecisionAlreadyExistsError(
+                    f"Requirement Review Batch {decision.batch_id!r} already has an immutable final decision"
+                ) from error
+            raise
+
 
 class SqlAlchemyRequirementReviewQueryRepository(
     AbstractRequirementReviewQueryRepository
@@ -107,13 +148,17 @@ class SqlAlchemyRequirementReviewQueryRepository(
     def list_candidates(self, *, limit: int, offset: int) -> RequirementReviewCandidatePage:
         with self._session_factory() as session:
             latest = _latest_extractions(session)
+            jobs = _jobs_by_id(session, set(latest))
             ordered = sorted(
-                latest.values(),
+                (
+                    item
+                    for item in latest.values()
+                    if _matches_current_job_input(item, jobs[item.job_id])
+                ),
                 key=lambda item: (_utc(item.created_at), item.id),
                 reverse=True,
             )
             selected = ordered[offset : offset + limit]
-            jobs = _jobs_by_id(session, {item.job_id for item in selected})
             return RequirementReviewCandidatePage(
                 total=len(ordered),
                 limit=limit,
@@ -169,6 +214,7 @@ class SqlAlchemyRequirementReviewQueryRepository(
                     is_current=(
                         latest.get(record.job_id) is not None
                         and latest[record.job_id].id == record.id
+                        and _matches_current_job_input(record, job)
                     ),
                 )
                 for record, job in rows
@@ -236,6 +282,44 @@ class SqlAlchemyRequirementReviewQueryRepository(
             )
             return _review_detail(record) if record is not None else None
 
+    def get_final_decision(
+        self,
+        batch_id: str,
+    ) -> RequirementReviewBatchFinalDecisionDetail | None:
+        with self._session_factory() as session:
+            record = session.scalar(
+                select(RequirementReviewBatchFinalDecisionORM).where(
+                    RequirementReviewBatchFinalDecisionORM.batch_id == batch_id
+                )
+            )
+            return _final_decision_detail(record) if record is not None else None
+
+    def get_accepted_baseline(self) -> AcceptedRequirementReviewBaseline | None:
+        with self._session_factory() as session:
+            decisions = session.scalars(
+                select(RequirementReviewBatchFinalDecisionORM)
+                .where(
+                    RequirementReviewBatchFinalDecisionORM.decision
+                    == RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH.value
+                )
+                .order_by(
+                    RequirementReviewBatchFinalDecisionORM.decided_at.desc(),
+                    RequirementReviewBatchFinalDecisionORM.id.desc(),
+                )
+            ).all()
+            for record in decisions:
+                batch = session.get(RequirementReviewBatchORM, record.batch_id)
+                if batch is None:
+                    continue
+                detail = _batch_detail(session, batch)
+                if detail.summary.match_release_eligible:
+                    return AcceptedRequirementReviewBaseline(
+                        decision=_final_decision_detail(record),
+                        batch=detail.summary,
+                        issue_code_counts=dict(detail.issue_code_counts),
+                    )
+            return None
+
 
 def _latest_extractions(
     session: Session,
@@ -257,6 +341,14 @@ def _latest_extractions(
     for record in records:
         latest.setdefault(record.job_id, record)
     return latest
+
+
+def _matches_current_job_input(
+    extraction: JobRequirementExtractionORM,
+    job: JobORM,
+) -> bool:
+    description = (job.description or "").strip()
+    return extraction.input_hash == sha256(description.encode("utf-8")).hexdigest()
 
 
 def _jobs_by_id(session: Session, job_ids: set[str]) -> dict[str, JobORM]:
@@ -340,6 +432,7 @@ def _batch_detail(
         is_current = (
             latest.get(case.job_id) is not None
             and latest[case.job_id].id == extraction.id
+            and _matches_current_job_input(extraction, job)
         )
         if not is_current:
             stale_count += 1
@@ -372,6 +465,20 @@ def _batch_detail(
         and stale_count == 0
         and batch.provider.casefold() != "fixture"
     )
+    final_record = session.scalar(
+        select(RequirementReviewBatchFinalDecisionORM).where(
+            RequirementReviewBatchFinalDecisionORM.batch_id == batch.id
+        )
+    )
+    final_decision = (
+        _final_decision_detail(final_record) if final_record is not None else None
+    )
+    match_release_eligible = (
+        formal_evidence_eligible
+        and final_decision is not None
+        and final_decision.decision
+        is RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH
+    )
     return RequirementReviewBatchDetail(
         summary=RequirementReviewBatchSummary(
             id=batch.id,
@@ -388,10 +495,35 @@ def _batch_detail(
             stale_case_count=stale_count,
             completed=completed,
             formal_evidence_eligible=formal_evidence_eligible,
+            final_decision=(
+                final_decision.decision if final_decision is not None else None
+            ),
+            match_release_eligible=match_release_eligible,
             created_at=_utc(batch.created_at),
         ),
         issue_code_counts=dict(sorted(issue_counts.items())),
         cases=tuple(case_details),
+        final_decision=final_decision,
+    )
+
+
+def _final_decision_detail(
+    record: RequirementReviewBatchFinalDecisionORM,
+) -> RequirementReviewBatchFinalDecisionDetail:
+    return RequirementReviewBatchFinalDecisionDetail(
+        id=record.id,
+        batch_id=record.batch_id,
+        decision=RequirementReviewBatchFinalDecision(record.decision),
+        reviewer=record.reviewer,
+        notes=record.notes,
+        sample_size=record.sample_size,
+        reviewed_count=record.reviewed_count,
+        accepted_count=record.accepted_count,
+        rejected_count=record.rejected_count,
+        stale_case_count=record.stale_case_count,
+        issue_code_counts=dict(record.issue_code_counts),
+        evidence_fingerprint=record.evidence_fingerprint,
+        decided_at=_utc(record.decided_at),
     )
 
 

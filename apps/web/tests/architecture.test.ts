@@ -72,6 +72,21 @@ test("the Job Requirement Route Handler delegates to Backend without extraction 
   assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
 });
 
+test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {
+  const source = await readFile(
+    join(webRoot, "app/jobs/[id]/page.tsx"),
+    "utf8",
+  );
+  assert.match(source, /fetchJobRequirementReleaseReadiness/);
+  assert.match(source, /releaseReadiness\.releaseEligible/);
+  assert.match(source, /releaseReadinessError/);
+  assert.doesNotMatch(source, /Promise\.all/);
+  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /acceptedCount\s*\/|rejectedCount\s*\/|0\.9/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
+});
+
+
 test("the Profile Eval Review Client calls only its same-origin command proxy", async () => {
   const source = await readFile(
     join(webRoot, "components/profile-eval-review-form.tsx"),
@@ -128,9 +143,15 @@ test("Requirement manual review Clients call only same-origin proxies", async ()
     join(webRoot, "components/requirement-case-review-form.tsx"),
     "utf8",
   );
+  const finalDecisionForm = await readFile(
+    join(webRoot, "components/requirement-review-final-decision-form.tsx"),
+    "utf8",
+  );
   assert.match(batchForm, /fetch\("\/api\/requirement-review-batches"/);
   assert.match(caseForm, /`\/api\/requirement-review-batches\/\$\{encodeURIComponent\(batchId\)\}\/cases\/\$\{encodeURIComponent\(caseId\)\}\/review`/);
-  for (const source of [batchForm, caseForm]) {
+  assert.match(finalDecisionForm, /`\/api\/requirement-review-batches\/\$\{encodeURIComponent\(batchId\)\}\/final-decision`/);
+  assert.doesNotMatch(finalDecisionForm, /acceptedCount\s*[><=]|rejectedCount\s*[><=]|0\.9|95%/);
+  for (const source of [batchForm, caseForm, finalDecisionForm]) {
     assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
     assert.doesNotMatch(source, /OPENAI_API_KEY|run_requirement_eval/);
   }
@@ -152,6 +173,81 @@ test("Requirement manual review pages use server read models and no direct write
   assert.match(detailPage, /description/);
   assert.match(detailPage, /traceRunId/);
   assert.match(detailPage, /evidenceSpan/);
+  assert.match(detailPage, /matchReleaseEligible/);
+  assert.match(detailPage, /evidenceFingerprint/);
+});
+
+test("Requirement Canary Client submits only an immutable human decision through same-origin", async () => {
+  const source = await readFile(
+    join(webRoot, "components/requirement-canary-review-form.tsx"),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /`\/api\/requirement-acceptance-runs\/\$\{encodeURIComponent\(runId\)\}\/canary-review`/,
+  );
+  assert.match(source, /checkedJd/);
+  assert.match(source, /checkedRequirements/);
+  assert.match(source, /checkedTrace/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
+  assert.doesNotMatch(source, /max-new-extractions|OPENAI_API_KEY|requirement-extractions/);
+});
+
+test("Requirement Canary pages consume Backend facts and never start Provider work", async () => {
+  const listPage = await readFile(
+    join(webRoot, "app/evals/requirements/canary/page.tsx"),
+    "utf8",
+  );
+  const detailPage = await readFile(
+    join(webRoot, "app/evals/requirements/canary/[id]/page.tsx"),
+    "utf8",
+  );
+  for (const source of [listPage, detailPage]) {
+    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
+    assert.doesNotMatch(source, /maxNewExtractions|requirement-extractions\s*[,)]/);
+  }
+  assert.match(detailPage, /traceLatencyMs/);
+  assert.match(detailPage, /traceInputTokens/);
+  assert.match(detailPage, /evidenceSpan/);
+  assert.match(detailPage, /canaryContinueAllowed/);
+  assert.match(detailPage, /canaryStopAllowed/);
+});
+
+test("Requirement readiness page is read-only and cannot launch operational work", async () => {
+  const source = await readFile(
+    join(
+      webRoot,
+      "app/evals/requirements/canary/readiness/page.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(source, /fetchRequirementAcceptanceReadiness/);
+  assert.match(source, /method="get"/);
+  assert.match(source, /dbWrites/);
+  assert.match(source, /providerCalls/);
+  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
+  assert.doesNotMatch(
+    source,
+    /execute-canary|confirm-live-cost|alembic upgrade|requirement-extractions/,
+  );
+});
+
+test("Requirement Canary Route Handler only proxies the human decision", async () => {
+  const source = await readFile(
+    join(
+      webRoot,
+      "app/api/requirement-acceptance-runs/[runId]/canary-review/route.ts",
+    ),
+    "utf8",
+  );
+  assert.match(source, /backendResponse/);
+  assert.match(source, /canary-review/);
+  assert.doesNotMatch(
+    source,
+    /OpenAI|FixtureJobRequirementExtractor|maxNewExtractions|requirement-extractions/,
+  );
 });
 
 test("Requirement manual review Route Handlers only proxy Backend commands", async () => {
@@ -166,7 +262,14 @@ test("Requirement manual review Route Handlers only proxy Backend commands", asy
     ),
     "utf8",
   );
-  for (const source of [createRoute, reviewRoute]) {
+  const finalDecisionRoute = await readFile(
+    join(
+      webRoot,
+      "app/api/requirement-review-batches/[batchId]/final-decision/route.ts",
+    ),
+    "utf8",
+  );
+  for (const source of [createRoute, reviewRoute, finalDecisionRoute]) {
     assert.match(source, /backendResponse/);
     assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|formalEvidenceEligible/);
   }

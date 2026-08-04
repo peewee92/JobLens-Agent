@@ -7,11 +7,16 @@ import type {
   AcceptedProfileEvalBaseline,
   JobPage,
   JobRequirementExtraction,
+  JobRequirementReleaseReadiness,
   ProfileEvalRunDetail,
   ProfileEvalRunPage,
   AcceptedRequirementEvalBaseline,
+  AcceptedRequirementReviewBaseline,
   RequirementEvalRunDetail,
   RequirementEvalRunPage,
+  RequirementAcceptanceReadiness,
+  RequirementAcceptanceRunDetail,
+  RequirementAcceptanceRunPage,
   RequirementReviewBatchDetail,
   RequirementReviewBatchPage,
   RequirementReviewCandidatePage,
@@ -102,6 +107,23 @@ export function fetchLatestJobRequirements(
   );
 }
 
+export function fetchJobRequirementReleaseReadiness(
+  jobId: string,
+): Promise<JobRequirementReleaseReadiness> {
+  return backendJson<JobRequirementReleaseReadiness>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/requirement-release-readiness`,
+  );
+}
+
+export function fetchJobRequirementExtraction(
+  jobId: string,
+  extractionId: string,
+): Promise<JobRequirementExtraction> {
+  return backendJson<JobRequirementExtraction>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/requirement-extractions/${encodeURIComponent(extractionId)}`,
+  );
+}
+
 export function fetchImportDetail(importId: string): Promise<JobImportDetail> {
   return backendJson<JobImportDetail>(
     `/api/v1/job-imports/${encodeURIComponent(importId)}`,
@@ -179,6 +201,36 @@ export function fetchAcceptedRequirementEvalBaseline(): Promise<AcceptedRequirem
   );
 }
 
+export function fetchRequirementAcceptanceReadiness(
+  query: URLSearchParams,
+): Promise<RequirementAcceptanceReadiness> {
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return backendJson<RequirementAcceptanceReadiness>(
+    `/api/v1/requirement-acceptance-runs/readiness${suffix}`,
+  );
+}
+
+export function fetchRequirementAcceptanceRuns(
+  limit = 20,
+  offset = 0,
+): Promise<RequirementAcceptanceRunPage> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return backendJson<RequirementAcceptanceRunPage>(
+    `/api/v1/requirement-acceptance-runs?${query}`,
+  );
+}
+
+export function fetchRequirementAcceptanceRun(
+  runId: string,
+): Promise<RequirementAcceptanceRunDetail> {
+  return backendJson<RequirementAcceptanceRunDetail>(
+    `/api/v1/requirement-acceptance-runs/${encodeURIComponent(runId)}`,
+  );
+}
+
 export function fetchRequirementReviewCandidates(
   limit = 100,
   offset = 0,
@@ -210,5 +262,11 @@ export function fetchRequirementReviewBatch(
 ): Promise<RequirementReviewBatchDetail> {
   return backendJson<RequirementReviewBatchDetail>(
     `/api/v1/requirement-review-batches/${encodeURIComponent(batchId)}`,
+  );
+}
+
+export function fetchAcceptedRequirementReviewBaseline(): Promise<AcceptedRequirementReviewBaseline> {
+  return backendJson<AcceptedRequirementReviewBaseline>(
+    "/api/v1/requirement-review-batches/accepted-baseline",
   );
 }

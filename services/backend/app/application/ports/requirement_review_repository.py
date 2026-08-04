@@ -4,7 +4,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.application.requirement_reviews.models import (
+    AcceptedRequirementReviewBaseline,
     RequirementReviewBatchCaseLookup,
+    RequirementReviewBatchFinalDecisionDetail,
+    RequirementReviewBatchFinalDecisionWrite,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
     RequirementReviewBatchWrite,
@@ -22,6 +25,13 @@ class AbstractRequirementReviewRepository(ABC):
 
     @abstractmethod
     def add_case_review(self, review: RequirementReviewCaseReviewWrite) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_final_decision(
+        self,
+        decision: RequirementReviewBatchFinalDecisionWrite,
+    ) -> None:
         raise NotImplementedError
 
 
@@ -56,4 +66,15 @@ class AbstractRequirementReviewQueryRepository(ABC):
 
     @abstractmethod
     def get_case_review(self, case_id: str) -> RequirementReviewCaseReviewDetail | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_final_decision(
+        self,
+        batch_id: str,
+    ) -> RequirementReviewBatchFinalDecisionDetail | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_accepted_baseline(self) -> AcceptedRequirementReviewBaseline | None:
         raise NotImplementedError

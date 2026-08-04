@@ -8,11 +8,16 @@ from fastapi import APIRouter, Depends, status
 from app.api.deps import (
     get_extract_job_requirements_use_case,
     get_job_requirement_extraction_use_case,
+    get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.job_requirements import (
     JobRequirementExtractionResponse,
+    JobRequirementReleaseReadinessResponse,
+)
+from app.application.job_requirements.release import (
+    GetJobRequirementReleaseReadinessUseCase,
 )
 from app.application.job_requirements.use_cases import (
     ExtractJobRequirementsUseCase,
@@ -42,6 +47,23 @@ def extract_job_requirements(
     ],
 ) -> JobRequirementExtractionResponse:
     return JobRequirementExtractionResponse.from_detail(use_case.execute(job_id))
+
+
+@router.get(
+    "/{job_id}/requirement-release-readiness",
+    response_model=JobRequirementReleaseReadinessResponse,
+    responses={status.HTTP_404_NOT_FOUND: {"model": ApiErrorResponse}},
+)
+def get_job_requirement_release_readiness(
+    job_id: str,
+    use_case: Annotated[
+        GetJobRequirementReleaseReadinessUseCase,
+        Depends(get_job_requirement_release_readiness_use_case),
+    ],
+) -> JobRequirementReleaseReadinessResponse:
+    return JobRequirementReleaseReadinessResponse.from_detail(
+        use_case.execute(job_id)
+    )
 
 
 @router.get(

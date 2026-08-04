@@ -37,6 +37,9 @@ export default async function RequirementManualReviewPage() {
           选择同一 Provider、Model、Extractor 和 Prompt 的具体 Extraction 版本，逐岗位对照完整 JD、Requirements 与 Trace。系统不会替你生成人工判断。
         </p>
         <div className="actions">
+          <Link className="button" href="/evals/requirements/canary">
+            打开 Canary 人工放行
+          </Link>
           <Link className="button-ghost" href="/evals/requirements">
             返回自动 Eval 治理
           </Link>

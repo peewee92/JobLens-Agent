@@ -41,6 +41,16 @@ Fixture 通过率不能作为生产模型质量结论。每次运行现在会保
   - 同义能力已归一（`normalizedCapability`，如 “React.js” → “React”）；
   - `type` 分类不跨类（如“本科以上”应为 `education`/`constraint`，不是 `skill`）。
 
+Requirement 质量治理进一步区分：
+
+- `formalEvidenceEligible`：正好 20 条当前、非 Fixture 的 Extraction 已完成逐 Case 人工 Review，只证明正式证据结构完整；
+- `finalDecision`：Batch Owner 对该冻结证据提交的唯一不可变 `accept_for_match/reject_for_match`；
+- `matchReleaseEligible`：只有正式证据仍为当前版本且 Final Decision 为 `accept_for_match` 才成立。
+
+项目尚未批准基于 accepted/rejected 百分比的自动晋级阈值，因此 Web 和 Backend 都不能把 20 条 Review 完成自动解释为模型通过。Final Decision 保存 evidence fingerprint；如果后续 JD 或 Extraction 更新，历史结论仍保留，但 accepted-baseline Query 会撤销该 Batch 的当前 Match 资格。
+
+模型 cohort 获得人工接受后，单个岗位仍需通过 Job Requirement Fact Release Gate：latest Extraction 必须对应当前 JD，cohort 与 accepted baseline 精确一致，Trace 成功且 input refs、逐条 output 与数据库 Requirement 完全一致。该 Gate 是只读信任链，不运行 Match，也不把模型质量结论扩张为岗位推荐结论。
+
 ### 2.3 Match Eval（Single/Batch Match）
 
 评估 `Eligibility` + `Fit` + `UserFeedback` 闭环。

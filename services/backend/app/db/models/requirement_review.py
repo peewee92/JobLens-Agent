@@ -18,6 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.models.common import (
     new_requirement_review_batch_case_id,
+    new_requirement_review_batch_final_decision_id,
     new_requirement_review_batch_id,
     new_requirement_review_case_review_id,
     utc_now,
@@ -60,6 +61,12 @@ class RequirementReviewBatchORM(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="RequirementReviewBatchCaseORM.case_index",
+    )
+    final_decision: Mapped["RequirementReviewBatchFinalDecisionORM | None"] = relationship(
+        back_populates="batch",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
     )
 
 
@@ -114,6 +121,62 @@ class RequirementReviewBatchCaseORM(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         uselist=False,
+    )
+
+
+class RequirementReviewBatchFinalDecisionORM(Base):
+    """One immutable human conclusion over one complete formal review batch."""
+
+    __tablename__ = "requirement_review_batch_final_decisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id",
+            name="uq_requirement_review_batch_final_decisions_batch",
+        ),
+        CheckConstraint(
+            "decision IN ('accept_for_match', 'reject_for_match')",
+            name="ck_requirement_review_batch_final_decisions_decision",
+        ),
+        CheckConstraint(
+            "sample_size >= 1 AND reviewed_count >= 0 AND accepted_count >= 0 "
+            "AND rejected_count >= 0 AND stale_case_count >= 0",
+            name="ck_requirement_review_batch_final_decisions_counts_non_negative",
+        ),
+        CheckConstraint(
+            "reviewed_count = accepted_count + rejected_count",
+            name="ck_requirement_review_batch_final_decisions_reviewed_count",
+        ),
+        Index(
+            "ix_requirement_review_batch_final_decisions_decision_decided_at",
+            "decision",
+            "decided_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(100),
+        primary_key=True,
+        default=new_requirement_review_batch_final_decision_id,
+    )
+    batch_id: Mapped[str] = mapped_column(
+        String(90),
+        ForeignKey("requirement_review_batches.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reviewer: Mapped[str] = mapped_column(String(160), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False)
+    sample_size: Mapped[int] = mapped_column(nullable=False)
+    reviewed_count: Mapped[int] = mapped_column(nullable=False)
+    accepted_count: Mapped[int] = mapped_column(nullable=False)
+    rejected_count: Mapped[int] = mapped_column(nullable=False)
+    stale_case_count: Mapped[int] = mapped_column(nullable=False)
+    issue_code_counts: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+    batch: Mapped[RequirementReviewBatchORM] = relationship(
+        back_populates="final_decision"
     )
 
 

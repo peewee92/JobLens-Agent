@@ -101,3 +101,19 @@ def new_requirement_review_batch_case_id() -> str:
 
 def new_requirement_review_case_review_id() -> str:
     return new_prefixed_id("reqcasereview")
+
+
+def new_requirement_review_batch_final_decision_id() -> str:
+    return new_prefixed_id("reqbatchdecision")
+
+
+def new_requirement_acceptance_run_id() -> str:
+    return new_prefixed_id("reqacceptrun")
+
+
+def new_requirement_acceptance_run_case_id() -> str:
+    return new_prefixed_id("reqacceptcase")
+
+
+def new_requirement_acceptance_canary_review_id() -> str:
+    return new_prefixed_id("reqacceptcanary")

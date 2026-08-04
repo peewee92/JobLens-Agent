@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.6
+
+- 补齐 CJK Radicals Supplement 文本规范化，真实数据中观测到的 `⻓`（U+2ED3）会转换为普通汉字 `长`。
+- 规范化覆盖卡片文本、JD 正文和整页辅助文本，避免详情证据、关键词搜索和后续匹配受视觉相同但编码不同的字符干扰。
+- Backend 增加 Collector v1.4.6 导入与 Requirement Extraction 门禁兼容。
+
 ## 1.4.5
 
 - 远程识别不再使用包含推荐职位和页脚的整页 `detailText`，只使用标题、卡片字段、地点与已裁剪 JD。

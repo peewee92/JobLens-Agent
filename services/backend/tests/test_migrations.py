@@ -39,11 +39,29 @@ REQUIREMENT_EVAL_TABLES = {
     "requirement_eval_case_results",
     "requirement_eval_reviews",
 }
-REQUIREMENT_REVIEW_TABLES = {
+REQUIREMENT_REVIEW_BASE_TABLES = {
     "requirement_review_batches",
     "requirement_review_batch_cases",
     "requirement_review_case_reviews",
 }
+REQUIREMENT_REVIEW_FINAL_DECISION_TABLES = {
+    "requirement_review_batch_final_decisions",
+}
+REQUIREMENT_REVIEW_TABLES = (
+    REQUIREMENT_REVIEW_BASE_TABLES | REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
+)
+REQUIREMENT_ACCEPTANCE_RUN_TABLES = {
+    "requirement_acceptance_runs",
+    "requirement_acceptance_run_cases",
+}
+REQUIREMENT_ACCEPTANCE_LEASE_TABLES = {
+    "requirement_acceptance_execution_leases",
+}
+REQUIREMENT_ACCEPTANCE_TABLES = (
+    REQUIREMENT_ACCEPTANCE_RUN_TABLES
+    | REQUIREMENT_ACCEPTANCE_LEASE_TABLES
+    | {"requirement_acceptance_canary_reviews"}
+)
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
@@ -52,6 +70,7 @@ EXPECTED_TABLES = (
     | JOB_REQUIREMENT_TABLES
     | REQUIREMENT_EVAL_TABLES
     | REQUIREMENT_REVIEW_TABLES
+    | REQUIREMENT_ACCEPTANCE_TABLES
 )
 
 
@@ -229,6 +248,36 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         item["name"]
         for item in inspector.get_check_constraints("requirement_review_case_reviews")
     } >= {"ck_requirement_review_case_reviews_decision"}
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints(
+            "requirement_review_batch_final_decisions"
+        )
+    } == {"uq_requirement_review_batch_final_decisions_batch"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints(
+            "requirement_review_batch_final_decisions"
+        )
+    } >= {
+        "ck_requirement_review_batch_final_decisions_decision",
+        "ck_requirement_review_batch_final_decisions_counts_non_negative",
+        "ck_requirement_review_batch_final_decisions_reviewed_count",
+    }
+    final_decision_foreign_keys = inspector.get_foreign_keys(
+        "requirement_review_batch_final_decisions"
+    )
+    assert any(
+        item["constrained_columns"] == ["batch_id"]
+        and item["referred_table"] == "requirement_review_batches"
+        for item in final_decision_foreign_keys
+    )
+    assert {
+        item["name"]
+        for item in inspector.get_indexes(
+            "requirement_review_batch_final_decisions"
+        )
+    } >= {"ix_requirement_review_batch_final_decisions_decision_decided_at"}
     review_case_foreign_keys = inspector.get_foreign_keys(
         "requirement_review_batch_cases"
     )
@@ -245,6 +294,160 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         and item["referred_table"] == "jobs"
         for item in extraction_foreign_keys
     )
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("requirement_acceptance_runs")
+    } == {"uq_requirement_acceptance_runs_identity"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("requirement_acceptance_runs")
+    } >= {"ck_requirement_acceptance_runs_formal_sample_size"}
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints(
+            "requirement_acceptance_run_cases"
+        )
+    } == {
+        "uq_requirement_acceptance_run_cases_index",
+        "uq_requirement_acceptance_run_cases_source_url",
+    }
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints(
+            "requirement_acceptance_run_cases"
+        )
+    } >= {
+        "ck_requirement_acceptance_run_cases_index",
+        "ck_requirement_acceptance_run_cases_status",
+        "ck_requirement_acceptance_run_cases_attempt_count",
+    }
+    acceptance_case_columns = {
+        item["name"]: item
+        for item in inspector.get_columns("requirement_acceptance_run_cases")
+    }
+    assert "description_snapshot" in acceptance_case_columns
+    assert acceptance_case_columns["description_snapshot"]["nullable"] is True
+    acceptance_case_foreign_keys = inspector.get_foreign_keys(
+        "requirement_acceptance_run_cases"
+    )
+    assert any(
+        item["constrained_columns"] == ["run_id"]
+        and item["referred_table"] == "requirement_acceptance_runs"
+        for item in acceptance_case_foreign_keys
+    )
+    assert any(
+        item["constrained_columns"] == ["trace_run_id"]
+        and item["referred_table"] == "trace_spans"
+        for item in acceptance_case_foreign_keys
+    )
+    assert any(
+        item["constrained_columns"] == ["extraction_id"]
+        and item["referred_table"] == "job_requirement_extractions"
+        for item in acceptance_case_foreign_keys
+    )
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints(
+            "requirement_acceptance_canary_reviews"
+        )
+    } == {"uq_requirement_acceptance_canary_reviews_run_id"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints(
+            "requirement_acceptance_canary_reviews"
+        )
+    } >= {"ck_requirement_acceptance_canary_reviews_decision"}
+    canary_foreign_keys = inspector.get_foreign_keys(
+        "requirement_acceptance_canary_reviews"
+    )
+    assert any(
+        item["constrained_columns"] == ["run_id"]
+        and item["referred_table"] == "requirement_acceptance_runs"
+        for item in canary_foreign_keys
+    )
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints(
+            "requirement_acceptance_execution_leases"
+        )
+    } >= {"ck_requirement_acceptance_execution_leases_expiry"}
+    assert {
+        item["name"]
+        for item in inspector.get_indexes("requirement_acceptance_execution_leases")
+    } >= {"ix_requirement_acceptance_execution_leases_expires_at"}
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260805_0014")
+
+    engine = create_engine(database_url)
+    inspector = inspect(engine)
+    assert set(inspector.get_table_names()) == (
+        EXPECTED_TABLES - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "upgrade", "head")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == EXPECTED_TABLES
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260804_0013")
+
+    engine = create_engine(database_url)
+    inspector = inspect(engine)
+    assert set(inspector.get_table_names()) == (
+        EXPECTED_TABLES
+        - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
+        - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
+    )
+    columns_at_0013 = {
+        item["name"]
+        for item in inspector.get_columns("requirement_acceptance_run_cases")
+    }
+    assert "description_snapshot" in columns_at_0013
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260804_0012")
+
+    engine = create_engine(database_url)
+    downgraded_columns = {
+        item["name"]
+        for item in inspect(engine).get_columns("requirement_acceptance_run_cases")
+    }
+    assert "description_snapshot" not in downgraded_columns
+    assert set(inspect(engine).get_table_names()) == (
+        EXPECTED_TABLES
+        - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
+        - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "upgrade", "head")
+
+    engine = create_engine(database_url)
+    upgraded_columns = {
+        item["name"]
+        for item in inspect(engine).get_columns("requirement_acceptance_run_cases")
+    }
+    assert "description_snapshot" in upgraded_columns
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260804_0011")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        EXPECTED_TABLES
+        - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
+        - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
+        - {"requirement_acceptance_canary_reviews"}
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "upgrade", "head")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == EXPECTED_TABLES
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "20260803_0009")

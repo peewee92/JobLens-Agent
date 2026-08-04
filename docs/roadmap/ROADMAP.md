@@ -141,7 +141,7 @@ Profile 页面可以明确区分：
 6. `confidence` / `extractorVersion`；
 7. `Requirement Eval` 数据集与断言。
 
-### 当前进度（2026-08-03）
+### 当前进度（2026-08-05）
 
 - `JobRequirementExtraction` 与逐条 `JobRequirement` 已按不可变版本持久化；
 - strict Structured Output Adapter、exact `originalText/evidenceSpan` 门禁与 Requirement Trace 已完成；
@@ -149,9 +149,23 @@ Profile 页面可以明确区分：
 - 10-case 脱敏 Requirement Eval、Fixture Gate、失败案例解释和独立 CLI 已完成；
 - Requirement Eval Run / Case Result 已不可变持久化，支持 Trace 回查、Fixture/Live 发布资格隔离和历史 baseline 对比；
 - 不可变 Requirement 人工 Review、Accepted Baseline、CLI baseline 选择、质量历史页与逐 Case Web 审查已完成；
+- 版本冻结的 1–20 Case Manual Review Batch、stale 检测和 formal/practice 证据区分已完成；
+- Manual Review Batch Final Quality Decision 已完成：`formalEvidenceEligible` 只表示 20 Case 正式证据完整，不自动代表模型通过；Batch Owner 可提交唯一不可变 `accept_for_match/reject_for_match`，结论冻结计数、issue 分布与完整 evidence fingerprint；只有当前未 stale 的人工 accepted Batch 才由 accepted-baseline Query 暴露给后续 Match，证据变旧会自动撤销门禁但保留历史结论；
+- Job Requirement Fact Release Gate 已完成：以当前 Job JD hash、latest Extraction、逐条 Requirement、Trace 和 human-accepted baseline 构造只读信任链；只有输入当前、cohort 精确一致、Trace 成功且输入/逐字段输出与数据库完全一致时 `releaseEligible=true`，Job 详情页展示结构化 blockers；该 Gate 不运行 Match，也不产生 Provider/DB 写入；
+- 从 Collector 正式 20-JD 数据集到 Import → resumable Extraction → exact Review Batch 的 CLI 编排已完成；同输入同 cohort 会复用，部分失败不会创建不完整 Batch；
+- Requirement Acceptance Run / 20 Case 运行控制、零调用 Preflight、显式 live canary 上限和失败 Trace 保留已完成；
+- 累计第 4 次 live 调用前的不可变人工 Canary `continue/stop` 门禁已完成，Review 冻结 Case/Extraction/Trace IDs；
+- Canary Review Web Workbench 已完成：可浏览 Run、完整 JD、精确 Extraction、Requirements/evidenceSpan 与 Trace 摘要，并通过同源短命令提交不可变判断；浏览器仍不能启动长 Provider 任务；
+- Live Acceptance Readiness Gate 已完成：在零写入、零 Provider 调用下检查 formal dataset、live config、API Key 是否存在、动态 Alembic head、Existing Run 与请求预算，并输出唯一 nextAction、结构化 blockers、Workbench/Manual Review URL 和无密钥 command preview；
+- Read-only Requirement Acceptance Readiness Dashboard 已完成：Backend 只扫描服务端 canonical private dataset 目录，区分 missing/multiple/invalid/ready，复用 CLI 同一 DB/Alembic 只读事实和 Readiness Policy；Web 只展示 blockers、唯一 nextAction、Run/Batch handoff 与零副作用证据，不接收任意路径、不返回密钥/命令/JD，也不能启动 Provider、迁移或 Resume；
+- Live Canary Session Manifest 已完成：用 Dataset Fingerprint + Reviewer/Title + Provider/Model/Extractor/Prompt 生成稳定 Session ID，并原子导出 Readiness、Run/Case/Trace/Review/Batch 引用、隐私边界和完成清单；不复制 API Key、完整 JD、Raw Trace 或人工 Notes 正文；
+- Guarded Local Live Bootstrap 已完成：默认 Plan 零 operational mutation，显式 Apply 后将 formal dataset 以 Hash 校验方式写入 `data/private`，对 SQLite 执行 online backup、integrity/revision 验证和 Alembic upgrade，并在 post-check 后重新运行 Readiness；backup/migration failure 均 fail-closed，不调用 Provider、不自动 restore；
+- Resumable Database Preparation Checkpoint 已完成：以数据库绝对路径 + Alembic Head 生成稳定操作 ID，按 `planned → backup_verified → migration_attempted → applied` 持久化私有 Receipt；只有未尝试的 verified backup 可自动续跑，inconclusive attempt 禁止重试，到 Head 但 Receipt 未完成时可基于 DB facts 恢复；本地真实 DB 已从 `20260803_0010` 升级到 `20260804_0013`，旧 Revision Backup、Hash、Integrity、新 Schema 与幂等重跑均已验证；
+- Explicit Live Canary Operator 已完成：只接受 fingerprint-addressed canonical private dataset，将 read-only Readiness 与 Provider 副作用分离，要求 `--execute-canary` 和成本/人工审核双确认；执行前后原子更新 Session Manifest，以 Run Case `attemptCount` 增量、Extraction ID 和 Trace ID证明本次证据；第三次累计 Attempt 后只返回 Workbench，不能自动 Continue/Stop，也不提供 Fixture 路径；
+- Controlled Resume Operator 已完成：只允许 `nextAction=resume_run`，显式绑定 canonical Dataset、Run ID、不可变 Continue Review ID 和剩余 Case 预算；执行前验证冻结 Case/Extraction/Trace 证据，复用数据库 Execution Lease，部分完成时生成下一次专用 Resume 计划命令，20 Case 完成时只交接 frozen Manual Review Batch；
 - Fixture 不能正式 Review，失败 Live 只能 rejected，合格 Live accepted 后才能成为正式 baseline；
 - Job 详情页可显式触发新版本并展示 Requirement ID、importance、evidenceSpan、confidence 与 Trace；
-- 尚未完成真实 Provider 评测和 20 个真实岗位人工验收，因此当前 Accepted Baseline 机制只有 simulated-live/Smoke 工程证据，不能将其视为生产模型质量结论，也不进入 Match。
+- 尚未完成带真实凭据的 20-job Provider Extraction、逐条人工决策和真实 Batch Final Decision，因此当前只有工程门禁证据，仍不能视为生产模型质量结论，也不进入 Match。
 
 ### 验收
 

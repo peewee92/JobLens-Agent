@@ -2,6 +2,7 @@ import Link from "next/link";
 import {notFound} from "next/navigation";
 
 import {RequirementCaseReviewForm} from "@/components/requirement-case-review-form";
+import {RequirementReviewFinalDecisionForm} from "@/components/requirement-review-final-decision-form";
 import {ServiceError} from "@/components/service-error";
 import {BackendApiError, fetchRequirementReviewBatch} from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
@@ -12,7 +13,9 @@ import {
 } from "@/lib/job-requirements";
 import {
   requirementReviewEvidenceLabel,
+  requirementReviewFinalDecisionLabel,
   requirementReviewIssueLabels,
+  requirementReviewMatchGateLabel,
   sortRequirementReviewCases,
 } from "@/lib/requirement-reviews";
 
@@ -38,6 +41,7 @@ export default async function RequirementManualReviewDetailPage({
 
   const cases = sortRequirementReviewCases(detail.cases);
   const evidenceLabel = requirementReviewEvidenceLabel(detail.summary);
+  const matchGateLabel = requirementReviewMatchGateLabel(detail.summary);
 
   return (
     <>
@@ -60,6 +64,7 @@ export default async function RequirementManualReviewDetailPage({
         <div className="summary-card"><span>Accepted</span><strong>{detail.summary.acceptedCount}</strong></div>
         <div className="summary-card"><span>Rejected</span><strong>{detail.summary.rejectedCount}</strong></div>
         <div className="summary-card"><span>Stale</span><strong>{detail.summary.staleCaseCount}</strong></div>
+        <div className="summary-card"><span>Match Gate</span><strong>{detail.summary.matchReleaseEligible ? "Allowed" : "Blocked"}</strong></div>
       </div>
 
       <section className="detail-grid">
@@ -161,6 +166,55 @@ export default async function RequirementManualReviewDetailPage({
           </div>
 
           <section className="detail-section">
+            <h3>批次最终质量结论</h3>
+            <p className="notice">{matchGateLabel}</p>
+            {detail.finalDecision ? (
+              <div
+                className={`review-result ${detail.finalDecision.decision === "accept_for_match" ? "review-accepted" : "review-rejected"}`}
+              >
+                <strong>
+                  {requirementReviewFinalDecisionLabel(detail.finalDecision.decision)}
+                </strong>
+                <p>{detail.finalDecision.notes}</p>
+                <div className="meta-list compact-meta">
+                  <div>
+                    <span className="meta-label">Decision Reviewer</span>
+                    <strong>{detail.finalDecision.reviewer}</strong>
+                  </div>
+                  <div>
+                    <span className="meta-label">Decision Time</span>
+                    <strong>{formatDateTime(detail.finalDecision.decidedAt)}</strong>
+                  </div>
+                  <div>
+                    <span className="meta-label">Frozen Counts</span>
+                    <strong>
+                      {detail.finalDecision.acceptedCount} accepted / {detail.finalDecision.rejectedCount} rejected
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="meta-label">Evidence Fingerprint</span>
+                    <strong className="code">{detail.finalDecision.evidenceFingerprint}</strong>
+                  </div>
+                </div>
+                {detail.finalDecision.decision === "accept_for_match" && !detail.summary.matchReleaseEligible ? (
+                  <p className="inline-error">
+                    该历史结论仍被保留，但当前 Batch 已不满足正式证据条件，Match 门禁已自动撤销。
+                  </p>
+                ) : null}
+              </div>
+            ) : detail.summary.formalEvidenceEligible ? (
+              <RequirementReviewFinalDecisionForm
+                batchId={detail.summary.id}
+                reviewer={detail.summary.reviewer}
+              />
+            ) : (
+              <p className="notice">
+                只有正好 20 条、全部完成、当前版本且非 Fixture 的证据，才能提交批次级最终结论。
+              </p>
+            )}
+          </section>
+
+          <section className="detail-section">
             <h3>问题分布</h3>
             {Object.keys(detail.issueCodeCounts).length === 0 ? (
               <p className="notice">尚无 rejected Case 或结构化问题。</p>
@@ -181,7 +235,7 @@ export default async function RequirementManualReviewDetailPage({
           <section className="detail-section">
             <h3>正式证据条件</h3>
             <p className="notice">
-              需要正好 20 条、全部人工审查、没有 stale Case、Provider 不是 Fixture。满足这些条件只表示证据结构有效，不代表模型质量自动通过。
+              需要正好 20 条、全部人工审查、没有 stale Case、Provider 不是 Fixture。满足这些条件只表示证据结构有效；只有不可变 Final Decision 为 accept_for_match 且证据仍为当前版本时，Match 门禁才会放行。
             </p>
           </section>
         </aside>

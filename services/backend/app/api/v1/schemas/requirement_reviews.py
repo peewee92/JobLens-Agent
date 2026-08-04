@@ -7,7 +7,10 @@ from datetime import datetime
 from app.api.v1.schemas.common import CamelCaseModel
 from app.api.v1.schemas.job_requirements import JobRequirementResponse
 from app.application.requirement_reviews import (
+    AcceptedRequirementReviewBaseline,
     RequirementReviewBatchCaseDetail,
+    RequirementReviewBatchFinalDecision,
+    RequirementReviewBatchFinalDecisionDetail,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
     RequirementReviewBatchSummary,
@@ -71,6 +74,12 @@ class RequirementReviewCaseReviewRequest(CamelCaseModel):
     notes: str
 
 
+class RequirementReviewBatchFinalDecisionRequest(CamelCaseModel):
+    decision: RequirementReviewBatchFinalDecision
+    reviewer: str
+    notes: str
+
+
 class RequirementReviewCaseReviewResponse(CamelCaseModel):
     id: str
     batch_case_id: str
@@ -94,6 +103,29 @@ class RequirementReviewCaseReviewResponse(CamelCaseModel):
         )
 
 
+class RequirementReviewBatchFinalDecisionResponse(CamelCaseModel):
+    id: str
+    batch_id: str
+    decision: RequirementReviewBatchFinalDecision
+    reviewer: str
+    notes: str
+    sample_size: int
+    reviewed_count: int
+    accepted_count: int
+    rejected_count: int
+    stale_case_count: int
+    issue_code_counts: dict[str, int]
+    evidence_fingerprint: str
+    decided_at: datetime
+
+    @classmethod
+    def from_detail(
+        cls,
+        detail: RequirementReviewBatchFinalDecisionDetail,
+    ) -> "RequirementReviewBatchFinalDecisionResponse":
+        return cls(**asdict(detail))
+
+
 class RequirementReviewBatchSummaryResponse(CamelCaseModel):
     id: str
     title: str
@@ -109,6 +141,8 @@ class RequirementReviewBatchSummaryResponse(CamelCaseModel):
     stale_case_count: int
     completed: bool
     formal_evidence_eligible: bool
+    final_decision: RequirementReviewBatchFinalDecision | None
+    match_release_eligible: bool
     created_at: datetime
 
     @classmethod
@@ -170,6 +204,7 @@ class RequirementReviewBatchDetailResponse(CamelCaseModel):
     summary: RequirementReviewBatchSummaryResponse
     issue_code_counts: dict[str, int]
     cases: list[RequirementReviewBatchCaseResponse]
+    final_decision: RequirementReviewBatchFinalDecisionResponse | None
 
     @classmethod
     def from_detail(
@@ -180,6 +215,32 @@ class RequirementReviewBatchDetailResponse(CamelCaseModel):
             summary=RequirementReviewBatchSummaryResponse.from_summary(detail.summary),
             issue_code_counts=dict(detail.issue_code_counts),
             cases=[RequirementReviewBatchCaseResponse.from_detail(item) for item in detail.cases],
+            final_decision=(
+                RequirementReviewBatchFinalDecisionResponse.from_detail(
+                    detail.final_decision
+                )
+                if detail.final_decision is not None
+                else None
+            ),
+        )
+
+
+class AcceptedRequirementReviewBaselineResponse(CamelCaseModel):
+    decision: RequirementReviewBatchFinalDecisionResponse
+    batch: RequirementReviewBatchSummaryResponse
+    issue_code_counts: dict[str, int]
+
+    @classmethod
+    def from_baseline(
+        cls,
+        baseline: AcceptedRequirementReviewBaseline,
+    ) -> "AcceptedRequirementReviewBaselineResponse":
+        return cls(
+            decision=RequirementReviewBatchFinalDecisionResponse.from_detail(
+                baseline.decision
+            ),
+            batch=RequirementReviewBatchSummaryResponse.from_summary(baseline.batch),
+            issue_code_counts=dict(baseline.issue_code_counts),
         )
 
 
