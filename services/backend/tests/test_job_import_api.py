@@ -96,6 +96,37 @@ def test_post_job_imports_returns_201_and_persists_complete_batch(
         assert item.outcome is ImportOutcome.CREATED
 
 
+def test_collector_v140_quality_evidence_is_accepted_and_preserved(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    payload = load_report()
+    payload["version"] = "1.4.0"
+    payload["jobs"][0].update(
+        {
+            "detailAttempted": True,
+            "detailSucceeded": True,
+            "descriptionSource": "selector:.job-sec-text",
+            "descriptionQuality": "full_jd",
+            "descriptionLength": len(payload["jobs"][0]["description"]),
+            "descriptionHash": "fnv1a32:12345678",
+            "requirementReviewEligible": True,
+            "requirementReviewIneligibilityReasons": [],
+        }
+    )
+
+    response = client.post("/api/v1/job-imports", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["sourceVersion"] == "1.4.0"
+    with factory() as session:
+        source = session.scalar(select(JobSourceORM))
+        assert source is not None
+        assert source.source_version == "1.4.0"
+        assert source.source_raw["descriptionQuality"] == "full_jd"
+        assert source.source_raw["requirementReviewEligible"] is True
+
+
 def test_reimport_returns_updated_without_duplicate_job(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

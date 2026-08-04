@@ -66,6 +66,9 @@ def make_detail() -> JobDetail:
         source=item.source,
         source_url=item.source_url,
         source_version=item.source_version,
+        description_quality=None,
+        requirement_review_eligible=None,
+        requirement_review_ineligibility_reasons=(),
         collected_at=item.collected_at,
     )
 

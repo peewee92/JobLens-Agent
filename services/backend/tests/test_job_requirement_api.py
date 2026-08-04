@@ -126,6 +126,8 @@ def _seed_job(
     *,
     suffix: str,
     description: str | None,
+    source_version: str = "test",
+    source_raw: dict | None = None,
 ) -> str:
     job = JobORM(
         id=f"job_{suffix}",
@@ -144,8 +146,8 @@ def _seed_job(
             source_job_id=suffix,
             source_url=f"https://example.test/jobs/{suffix}",
             normalized_source_url=f"https://example.test/jobs/{suffix}",
-            source_version="test",
-            source_raw={},
+            source_version=source_version,
+            source_raw=source_raw or {},
         )
     )
     with factory() as session:
@@ -249,6 +251,66 @@ def test_missing_description_returns_422_without_trace_or_run(
             )
             or 0
         ) == 0
+
+
+def test_collector_v140_ineligible_description_is_blocked_before_model_call(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    job_id = _seed_job(
+        factory,
+        suffix="cardonly",
+        description="AI Agent 工程师 15-25K 3-5年 本科 武汉",
+        source_version="1.4.0",
+        source_raw={
+            "descriptionQuality": "card_only",
+            "requirementReviewEligible": False,
+            "requirementReviewIneligibilityReasons": [
+                "detail_not_attempted",
+                "missing_full_jd",
+            ],
+        },
+    )
+
+    response = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "job_description_not_extractable"
+    assert "card_only" in response.json()["error"]["message"]
+    with factory() as session:
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+        assert int(
+            session.scalar(
+                select(func.count()).select_from(JobRequirementExtractionORM)
+            )
+            or 0
+        ) == 0
+
+
+def test_collector_v140_full_jd_can_run_requirement_extraction(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    job_id = _seed_job(
+        factory,
+        suffix="fulljd",
+        description=(
+            "岗位职责：负责 AI Agent 应用设计、开发和线上问题排查。\n"
+            "任职要求：熟练掌握 Python 和 FastAPI，具备三年以上后端开发经验。\n"
+            "有 Docker、RAG 和工具调用工作流经验者优先。"
+        ),
+        source_version="1.4.0",
+        source_raw={
+            "descriptionQuality": "full_jd",
+            "requirementReviewEligible": True,
+            "requirementReviewIneligibilityReasons": [],
+        },
+    )
+
+    response = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+
+    assert response.status_code == 201
+    assert response.json()["requirementCount"] > 0
 
 
 def test_disabled_and_invalid_provider_results_map_to_stable_errors(

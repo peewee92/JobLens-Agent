@@ -8,6 +8,15 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 const lib = context.BossJobFilterLib;
 
+assert.strictEqual(
+  lib.cleanMultiline('岗位职责：\r\n  1. 负责 Agent  开发\n\n\n任职要求：\n\t2. 熟悉 Python'),
+  '岗位职责：\n1. 负责 Agent 开发\n\n任职要求：\n2. 熟悉 Python'
+);
+assert.strictEqual(
+  lib.limitMultilineText('职责：\n1. 开发\n2. 测试', 100),
+  '职责：\n1. 开发\n2. 测试'
+);
+
 const cases = [
   ['-K', 15, 30],
   ['-K', 25, 50],
