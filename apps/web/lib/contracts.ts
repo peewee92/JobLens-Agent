@@ -142,6 +142,9 @@ export interface JobDetail extends JobListItem {
   education: string | null;
   description: string | null;
   skills: string[];
+  descriptionQuality: string | null;
+  requirementReviewEligible: boolean | null;
+  requirementReviewIneligibilityReasons: string[];
 }
 
 export interface JobPage {
@@ -391,6 +394,109 @@ export interface AcceptedRequirementEvalBaseline {
 export interface RequirementEvalReviewPayload {
   decision: RequirementEvalReviewDecision;
   reviewer: string;
+  notes: string;
+}
+
+export type RequirementReviewDecision = "accepted" | "rejected";
+export type RequirementReviewIssueCode =
+  | "missing_requirement"
+  | "unsupported_requirement"
+  | "wrong_importance"
+  | "wrong_type"
+  | "wrong_normalization"
+  | "evidence_mismatch"
+  | "duplicate_requirement"
+  | "other";
+
+export interface RequirementReviewCandidate {
+  extractionId: string;
+  jobId: string;
+  title: string;
+  company: string;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  traceRunId: string;
+  requirementCount: number;
+  createdAt: string;
+}
+
+export interface RequirementReviewCandidatePage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: RequirementReviewCandidate[];
+}
+
+export interface RequirementCaseReview {
+  id: string;
+  batchCaseId: string;
+  decision: RequirementReviewDecision;
+  issueCodes: RequirementReviewIssueCode[];
+  notes: string;
+  reviewedAt: string;
+}
+
+export interface RequirementReviewBatchSummary {
+  id: string;
+  title: string;
+  reviewer: string;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  sampleSize: number;
+  reviewedCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  staleCaseCount: number;
+  completed: boolean;
+  formalEvidenceEligible: boolean;
+  createdAt: string;
+}
+
+export interface RequirementReviewBatchCase {
+  id: string;
+  caseIndex: number;
+  jobId: string;
+  extractionId: string;
+  title: string;
+  company: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  extractorVersion: string;
+  promptVersion: string;
+  traceRunId: string;
+  createdAt: string;
+  isCurrent: boolean;
+  requirements: JobRequirement[];
+  review: RequirementCaseReview | null;
+}
+
+export interface RequirementReviewBatchDetail {
+  summary: RequirementReviewBatchSummary;
+  issueCodeCounts: Record<string, number>;
+  cases: RequirementReviewBatchCase[];
+}
+
+export interface RequirementReviewBatchPage {
+  total: number;
+  limit: number;
+  offset: number;
+  items: RequirementReviewBatchSummary[];
+}
+
+export interface CreateRequirementReviewBatchPayload {
+  title: string;
+  reviewer: string;
+  extractionIds: string[];
+}
+
+export interface RequirementCaseReviewPayload {
+  decision: RequirementReviewDecision;
+  issueCodes: RequirementReviewIssueCode[];
   notes: string;
 }
 

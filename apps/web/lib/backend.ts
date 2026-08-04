@@ -12,6 +12,9 @@ import type {
   AcceptedRequirementEvalBaseline,
   RequirementEvalRunDetail,
   RequirementEvalRunPage,
+  RequirementReviewBatchDetail,
+  RequirementReviewBatchPage,
+  RequirementReviewCandidatePage,
   SearchIntent,
   UserProfile,
 } from "@/lib/contracts";
@@ -173,5 +176,39 @@ export function fetchRequirementEvalRun(
 export function fetchAcceptedRequirementEvalBaseline(): Promise<AcceptedRequirementEvalBaseline | null> {
   return optionalJson<AcceptedRequirementEvalBaseline>(
     "/api/v1/requirement-evals/baseline/accepted",
+  );
+}
+
+export function fetchRequirementReviewCandidates(
+  limit = 100,
+  offset = 0,
+): Promise<RequirementReviewCandidatePage> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return backendJson<RequirementReviewCandidatePage>(
+    `/api/v1/requirement-review-batches/candidates?${query}`,
+  );
+}
+
+export function fetchRequirementReviewBatches(
+  limit = 20,
+  offset = 0,
+): Promise<RequirementReviewBatchPage> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return backendJson<RequirementReviewBatchPage>(
+    `/api/v1/requirement-review-batches?${query}`,
+  );
+}
+
+export function fetchRequirementReviewBatch(
+  batchId: string,
+): Promise<RequirementReviewBatchDetail> {
+  return backendJson<RequirementReviewBatchDetail>(
+    `/api/v1/requirement-review-batches/${encodeURIComponent(batchId)}`,
   );
 }

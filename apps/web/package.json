@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "smoke:e2e": "node scripts/smoke-e2e.mjs",
     "smoke:eval-review": "node scripts/profile-eval-review-smoke.mjs",
-    "smoke:requirement-review": "node scripts/requirement-eval-review-smoke.mjs"
+    "smoke:requirement-review": "node scripts/requirement-eval-review-smoke.mjs",
+    "smoke:manual-requirement-review": "node scripts/requirement-manual-review-smoke.mjs"
   },
   "dependencies": {
     "next": "16.2.12",

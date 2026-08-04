@@ -39,6 +39,11 @@ REQUIREMENT_EVAL_TABLES = {
     "requirement_eval_case_results",
     "requirement_eval_reviews",
 }
+REQUIREMENT_REVIEW_TABLES = {
+    "requirement_review_batches",
+    "requirement_review_batch_cases",
+    "requirement_review_case_reviews",
+}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
@@ -46,6 +51,7 @@ EXPECTED_TABLES = (
     | PROFILE_EVAL_TABLES
     | JOB_REQUIREMENT_TABLES
     | REQUIREMENT_EVAL_TABLES
+    | REQUIREMENT_REVIEW_TABLES
 )
 
 
@@ -204,6 +210,33 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         and item["referred_table"] == "trace_spans"
         for item in requirement_eval_case_foreign_keys
     )
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("requirement_review_batches")
+    } >= {"ck_requirement_review_batches_sample_size"}
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("requirement_review_batch_cases")
+    } == {
+        "uq_requirement_review_cases_batch_index",
+        "uq_requirement_review_cases_batch_extraction",
+    }
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints("requirement_review_case_reviews")
+    } == {"uq_requirement_review_case_reviews_case"}
+    assert {
+        item["name"]
+        for item in inspector.get_check_constraints("requirement_review_case_reviews")
+    } >= {"ck_requirement_review_case_reviews_decision"}
+    review_case_foreign_keys = inspector.get_foreign_keys(
+        "requirement_review_batch_cases"
+    )
+    assert any(
+        item["constrained_columns"] == ["extraction_id", "job_id"]
+        and item["referred_table"] == "job_requirement_extractions"
+        for item in review_case_foreign_keys
+    )
     extraction_foreign_keys = inspector.get_foreign_keys(
         "job_requirement_extractions"
     )
@@ -211,6 +244,19 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         item["constrained_columns"] == ["job_id"]
         and item["referred_table"] == "jobs"
         for item in extraction_foreign_keys
+    )
+    engine.dispose()
+
+    _run_alembic(database_url, "downgrade", "20260803_0009")
+
+    engine = create_engine(database_url)
+    assert set(inspect(engine).get_table_names()) == (
+        JOB_TABLES
+        | CAREER_CONTEXT_TABLES
+        | TRACE_TABLES
+        | PROFILE_EVAL_TABLES
+        | JOB_REQUIREMENT_TABLES
+        | REQUIREMENT_EVAL_TABLES
     )
     engine.dispose()
 

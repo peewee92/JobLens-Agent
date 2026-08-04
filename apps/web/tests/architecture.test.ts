@@ -119,6 +119,59 @@ test("Requirement Eval pages consume review facts instead of implementing backen
   }
 });
 
+test("Requirement manual review Clients call only same-origin proxies", async () => {
+  const batchForm = await readFile(
+    join(webRoot, "components/requirement-review-batch-form.tsx"),
+    "utf8",
+  );
+  const caseForm = await readFile(
+    join(webRoot, "components/requirement-case-review-form.tsx"),
+    "utf8",
+  );
+  assert.match(batchForm, /fetch\("\/api\/requirement-review-batches"/);
+  assert.match(caseForm, /`\/api\/requirement-review-batches\/\$\{encodeURIComponent\(batchId\)\}\/cases\/\$\{encodeURIComponent\(caseId\)\}\/review`/);
+  for (const source of [batchForm, caseForm]) {
+    assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
+    assert.doesNotMatch(source, /OPENAI_API_KEY|run_requirement_eval/);
+  }
+});
+
+test("Requirement manual review pages use server read models and no direct writes", async () => {
+  const listPage = await readFile(
+    join(webRoot, "app/evals/requirements/manual/page.tsx"),
+    "utf8",
+  );
+  const detailPage = await readFile(
+    join(webRoot, "app/evals/requirements/manual/[id]/page.tsx"),
+    "utf8",
+  );
+  for (const source of [listPage, detailPage]) {
+    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /JOBLENS_BACKEND_URL/);
+  }
+  assert.match(detailPage, /description/);
+  assert.match(detailPage, /traceRunId/);
+  assert.match(detailPage, /evidenceSpan/);
+});
+
+test("Requirement manual review Route Handlers only proxy Backend commands", async () => {
+  const createRoute = await readFile(
+    join(webRoot, "app/api/requirement-review-batches/route.ts"),
+    "utf8",
+  );
+  const reviewRoute = await readFile(
+    join(
+      webRoot,
+      "app/api/requirement-review-batches/[batchId]/cases/[caseId]/review/route.ts",
+    ),
+    "utf8",
+  );
+  for (const source of [createRoute, reviewRoute]) {
+    assert.match(source, /backendResponse/);
+    assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|formalEvidenceEligible/);
+  }
+});
+
 test("public contract types exclude raw and internal stream fields", async () => {
   const source = await readFile(join(webRoot, "lib/contracts.ts"), "utf8");
   for (const forbidden of [

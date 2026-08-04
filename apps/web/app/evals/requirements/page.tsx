@@ -35,6 +35,11 @@ export default async function RequirementEvalRunsPage() {
         <p className="lede">
           先检查缺失要求、importance 错误、禁止能力和 Trace，再决定是否把该 Live Run 设为正式 baseline。Fixture 通过不等于真实模型质量。
         </p>
+        <div className="actions">
+          <Link className="button" href="/evals/requirements/manual">
+            打开真实岗位人工验收
+          </Link>
+        </div>
       </section>
 
       <section className="detail-card">
