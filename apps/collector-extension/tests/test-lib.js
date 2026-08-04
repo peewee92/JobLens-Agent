@@ -13,6 +13,10 @@ assert.strictEqual(
   '岗位职责：\n1. 负责 Agent 开发\n\n任职要求：\n2. 熟悉 Python'
 );
 assert.strictEqual(
+  lib.cleanMultiline('具备较⾼的⼯程能⼒\u200b，熟悉 RAG。'),
+  '具备较高的工程能力，熟悉 RAG。'
+);
+assert.strictEqual(
   lib.limitMultilineText('职责：\n1. 开发\n2. 测试', 100),
   '职责：\n1. 开发\n2. 测试'
 );
@@ -181,11 +185,30 @@ const onsite = lib.detectRemote({ description: '该岗位不支持远程，必�
 assert.strictEqual(onsite.matched, false);
 assert.strictEqual(onsite.status, 'rejected');
 
-const noHomeOffice = lib.detectRemote({ detailText: '工作地址在武汉，不接受居家办公' });
+const noHomeOffice = lib.detectRemote({ description: '工作地址在武汉，不接受居家办公' });
 assert.strictEqual(noHomeOffice.matched, false);
 assert.strictEqual(noHomeOffice.status, 'rejected');
 assert.strictEqual(noHomeOffice.negative, true);
-assert.deepStrictEqual(Array.from(noHomeOffice.evidence), ['detailText']);
+assert.deepStrictEqual(Array.from(noHomeOffice.evidence), ['description']);
+
+const recommendedRemoteJob = lib.detectRemote({
+  title: 'AI Agent 工程师',
+  area: '武汉',
+  description: '负责企业级 Agent 平台研发。',
+  detailText: '更多职位：AI Agent 大模型应用工程师（全国远程）'
+});
+assert.strictEqual(recommendedRemoteJob.status, 'unknown');
+
+const remoteSupport = lib.detectRemote({
+  description: '在团队安排下参与客户现场或远程支持，协助完成上线验证。'
+});
+assert.strictEqual(remoteSupport.status, 'unknown');
+
+const remoteMonitoring = lib.detectRemote({
+  title: 'AI Agent 架构师',
+  description: '系统适配巡检、安防后台数据研判和远程监测。'
+});
+assert.strictEqual(remoteMonitoring.status, 'unknown');
 
 const notFullyRemote = lib.detectRemote({ description: '该岗位非全远程，需要每周到岗三天' });
 assert.strictEqual(notFullyRemote.matched, false);

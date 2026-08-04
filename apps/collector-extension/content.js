@@ -342,7 +342,9 @@
     const description = selectedDescription.description;
 
     const salary = findSalaryInText(bodyText, digitMap);
-    const remote = detectRemote({ detailText: bodyText, description });
+    // Remote status must come from bounded job evidence. The full page body also
+    // contains recommended jobs and operational phrases such as remote monitoring.
+    const remote = detectRemote({ description });
     const publishedAt = (bodyText.match(/(?:发布于|更新于|最近更新)\s*([^\s]{2,20})/) || [])[1] || '';
     const recruiterActive = (bodyText.match(/(刚刚活跃|今日活跃|本周活跃|近两周活跃|本月活跃)/) || [])[1] || '';
     const skills = extractSkills({ description, detailText: bodyText });

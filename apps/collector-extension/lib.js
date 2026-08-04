@@ -1,14 +1,17 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.4';
+  const VERSION = '1.4.5';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 
-  const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
+  const normalizeVisibleText = value => String(value ?? '')
+    .replace(/[\u2F00-\u2FD5\uF900-\uFAFF]/g, character => character.normalize('NFKC'))
+    .replace(/[\u200B\u2060\uFEFF]/g, '');
+  const clean = value => normalizeVisibleText(value).replace(/\s+/g, ' ').trim();
 
   function cleanMultiline(value) {
-    return String(value ?? '')
+    return normalizeVisibleText(value)
       .replace(/\r\n?/g, '\n')
       .split('\n')
       .map(line => line.replace(/[\t\u00A0 ]+/g, ' ').trim())
@@ -349,8 +352,10 @@
     return { ...map, ...evidence };
   }
 
-  const REMOTE_STRONG = /(全国远程|全远程|纯远程|完全远程|100%\s*远程|fully\s*remote|remote\s*only)/i;
-  const REMOTE_POSITIVE = /(可远程|支持远程|接受远程|远程(?:办公|工作|协作|岗位)?|居家办公|在家办公|可居家|不限地点|工作地点不限|全国可办公|全国办公|异地办公|线上办公|remote|work\s*from\s*home|\bwfh\b)/i;
+  const REMOTE_NON_WORK_SUFFIX = '(?:监测|控制|运维|支持|服务|诊断|操作|设备|系统|医疗|教学|协助|访问|连接|调试|巡检|调用|桌面)';
+  const REMOTE_STRONG = new RegExp(`(?:全国远程|全远程|纯远程|完全远程)(?!${REMOTE_NON_WORK_SUFFIX})|100%\\s*远程|fully\\s*remote|remote\\s*only`, 'i');
+  const REMOTE_POSITIVE = /(可(?:全)?远程|支持(?:全)?远程|接受(?:全)?远程|远程(?:办公|工作|协作|岗位)|居家办公|在家办公|可居家|不限地点|工作地点不限|全国可办公|全国办公|异地办公|线上办公|work\s*from\s*home|\bwfh\b)/i;
+  const REMOTE_TITLE_POSITIVE = new RegExp(`${REMOTE_POSITIVE.source}|远程(?!${REMOTE_NON_WORK_SUFFIX})|\\bremote\\b`, 'i');
   const REMOTE_NEGATIVE = /(?:不支持|不接受|不可|不能|拒绝|非)\s*(?:(?:全)?远程(?:办公|工作|协作|岗位)?|居家办公|在家办公|异地办公|线上办公|remote|work\s*from\s*home|\bwfh\b)|必须.{0,5}(?:到岗|坐班|驻场)|需.{0,5}(?:到岗|坐班|驻场)|仅限.{0,8}(?:本地|到岗|坐班)/i;
 
   function stripRemoteNegativePhrases(value = '') {
@@ -365,7 +370,6 @@
           area: input.area,
           tags: input.tags,
           rawText: input.rawText,
-          detailText: input.detailText,
           description: input.description
         };
     const sources = [];
@@ -379,7 +383,10 @@
       if (REMOTE_NEGATIVE.test(decoded)) negativeSources.push(key);
       const positiveCandidate = stripRemoteNegativePhrases(decoded);
       positiveText += ` ${positiveCandidate}`;
-      if (REMOTE_STRONG.test(positiveCandidate) || REMOTE_POSITIVE.test(positiveCandidate)) sources.push(key);
+      const positivePattern = key === 'title' || key === 'tags' || key === 'text'
+        ? REMOTE_TITLE_POSITIVE
+        : REMOTE_POSITIVE;
+      if (REMOTE_STRONG.test(positiveCandidate) || positivePattern.test(positiveCandidate)) sources.push(key);
     }
     fullText = clean(fullText);
     positiveText = clean(positiveText);
@@ -387,7 +394,7 @@
     const area = normalizeText(fields.area || '');
     const areaExact = /^(全国|不限地点|工作地点不限|线上|远程)(?:[·\-\s].*)?$/i.test(area);
     const strong = REMOTE_STRONG.test(positiveText) || areaExact;
-    const positive = REMOTE_POSITIVE.test(positiveText) || areaExact;
+    const positive = sources.length > 0 || areaExact;
     const negative = REMOTE_NEGATIVE.test(fullText);
 
     if (strong) {
