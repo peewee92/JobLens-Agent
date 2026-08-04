@@ -76,7 +76,7 @@ When `source` is supplied, primary-source selection is restricted to that source
 GET /api/v1/jobs/job_xxx
 ```
 
-The detail response adds `experience`, `education`, `description`, and `skills` to the list item fields.
+The detail response adds `experience`, `education`, `description`, `skills`, `descriptionQuality`, `requirementReviewEligible`, and `requirementReviewIneligibilityReasons` to the list item fields. Raw Collector payload remains private.
 
 Missing jobs return:
 

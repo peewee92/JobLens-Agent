@@ -46,7 +46,7 @@ Returns one immutable historical Extraction Run. `extractionId` must belong to `
 |---|---|---|
 | 404 | `job_not_found` | Job does not exist |
 | 404 | `job_requirement_extraction_not_found` | No latest extraction, or historical extraction not found for the Job |
-| 422 | `job_description_not_extractable` | Job description missing, too short, or above the maximum boundary |
+| 422 | `job_description_not_extractable` | Job description missing/outside boundaries, or Collector v1.4.0 marked it `card_only / partial_jd / unavailable` |
 | 502 | `requirement_extractor_failed` | Provider invocation or response parsing failed |
 | 502 | `invalid_requirement_extractor_output` | Structured output violated deterministic grounding/business rules |
 | 503 | `requirement_extractor_unavailable` | Provider is disabled or not configured |
@@ -57,6 +57,7 @@ A provider result is rejected unless:
 
 - at least one Requirement exists;
 - each `originalText` and `evidenceSpan` is non-blank;
+- Collector v1.4.0 inputs must have `descriptionQuality=full_jd` and `requirementReviewEligible=true` before any model call or Trace is created;
 - each `evidenceSpan` occurs as one contiguous substring of the persisted Job description;
 - `originalText` also occurs in the description;
 - confidence is in `[0, 1]`;

@@ -89,3 +89,15 @@ def new_requirement_eval_case_result_id() -> str:
 
 def new_requirement_eval_review_id() -> str:
     return new_prefixed_id("reqreview")
+
+
+def new_requirement_review_batch_id() -> str:
+    return new_prefixed_id("reqreviewbatch")
+
+
+def new_requirement_review_batch_case_id() -> str:
+    return new_prefixed_id("reqreviewcase")
+
+
+def new_requirement_review_case_review_id() -> str:
+    return new_prefixed_id("reqcasereview")

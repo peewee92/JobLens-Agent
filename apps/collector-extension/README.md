@@ -1,10 +1,21 @@
-# 岗位筛选 v1.3.1
+# 岗位筛选 v1.4.0
 
 一个运行在已登录 BOSS 直聘 Chrome 会话中的通用岗位搜索、采集、筛选与导出工具。
 
 产品名称不再限定为“AI 岗位整理器”。**AI/大模型只作为默认关键词模板和功能说明中的一个使用场景**：你可以把关键词替换为前端、产品、实施、交付、解决方案、FDE、销售或任何其他岗位。
 
-插件支持多城市搜索、全国远程识别、BOSS 私有字体薪资解码、薪资与相关度过滤、详情补采、去重统计，并导出 CSV、完整报告 JSON 与诊断 JSON。
+插件支持多城市搜索、全国远程识别、BOSS 私有字体薪资解码、薪资与相关度过滤、详情补采、JD 质量分级、去重统计，并导出 CSV、完整报告 JSON、诊断 JSON 与 JobLens Requirement 验收数据集。
+
+## v1.4.0：JobLens Requirement 验收数据
+
+- 默认详情补采改为“筛选通过岗位 + 远程候选”，并为已通过岗位预留最多 20 个详情名额；
+- 保留 JD 的换行、编号和职责/要求结构，便于人工对照 evidenceSpan；
+- 将“详情页读取成功”与“完整 JD 可验收”分离；
+- 新增 `full_jd / partial_jd / card_only / unavailable` 四级质量标记；
+- 页面全文兜底、过短文本和高噪声文本不能进入 Requirement 验收；
+- 新增 `descriptionSource / descriptionLength / descriptionHash / requirementReviewEligible` 等可追溯字段；
+- 自动导出最多 20 条 `full_jd` 的 Requirement 验收数据集；不足 20 条时明确输出 `blocked`，不使用卡片摘要凑数；
+- Collector 报告版本升级为 `1.4.0`，JobLens Backend 同时兼容 `1.3.1` 和 `1.4.0`。
 
 ## v1.3.1：产品定位与命名调整
 
@@ -63,32 +74,35 @@ Electron 开发工程师
 - 岗位分类、技能、城市、公司、搜索词贡献等统计；
 - 稳定去重并记录重复命中次数；
 - 异常时自动导出错误现场 JSON；
-- CSV、完整报告 JSON、诊断 JSON 自动下载。
+- CSV、完整报告 JSON、诊断 JSON 和 Requirement 验收数据集自动下载；
+- 完整 JD 质量分级与 20 条正式验收门禁。
 
 ## 新版导出文件名
 
 ```text
-boss-job-filter-v1.3.1-*.csv
-boss-job-filter-report-v1.3.1-*.json
-boss-job-filter-diagnostics-v1.3.1-*.json
-boss-job-filter-error-v1.3.1-*.json
+boss-job-filter-v1.4.0-*.csv
+boss-job-filter-report-v1.4.0-*.json
+boss-job-filter-diagnostics-v1.4.0-*.json
+boss-job-filter-requirement-review-v1.4.0-*.json
+boss-job-filter-error-v1.4.0-*.json
 ```
 
 旧版本已经保存的历史运行结果仍然可以通过插件读取和下载，不需要迁移。
 
 ## 安装或升级
 
-1. 解压 `boss-job-filter-extension-v1.3.1.zip`。
+1. 解压 `boss-job-filter-extension-v1.4.0.zip`。
 2. Chrome 打开 `chrome://extensions/`。
 3. 开启“开发者模式”。
 4. 删除或停用旧版，避免同时存在多个版本。
 5. 点击“加载已解压的扩展程序”。
-6. 选择解压后的 `boss-job-filter-extension-v1.3.1` 文件夹。
-7. 确认插件显示名称为 `岗位筛选`，版本为 `1.3.1`。
+6. 选择解压后的 `boss-job-filter-extension-v1.4.0` 文件夹。
+7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.0`。
 
 ## 安全与限制
 
 - 插件不会绕过验证码或安全验证；遇到验证需要人工完成。
 - 请控制搜索规模和运行频率。
-- BOSS 页面结构可能变化，真实页面选择器和字段仍需在本机登录环境中验证。
+- BOSS 页面结构可能变化，真实页面选择器和字段仍需在本机登录环境中验证；`body_fallback` 不会被当成正式 JD。
+- Requirement 正式人工质量验收需要 20 条 `full_jd`；详情页读取成功数不等于完整 JD 数。
 - 插件只读取职位搜索和详情页面，不会自动投递或发送消息。

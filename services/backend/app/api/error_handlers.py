@@ -40,6 +40,13 @@ from app.application.requirement_evals import (
     RequirementEvalRunAlreadyReviewedError,
     RequirementEvalRunNotFoundError,
 )
+from app.application.requirement_reviews import (
+    InvalidRequirementCaseReviewError,
+    InvalidRequirementReviewBatchError,
+    RequirementReviewBatchNotFoundError,
+    RequirementReviewCaseAlreadyReviewedError,
+    RequirementReviewCaseNotFoundError,
+)
 from app.application.profile_extraction import (
     InvalidProfileExtractorOutputError,
     InvalidResumeTextError,
@@ -361,6 +368,61 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "invalid_requirement_eval_review",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementReviewBatchNotFoundError)
+    async def handle_requirement_review_batch_not_found(
+        _request: Request,
+        error: RequirementReviewBatchNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "requirement_review_batch_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementReviewCaseNotFoundError)
+    async def handle_requirement_review_case_not_found(
+        _request: Request,
+        error: RequirementReviewCaseNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "requirement_review_case_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementReviewCaseAlreadyReviewedError)
+    async def handle_requirement_review_case_already_reviewed(
+        _request: Request,
+        error: RequirementReviewCaseAlreadyReviewedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "requirement_review_case_already_reviewed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementReviewBatchError)
+    async def handle_invalid_requirement_review_batch(
+        _request: Request,
+        error: InvalidRequirementReviewBatchError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_requirement_review_batch",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidRequirementCaseReviewError)
+    async def handle_invalid_requirement_case_review(
+        _request: Request,
+        error: InvalidRequirementCaseReviewError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "invalid_requirement_case_review",
             str(error),
         )
 

@@ -29,6 +29,11 @@ from app.db.models.requirement_eval import (
     RequirementEvalReviewORM,
     RequirementEvalRunORM,
 )
+from app.db.models.requirement_review import (
+    RequirementReviewBatchCaseORM,
+    RequirementReviewBatchORM,
+    RequirementReviewCaseReviewORM,
+)
 from app.db.models.trace_span import TraceSpanORM
 
 __all__ = [
@@ -50,5 +55,8 @@ __all__ = [
     "RequirementEvalCaseResultORM",
     "RequirementEvalReviewORM",
     "RequirementEvalRunORM",
+    "RequirementReviewBatchCaseORM",
+    "RequirementReviewBatchORM",
+    "RequirementReviewCaseReviewORM",
     "TraceSpanORM",
 ]

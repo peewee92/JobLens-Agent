@@ -29,6 +29,13 @@ from app.application.requirement_evals.use_cases import (
     ListRequirementEvalRunsUseCase,
     ReviewRequirementEvalRunUseCase,
 )
+from app.application.requirement_reviews.use_cases import (
+    CreateRequirementReviewBatchUseCase,
+    GetRequirementReviewBatchUseCase,
+    ListRequirementReviewBatchesUseCase,
+    ListRequirementReviewCandidatesUseCase,
+    ReviewRequirementBatchCaseUseCase,
+)
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
     AbstractCareerContextUnitOfWork,
@@ -42,6 +49,8 @@ from app.application.ports import (
     AbstractProfileExtractor,
     AbstractRequirementEvalQueryRepository,
     AbstractRequirementEvalReviewUnitOfWork,
+    AbstractRequirementReviewQueryRepository,
+    AbstractRequirementReviewUnitOfWork,
     AbstractResumeDocumentParser,
     AbstractTraceUnitOfWork,
     AbstractUnitOfWork,
@@ -61,6 +70,8 @@ from app.repositories import (
     SqlAlchemyProfileEvalReviewUnitOfWork,
     SqlAlchemyRequirementEvalQueryRepository,
     SqlAlchemyRequirementEvalReviewUnitOfWork,
+    SqlAlchemyRequirementReviewQueryRepository,
+    SqlAlchemyRequirementReviewUnitOfWork,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
@@ -76,6 +87,9 @@ TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 ProfileEvalReviewUnitOfWorkFactory = Callable[[], AbstractProfileEvalReviewUnitOfWork]
 RequirementEvalReviewUnitOfWorkFactory = Callable[
     [], AbstractRequirementEvalReviewUnitOfWork
+]
+RequirementReviewUnitOfWorkFactory = Callable[
+    [], AbstractRequirementReviewUnitOfWork
 ]
 JobRequirementUnitOfWorkFactory = Callable[[], AbstractJobRequirementUnitOfWork]
 
@@ -227,6 +241,60 @@ def get_accepted_requirement_eval_baseline_use_case(
     ),
 ) -> GetAcceptedRequirementEvalBaselineUseCase:
     return GetAcceptedRequirementEvalBaselineUseCase(repository)
+
+
+def get_requirement_review_query_repository() -> AbstractRequirementReviewQueryRepository:
+    return SqlAlchemyRequirementReviewQueryRepository(SessionLocal)
+
+
+def get_requirement_review_uow_factory() -> RequirementReviewUnitOfWorkFactory:
+    return lambda: SqlAlchemyRequirementReviewUnitOfWork(SessionLocal)
+
+
+def get_list_requirement_review_candidates_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+) -> ListRequirementReviewCandidatesUseCase:
+    return ListRequirementReviewCandidatesUseCase(repository)
+
+
+def get_create_requirement_review_batch_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+    uow_factory: RequirementReviewUnitOfWorkFactory = Depends(
+        get_requirement_review_uow_factory
+    ),
+) -> CreateRequirementReviewBatchUseCase:
+    return CreateRequirementReviewBatchUseCase(repository, uow_factory)
+
+
+def get_list_requirement_review_batches_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+) -> ListRequirementReviewBatchesUseCase:
+    return ListRequirementReviewBatchesUseCase(repository)
+
+
+def get_get_requirement_review_batch_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+) -> GetRequirementReviewBatchUseCase:
+    return GetRequirementReviewBatchUseCase(repository)
+
+
+def get_review_requirement_batch_case_use_case(
+    repository: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+    uow_factory: RequirementReviewUnitOfWorkFactory = Depends(
+        get_requirement_review_uow_factory
+    ),
+) -> ReviewRequirementBatchCaseUseCase:
+    return ReviewRequirementBatchCaseUseCase(repository, uow_factory)
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:

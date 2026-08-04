@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0
+
+- 默认补采筛选通过岗位和远程候选，并为 Requirement 验收预留最多 20 个通过岗位名额。
+- 详情 JD 保留换行、编号和职责/要求结构。
+- 新增 `descriptionSource`、`descriptionQuality`、`descriptionLength`、`descriptionHash` 和验收资格字段。
+- 将详情页读取成功与完整 JD 质量分离；页面正文兜底不能作为正式验收证据。
+- 新增 `full_jd / partial_jd / card_only / unavailable` 质量分级和诊断计数。
+- 自动导出 `boss-job-filter-requirement-review-v1.4.0-*.json`；只有 20 条完整 JD 时标记 `ready`。
+- 完整报告增加 `source/sourceUrl/sourceVersion`，可直接进入 JobLens 1.4.0 导入与抽取门禁。
+
 ## 1.3.1
 
 - 产品正式名称由“BOSS AI 岗位整理器”调整为“岗位筛选”。

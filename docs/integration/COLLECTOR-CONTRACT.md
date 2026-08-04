@@ -23,11 +23,11 @@
 
 ## 2. 当前 Collector Report 结构
 
-v1.3.1 主要结构：
+v1.4.0 主要结构（Backend 同时兼容 v1.3.1）：
 
 ```json
 {
-  "version": "1.3.1",
+  "version": "1.4.0",
   "generatedAt": "...",
   "config": {},
   "statistics": {},
@@ -75,6 +75,17 @@ url
 collectedAt
 rawText
 description
+descriptionSource
+descriptionQuality
+descriptionLength
+descriptionHash
+detailAttempted
+detailSucceeded
+requirementReviewEligible
+requirementReviewIneligibilityReasons
+source
+sourceUrl
+sourceVersion
 ```
 
 ### 导入原则
@@ -84,7 +95,9 @@ description
 3. Agent 侧的 skill extraction 不覆盖 Collector 原字段；
 4. Derived field 标记提取器版本；
 5. Backend 生成、持久化并版本化 internal canonical job key；
-6. `remoteStatus` 使用 `confirmed` / `rejected` / `unknown` 三态，不压缩成布尔值。
+6. `remoteStatus` 使用 `confirmed` / `rejected` / `unknown` 三态，不压缩成布尔值；
+7. Collector v1.4.0 的 JD 质量字段作为 Requirement Extraction 的输入门禁证据，但仍原样保存在 `JobSource.source_raw`；
+8. `detailSucceeded=true` 只表示详情页读取成功，不能替代 `requirementReviewEligible=true`。
 
 canonical key v1：
 
@@ -110,7 +123,7 @@ JobSource.sourceJobId
 
 ### 远程状态映射
 
-Collector v1.3.1 当前已经输出：
+Collector v1.3.1+ 当前已经输出：
 
 ```text
 remoteStatus: confirmed | rejected | unknown
@@ -135,7 +148,7 @@ Content-Type: application/json
 ```json
 {
   "importId": "...",
-  "sourceVersion": "1.3.1",
+  "sourceVersion": "1.4.0",
   "received": 120,
   "created": 85,
   "updated": 30,
@@ -146,7 +159,25 @@ Content-Type: application/json
 
 ---
 
-## 5. P1 插件同步 API
+## 5. Requirement 人工质量验收数据集
+
+Collector v1.4.0 额外导出：
+
+```text
+boss-job-filter-requirement-review-v1.4.0-*.json
+```
+
+该文件仍符合 Job Import 顶层结构，但 `jobs` 只包含：
+
+```text
+descriptionQuality = full_jd
+requirementReviewEligible = true
+detailSucceeded = true
+```
+
+`qualityGate.status=ready` 仅表示已选满 20 条完整 JD；少于 20 条时必须为 `blocked`，不能使用卡片摘要或页面正文兜底凑数。
+
+## 6. P1 插件同步 API
 
 插件增加：
 
@@ -168,9 +199,9 @@ API Token
 
 ---
 
-## 6. 向后兼容
+## 7. 向后兼容
 
-Agent Importer 不应强耦合 `1.3.1`。
+Agent Importer 当前显式支持 `1.3.1` 与 `1.4.0`，未来仍不应把业务代码强耦合到单一版本。
 
 建议：
 

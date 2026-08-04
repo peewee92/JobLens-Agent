@@ -73,15 +73,17 @@ JobLens-Agent/
 
 ## 现有资产
 
-`apps/collector-extension` 已包含岗位筛选插件 v1.3.1，当前负责：
+`apps/collector-extension` 已包含岗位筛选插件 v1.4.0，当前负责：
 
 - BOSS 岗位搜索与采集
 - 多城市与全国远程
 - 薪资过滤与 BOSS 字体混淆解码
 - 岗位去重
-- 详情补采
+- 详情补采与 JD 多行结构保真
+- `full_jd / partial_jd / card_only / unavailable` 质量分级
+- Requirement 验收资格与 20 条数据集门禁
 - 基础技能标签
-- CSV / JSON / diagnostics 导出
+- CSV / JSON / diagnostics / Requirement review dataset 导出
 
 在新系统中，它被定位为 **Job Collector**，只负责获取真实岗位数据，不承担职业判断与 LLM 分析。
 
