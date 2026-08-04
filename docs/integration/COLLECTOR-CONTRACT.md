@@ -23,11 +23,11 @@
 
 ## 2. 当前 Collector Report 结构
 
-v1.4.3 主要结构（Backend 同时兼容 v1.3.1 至 v1.4.3）：
+v1.4.4 主要结构（Backend 同时兼容 v1.3.1 至 v1.4.4）：
 
 ```json
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "generatedAt": "...",
   "config": {},
   "statistics": {},
@@ -83,6 +83,9 @@ descriptionStopMarker
 descriptionQuality
 descriptionLength
 descriptionHash
+descriptionHasRoleEvidenceSignal
+descriptionResponsibilitySignalCount
+descriptionRequirementSignalCount
 descriptionNoiseCount
 detailAttempted
 detailSucceeded
@@ -135,7 +138,7 @@ remoteStatus: confirmed | rejected | unknown
 remoteConfidence: high | medium | low
 ```
 
-Backend 保留这两个语义；普通“远程岗位”筛选指 `remoteStatus=confirmed`，不能把 `unknown` 当作 `rejected`。
+Backend 保留这两个语义；普通“远程岗位”筛选指 `remoteStatus=confirmed`，不能把 `unknown` 当作 `rejected`。v1.4.4 会先剥离“不接受居家办公 / 不支持远程办公 / 非全远程”等否定短语，再判断剩余正向证据，避免否定句中的“远程/居家办公”被误判；“全国远程”属于 high-confidence strong evidence。diagnostics 中 `remoteConfirmed` 使用最终岗位口径，`candidateRemoteConfirmed` 使用全部候选口径。
 
 ---
 
@@ -153,7 +156,7 @@ Content-Type: application/json
 ```json
 {
   "importId": "...",
-  "sourceVersion": "1.4.3",
+  "sourceVersion": "1.4.4",
   "received": 120,
   "created": 85,
   "updated": 30,
@@ -166,23 +169,24 @@ Content-Type: application/json
 
 ## 5. Requirement 人工质量验收数据集
 
-Collector v1.4.3 额外导出：
+Collector v1.4.4 额外导出：
 
 ```text
-boss-job-filter-requirement-review-v1.4.3-*.json
+boss-job-filter-requirement-review-v1.4.4-*.json
 ```
 
 该文件仍符合 Job Import 顶层结构，但 `jobs` 只包含：
 
 ```text
 descriptionQuality = full_jd
+descriptionHasRoleEvidenceSignal = true
 requirementReviewEligible = true
 detailSucceeded = true
 ```
 
-`qualityGate.status=ready` 仅表示已选满 20 条独立完整 JD。`eligibleCount` 是原始合格岗位数，`distinctEligibleCount` 是移除近重复 JD 后的独立样本数；门禁依据后者。招聘者资料尾部、卡片摘要、页面正文兜底和近重复代招岗位都不能用于凑数。被排除的近重复岗位记录在 `excludedNearDuplicates`。
+`qualityGate.status=ready` 仅表示已选满 20 条独立完整 JD。`eligibleCount` 是原始合格岗位数，`distinctEligibleCount` 是移除近重复 JD 后的独立样本数；门禁依据后者。招聘者资料尾部、卡片摘要、页面正文兜底、纯公司介绍/业务宣传和近重复代招岗位都不能用于凑数。岗位证据由标准职责/要求标题，或足够的职责动作与任职条件支持；被排除的近重复岗位记录在 `excludedNearDuplicates`。
 
-v1.4.3 在默认 `detailMode=matched / detailLimit=40` 下，优先为已通过岗位安排最多 30 个详情名额，再为全国远程候选安排剩余名额。报告和诊断通过 `detailTargetsPlannedAccepted / detailTargetsPlannedRemoteCandidates / detailTargetsDeferredAccepted` 记录配额计划；这些字段只解释采集覆盖率，不改变 JD 质量门禁。
+v1.4.4 延续 v1.4.3 的详情配额策略：默认 `detailMode=matched / detailLimit=40` 下，优先为已通过岗位安排最多 30 个详情名额，再为全国远程候选安排剩余名额。报告和诊断通过 `detailTargetsPlannedAccepted / detailTargetsPlannedRemoteCandidates / detailTargetsDeferredAccepted` 记录配额计划；这些字段只解释采集覆盖率，不改变 JD 质量门禁。
 
 ## 6. P1 插件同步 API
 
@@ -208,7 +212,7 @@ API Token
 
 ## 7. 向后兼容
 
-Agent Importer 当前显式支持 `1.3.1`、`1.4.0`、`1.4.1`、`1.4.2` 与 `1.4.3`，未来仍不应把业务代码强耦合到单一版本。
+Agent Importer 当前显式支持 `1.3.1`、`1.4.0`、`1.4.1`、`1.4.2`、`1.4.3` 与 `1.4.4`，未来仍不应把业务代码强耦合到单一版本。
 
 建议：
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.4
+
+- 修复可信详情节点中的纯公司介绍、业务宣传、团队荣誉等长文本被误判为 `full_jd` 的问题。
+- `full_jd` 新增岗位证据内容门禁：标准职责/要求标题，或足够的职责动作与任职条件，才能进入 Requirement 正式验收。
+- 新增 `descriptionHasRoleEvidenceSignal`、职责证据计数和要求证据计数，完整报告、诊断与 CSV 可追踪判定依据。
+- 详情正文开头孤立的闭合括号会被清理，减少 evidence span 格式噪声。
+- 修复“不接受居家办公”等否定短语被正向关键词“居家办公”覆盖的问题，并将“全国远程”提升为高置信度证据。
+- diagnostics 的 `remoteConfirmed` 改为最终岗位口径，新增 `candidateRemoteConfirmed` 保留候选口径。
+- Backend 增加 Collector v1.4.4 导入与 Requirement Extraction 门禁兼容。
+
 ## 1.4.3
 
 - 修复 v1.4.2 在 40 个详情名额中只为已通过岗位预留 20 个，导致近重复 JD 出现后无法凑齐 20 条独立正式样本的问题。

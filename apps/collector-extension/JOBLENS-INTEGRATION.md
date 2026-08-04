@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.3, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.4, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -12,17 +12,17 @@ Upload the full report to:
 
 ```text
 POST /api/v1/job-imports
-boss-job-filter-report-v1.4.3-*.json
+boss-job-filter-report-v1.4.4-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 through v1.4.3. Collector v1.4.3 preserves the v1.4.2 quality gate and adds accepted-job detail overfetch plus allocation diagnostics, while keeping the raw source payload in `JobSource.source_raw`.
+The backend remains compatible with Collector v1.3.1 through v1.4.4. Collector v1.4.4 preserves the v1.4.3 detail allocation policy, adds a role-evidence content gate so company-profile-only text cannot become formal Requirement evidence, and prevents negative phrases such as `不接受居家办公` from becoming positive remote evidence, while keeping the raw source payload in `JobSource.source_raw`.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.3-*.json
+boss-job-filter-requirement-review-v1.4.4-*.json
 ```
 
 The dataset contains only jobs where:
@@ -30,6 +30,8 @@ The dataset contains only jobs where:
 - the detail page was read successfully;
 - a trusted JD selector produced the description, or a broad container was reduced to a bounded JD segment;
 - `descriptionNoiseCount` is `0`;
+- `descriptionHasRoleEvidenceSignal` is `true`, backed by an explicit duty/requirement section or sufficient responsibility and qualification evidence;
+- company introduction, business marketing, team history and honor lists alone are not accepted;
 - `descriptionQuality` is `full_jd`;
 - `requirementReviewEligible` is `true`;
 - recruiter profile fragments are absent;
@@ -37,7 +39,7 @@ The dataset contains only jobs where:
 
 `qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
 
-In `matched` detail mode, v1.4.3 plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`.
+In `matched` detail mode, v1.4.4 keeps the v1.4.3 allocation policy and plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. In diagnostics, `remoteConfirmed` now uses the final-job scope and `candidateRemoteConfirmed` keeps the all-candidate scope.
 
 ## Runtime guard
 

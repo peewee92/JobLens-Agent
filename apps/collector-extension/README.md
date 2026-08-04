@@ -1,10 +1,21 @@
-# 岗位筛选 v1.4.3
+# 岗位筛选 v1.4.4
 
 一个运行在已登录 BOSS 直聘 Chrome 会话中的通用岗位搜索、采集、筛选与导出工具。
 
 产品名称不再限定为“AI 岗位整理器”。**AI/大模型只作为默认关键词模板和功能说明中的一个使用场景**：你可以把关键词替换为前端、产品、实施、交付、解决方案、FDE、销售或任何其他岗位。
 
 插件支持多城市搜索、全国远程识别、BOSS 私有字体薪资解码、薪资与相关度过滤、详情补采、JD 质量分级、去重统计，并导出 CSV、完整报告 JSON、诊断 JSON 与 JobLens Requirement 验收数据集。
+
+## v1.4.4：岗位证据内容门禁
+
+- `full_jd` 除了长度、来源和页面噪声外，现在还必须包含可用于 Requirement Extraction 的岗位职责或任职条件证据；
+- 有标准“岗位职责 / 任职要求 / 任职资格”等标题的 JD 可直接满足内容门禁；无标准标题时，必须同时具备足够的职责动作与任职条件，或形成强编号职责/要求结构；
+- 纯公司简介、业务宣传、团队荣誉和发展历程不再因为文本较长、存在编号或出现“开发/经验”等泛化词而被误判为 `full_jd`；
+- 新增 `descriptionHasRoleEvidenceSignal / descriptionResponsibilitySignalCount / descriptionRequirementSignalCount`，完整报告、诊断和 CSV 可追踪内容门禁依据；
+- 详情正文开头孤立的 `】`、`]` 等闭合符号会被清理，减少 evidence span 的格式噪声；
+- 远程识别会先剥离“不接受居家办公 / 不支持远程办公 / 非全远程”等否定短语，再判断剩余正向证据；`全国远程` 作为高置信度证据；
+- diagnostics 的 `remoteConfirmed` 统一表示最终岗位，新增 `candidateRemoteConfirmed` 表示全部候选中的远程命中，避免跨口径同名统计；
+- Collector 报告版本升级为 `1.4.4`，Backend 同时兼容 `1.3.1 / 1.4.0 / 1.4.1 / 1.4.2 / 1.4.3 / 1.4.4`。
 
 ## v1.4.3：正式验收详情配额
 
@@ -109,24 +120,24 @@ Electron 开发工程师
 ## 新版导出文件名
 
 ```text
-boss-job-filter-v1.4.3-*.csv
-boss-job-filter-report-v1.4.3-*.json
-boss-job-filter-diagnostics-v1.4.3-*.json
-boss-job-filter-requirement-review-v1.4.3-*.json
-boss-job-filter-error-v1.4.3-*.json
+boss-job-filter-v1.4.4-*.csv
+boss-job-filter-report-v1.4.4-*.json
+boss-job-filter-diagnostics-v1.4.4-*.json
+boss-job-filter-requirement-review-v1.4.4-*.json
+boss-job-filter-error-v1.4.4-*.json
 ```
 
 旧版本已经保存的历史运行结果仍然可以通过插件读取和下载，不需要迁移。
 
 ## 安装或升级
 
-1. 解压 `boss-job-filter-extension-v1.4.3.zip`。
+1. 解压 `boss-job-filter-extension-v1.4.4.zip`。
 2. Chrome 打开 `chrome://extensions/`。
 3. 开启“开发者模式”。
 4. 删除或停用旧版，避免同时存在多个版本。
 5. 点击“加载已解压的扩展程序”。
-6. 选择解压后的 `boss-job-filter-extension-v1.4.3` 文件夹。
-7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.3`。
+6. 选择解压后的 `boss-job-filter-extension-v1.4.4` 文件夹。
+7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.4`。
 
 ## 安全与限制
 
