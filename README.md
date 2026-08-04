@@ -73,7 +73,7 @@ JobLens-Agent/
 
 ## 现有资产
 
-`apps/collector-extension` 已包含岗位筛选插件 v1.4.0，当前负责：
+`apps/collector-extension` 已包含岗位筛选插件 v1.4.1，当前负责：
 
 - BOSS 岗位搜索与采集
 - 多城市与全国远程
@@ -108,6 +108,7 @@ JobLens-Agent/
 - [领域模型](docs/architecture/DOMAIN-MODEL.md)
 - [评估与追踪](docs/architecture/EVAL-AND-TRACE.md)
 - [Collector 接入契约](docs/integration/COLLECTOR-CONTRACT.md)
+- [Collector v1.4.0 真实数据验收与 v1.4.1 修复记录](docs/implementation/Collector-v1.4.0-Real-Data-Acceptance-2026-08-04.md)
 - [MVP 范围决策](docs/decisions/0001-mvp-scope.md)
 - [后端技术栈 ADR](docs/decisions/0002-backend-stack.md)
 - [数据库策略 ADR](docs/decisions/0003-database-strategy.md)

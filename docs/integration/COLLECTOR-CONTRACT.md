@@ -23,11 +23,11 @@
 
 ## 2. 当前 Collector Report 结构
 
-v1.4.0 主要结构（Backend 同时兼容 v1.3.1）：
+v1.4.1 主要结构（Backend 同时兼容 v1.3.1 与 v1.4.0）：
 
 ```json
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "generatedAt": "...",
   "config": {},
   "statistics": {},
@@ -76,9 +76,14 @@ collectedAt
 rawText
 description
 descriptionSource
+descriptionSelectorTrust
+descriptionSanitized
+descriptionStartMarker
+descriptionStopMarker
 descriptionQuality
 descriptionLength
 descriptionHash
+descriptionNoiseCount
 detailAttempted
 detailSucceeded
 requirementReviewEligible
@@ -96,7 +101,7 @@ sourceVersion
 4. Derived field 标记提取器版本；
 5. Backend 生成、持久化并版本化 internal canonical job key；
 6. `remoteStatus` 使用 `confirmed` / `rejected` / `unknown` 三态，不压缩成布尔值；
-7. Collector v1.4.0 的 JD 质量字段作为 Requirement Extraction 的输入门禁证据，但仍原样保存在 `JobSource.source_raw`；
+7. Collector v1.4.x 的 JD 质量字段作为 Requirement Extraction 的输入门禁证据，但仍原样保存在 `JobSource.source_raw`；
 8. `detailSucceeded=true` 只表示详情页读取成功，不能替代 `requirementReviewEligible=true`。
 
 canonical key v1：
@@ -148,7 +153,7 @@ Content-Type: application/json
 ```json
 {
   "importId": "...",
-  "sourceVersion": "1.4.0",
+  "sourceVersion": "1.4.1",
   "received": 120,
   "created": 85,
   "updated": 30,
@@ -161,10 +166,10 @@ Content-Type: application/json
 
 ## 5. Requirement 人工质量验收数据集
 
-Collector v1.4.0 额外导出：
+Collector v1.4.1 额外导出：
 
 ```text
-boss-job-filter-requirement-review-v1.4.0-*.json
+boss-job-filter-requirement-review-v1.4.1-*.json
 ```
 
 该文件仍符合 Job Import 顶层结构，但 `jobs` 只包含：
@@ -201,7 +206,7 @@ API Token
 
 ## 7. 向后兼容
 
-Agent Importer 当前显式支持 `1.3.1` 与 `1.4.0`，未来仍不应把业务代码强耦合到单一版本。
+Agent Importer 当前显式支持 `1.3.1`、`1.4.0` 与 `1.4.1`，未来仍不应把业务代码强耦合到单一版本。
 
 建议：
 

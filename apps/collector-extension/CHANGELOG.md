@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1
+
+- 修复岗位卡片 `innerText + textContent` 重复拼接，标题、公司和地区不再成对重复。
+- 详情采集从“最长文本优先”改为“可信选择器优先 + 整页容器裁剪兜底”。
+- 整页容器会截取 `职位描述` 到认证、招聘者、安全提示或推荐职位之前的 JD 段落。
+- 增加选择器可信等级、裁剪标记、起止标记与页面噪声计数，错误的整页文本不再标记为 `full_jd`。
+- 修复报告统计口径：`fullJd` 和 `requirementReviewEligible` 只统计最终岗位；详情候选使用独立的 `detailCohort*` 字段。
+- Backend 增加 Collector v1.4.1 导入和 Requirement Extraction 门禁兼容。
+
 ## 1.4.0
 
 - 默认补采筛选通过岗位和远程候选，并为 Requirement 验收预留最多 20 个通过岗位名额。

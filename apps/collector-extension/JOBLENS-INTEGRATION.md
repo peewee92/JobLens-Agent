@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.0, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.1, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -12,23 +12,24 @@ Upload the full report to:
 
 ```text
 POST /api/v1/job-imports
-boss-job-filter-report-v1.4.0-*.json
+boss-job-filter-report-v1.4.1-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1. Collector v1.4.0 adds JD quality evidence to every job while preserving the raw source payload in `JobSource.source_raw`.
+The backend remains compatible with Collector v1.3.1 and v1.4.0. Collector v1.4.1 adds selector trust, sanitization markers and page-noise evidence while preserving the raw source payload in `JobSource.source_raw`.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.0-*.json
+boss-job-filter-requirement-review-v1.4.1-*.json
 ```
 
 The dataset contains only jobs where:
 
 - the detail page was read successfully;
-- a trusted JD selector produced the description;
+- a trusted JD selector produced the description, or a broad container was reduced to a bounded JD segment;
+- `descriptionNoiseCount` is `0`;
 - `descriptionQuality` is `full_jd`;
 - `requirementReviewEligible` is `true`;
 - the description has a stable content hash and source URL.
@@ -37,6 +38,6 @@ The dataset contains only jobs where:
 
 ## Runtime guard
 
-When a Collector v1.4.0 job is imported from the full report, the backend checks the persisted quality evidence before invoking the Requirement Extractor. `card_only`, `partial_jd` and `unavailable` inputs return `job_description_not_extractable` before a model call or Trace run is created.
+When a Collector v1.4.x job is imported from the full report, the backend checks the persisted quality evidence before invoking the Requirement Extractor. `card_only`, `partial_jd` and `unavailable` inputs return `job_description_not_extractable` before a model call or Trace run is created.
 
 Future P1 integration may add optional API sync while preserving offline JSON export.
