@@ -90,6 +90,58 @@ assert.ok(recruiterSegment.sanitized);
 assert.ok(!recruiterSegment.text.includes('周先生'));
 assert.ok(!recruiterSegment.text.includes('2月内活跃'));
 assert.ok(!recruiterSegment.text.endsWith('HR'));
+
+const orphanBracketSegment = lib.extractJobDescriptionSegment([
+  '】',
+  '岗位职责：',
+  '1. 负责 Agent 平台开发与维护。',
+  '2. 推进工具调用和评测体系建设。',
+  '任职要求：',
+  '1. 本科及以上学历。',
+  '2. 熟悉 Python，具备真实项目经验。'
+].join('\n'));
+assert.ok(orphanBracketSegment.text.startsWith('岗位职责：'));
+
+const companyProfileOnly = [
+  '某科技公司成立于2004年，总部位于北京，在武汉、上海和深圳设有分支机构。',
+  '公司长期提供IT咨询、应用软件研发与运维、技术人才服务及离岸开发业务。',
+  '经过多年经验积累，服务行业覆盖互联网、金融、制造、能源和政务。',
+  '1. 获得行业优秀服务商称号',
+  '2. 成为大型活动软件服务提供商',
+  '3. 持续推动技术创新与业务发展'
+].join('\n');
+const companyProfileQuality = lib.assessDescriptionQuality({
+  description: companyProfileOnly,
+  descriptionSource: 'selector:.job-sec-text',
+  descriptionSelectorTrust: 'trusted',
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(companyProfileQuality.descriptionQuality, 'partial_jd');
+assert.strictEqual(companyProfileQuality.requirementReviewEligible, false);
+assert.strictEqual(companyProfileQuality.descriptionHasRoleEvidenceSignal, false);
+assert.ok(companyProfileQuality.requirementReviewIneligibilityReasons.includes('missing_job_evidence'));
+
+const unheadedRealJd = [
+  '1. 深入业务场景，负责高价值 AI 应用机会挖掘并设计落地路径。',
+  '2. 主导企业级 Agent 系统设计与开发，构建可复用工具平台。',
+  '3. 协同业务部门推进试点并制定工程规范，持续跟踪上线效果和失败案例。',
+  '4. 建设评测样本、日志和可观测链路，保障系统稳定交付。',
+  '1. 本科及以上学历，具备 5 年以上软件开发经验。',
+  '2. 精通 Python，熟悉 RAG 与工具调用，有 Agent 项目经验者优先。'
+].join('\n');
+const unheadedRealQuality = lib.assessDescriptionQuality({
+  description: unheadedRealJd,
+  descriptionSource: 'selector:.job-sec-text',
+  descriptionSelectorTrust: 'trusted',
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(unheadedRealQuality.descriptionQuality, 'full_jd');
+assert.strictEqual(unheadedRealQuality.descriptionHasRoleEvidenceSignal, true);
+assert.ok(unheadedRealQuality.descriptionResponsibilitySignalCount >= 2);
+assert.ok(unheadedRealQuality.descriptionRequirementSignalCount >= 2);
+
 const unsanitizedRecruiterQuality = lib.assessDescriptionQuality({
   description: `${'补充职责与要求。\n'.repeat(20)}${recruiterTailDescription}`,
   descriptionSource: 'selector:.job-sec-text',
@@ -128,6 +180,27 @@ assert.strictEqual(remote.confidence, 'high');
 const onsite = lib.detectRemote({ description: '该岗位不支持远程，必须到岗坐班' });
 assert.strictEqual(onsite.matched, false);
 assert.strictEqual(onsite.status, 'rejected');
+
+const noHomeOffice = lib.detectRemote({ detailText: '工作地址在武汉，不接受居家办公' });
+assert.strictEqual(noHomeOffice.matched, false);
+assert.strictEqual(noHomeOffice.status, 'rejected');
+assert.strictEqual(noHomeOffice.negative, true);
+assert.deepStrictEqual(Array.from(noHomeOffice.evidence), ['detailText']);
+
+const notFullyRemote = lib.detectRemote({ description: '该岗位非全远程，需要每周到岗三天' });
+assert.strictEqual(notFullyRemote.matched, false);
+assert.strictEqual(notFullyRemote.status, 'rejected');
+
+const partialRemote = lib.detectRemote({ description: '不接受全远程，可远程办公两天，其余时间到岗' });
+assert.strictEqual(partialRemote.matched, true);
+assert.strictEqual(partialRemote.status, 'confirmed');
+assert.strictEqual(partialRemote.confidence, 'medium');
+assert.strictEqual(partialRemote.negative, true);
+
+const nationwideRemote = lib.detectRemote({ description: 'AI Agent 大模型应用工程师（全国远程）' });
+assert.strictEqual(nationwideRemote.matched, true);
+assert.strictEqual(nationwideRemote.status, 'confirmed');
+assert.strictEqual(nationwideRemote.confidence, 'high');
 
 console.log('All lib tests passed.');
 

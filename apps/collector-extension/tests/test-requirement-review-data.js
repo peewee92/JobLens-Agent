@@ -143,7 +143,40 @@ assert.strictEqual(readyDataset.qualityGate.nearDuplicateCount, 0);
 assert.strictEqual(readyDataset.jobs.length, 20);
 assert.ok(readyDataset.jobs.every(job => job.requirementReviewEligible));
 assert.ok(readyDataset.jobs.every(job => job.descriptionQuality === 'full_jd'));
-assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.3'));
+assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.4'));
+
+const companyProfileOnlyJob = normalizeJob({
+  scope: '武汉',
+  title: 'FDE 工程师',
+  company: '公司介绍样本',
+  salary: '20-30K',
+  area: '武汉',
+  url: 'https://www.zhipin.com/job_detail/company-profile-only.html',
+  rawText: 'FDE 工程师 20-30K 公司介绍样本 武汉',
+  description: [
+    '某科技公司成立多年，总部位于北京，在武汉、上海和深圳设有分支机构。',
+    '公司提供云计算、应用软件研发与运维、技术服务和行业解决方案。',
+    '团队拥有多年企业级服务经验，持续推动技术创新和业务发展。',
+    '1. 获得行业优秀服务商称号',
+    '2. 成为大型活动软件服务提供商',
+    '3. 入选地区创新企业榜单'
+  ].join('\n'),
+  descriptionSource: 'selector:.job-sec-text',
+  descriptionSelectorTrust: 'trusted',
+  detailAttempted: true,
+  detailSucceeded: true
+});
+assert.strictEqual(companyProfileOnlyJob.descriptionQuality, 'partial_jd');
+assert.strictEqual(companyProfileOnlyJob.requirementReviewEligible, false);
+assert.ok(companyProfileOnlyJob.requirementReviewIneligibilityReasons.includes('missing_job_evidence'));
+const readyWithCompanyProfile = buildRequirementReviewDataset(
+  [...twentyPlusCard.slice(0, 20), companyProfileOnlyJob],
+  { detailMode: 'matched' },
+  {}
+);
+assert.strictEqual(readyWithCompanyProfile.qualityGate.status, 'ready');
+assert.strictEqual(readyWithCompanyProfile.qualityGate.eligibleCount, 20);
+assert.ok(!readyWithCompanyProfile.jobs.some(job => job.url === companyProfileOnlyJob.url));
 
 const duplicateDescription = uniqueDescription(50);
 const nearDuplicateJobs = [

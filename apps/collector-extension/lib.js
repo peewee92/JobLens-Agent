@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.3';
+  const VERSION = '1.4.4';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 
@@ -349,9 +349,13 @@
     return { ...map, ...evidence };
   }
 
-  const REMOTE_STRONG = /(全远程|纯远程|完全远程|100%\s*远程|fully\s*remote|remote\s*only)/i;
+  const REMOTE_STRONG = /(全国远程|全远程|纯远程|完全远程|100%\s*远程|fully\s*remote|remote\s*only)/i;
   const REMOTE_POSITIVE = /(可远程|支持远程|接受远程|远程(?:办公|工作|协作|岗位)?|居家办公|在家办公|可居家|不限地点|工作地点不限|全国可办公|全国办公|异地办公|线上办公|remote|work\s*from\s*home|\bwfh\b)/i;
-  const REMOTE_NEGATIVE = /(不支持|不接受|不可|不能|拒绝|非)\s*(?:全)?远程|必须.{0,5}(到岗|坐班|驻场)|需.{0,5}(到岗|坐班|驻场)|仅限.{0,8}(本地|到岗|坐班)/i;
+  const REMOTE_NEGATIVE = /(?:不支持|不接受|不可|不能|拒绝|非)\s*(?:(?:全)?远程(?:办公|工作|协作|岗位)?|居家办公|在家办公|异地办公|线上办公|remote|work\s*from\s*home|\bwfh\b)|必须.{0,5}(?:到岗|坐班|驻场)|需.{0,5}(?:到岗|坐班|驻场)|仅限.{0,8}(?:本地|到岗|坐班)/i;
+
+  function stripRemoteNegativePhrases(value = '') {
+    return clean(String(value ?? '').replace(new RegExp(REMOTE_NEGATIVE.source, 'gi'), ' '));
+  }
 
   function detectRemote(input = {}) {
     const fields = typeof input === 'string'
@@ -365,36 +369,43 @@
           description: input.description
         };
     const sources = [];
+    const negativeSources = [];
     let fullText = '';
+    let positiveText = '';
     for (const [key, value] of Object.entries(fields)) {
       const decoded = normalizeText(value || '');
       if (!decoded) continue;
       fullText += ` ${decoded}`;
-      if (REMOTE_STRONG.test(decoded) || REMOTE_POSITIVE.test(decoded)) sources.push(key);
+      if (REMOTE_NEGATIVE.test(decoded)) negativeSources.push(key);
+      const positiveCandidate = stripRemoteNegativePhrases(decoded);
+      positiveText += ` ${positiveCandidate}`;
+      if (REMOTE_STRONG.test(positiveCandidate) || REMOTE_POSITIVE.test(positiveCandidate)) sources.push(key);
     }
     fullText = clean(fullText);
+    positiveText = clean(positiveText);
 
     const area = normalizeText(fields.area || '');
     const areaExact = /^(全国|不限地点|工作地点不限|线上|远程)(?:[·\-\s].*)?$/i.test(area);
-    const strong = REMOTE_STRONG.test(fullText) || areaExact;
-    const positive = REMOTE_POSITIVE.test(fullText) || areaExact;
+    const strong = REMOTE_STRONG.test(positiveText) || areaExact;
+    const positive = REMOTE_POSITIVE.test(positiveText) || areaExact;
     const negative = REMOTE_NEGATIVE.test(fullText);
 
     if (strong) {
       return { matched: true, status: 'confirmed', confidence: 'high', negative, evidence: sources };
     }
-    if (negative) {
-      return { matched: false, status: 'rejected', confidence: 'high', negative: true, evidence: sources };
-    }
     if (positive) {
-      return { matched: true, status: 'confirmed', confidence: 'medium', negative: false, evidence: sources };
+      return { matched: true, status: 'confirmed', confidence: 'medium', negative, evidence: sources };
+    }
+    if (negative) {
+      return { matched: false, status: 'rejected', confidence: 'high', negative: true, evidence: negativeSources };
     }
     return { matched: false, status: 'unknown', confidence: 'low', negative: false, evidence: [] };
   }
 
-  const JD_SECTION_SIGNAL = /(岗位职责|职位职责|工作职责|任职要求|职位要求|岗位要求|工作内容|职责描述|你将负责|我们希望|我们需要)/i;
+  const JD_SECTION_SIGNAL = /(岗位职责|职位职责|工作职责|任职要求|任职资格|职位要求|岗位要求|工作内容|职责描述|你将负责|我们希望|我们需要|能力要求|技术要求|硬性要求)/i;
   const JD_LIST_SIGNAL = /(?:^|[\s\n])(?:\d{1,2}[.、]|[一二三四五六七八九十]+[、.])\s*[^\s]/m;
-  const JD_ACTION_SIGNAL = /(负责|参与|主导|开发|设计|建设|优化|维护|熟悉|掌握|具备|要求|优先)/g;
+  const JD_RESPONSIBILITY_SIGNAL = /(?:^|[。；;\n])[^。；;\n]{0,24}(负责|主导|参与|设计|构建|开发|建设|优化|维护|推进|跟踪|协同|制定|实现|搭建|输出|解决|保障|研究|探索|集成|调研|管理)/gim;
+  const JD_REQUIREMENT_SIGNAL = /(本科|硕士|博士|学历|专业优先|年以上|年(?:相关)?工作经验|熟悉|精通|掌握|具备|优先考虑|有[^\n。；;]{0,20}经验|能力要求|任职|职位要求|岗位要求|硬性要求|加分项|技术栈)/gi;
   const JD_PAGE_NOISE = /(BOSS直聘|BOSS\s*安全提示|竞争力分析|查看完整个人竞争力|职位搜索|投资者关系|求职技巧|猜你喜欢|推荐职位|更多职位|精选职位|看过该职位的人还看了|城市招聘|热门职位|推荐公司|热门企业|页面更新时间|企业服务热线|隐私政策|防骗指南|电子营业执照|人力资源服务许可证)/gi;
   const JD_START_MARKER = /(?:职位描述|岗位描述)[ \t]*[:：]?/i;
   const JD_STOP_MARKERS = [
@@ -439,6 +450,7 @@
     }
 
     text = cleanMultiline(text)
+      .replace(/^[】\]）)]+\s*/, '')
       .replace(/^(?:(?:下载App[^\n]{0,80})?\s*)?(?:微信扫码分享\s*)?(?:举\s*报|举报)?\s*/i, '')
       .replace(/\s+[\u4e00-\u9fa5A-Za-z·（）()]{1,30}\s+(?:刚刚活跃|今日活跃|本周活跃|近两周活跃|本月活跃)(?:\s|$)[\s\S]*$/i, '')
       .trim();
@@ -471,8 +483,12 @@
     const descriptionLength = description.length;
     const hasSectionSignal = JD_SECTION_SIGNAL.test(description);
     const hasListSignal = JD_LIST_SIGNAL.test(description);
-    const actionSignalCount = (description.match(JD_ACTION_SIGNAL) || []).length;
-    const hasContentSignal = hasSectionSignal || hasListSignal || actionSignalCount >= 3;
+    const responsibilitySignalCount = (description.match(JD_RESPONSIBILITY_SIGNAL) || []).length;
+    const requirementSignalCount = (description.match(JD_REQUIREMENT_SIGNAL) || []).length;
+    const hasRoleEvidenceSignal = hasSectionSignal
+      || (responsibilitySignalCount >= 2 && requirementSignalCount >= 2)
+      || (hasListSignal && (responsibilitySignalCount >= 5 || requirementSignalCount >= 4));
+    const hasContentSignal = hasRoleEvidenceSignal;
     const noiseMatches = description.match(JD_PAGE_NOISE) || [];
     if (JD_RECRUITER_TAIL.test(description)) noiseMatches.push('recruiter_profile');
     const isBodyFallback = descriptionSource === 'body_fallback';
@@ -506,7 +522,7 @@
       descriptionQuality = 'partial_jd';
       if (descriptionLength < 180) reasons.push('description_too_short');
       if (noiseMatches.length > 0) reasons.push('page_noise_detected');
-      if (!hasContentSignal) reasons.push('weak_jd_structure');
+      if (!hasContentSignal) reasons.push('missing_job_evidence');
       if (isBroadSelector && !descriptionSanitized) reasons.push('broad_selector_not_sanitized');
       if (!sourceEligible) reasons.push('description_source_not_trusted');
       reasons.push('missing_full_jd');
@@ -521,6 +537,9 @@
       descriptionHash: description ? stableTextHash(description) : '',
       descriptionHasSectionSignal: hasSectionSignal,
       descriptionHasContentSignal: hasContentSignal,
+      descriptionHasRoleEvidenceSignal: hasRoleEvidenceSignal,
+      descriptionResponsibilitySignalCount: responsibilitySignalCount,
+      descriptionRequirementSignalCount: requirementSignalCount,
       descriptionNoiseCount: noiseMatches.length,
       requirementReviewEligible,
       requirementReviewIneligibilityReasons: requirementReviewEligible ? [] : [...new Set(reasons)]

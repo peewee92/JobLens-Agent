@@ -1,5 +1,5 @@
 {
-  "version": "1.4.3",
+  "version": "1.4.4",
   "generatedAt": "2026-08-03T14:30:00.000Z",
   "purpose": "requirement_manual_quality_review",
   "qualityGate": {
@@ -41,11 +41,14 @@
       "descriptionQuality": "full_jd",
       "descriptionLength": 184,
       "descriptionHash": "fnv1a32:46d415be",
+      "descriptionHasRoleEvidenceSignal": true,
+      "descriptionResponsibilitySignalCount": 2,
+      "descriptionRequirementSignalCount": 3,
       "descriptionNoiseCount": 0,
       "detailSucceeded": true,
       "requirementReviewEligible": true,
       "requirementReviewIneligibilityReasons": [],
-      "sourceVersion": "1.4.3"
+      "sourceVersion": "1.4.4"
     }
   ],
   "candidates": []
