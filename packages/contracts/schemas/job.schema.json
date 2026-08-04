@@ -31,6 +31,19 @@
     "source": {"type": "string"},
     "sourceUrl": {"type": "string"},
     "sourceVersion": {"type": ["string", "null"]},
+    "descriptionQuality": {
+      "type": ["string", "null"],
+      "enum": ["full_jd", "partial_jd", "card_only", "unavailable", null],
+      "description": "Collector 对岗位描述完整性的可复现质量分级。"
+    },
+    "requirementReviewEligible": {
+      "type": ["boolean", "null"],
+      "description": "是否允许进入 JobRequirement 抽取与人工质量验收。"
+    },
+    "requirementReviewIneligibilityReasons": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
     "collectedAt": {"type": ["string", "null"]}
   }
 }

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from app.application.job_queries.errors import JobNotFoundError
 from app.application.job_requirements import (
+    JobDescriptionNotExtractableError,
     JobRequirementExtractionDetail,
     JobRequirementExtractionNotFoundError,
     JobRequirementExtractionWrite,
@@ -44,6 +45,18 @@ class ExtractJobRequirementsUseCase:
         job = self._jobs.get_job(job_id)
         if job is None:
             raise JobNotFoundError(f"Job {job_id!r} was not found")
+        if (
+            job.source_version == "1.4.0"
+            and job.requirement_review_eligible is not True
+        ):
+            reasons = ", ".join(job.requirement_review_ineligibility_reasons) or (
+                "missing_requirement_review_eligibility"
+            )
+            raise JobDescriptionNotExtractableError(
+                "Collector v1.4.0 job is not eligible for Requirement Extraction: "
+                f"descriptionQuality={job.description_quality or 'unknown'}; "
+                f"reasons={reasons}"
+            )
         description = job.description or ""
         proposal = self._workflow.execute(job_id=job_id, description=description)
         normalized_description = description.strip()

@@ -13,6 +13,9 @@
   "remoteConfidence": "low",
   "source": "boss_zhipin",
   "sourceUrl": "https://www.zhipin.com/job_detail/example.html",
-  "sourceVersion": "1.3.1",
-  "collectedAt": "2026-07-21T00:00:00.000Z"
+  "sourceVersion": "1.4.0",
+  "descriptionQuality": "full_jd",
+  "requirementReviewEligible": true,
+  "requirementReviewIneligibilityReasons": [],
+  "collectedAt": "2026-08-03T00:00:00.000Z"
 }

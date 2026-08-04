@@ -18,7 +18,7 @@ from app.application.job_imports.models import (
     ImportIssue,
 )
 
-SUPPORTED_COLLECTOR_VERSIONS = frozenset({"1.3.1"})
+SUPPORTED_COLLECTOR_VERSIONS = frozenset({"1.3.1", "1.4.0"})
 
 
 def _format_validation_error(error: ValidationError) -> str:
@@ -30,7 +30,7 @@ def _format_validation_error(error: ValidationError) -> str:
 
 
 def adapt_collector_report(payload: Mapping[str, Any]) -> AdaptedCollectorReport:
-    """Validate a Collector report envelope and adapt valid v1.3.1 jobs.
+    """Validate a Collector report envelope and adapt supported Collector jobs.
 
     Envelope failures stop the batch because version/config/jobs cannot be
     trusted. Individual malformed job records become non-fatal issues so a

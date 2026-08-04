@@ -59,6 +59,9 @@ class JobDetail:
     source: str
     source_url: str
     source_version: str | None
+    description_quality: str | None
+    requirement_review_eligible: bool | None
+    requirement_review_ineligibility_reasons: tuple[str, ...]
     collected_at: datetime | None
 
 

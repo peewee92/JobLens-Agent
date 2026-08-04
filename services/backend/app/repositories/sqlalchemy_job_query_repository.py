@@ -36,6 +36,21 @@ def _as_utc(value: datetime | None) -> datetime | None:
     return value.astimezone(UTC)
 
 
+def _source_quality(
+    source_raw: dict | None,
+) -> tuple[str | None, bool | None, tuple[str, ...]]:
+    raw = source_raw or {}
+    quality = raw.get("descriptionQuality")
+    eligible = raw.get("requirementReviewEligible")
+    reasons_raw = raw.get("requirementReviewIneligibilityReasons") or []
+    reasons = tuple(str(item) for item in reasons_raw if str(item).strip())
+    return (
+        str(quality) if quality is not None else None,
+        eligible if isinstance(eligible, bool) else None,
+        reasons,
+    )
+
+
 class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
     """Execute stable, read-only Job Pool queries using short-lived Sessions."""
 
@@ -121,6 +136,7 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
                     primary_source.source,
                     primary_source.source_url,
                     primary_source.source_version,
+                    primary_source.source_raw,
                     primary_source.collected_at,
                 )
                 .join(primary_source, primary_source.id == self._primary_source_id())
@@ -130,6 +146,9 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
 
         if row is None:
             return None
+        description_quality, requirement_review_eligible, ineligibility_reasons = (
+            _source_quality(row.source_raw)
+        )
         return JobDetail(
             id=row.id,
             title=row.title,
@@ -146,6 +165,9 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
             source=row.source,
             source_url=row.source_url,
             source_version=row.source_version,
+            description_quality=description_quality,
+            requirement_review_eligible=requirement_review_eligible,
+            requirement_review_ineligibility_reasons=ineligibility_reasons,
             collected_at=_as_utc(row.collected_at),
         )
 

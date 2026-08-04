@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/collector-requirement-review-dataset.schema.json",
+  "title": "Collector Requirement Review Dataset v1.4.0",
+  "type": "object",
+  "required": [
+    "version",
+    "generatedAt",
+    "purpose",
+    "qualityGate",
+    "config",
+    "statistics",
+    "jobs",
+    "candidates"
+  ],
+  "properties": {
+    "version": {"const": "1.4.0"},
+    "generatedAt": {"type": "string", "format": "date-time"},
+    "purpose": {"const": "requirement_manual_quality_review"},
+    "qualityGate": {
+      "type": "object",
+      "required": [
+        "requiredSampleSize",
+        "eligibleCount",
+        "selectedCount",
+        "status",
+        "blockers"
+      ],
+      "properties": {
+        "requiredSampleSize": {"const": 20},
+        "eligibleCount": {"type": "integer", "minimum": 0},
+        "selectedCount": {"type": "integer", "minimum": 0, "maximum": 20},
+        "status": {"type": "string", "enum": ["ready", "blocked"]},
+        "blockers": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "config": {"type": "object"},
+    "statistics": {"type": "object"},
+    "jobs": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "company",
+          "url",
+          "description",
+          "descriptionSource",
+          "descriptionQuality",
+          "descriptionLength",
+          "descriptionHash",
+          "detailSucceeded",
+          "requirementReviewEligible",
+          "requirementReviewIneligibilityReasons",
+          "sourceVersion"
+        ],
+        "properties": {
+          "title": {"type": "string", "minLength": 1},
+          "company": {"type": "string", "minLength": 1},
+          "url": {"type": "string", "minLength": 1},
+          "description": {"type": "string", "minLength": 1},
+          "descriptionSource": {"type": "string", "minLength": 1},
+          "descriptionQuality": {"const": "full_jd"},
+          "descriptionLength": {"type": "integer", "minimum": 180},
+          "descriptionHash": {"type": "string", "pattern": "^fnv1a32:[0-9a-f]{8}$"},
+          "detailSucceeded": {"const": true},
+          "requirementReviewEligible": {"const": true},
+          "requirementReviewIneligibilityReasons": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "sourceVersion": {"const": "1.4.0"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "candidates": {"type": "array", "maxItems": 0}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "qualityGate": {
+            "properties": {"status": {"const": "ready"}},
+            "required": ["status"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "jobs": {"minItems": 20, "maxItems": 20},
+          "qualityGate": {
+            "properties": {
+              "selectedCount": {"const": 20},
+              "blockers": {"maxItems": 0}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

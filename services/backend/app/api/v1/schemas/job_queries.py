@@ -33,6 +33,9 @@ class JobDetailResponse(JobListItemResponse):
     education: str | None
     description: str | None
     skills: list[str]
+    description_quality: str | None
+    requirement_review_eligible: bool | None
+    requirement_review_ineligibility_reasons: list[str]
 
     @classmethod
     def from_detail(cls, detail: JobDetail) -> "JobDetailResponse":
@@ -52,6 +55,11 @@ class JobDetailResponse(JobListItemResponse):
             source=detail.source,
             source_url=detail.source_url,
             source_version=detail.source_version,
+            description_quality=detail.description_quality,
+            requirement_review_eligible=detail.requirement_review_eligible,
+            requirement_review_ineligibility_reasons=list(
+                detail.requirement_review_ineligibility_reasons
+            ),
             collected_at=detail.collected_at,
         )
 

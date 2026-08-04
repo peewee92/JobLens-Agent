@@ -60,6 +60,19 @@ class CollectorJobV131(BaseModel):
 
     raw_text: str | None = Field(default=None, alias="rawText")
     detail_text: str | None = Field(default=None, alias="detailText")
+    detail_attempted: bool | None = Field(default=None, alias="detailAttempted")
+    detail_succeeded: bool | None = Field(default=None, alias="detailSucceeded")
+    description_source: str | None = Field(default=None, alias="descriptionSource")
+    description_quality: str | None = Field(default=None, alias="descriptionQuality")
+    description_length: int | None = Field(default=None, alias="descriptionLength")
+    description_hash: str | None = Field(default=None, alias="descriptionHash")
+    requirement_review_eligible: bool | None = Field(
+        default=None, alias="requirementReviewEligible"
+    )
+    requirement_review_ineligibility_reasons: list[str] = Field(
+        default_factory=list,
+        alias="requirementReviewIneligibilityReasons",
+    )
     source_job_id: str | None = Field(default=None, alias="sourceJobId")
 
     @field_validator("salary_min_k", "salary_max_k", mode="before")
