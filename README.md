@@ -73,7 +73,7 @@ JobLens-Agent/
 
 ## 现有资产
 
-`apps/collector-extension` 已包含岗位筛选插件 v1.4.2，当前负责：
+`apps/collector-extension` 已包含岗位筛选插件 v1.4.3，当前负责：
 
 - BOSS 岗位搜索与采集
 - 多城市与全国远程
@@ -81,7 +81,7 @@ JobLens-Agent/
 - 岗位去重
 - 详情补采与 JD 多行结构保真
 - `full_jd / partial_jd / card_only / unavailable` 质量分级
-- Requirement 验收资格、近重复 JD 去重与 20 条独立样本门禁
+- Requirement 验收资格、详情预取缓冲、近重复 JD 去重与 20 条独立样本门禁
 - 基础技能标签
 - CSV / JSON / diagnostics / Requirement review dataset 导出
 
@@ -110,6 +110,7 @@ JobLens-Agent/
 - [Collector 接入契约](docs/integration/COLLECTOR-CONTRACT.md)
 - [Collector v1.4.0 真实数据验收与 v1.4.1 修复记录](docs/implementation/Collector-v1.4.0-Real-Data-Acceptance-2026-08-04.md)
 - [Collector v1.4.1 真实数据验收与 v1.4.2 修复记录](docs/implementation/Collector-v1.4.1-Real-Data-Acceptance-2026-08-04.md)
+- [Collector v1.4.2 真实数据验收与 v1.4.3 修复记录](docs/implementation/Collector-v1.4.2-Real-Data-Acceptance-2026-08-04.md)
 - [MVP 范围决策](docs/decisions/0001-mvp-scope.md)
 - [后端技术栈 ADR](docs/decisions/0002-backend-stack.md)
 - [数据库策略 ADR](docs/decisions/0003-database-strategy.md)

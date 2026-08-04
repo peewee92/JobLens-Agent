@@ -1,10 +1,19 @@
-# 岗位筛选 v1.4.2
+# 岗位筛选 v1.4.3
 
 一个运行在已登录 BOSS 直聘 Chrome 会话中的通用岗位搜索、采集、筛选与导出工具。
 
 产品名称不再限定为“AI 岗位整理器”。**AI/大模型只作为默认关键词模板和功能说明中的一个使用场景**：你可以把关键词替换为前端、产品、实施、交付、解决方案、FDE、销售或任何其他岗位。
 
 插件支持多城市搜索、全国远程识别、BOSS 私有字体薪资解码、薪资与相关度过滤、详情补采、JD 质量分级、去重统计，并导出 CSV、完整报告 JSON、诊断 JSON 与 JobLens Requirement 验收数据集。
+
+## v1.4.3：正式验收详情配额
+
+- `matched` 详情模式不再只为已通过岗位预留 20 个名额，而是按正式样本数的 1.5 倍预取，默认 40 个详情名额中优先安排 30 个已通过岗位；
+- 剩余详情名额继续用于全国远程候选，默认最多 10 个，避免大量最终被判定为非远程的岗位挤占 Requirement 验收数据；
+- 标题仅空格或标点不同、且公司/地区/薪资相同的卡片会延后补采，减少明显重复岗位消耗详情名额；
+- 完整报告与诊断新增 `detailTargetsPlannedAccepted / detailTargetsPlannedRemoteCandidates / detailTargetsDeferredAccepted`，可追踪详情配额去向；
+- 20 条独立完整 JD 门槛、近重复阈值和 `blocked` 行为保持不变，不通过放宽质量标准凑数；
+- Collector 报告版本升级为 `1.4.3`，Backend 同时兼容 `1.3.1 / 1.4.0 / 1.4.1 / 1.4.2 / 1.4.3`。
 
 ## v1.4.2：独立样本与招聘者尾部治理
 
@@ -100,24 +109,24 @@ Electron 开发工程师
 ## 新版导出文件名
 
 ```text
-boss-job-filter-v1.4.2-*.csv
-boss-job-filter-report-v1.4.2-*.json
-boss-job-filter-diagnostics-v1.4.2-*.json
-boss-job-filter-requirement-review-v1.4.2-*.json
-boss-job-filter-error-v1.4.2-*.json
+boss-job-filter-v1.4.3-*.csv
+boss-job-filter-report-v1.4.3-*.json
+boss-job-filter-diagnostics-v1.4.3-*.json
+boss-job-filter-requirement-review-v1.4.3-*.json
+boss-job-filter-error-v1.4.3-*.json
 ```
 
 旧版本已经保存的历史运行结果仍然可以通过插件读取和下载，不需要迁移。
 
 ## 安装或升级
 
-1. 解压 `boss-job-filter-extension-v1.4.2.zip`。
+1. 解压 `boss-job-filter-extension-v1.4.3.zip`。
 2. Chrome 打开 `chrome://extensions/`。
 3. 开启“开发者模式”。
 4. 删除或停用旧版，避免同时存在多个版本。
 5. 点击“加载已解压的扩展程序”。
-6. 选择解压后的 `boss-job-filter-extension-v1.4.2` 文件夹。
-7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.2`。
+6. 选择解压后的 `boss-job-filter-extension-v1.4.3` 文件夹。
+7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.3`。
 
 ## 安全与限制
 

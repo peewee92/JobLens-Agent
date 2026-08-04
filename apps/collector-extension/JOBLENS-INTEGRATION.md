@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.2, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.3, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -12,17 +12,17 @@ Upload the full report to:
 
 ```text
 POST /api/v1/job-imports
-boss-job-filter-report-v1.4.2-*.json
+boss-job-filter-report-v1.4.3-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1, v1.4.0 and v1.4.1. Collector v1.4.2 adds recruiter-tail sanitization, near-duplicate review sampling and unique-detail counting while preserving the raw source payload in `JobSource.source_raw`.
+The backend remains compatible with Collector v1.3.1 through v1.4.3. Collector v1.4.3 preserves the v1.4.2 quality gate and adds accepted-job detail overfetch plus allocation diagnostics, while keeping the raw source payload in `JobSource.source_raw`.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.2-*.json
+boss-job-filter-requirement-review-v1.4.3-*.json
 ```
 
 The dataset contains only jobs where:
@@ -36,6 +36,8 @@ The dataset contains only jobs where:
 - the description has a stable content hash and source URL.
 
 `qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
+
+In `matched` detail mode, v1.4.3 plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`.
 
 ## Runtime guard
 
