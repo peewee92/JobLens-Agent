@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>岗位筛选 v1.3.1</title>
+  <title>岗位筛选 v1.4.0</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main>
     <header class="app-header">
       <div>
-        <h1>岗位筛选 <small>v1.3.1</small></h1>
+        <h1>岗位筛选 <small>v1.4.0</small></h1>
         <p>适用于 BOSS 直聘的通用岗位搜索与筛选工具。</p>
       </div>
     </header>
@@ -96,8 +96,8 @@
         </label>
         <label>详情补采范围
           <select id="detailMode">
-            <option value="remote">优先补采远程候选</option>
-            <option value="matched">远程候选 + 匹配岗位</option>
+            <option value="matched">筛选通过岗位 + 远程候选（JobLens 验收推荐）</option>
+            <option value="remote">仅补采远程候选</option>
             <option value="off">关闭详情补采</option>
           </select>
         </label>
@@ -124,13 +124,14 @@
     </section>
 
     <p id="taskEstimate" class="task-estimate"></p>
-    <p class="notice">城市会作为独立搜索范围执行。选择越多城市，搜索页数和访问次数越多；最多同时选择 20 个城市。</p>
+    <p class="notice">城市会作为独立搜索范围执行。选择越多城市，搜索页数和访问次数越多；最多同时选择 20 个城市。Requirement 正式验收需要 20 条完整 JD，建议选择“JobLens 验收推荐”并保持详情上限至少 40。</p>
 
     <button id="start" class="primary-button">开始搜索并自动导出</button>
     <div class="secondary-row">
       <button id="downloadCsv" class="secondary">上次 CSV</button>
       <button id="downloadJson" class="secondary">完整报告</button>
       <button id="downloadDiagnostics" class="secondary">诊断 JSON</button>
+      <button id="downloadRequirementReview" class="secondary">Requirement 验收数据</button>
     </div>
     <p id="status">请先确认当前 Chrome 已登录 BOSS 直聘。</p>
   </main>

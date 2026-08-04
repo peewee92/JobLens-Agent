@@ -5,10 +5,12 @@
     VERSION,
     clean,
     limitText,
+    limitMultilineText,
     normalizeStringList,
     mergeSearchMetadata,
     parseSalary,
     detectRemote,
+    assessDescriptionQuality,
     classifyCategory,
     extractSkills,
     scoreRelevance,
@@ -181,6 +183,17 @@
       raw.searchProvinces,
       inferredScopeType === 'city' ? (raw.provinceName || '') : ''
     ], { separator: null, maxItems: 20, maxItemLength: 80 });
+    const detailAttempted = Boolean(raw.detailAttempted);
+    const detailSucceeded = Boolean(raw.detailSucceeded);
+    const description = limitMultilineText(raw.description, 30000);
+    const descriptionSource = limitText(raw.descriptionSource, 300);
+    const quality = assessDescriptionQuality({
+      description,
+      descriptionSource,
+      detailAttempted,
+      detailSucceeded
+    });
+    const sourceUrl = limitText(String(raw.sourceUrl || raw.url || '').split('?')[0], 2000);
 
     return {
       ...raw,
@@ -222,18 +235,28 @@
       relevanceReasons: relevance.reasons,
       skills,
       employmentFlags: flags,
-      url: limitText(String(raw.url || '').split('?')[0], 2000),
+      source: raw.source || 'boss_zhipin',
+      sourceUrl,
+      sourceVersion: raw.sourceVersion || VERSION,
+      url: sourceUrl,
       page: searchMeta.page,
       pages: searchMeta.pages,
       collectedAt: raw.collectedAt || new Date().toISOString(),
       firstSeenAt: raw.firstSeenAt || raw.collectedAt || new Date().toISOString(),
       lastSeenAt: raw.lastSeenAt || raw.collectedAt || new Date().toISOString(),
       hitCount: Math.max(1, Number(raw.hitCount || 1)),
-      detailAttempted: Boolean(raw.detailAttempted),
-      detailSucceeded: Boolean(raw.detailSucceeded),
+      detailAttempted,
+      detailSucceeded,
       detailError: limitText(raw.detailError, 1000),
-      description: limitText(raw.description, 30000),
-      detailText: limitText(raw.detailText, 50000),
+      description,
+      descriptionSource,
+      descriptionQuality: quality.descriptionQuality,
+      descriptionLength: quality.descriptionLength,
+      descriptionHash: quality.descriptionHash,
+      descriptionHasSectionSignal: quality.descriptionHasSectionSignal,
+      requirementReviewEligible: quality.requirementReviewEligible,
+      requirementReviewIneligibilityReasons: quality.requirementReviewIneligibilityReasons,
+      detailText: limitMultilineText(raw.detailText, 50000),
       originalRawText: limitText(raw.originalRawText, 20000),
       rawText: limitText(raw.rawText, 20000)
     };
@@ -242,6 +265,14 @@
   function chooseRicherText(previousValue, nextValue, maxLength) {
     const previous = limitText(previousValue, maxLength);
     const next = limitText(nextValue, maxLength);
+    if (!previous) return next;
+    if (!next) return previous;
+    return next.length > previous.length ? next : previous;
+  }
+
+  function chooseRicherMultilineText(previousValue, nextValue, maxLength) {
+    const previous = limitMultilineText(previousValue, maxLength);
+    const next = limitMultilineText(nextValue, maxLength);
     if (!previous) return next;
     if (!next) return previous;
     return next.length > previous.length ? next : previous;
@@ -272,6 +303,7 @@
     const previousSalaryValid = Number.isFinite(previous.salaryMinK);
     const nextSalaryValid = Number.isFinite(next.salaryMinK);
     const preferredSalary = nextSalaryValid || !previousSalaryValid ? next : previous;
+    const preferredDescription = next.description.length > previous.description.length ? next : previous;
     const merged = {
       ...previous,
       ...Object.fromEntries(Object.entries(next).filter(([, value]) => (
@@ -302,8 +334,9 @@
       detailSucceeded: previous.detailSucceeded || next.detailSucceeded,
       skills: normalizeStringList([previous.skills, next.skills], { separator: null, maxItems: 128, maxItemLength: 100 }),
       categories: normalizeStringList([previous.categories, next.categories], { separator: null, maxItems: 32, maxItemLength: 100 }),
-      description: chooseRicherText(previous.description, next.description, 30000),
-      detailText: chooseRicherText(previous.detailText, next.detailText, 50000),
+      description: chooseRicherMultilineText(previous.description, next.description, 30000),
+      descriptionSource: preferredDescription.descriptionSource,
+      detailText: chooseRicherMultilineText(previous.detailText, next.detailText, 50000),
       rawText: chooseRicherText(previous.rawText, next.rawText, 20000),
       originalRawText: chooseRicherText(previous.originalRawText, next.originalRawText, 20000),
       firstSeenAt: previous.firstSeenAt || previous.collectedAt || next.firstSeenAt || next.collectedAt,
@@ -411,6 +444,8 @@
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
         puaSalaryDecoded: candidates.filter(job => job.salaryHadPua && job.salaryMinK != null).length,
         detailEnriched: candidates.filter(job => job.detailSucceeded).length,
+        fullJd: candidates.filter(job => job.descriptionQuality === 'full_jd').length,
+        requirementReviewEligible: candidates.filter(job => job.requirementReviewEligible).length,
         averageMinSalaryK,
         totalCandidateHits: candidates.reduce((sum, job) => sum + Number(job.hitCount || 1), 0),
         duplicateCandidateHits: candidates.reduce((sum, job) => sum + Math.max(0, Number(job.hitCount || 1) - 1), 0),
@@ -454,6 +489,12 @@
       remoteMatched: item.remote.matched,
       detailAttempted: item.job.detailAttempted,
       detailSucceeded: item.job.detailSucceeded,
+      descriptionSource: item.job.descriptionSource,
+      descriptionQuality: item.job.descriptionQuality,
+      descriptionLength: item.job.descriptionLength,
+      descriptionHash: item.job.descriptionHash,
+      requirementReviewEligible: item.job.requirementReviewEligible,
+      requirementReviewIneligibilityReasons: item.job.requirementReviewIneligibilityReasons,
       url: item.job.url,
       hitCount: item.job.hitCount,
       searchKeywords: item.job.searchKeywords,
@@ -500,6 +541,12 @@
         detailAttempted: state.detailStats.attempted,
         detailSucceeded: state.detailStats.succeeded,
         detailFailed: state.detailStats.failed,
+        fullJd: uniqueJobs.filter(job => job.descriptionQuality === 'full_jd').length,
+        partialJd: uniqueJobs.filter(job => job.descriptionQuality === 'partial_jd').length,
+        cardOnly: uniqueJobs.filter(job => job.descriptionQuality === 'card_only').length,
+        unavailableJd: uniqueJobs.filter(job => job.descriptionQuality === 'unavailable').length,
+        requirementReviewEligible: uniqueJobs.filter(job => job.requirementReviewEligible).length,
+        requirementReviewBlocked: uniqueJobs.filter(job => !job.requirementReviewEligible).length,
         finalKeptBeforeCrossScopeDedupe: classified.filter(item => item.keep).length,
         finalAfterCrossScopeDedupe: finalJobs.length
       },
@@ -549,7 +596,13 @@
       ['tags', '卡片标签'],
       ['publishedAt', '发布时间'],
       ['recruiterActive', '招聘者活跃'],
-      ['detailSucceeded', '详情补采成功'],
+      ['detailSucceeded', '详情页读取成功'],
+      ['descriptionSource', 'JD来源'],
+      ['descriptionQuality', 'JD质量'],
+      ['descriptionLength', 'JD长度'],
+      ['descriptionHash', 'JD指纹'],
+      ['requirementReviewEligible', '可用于Requirement验收'],
+      ['requirementReviewIneligibilityReasons', 'Requirement验收阻断原因'],
       ['url', '职位链接'],
       ['pages', '搜索页码'],
       ['collectedAt', '采集时间'],
@@ -559,6 +612,36 @@
     const lines = [columns.map(([, label]) => csvCell(label)).join(',')];
     for (const job of jobs) lines.push(columns.map(([key]) => csvCell(job[key])).join(','));
     return `\uFEFF${lines.join('\n')}`;
+  }
+
+  function buildRequirementReviewDataset(finalJobs, config, statistics) {
+    const requiredSampleSize = 20;
+    const eligibleJobs = finalJobs.filter(job => job.requirementReviewEligible);
+    const selectedJobs = eligibleJobs.slice(0, requiredSampleSize);
+    const ready = selectedJobs.length === requiredSampleSize;
+    return {
+      version: VERSION,
+      generatedAt: new Date().toISOString(),
+      purpose: 'requirement_manual_quality_review',
+      qualityGate: {
+        requiredSampleSize,
+        eligibleCount: eligibleJobs.length,
+        selectedCount: selectedJobs.length,
+        status: ready ? 'ready' : 'blocked',
+        blockers: ready ? [] : ['insufficient_full_jd_jobs']
+      },
+      config,
+      statistics: {
+        ...statistics,
+        requirementReviewDataset: {
+          requiredSampleSize,
+          eligibleCount: eligibleJobs.length,
+          selectedCount: selectedJobs.length
+        }
+      },
+      jobs: selectedJobs,
+      candidates: []
+    };
   }
 
   async function dataDownload(filename, mime, content, saveAs = false) {
@@ -729,9 +812,21 @@
         targetMap.set(target.job.url, target);
       }
     }
-    targets = [...targetMap.values()]
-      .sort((a, b) => detailPriority(b.job, b.initialClass) - detailPriority(a.job, a.initialClass))
-      .slice(0, Number(config.detailLimit || 40));
+    const detailLimit = Number(config.detailLimit || 40);
+    const uniqueTargets = [...targetMap.values()]
+      .sort((a, b) => detailPriority(b.job, b.initialClass) - detailPriority(a.job, a.initialClass));
+    if (config.detailMode === 'matched') {
+      const acceptedTargets = uniqueTargets.filter(target => target.initialClass.keep);
+      const pendingRemoteTargets = uniqueTargets.filter(target => target.initialClass.pendingDetail);
+      const reviewQuota = Math.min(20, detailLimit, acceptedTargets.length);
+      targets = [
+        ...acceptedTargets.slice(0, reviewQuota),
+        ...pendingRemoteTargets,
+        ...acceptedTargets.slice(reviewQuota)
+      ].slice(0, detailLimit);
+    } else {
+      targets = uniqueTargets.slice(0, detailLimit);
+    }
 
     if (!targets.length) {
       log('没有需要补采详情的岗位。');
@@ -761,7 +856,9 @@
           detailSucceeded: true,
           detailSalary: detail.salary || '',
           description: detail.description || '',
+          descriptionSource: detail.descriptionSource || '',
           detailText: detail.detailText || '',
+          detailCollectedAt: detail.collectedAt || new Date().toISOString(),
           publishedAt: detail.publishedAt || '',
           recruiterActive: detail.recruiterActive || '',
           skills: detail.skills || [],
@@ -769,7 +866,13 @@
         });
         state.detailStats.succeeded += 1;
         const remote = detectRemote(detail);
-        log(`详情 ${index}/${targets.length}：${job.title}；远程=${remote.status}；技能=${(detail.skills || []).join('/') || '未识别'}`);
+        const quality = assessDescriptionQuality({
+          description: detail.description,
+          descriptionSource: detail.descriptionSource,
+          detailAttempted: true,
+          detailSucceeded: true
+        });
+        log(`详情 ${index}/${targets.length}：${job.title}；远程=${remote.status}；JD=${quality.descriptionQuality}(${quality.descriptionLength})；技能=${(detail.skills || []).join('/') || '未识别'}`);
       } catch (error) {
         state.detailStats.failed += 1;
         detailsByUrl.set(job.url, {
@@ -809,7 +912,7 @@
   function renderDiagnostics(diagnostics) {
     const c = diagnostics.counts;
     log(`过滤诊断：原始 ${c.rawCards}，按范围去重 ${c.uniqueCardsBeforeFilter}，薪资可解析 ${c.salaryParsed}，其中字体解码 ${c.salaryDecodedFromPua}，最终 ${c.finalAfterCrossScopeDedupe}。`);
-    log(`详情补采：尝试 ${c.detailAttempted}，成功 ${c.detailSucceeded}，失败 ${c.detailFailed}；远程确认 ${c.remoteConfirmed}。`);
+    log(`详情补采：尝试 ${c.detailAttempted}，页面读取成功 ${c.detailSucceeded}，失败 ${c.detailFailed}；完整 JD ${c.fullJd}，可用于 Requirement 验收 ${c.requirementReviewEligible}。`);
     const reasons = Object.entries(diagnostics.rejectedReasons).map(([reason, count]) => `${reason} ${count}`).join('；');
     if (reasons) log(`过滤原因：${reasons}`);
   }
@@ -853,13 +956,16 @@
       candidates: candidateRecords
     };
 
+    const requirementReviewDataset = buildRequirementReviewDataset(finalJobs, state.config, statistics);
     const csv = toCsv(finalJobs);
     const json = JSON.stringify(report, null, 2);
     const diagnosticJson = JSON.stringify(diagnostics, null, 2);
+    const requirementReviewJson = JSON.stringify(requirementReviewDataset, null, 2);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const csvFilename = `boss-job-filter-v${VERSION}-${stamp}.csv`;
     const jsonFilename = `boss-job-filter-report-v${VERSION}-${stamp}.json`;
     const diagnosticFilename = `boss-job-filter-diagnostics-v${VERSION}-${stamp}.json`;
+    const requirementReviewFilename = `boss-job-filter-requirement-review-v${VERSION}-${stamp}.json`;
 
     state.lastRun = {
       jobs: finalJobs,
@@ -868,21 +974,28 @@
       json,
       diagnostics,
       diagnosticJson,
+      requirementReviewDataset,
+      requirementReviewJson,
       csvFilename,
       jsonFilename,
       diagnosticFilename,
+      requirementReviewFilename,
       finishedAt: new Date().toLocaleString()
     };
     await chrome.storage.local.set({ lastRun: state.lastRun });
     await dataDownload(csvFilename, 'text/csv', csv, false);
     await dataDownload(jsonFilename, 'application/json', json, false);
     await dataDownload(diagnosticFilename, 'application/json', diagnosticJson, false);
+    await dataDownload(requirementReviewFilename, 'application/json', requirementReviewJson, false);
 
     el('csv').disabled = false;
     el('json').disabled = false;
     el('diagnostics').disabled = false;
-    el('summary').textContent = `完成：原始 ${state.jobs.length} 条，去重 ${uniqueScopedJobs.length} 条，最终 ${finalJobs.length} 条。薪资字体解码 ${diagnostics.counts.salaryDecodedFromPua} 条。`;
-    log('运行完成，已下载 CSV、完整报告 JSON 和诊断 JSON。');
+    el('requirementReview').disabled = false;
+    const reviewGate = requirementReviewDataset.qualityGate;
+    el('summary').textContent = `完成：最终 ${finalJobs.length} 条，完整 JD ${diagnostics.counts.fullJd} 条，Requirement 验收样本 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}（${reviewGate.status}）。`;
+    log(`Requirement 验收数据：${reviewGate.status}，可用 ${reviewGate.eligibleCount} 条，已选 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}。`);
+    log('运行完成，已下载 CSV、完整报告、诊断 JSON 和 Requirement 验收数据集。');
     document.title = `完成：筛选出 ${finalJobs.length} 条岗位`;
   }
 
@@ -893,7 +1006,8 @@
     mergeJobs,
     dedupe,
     classify,
-    sortFinalJobs
+    sortFinalJobs,
+    buildRequirementReviewDataset
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
 
@@ -911,6 +1025,14 @@
   });
   el('diagnostics').addEventListener('click', () => {
     if (state.lastRun) dataDownload(state.lastRun.diagnosticFilename, 'application/json', state.lastRun.diagnosticJson, true);
+  });
+  el('requirementReview').addEventListener('click', () => {
+    if (state.lastRun) dataDownload(
+      state.lastRun.requirementReviewFilename,
+      'application/json',
+      state.lastRun.requirementReviewJson,
+      true
+    );
   });
 
   run().catch(async error => {

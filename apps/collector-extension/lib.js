@@ -1,16 +1,31 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.1';
+  const VERSION = '1.4.0';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
 
   const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
 
-
+  function cleanMultiline(value) {
+    return String(value ?? '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map(line => line.replace(/[\t\u00A0 ]+/g, ' ').trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
 
   function limitText(value, maxLength = 50000) {
     const text = clean(value);
+    const limit = Math.max(0, Number(maxLength) || 0);
+    if (!limit || text.length <= limit) return text;
+    return `${text.slice(0, Math.max(0, limit - 1))}…`;
+  }
+
+  function limitMultilineText(value, maxLength = 50000) {
+    const text = cleanMultiline(value);
     const limit = Math.max(0, Number(maxLength) || 0);
     if (!limit || text.length <= limit) return text;
     return `${text.slice(0, Math.max(0, limit - 1))}…`;
@@ -369,6 +384,72 @@
     return { matched: false, status: 'unknown', confidence: 'low', negative: false, evidence: [] };
   }
 
+  const JD_SECTION_SIGNAL = /(岗位职责|职位职责|工作职责|任职要求|职位要求|岗位要求|工作内容|职责描述|你将负责|我们希望|我们需要)/i;
+  const JD_PAGE_NOISE = /(BOSS直聘|职位搜索|投资者关系|求职技巧|猜你喜欢|推荐职位|公司介绍|工商信息|相似职位)/gi;
+
+  function stableTextHash(value = '') {
+    const text = String(value ?? '');
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return `fnv1a32:${hash.toString(16).padStart(8, '0')}`;
+  }
+
+  function assessDescriptionQuality(input = {}) {
+    const description = cleanMultiline(input.description || '');
+    const descriptionSource = clean(input.descriptionSource || '');
+    const detailAttempted = Boolean(input.detailAttempted);
+    const detailSucceeded = Boolean(input.detailSucceeded);
+    const descriptionLength = description.length;
+    const hasSectionSignal = JD_SECTION_SIGNAL.test(description);
+    const noiseMatches = description.match(JD_PAGE_NOISE) || [];
+    const isBodyFallback = descriptionSource === 'body_fallback';
+    const isBroadSelector = descriptionSource === 'selector:.job-detail-section'
+      || descriptionSource === 'selector:.job-detail'
+      || descriptionSource === 'selector:[class*="job-detail"]';
+    const reasons = [];
+
+    let descriptionQuality = 'unavailable';
+    if (!detailAttempted) {
+      descriptionQuality = 'card_only';
+      reasons.push('detail_not_attempted', 'missing_full_jd');
+    } else if (!detailSucceeded) {
+      reasons.push('detail_fetch_failed', 'missing_full_jd');
+    } else if (!description) {
+      reasons.push('missing_description', 'missing_full_jd');
+    } else if (isBodyFallback) {
+      descriptionQuality = descriptionLength >= 120 ? 'partial_jd' : 'unavailable';
+      reasons.push('body_fallback_not_trusted', 'missing_full_jd');
+    } else if (
+      descriptionLength >= 180
+      && noiseMatches.length <= 2
+      && (!isBroadSelector || hasSectionSignal)
+    ) {
+      descriptionQuality = 'full_jd';
+    } else if (descriptionLength >= 80) {
+      descriptionQuality = 'partial_jd';
+      if (descriptionLength < 180) reasons.push('description_too_short');
+      if (noiseMatches.length > 2) reasons.push('page_noise_detected');
+      if (!hasSectionSignal) reasons.push('weak_jd_structure');
+      if (isBroadSelector) reasons.push('broad_selector_not_trusted');
+      reasons.push('missing_full_jd');
+    } else {
+      reasons.push('description_too_short', 'missing_full_jd');
+    }
+
+    const requirementReviewEligible = descriptionQuality === 'full_jd';
+    return {
+      descriptionQuality,
+      descriptionLength,
+      descriptionHash: description ? stableTextHash(description) : '',
+      descriptionHasSectionSignal: hasSectionSignal,
+      requirementReviewEligible,
+      requirementReviewIneligibilityReasons: requirementReviewEligible ? [] : [...new Set(reasons)]
+    };
+  }
+
   const CATEGORY_RULES = [
     ['FDE / 前线部署', /\bfde\b|前线部署/i],
     ['AI Agent / 智能体', /\bagent\b|智能体|多智能体|mcp/i],
@@ -478,7 +559,9 @@
   globalThis.BossJobFilterLib = {
     VERSION,
     clean,
+    cleanMultiline,
     limitText,
+    limitMultilineText,
     normalizeStringList,
     normalizeNumberList,
     mergeSearchMetadata,
@@ -490,6 +573,8 @@
     extractPuaSalaryToken,
     inferDigitMap,
     detectRemote,
+    stableTextHash,
+    assessDescriptionQuality,
     classifyCategory,
     extractSkills,
     scoreRelevance,

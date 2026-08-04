@@ -3,6 +3,7 @@
 
   const {
     clean,
+    cleanMultiline,
     decodeBossText,
     findSalaryInText,
     inferDigitMap,
@@ -26,6 +27,12 @@
     const values = [element.innerText, element.textContent];
     for (const attr of TEXT_ATTRS) values.push(element.getAttribute?.(attr));
     return clean(values.map(value => decodeBossText(value || '', digitMap).text).filter(Boolean).join(' '));
+  }
+
+  function getElementMultilineText(element, digitMap = {}) {
+    if (!element) return '';
+    const raw = element.innerText || element.textContent || '';
+    return cleanMultiline(decodeBossText(raw, digitMap).text);
   }
 
   function pickText(root, selectors, digitMap = {}) {
@@ -257,25 +264,38 @@
   }
 
   function extractDetail(meta = {}, digitMap = {}) {
-    const bodyOriginal = clean(document.body?.innerText || document.body?.textContent || '');
+    const bodyOriginal = cleanMultiline(document.body?.innerText || document.body?.textContent || '');
     const bodyDecoded = decodeBossText(bodyOriginal, digitMap);
     const bodyText = bodyDecoded.text;
     const descriptionSelectors = [
+      '.job-detail-section .job-sec-text',
       '.job-detail-section',
       '.job-sec-text',
-      '.job-detail',
-      '[class*="job-detail"]',
       '[class*="job-description"]',
       '[class*="job-sec-text"]',
-      '[class*="detail-content"]'
+      '[class*="detail-content"]',
+      '.job-detail',
+      '[class*="job-detail"]'
     ];
     let description = '';
+    let descriptionSource = '';
     for (const selector of descriptionSelectors) {
       const elements = [...document.querySelectorAll(selector)];
-      const text = clean(elements.map(element => getElementText(element, digitMap)).filter(Boolean).join('\n'));
-      if (text.length > description.length) description = text;
+      const text = cleanMultiline(
+        elements
+          .map(element => getElementMultilineText(element, digitMap))
+          .filter(Boolean)
+          .join('\n\n')
+      );
+      if (text.length > description.length) {
+        description = text;
+        descriptionSource = `selector:${selector}`;
+      }
     }
-    if (!description) description = bodyText.slice(0, 12000);
+    if (!description) {
+      description = bodyText.slice(0, 12000);
+      descriptionSource = 'body_fallback';
+    }
 
     const salary = findSalaryInText(bodyText, digitMap);
     const remote = detectRemote({ detailText: bodyText, description });
@@ -286,8 +306,9 @@
     return {
       ...meta,
       salary,
-      description: description.slice(0, 16000),
-      detailText: bodyText.slice(0, 24000),
+      description: description.slice(0, 30000),
+      descriptionSource,
+      detailText: bodyText.slice(0, 50000),
       remoteMatched: remote.matched,
       remoteStatus: remote.status,
       remoteConfidence: remote.confidence,
