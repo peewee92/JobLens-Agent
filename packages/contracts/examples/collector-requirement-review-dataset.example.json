@@ -1,5 +1,5 @@
 {
-  "version": "1.4.5",
+  "version": "1.4.6",
   "generatedAt": "2026-08-03T14:30:00.000Z",
   "purpose": "requirement_manual_quality_review",
   "qualityGate": {
@@ -48,7 +48,7 @@
       "detailSucceeded": true,
       "requirementReviewEligible": true,
       "requirementReviewIneligibilityReasons": [],
-      "sourceVersion": "1.4.5"
+      "sourceVersion": "1.4.6"
     }
   ],
   "candidates": []

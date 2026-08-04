@@ -13,8 +13,8 @@ assert.strictEqual(
   '岗位职责：\n1. 负责 Agent 开发\n\n任职要求：\n2. 熟悉 Python'
 );
 assert.strictEqual(
-  lib.cleanMultiline('具备较⾼的⼯程能⼒\u200b，熟悉 RAG。'),
-  '具备较高的工程能力，熟悉 RAG。'
+  lib.cleanMultiline('具备较⾼的⼯程能⼒\u200b，团队⻓期熟悉 RAG。'),
+  '具备较高的工程能力，团队长期熟悉 RAG。'
 );
 assert.strictEqual(
   lib.limitMultilineText('职责：\n1. 开发\n2. 测试', 100),

@@ -1,12 +1,17 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.5';
+  const VERSION = '1.4.6';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
+  const CJK_RADICAL_FALLBACKS = Object.freeze({
+    '⻓': '长'
+  });
 
   const normalizeVisibleText = value => String(value ?? '')
-    .replace(/[\u2F00-\u2FD5\uF900-\uFAFF]/g, character => character.normalize('NFKC'))
+    .replace(/[\u2E80-\u2FD5\uF900-\uFAFF]/g, character => (
+      CJK_RADICAL_FALLBACKS[character] || character.normalize('NFKC')
+    ))
     .replace(/[\u200B\u2060\uFEFF]/g, '');
   const clean = value => normalizeVisibleText(value).replace(/\s+/g, ' ').trim();
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://joblens.local/schemas/collector-requirement-review-dataset.schema.json",
-  "title": "Collector Requirement Review Dataset v1.4.5",
+  "title": "Collector Requirement Review Dataset v1.4.6",
   "type": "object",
   "required": [
     "version",
@@ -16,7 +16,7 @@
     "candidates"
   ],
   "properties": {
-    "version": {"const": "1.4.5"},
+    "version": {"const": "1.4.6"},
     "generatedAt": {"type": "string", "format": "date-time"},
     "purpose": {"const": "requirement_manual_quality_review"},
     "qualityGate": {
@@ -128,7 +128,7 @@
             "type": "array",
             "maxItems": 0
           },
-          "sourceVersion": {"const": "1.4.5"}
+          "sourceVersion": {"const": "1.4.6"}
         },
         "additionalProperties": true
       }

@@ -96,7 +96,7 @@ def test_post_job_imports_returns_201_and_persists_complete_batch(
         assert item.outcome is ImportOutcome.CREATED
 
 
-@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5"])
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6"])
 def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
     api_environment: tuple[TestClient, sessionmaker[Session]],
     collector_version: str,
