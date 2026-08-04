@@ -23,11 +23,11 @@
 
 ## 2. 当前 Collector Report 结构
 
-v1.4.1 主要结构（Backend 同时兼容 v1.3.1 与 v1.4.0）：
+v1.4.2 主要结构（Backend 同时兼容 v1.3.1、v1.4.0 与 v1.4.1）：
 
 ```json
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "generatedAt": "...",
   "config": {},
   "statistics": {},
@@ -153,7 +153,7 @@ Content-Type: application/json
 ```json
 {
   "importId": "...",
-  "sourceVersion": "1.4.1",
+  "sourceVersion": "1.4.2",
   "received": 120,
   "created": 85,
   "updated": 30,
@@ -166,10 +166,10 @@ Content-Type: application/json
 
 ## 5. Requirement 人工质量验收数据集
 
-Collector v1.4.1 额外导出：
+Collector v1.4.2 额外导出：
 
 ```text
-boss-job-filter-requirement-review-v1.4.1-*.json
+boss-job-filter-requirement-review-v1.4.2-*.json
 ```
 
 该文件仍符合 Job Import 顶层结构，但 `jobs` 只包含：
@@ -180,7 +180,7 @@ requirementReviewEligible = true
 detailSucceeded = true
 ```
 
-`qualityGate.status=ready` 仅表示已选满 20 条完整 JD；少于 20 条时必须为 `blocked`，不能使用卡片摘要或页面正文兜底凑数。
+`qualityGate.status=ready` 仅表示已选满 20 条独立完整 JD。`eligibleCount` 是原始合格岗位数，`distinctEligibleCount` 是移除近重复 JD 后的独立样本数；门禁依据后者。招聘者资料尾部、卡片摘要、页面正文兜底和近重复代招岗位都不能用于凑数。被排除的近重复岗位记录在 `excludedNearDuplicates`。
 
 ## 6. P1 插件同步 API
 
@@ -206,7 +206,7 @@ API Token
 
 ## 7. 向后兼容
 
-Agent Importer 当前显式支持 `1.3.1`、`1.4.0` 与 `1.4.1`，未来仍不应把业务代码强耦合到单一版本。
+Agent Importer 当前显式支持 `1.3.1`、`1.4.0`、`1.4.1` 与 `1.4.2`，未来仍不应把业务代码强耦合到单一版本。
 
 建议：
 

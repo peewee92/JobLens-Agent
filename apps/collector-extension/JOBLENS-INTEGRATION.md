@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.1, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.2, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -12,17 +12,17 @@ Upload the full report to:
 
 ```text
 POST /api/v1/job-imports
-boss-job-filter-report-v1.4.1-*.json
+boss-job-filter-report-v1.4.2-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 and v1.4.0. Collector v1.4.1 adds selector trust, sanitization markers and page-noise evidence while preserving the raw source payload in `JobSource.source_raw`.
+The backend remains compatible with Collector v1.3.1, v1.4.0 and v1.4.1. Collector v1.4.2 adds recruiter-tail sanitization, near-duplicate review sampling and unique-detail counting while preserving the raw source payload in `JobSource.source_raw`.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.1-*.json
+boss-job-filter-requirement-review-v1.4.2-*.json
 ```
 
 The dataset contains only jobs where:
@@ -32,9 +32,10 @@ The dataset contains only jobs where:
 - `descriptionNoiseCount` is `0`;
 - `descriptionQuality` is `full_jd`;
 - `requirementReviewEligible` is `true`;
+- recruiter profile fragments are absent;
 - the description has a stable content hash and source URL.
 
-`qualityGate.status` is `ready` only when exactly 20 eligible jobs were selected. A dataset with fewer than 20 jobs is still useful for diagnostics, but it is `blocked` and must not be presented as formal Requirement quality evidence.
+`qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
 
 ## Runtime guard
 

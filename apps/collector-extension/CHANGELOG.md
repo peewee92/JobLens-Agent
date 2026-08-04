@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.2
+
+- 清除可信 JD 节点尾部残留的招聘者姓名、活跃状态、公司和 HR 身份信息。
+- Requirement 正式样本新增近重复 JD 去重，避免同一岗位被多个代招链接重复计入 20 条验收。
+- 新增 `distinctEligibleCount`、`nearDuplicateCount`、`selectionPolicy` 与 `excludedNearDuplicates` 证据字段。
+- `ready` 改为要求 20 条独立完整 JD，而不是只要求 20 条合格岗位记录。
+- 详情候选统计改为按唯一职位 URL 计数，保证 `detailCohortEnriched` 不超过实际详情页补采数量。
+- Backend 增加 Collector v1.4.2 导入与 Requirement Extraction 门禁兼容。
+
 ## 1.4.1
 
 - 修复岗位卡片 `innerText + textContent` 重复拼接，标题、公司和地区不再成对重复。
