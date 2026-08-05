@@ -10,6 +10,7 @@
 
 - 关键约束：**技能必须关联 Evidence**，禁止只存“React：熟练”这类无证据标签（v0.1 起步即遵守，P1 进一步拆为 `ProfileFact` / `Evidence` / `CapabilityAssessment`）。
 - 每次确认创建不可变 `version`，不覆盖旧版本；未来 MatchReport 必须记录使用的 Profile version。
+- Confirmed Career Context Release Gate 只允许 Evidence/Skill 引用完整的当前 Profile 与当前 SearchIntent 共同进入未来 Match；该 Gate 不依赖 Profile LLM baseline，因为手工确认事实不等于模型 Proposal。
 - 关联：`Evidence`（1—N）与 Skill—Evidence 关系。
 - 职业偏好不重复内嵌，统一由独立 `SearchIntent` 管理。
 

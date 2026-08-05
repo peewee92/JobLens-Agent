@@ -30,6 +30,8 @@
 
 Fixture 通过率不能作为生产模型质量结论。每次运行现在会保存不可变 `profile_eval_runs` 与逐案例 `profile_eval_case_results`，并关联对应 Trace。`profile-eval-gate-v1` 检查案例通过率、Workflow 成功率、技能召回、年限准确率和禁用事实率；只有 `mode=live` 且 Gate 通过时 `releaseEligible` 才可能为 true。当前验证环境尚未执行 live-provider Eval。
 
+Profile Eval 的 `releaseEligible` 只治理“简历→Profile Proposal”模型能力，不决定用户确认事实是否可供 Match 使用。Confirmed Career Context Release Gate 独立读取最新人工确认 Profile/SearchIntent，验证 Evidence/Skill 引用与目标岗位完整性；手工录入的 Profile 不需要伪造一个 LLM baseline，但仍必须通过该确定性门禁。
+
 ### 2.2 Requirement Eval（Requirement Extraction）
 
 评估 JD → `JobRequirement` 的抽取质量（最重要，因为它是统一事实来源）。

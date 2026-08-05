@@ -100,10 +100,11 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 5. `SearchIntent` 定义（目标角色 / 城市 / 远程 / 薪资下限 / 级别 / 硬约束 / 软偏好）；
 6. `Profile Eval` 数据集与断言（从第一个 LLM Pipeline 开始，见 ADR-0005）。
 
-### 当前进度（2026-08-03）
+### 当前进度（2026-08-05）
 
 - 手工确认的 Profile + Evidence + Skill 链接已完成；
 - Profile/SearchIntent 不可变版本、`expectedVersion` 冲突保护、API 与 Web 编辑闭环已完成；
+- Confirmed Career Context Release Gate 已完成：只读验证最新用户确认 Profile/SearchIntent、Profile Evidence/Skill 引用和目标岗位完整性，返回精确 IDs/versions 与结构化 blockers；不读取 Profile Eval baseline、不调用 Provider、不产生 Trace，Profile 页面展示未来 Match 的个人侧输入状态；
 - Resume Text → Profile Proposal、strict Structured Output、evidenceSpan/reference 门禁、Trace 0004 和 10-case Profile Eval 已完成；
 - PDF/DOCX 文本摄取、文件隐私边界与 Web 上传已完成；Eval Run/Case Result、`profile-eval-gate-v1`、baseline 对比、人工 accept/reject Review、正式 accepted baseline 与 Eval Review Web 已完成；下一步是带真实凭据的 Provider Eval 和人工质量结论。Fixture 通过仍不代表生产模型质量。
 
