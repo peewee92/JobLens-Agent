@@ -23,6 +23,9 @@ def build_job_requirement_extractor(
             api_key=settings.openai_api_key,
             model=settings.requirement_extractor_model,
             base_url=settings.openai_base_url,
+            api_style=settings.requirement_extractor_api_style,
+            enable_thinking=settings.requirement_extractor_enable_thinking,
+            max_completion_tokens=settings.requirement_extractor_max_completion_tokens,
             timeout_seconds=settings.requirement_extractor_timeout_seconds,
         )
     return DisabledJobRequirementExtractor()

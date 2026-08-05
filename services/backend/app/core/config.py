@@ -4,6 +4,7 @@ Single source of truth for runtime settings. Business code must read
 DATABASE_URL from here, never hardcode a second copy.
 """
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     profile_extractor_timeout_seconds: float = 60.0
     requirement_extractor_provider: str = "disabled"
     requirement_extractor_model: str = ""
+    requirement_extractor_api_style: Literal["responses", "chat_completions"] = "responses"
+    requirement_extractor_enable_thinking: bool | None = None
+    requirement_extractor_max_completion_tokens: int | None = None
     requirement_extractor_timeout_seconds: float = 60.0
     requirement_acceptance_private_root: str | None = None
     openai_api_key: str | None = None

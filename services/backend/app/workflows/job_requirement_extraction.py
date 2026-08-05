@@ -23,7 +23,7 @@ from app.application.tracing import TraceWrite
 
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
-EXTRACTOR_VERSION = "requirement-extractor-v1"
+EXTRACTOR_VERSION = "requirement-extractor-v3"
 PROMPT_VERSION = "requirement-extraction-v1"
 MIN_DESCRIPTION_CHARS = 40
 MAX_DESCRIPTION_CHARS = 50_000

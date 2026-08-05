@@ -179,6 +179,8 @@ def _readiness_after_bootstrap(
             reviewer=reviewer,
             title=title,
             max_new_extractions=max_new_extractions,
+            next_action=result.next_action,
+            existing_run=existing_run,
         )
     return readiness_summary(
         result,

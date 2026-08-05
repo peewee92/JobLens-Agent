@@ -355,6 +355,51 @@ def test_cli_apply_stages_backs_up_upgrades_and_rechecks_readiness(
     assert "OPENAI_API_KEY" not in json.dumps(body)
 
 
+def test_readiness_preview_receives_next_action_and_existing_run(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    dataset = tmp_path / "formal.json"
+    dataset.write_bytes(b'{"formal":true}')
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        bootstrap_cli,
+        "_database_revision",
+        lambda _database_url: (True, "head", None),
+    )
+    monkeypatch.setattr(bootstrap_cli, "_existing_run", lambda **_kwargs: None)
+
+    def command_preview(**kwargs) -> str:
+        captured.update(kwargs)
+        return "preview"
+
+    monkeypatch.setattr(bootstrap_cli, "_command_preview", command_preview)
+
+    summary = bootstrap_cli._readiness_after_bootstrap(
+        dataset_path=dataset,
+        preflight=_preflight(),
+        reviewer="will",
+        title="Real Requirement acceptance",
+        max_new_extractions=1,
+        web_base_url="http://localhost:3000",
+        settings=SimpleNamespace(
+            database_url="sqlite:///ignored.db",
+            requirement_extractor_provider="openai",
+            requirement_extractor_model="deepseek-v4-flash",
+            openai_api_key="configured",
+        ),
+        migration_head="head",
+    )
+
+    assert summary["nextAction"] == "run_canary"
+    assert summary["providerExecutionAllowed"] is True
+    assert summary["recommendedCommand"] == "preview"
+    assert captured["dataset"] == dataset
+    assert captured["existing_run"] is None
+    assert captured["next_action"].value == "run_canary"
+
+
 def test_backup_failure_prevents_migration(
     monkeypatch,
     capsys,

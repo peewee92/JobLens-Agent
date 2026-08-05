@@ -63,6 +63,93 @@ def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
     assert result.output_tokens == 40
 
 
+def test_openai_requirement_adapter_supports_chat_completions_strict_schema() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured.update(json.loads(request.content))
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python 和 FastAPI",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "evidenceSpan": "熟练掌握 Python 和 FastAPI",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(output),
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 40},
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            enable_thinking=False,
+            max_completion_tokens=8192,
+            client=client,
+        ).extract("岗位要求：熟练掌握 Python 和 FastAPI，并具备后端系统设计经验。")
+
+    assert captured["url"] == "https://example.test/v1/chat/completions"
+    assert captured["model"] == "test-model"
+    assert captured["messages"][0]["role"] == "system"
+    assert captured["messages"][1]["role"] == "user"
+    assert captured["stream"] is False
+    assert captured["enable_thinking"] is False
+    assert captured["max_completion_tokens"] == 8192
+    assert captured["response_format"]["type"] == "json_schema"
+    assert captured["response_format"]["json_schema"]["strict"] is True
+    assert (
+        captured["response_format"]["json_schema"]["schema"]["additionalProperties"]
+        is False
+    )
+    assert "store" not in captured
+    assert result.output.requirements[0].normalized_capability == "Python"
+    assert result.input_tokens == 100
+    assert result.output_tokens == 40
+
+
+def test_openai_requirement_adapter_reports_gateway_trace_id() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            504,
+            headers={"x-trace-id": "trace_gateway_123"},
+            json={"error": {"message": "gateway timeout"}},
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+        )
+        with pytest.raises(
+            RequirementExtractorFailedError,
+            match=r"HTTPStatusError\(status=504, traceId=trace_gateway_123\)",
+        ):
+            extractor.extract(
+                "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"
+            )
+
+
 def test_openai_requirement_adapter_requires_configuration() -> None:
     extractor = OpenAIJobRequirementExtractor(api_key=None, model="")
 

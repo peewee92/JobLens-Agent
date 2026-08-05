@@ -101,7 +101,7 @@ class FixtureJobRequirementExtractor(AbstractJobRequirementExtractor):
 
 
 class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
-    """OpenAI Responses API adapter using strict JSON Schema output."""
+    """OpenAI-compatible adapter using strict JSON Schema output."""
 
     def __init__(
         self,
@@ -109,12 +109,18 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         api_key: str | None,
         model: str,
         base_url: str = "https://api.openai.com/v1",
+        api_style: str = "responses",
+        enable_thinking: bool | None = None,
+        max_completion_tokens: int | None = None,
         timeout_seconds: float = 60.0,
         client: httpx.Client | None = None,
     ) -> None:
         self._api_key = api_key
         self._model = model.strip()
         self._base_url = base_url.rstrip("/")
+        self._api_style = api_style.strip().casefold()
+        self._enable_thinking = enable_thinking
+        self._max_completion_tokens = max_completion_tokens
         self._timeout_seconds = timeout_seconds
         self._client = client
 
@@ -127,33 +133,75 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             raise RequirementExtractorUnavailableError(
                 "OpenAI Requirement extractor requires OPENAI_API_KEY and REQUIREMENT_EXTRACTOR_MODEL."
             )
-        request_body = {
-            "model": self._model,
-            "store": False,
-            "input": [
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": _SYSTEM_PROMPT}],
+        schema = _RequirementsOutput.model_json_schema(by_alias=True)
+        if self._api_style == "responses":
+            request_url = f"{self._base_url}/responses"
+            request_body = {
+                "model": self._model,
+                "store": False,
+                "input": [
+                    {
+                        "role": "system",
+                        "content": [{"type": "input_text", "text": _SYSTEM_PROMPT}],
+                    },
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": description}],
+                    },
+                ],
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "job_requirement_extraction",
+                        "description": (
+                            "Evidence-grounded requirements extracted from one Job description"
+                        ),
+                        "strict": True,
+                        "schema": schema,
+                    }
                 },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": description}],
-                },
-            ],
-            "text": {
-                "format": {
+            }
+            output_text = _response_output_text
+            input_tokens_key = "input_tokens"
+            output_tokens_key = "output_tokens"
+        elif self._api_style == "chat_completions":
+            request_url = f"{self._base_url}/chat/completions"
+            request_body = {
+                "model": self._model,
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": description},
+                ],
+                "stream": False,
+                "response_format": {
                     "type": "json_schema",
-                    "name": "job_requirement_extraction",
-                    "description": "Evidence-grounded requirements extracted from one Job description",
-                    "strict": True,
-                    "schema": _RequirementsOutput.model_json_schema(by_alias=True),
-                }
-            },
-        }
+                    "json_schema": {
+                        "name": "job_requirement_extraction",
+                        "description": (
+                            "Evidence-grounded requirements extracted from one Job description"
+                        ),
+                        "strict": True,
+                        "schema": schema,
+                    },
+                },
+            }
+            if self._enable_thinking is not None:
+                request_body["enable_thinking"] = self._enable_thinking
+            if self._max_completion_tokens is not None:
+                request_body["max_completion_tokens"] = self._max_completion_tokens
+            output_text = _chat_completion_output_text
+            input_tokens_key = "prompt_tokens"
+            output_tokens_key = "completion_tokens"
+        else:
+            raise RequirementExtractorUnavailableError(
+                "OpenAI Requirement extractor API style must be responses or "
+                "chat_completions."
+            )
+
         try:
             if self._client is not None:
                 response = self._client.post(
-                    f"{self._base_url}/responses",
+                    request_url,
                     headers={
                         "Authorization": f"Bearer {self._api_key}",
                         "Content-Type": "application/json",
@@ -163,7 +211,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             else:
                 with httpx.Client(timeout=self._timeout_seconds) as client:
                     response = client.post(
-                        f"{self._base_url}/responses",
+                        request_url,
                         headers={
                             "Authorization": f"Bearer {self._api_key}",
                             "Content-Type": "application/json",
@@ -172,11 +220,16 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     )
             response.raise_for_status()
             payload = response.json()
-            parsed = _RequirementsOutput.model_validate_json(
-                _response_output_text(payload)
-            )
+            parsed = _RequirementsOutput.model_validate_json(output_text(payload))
         except RequirementExtractorFailedError:
             raise
+        except httpx.HTTPStatusError as error:
+            trace_id = _response_trace_id(error.response)
+            trace_suffix = f", traceId={trace_id}" if trace_id else ""
+            raise RequirementExtractorFailedError(
+                "OpenAI Requirement extractor failed: "
+                f"HTTPStatusError(status={error.response.status_code}{trace_suffix})"
+            ) from error
         except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError) as error:
             raise RequirementExtractorFailedError(
                 f"OpenAI Requirement extractor failed: {type(error).__name__}"
@@ -198,8 +251,8 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 )
             ),
             model=self._model,
-            input_tokens=_optional_int(usage, "input_tokens"),
-            output_tokens=_optional_int(usage, "output_tokens"),
+            input_tokens=_optional_int(usage, input_tokens_key),
+            output_tokens=_optional_int(usage, output_tokens_key),
         )
 
 
@@ -340,6 +393,44 @@ def _response_output_text(payload: Any) -> str:
     raise RequirementExtractorFailedError("OpenAI response contained no output_text")
 
 
+def _chat_completion_output_text(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        raise RequirementExtractorFailedError(
+            "OpenAI Chat Completions response must be a JSON object"
+        )
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise RequirementExtractorFailedError(
+            "OpenAI Chat Completions response contained no choices"
+        )
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        raise RequirementExtractorFailedError(
+            "OpenAI Chat Completions choice must be a JSON object"
+        )
+    message = choice.get("message")
+    if not isinstance(message, dict):
+        raise RequirementExtractorFailedError(
+            "OpenAI Chat Completions response contained no message"
+        )
+    refusal = message.get("refusal")
+    if isinstance(refusal, str) and refusal:
+        raise RequirementExtractorFailedError("OpenAI refused Requirement extraction")
+    content = message.get("content")
+    if isinstance(content, str) and content:
+        return content
+    for item in _iter_dicts(content):
+        if item.get("type") == "refusal":
+            raise RequirementExtractorFailedError("OpenAI refused Requirement extraction")
+        if item.get("type") in {"text", "output_text"} and isinstance(
+            item.get("text"), str
+        ):
+            return item["text"]
+    raise RequirementExtractorFailedError(
+        "OpenAI Chat Completions response contained no text content"
+    )
+
+
 def _iter_dicts(value: Any) -> Iterable[dict[str, Any]]:
     if not isinstance(value, list):
         return ()
@@ -351,6 +442,21 @@ def _optional_int(value: Any, key: str) -> int | None:
         return None
     result = value.get(key)
     return result if isinstance(result, int) and result >= 0 else None
+
+
+def _response_trace_id(response: httpx.Response) -> str | None:
+    for header in ("x-trace-id", "trace-id"):
+        value = response.headers.get(header)
+        if value and value.strip():
+            return value.strip()[:128]
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("traceId")
+    return value.strip()[:128] if isinstance(value, str) and value.strip() else None
 
 
 _SYSTEM_PROMPT = """Extract structured JobRequirements from one Job description.

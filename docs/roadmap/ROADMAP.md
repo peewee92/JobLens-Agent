@@ -184,6 +184,11 @@ Profile 页面可以明确区分：
 
 目标：让单个岗位判断“是否值得投、为什么”可信、可解释。
 
+### 当前进度（2026-08-05）
+
+- 已完成只读 `Match Input Readiness` 预检，统一组合 Confirmed Career Context 与 Job Requirement Fact Release Gate；它只暴露 blockers 和冻结事实身份，不运行 Eligibility、LLM、Trace 或数据库写入。
+- Eligibility 规则、Evidence Retrieval、Semantic Match 与 MatchReport 尚未实现；真实 Requirement 人工验收完成前仍不得执行 Match。
+
 ### 任务
 
 1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）；

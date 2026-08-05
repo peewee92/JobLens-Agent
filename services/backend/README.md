@@ -264,11 +264,14 @@ uv run alembic check
 | `PROFILE_EXTRACTOR_TIMEOUT_SECONDS` | Profile Provider 超时 | `60` |
 | `REQUIREMENT_EXTRACTOR_PROVIDER` | `disabled / fixture / openai` | `disabled` |
 | `REQUIREMENT_EXTRACTOR_MODEL` | Requirement 运行时模型名 | 空 |
+| `REQUIREMENT_EXTRACTOR_API_STYLE` | OpenAI-compatible 协议：`responses / chat_completions` | `responses` |
+| `REQUIREMENT_EXTRACTOR_ENABLE_THINKING` | 可选网关参数；`false` 可关闭支持该字段的推理模型 thinking | 空 |
+| `REQUIREMENT_EXTRACTOR_MAX_COMPLETION_TOKENS` | 可选网关参数；限制 Chat Completions 总 completion 预算 | 空 |
 | `REQUIREMENT_EXTRACTOR_TIMEOUT_SECONDS` | Requirement Provider 超时 | `60` |
 | `OPENAI_API_KEY` | OpenAI API Key，仅服务端读取 | 空 |
 | `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` |
 
-生产 Secret 不要写死在代码里。
+生产 Secret 不要写死在代码里。第三方 OpenAI-compatible 网关若只支持 `/chat/completions`，应显式配置 `REQUIREMENT_EXTRACTOR_API_STYLE=chat_completions`；`OPENAI_BASE_URL` 只填写到版本根路径，不附加具体接口路径。部分 reasoning 模型会在结构化抽取时把 completion 预算全部消耗在思考过程；只有网关明确支持时才配置 `REQUIREMENT_EXTRACTOR_ENABLE_THINKING=false`，并配合 `REQUIREMENT_EXTRACTOR_MAX_COMPLETION_TOKENS` 设置成本上限。HTTP 状态错误会保留网关返回的 `traceId`，但不会记录响应正文或密钥。
 
 ## Project structure
 
