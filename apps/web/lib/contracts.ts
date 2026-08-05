@@ -83,6 +83,43 @@ export interface SearchIntent {
   createdAt: string;
 }
 
+export type CareerContextReleaseBlockerCode =
+  | "profile_missing"
+  | "profile_headline_missing"
+  | "profile_years_invalid"
+  | "profile_evidence_missing"
+  | "profile_evidence_invalid"
+  | "profile_evidence_keys_duplicated"
+  | "profile_skills_missing"
+  | "profile_skill_names_duplicated"
+  | "profile_skill_evidence_missing"
+  | "profile_skill_evidence_reference_invalid"
+  | "search_intent_missing"
+  | "search_intent_target_roles_missing"
+  | "search_intent_target_roles_duplicated"
+  | "search_intent_minimum_salary_invalid";
+
+export interface CareerContextReleaseReadiness {
+  releaseEligible: boolean;
+  confirmationBoundary: "explicit_versioned_user_confirmation";
+  profileId: string | null;
+  profileVersion: number | null;
+  profileCreatedAt: string | null;
+  profileEvidenceCount: number;
+  profileSkillCount: number;
+  searchIntentId: string | null;
+  searchIntentVersion: number | null;
+  searchIntentCreatedAt: string | null;
+  searchIntentTargetRoleCount: number;
+  blockers: Array<{
+    code: CareerContextReleaseBlockerCode;
+    message: string;
+  }>;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export interface ProposedProfileEvidence {
   key: string;
   type: EvidenceType;

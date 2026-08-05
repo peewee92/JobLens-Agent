@@ -14,6 +14,10 @@ from app.application.career_context.models import (
     SearchIntentDetail,
     SkillInput,
 )
+from app.application.career_context.release import (
+    CareerContextReleaseBlockerCode,
+    CareerContextReleaseReadiness,
+)
 from app.domain.career_context import EvidenceType, Seniority, SkillLevel
 
 
@@ -121,6 +125,55 @@ class ProfileResponse(CamelCaseModel):
                 for item in detail.skills
             ],
             created_at=detail.created_at,
+        )
+
+
+class CareerContextReleaseBlockerResponse(CamelCaseModel):
+    code: CareerContextReleaseBlockerCode
+    message: str
+
+
+class CareerContextReleaseReadinessResponse(CamelCaseModel):
+    release_eligible: bool
+    confirmation_boundary: str
+    profile_id: str | None
+    profile_version: int | None
+    profile_created_at: datetime | None
+    profile_evidence_count: int
+    profile_skill_count: int
+    search_intent_id: str | None
+    search_intent_version: int | None
+    search_intent_created_at: datetime | None
+    search_intent_target_role_count: int
+    blockers: list[CareerContextReleaseBlockerResponse]
+    db_writes: int = 0
+    provider_calls: int = 0
+    trace_runs_created: int = 0
+
+    @classmethod
+    def from_detail(
+        cls,
+        detail: CareerContextReleaseReadiness,
+    ) -> "CareerContextReleaseReadinessResponse":
+        return cls(
+            release_eligible=detail.release_eligible,
+            confirmation_boundary=detail.confirmation_boundary,
+            profile_id=detail.profile_id,
+            profile_version=detail.profile_version,
+            profile_created_at=detail.profile_created_at,
+            profile_evidence_count=detail.profile_evidence_count,
+            profile_skill_count=detail.profile_skill_count,
+            search_intent_id=detail.search_intent_id,
+            search_intent_version=detail.search_intent_version,
+            search_intent_created_at=detail.search_intent_created_at,
+            search_intent_target_role_count=detail.search_intent_target_role_count,
+            blockers=[
+                CareerContextReleaseBlockerResponse(
+                    code=item.code,
+                    message=item.message,
+                )
+                for item in detail.blockers
+            ],
         )
 
 

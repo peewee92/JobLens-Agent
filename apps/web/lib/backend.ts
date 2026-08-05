@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   ApiErrorBody,
+  CareerContextReleaseReadiness,
   JobDetail,
   JobImportDetail,
   AcceptedProfileEvalBaseline,
@@ -147,6 +148,12 @@ export function fetchCurrentProfile(): Promise<UserProfile | null> {
 
 export function fetchCurrentSearchIntent(): Promise<SearchIntent | null> {
   return optionalJson<SearchIntent>("/api/v1/search-intent");
+}
+
+export function fetchCareerContextReleaseReadiness(): Promise<CareerContextReleaseReadiness> {
+  return backendJson<CareerContextReleaseReadiness>(
+    "/api/v1/career-context/release-readiness",
+  );
 }
 
 export function fetchProfileEvalRuns(

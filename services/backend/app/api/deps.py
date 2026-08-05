@@ -4,6 +4,9 @@ from pathlib import Path
 
 from fastapi import Depends
 
+from app.application.career_context.release import (
+    GetCareerContextReleaseReadinessUseCase,
+)
 from app.application.career_context.use_cases import (
     GetProfileUseCase,
     GetSearchIntentUseCase,
@@ -420,6 +423,14 @@ def get_get_profile_use_case(
     ),
 ) -> GetProfileUseCase:
     return GetProfileUseCase(repository)
+
+
+def get_career_context_release_readiness_use_case(
+    repository: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+) -> GetCareerContextReleaseReadinessUseCase:
+    return GetCareerContextReleaseReadinessUseCase(repository)
 
 
 def get_save_profile_use_case(

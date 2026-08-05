@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.application.career_context.models import (
+    CareerContextSnapshot,
     EvidenceDetail,
     ProfileDetail,
     SaveProfileCommand,
@@ -254,6 +255,46 @@ class SqlAlchemyCareerContextQueryRepository(
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
 
+    def get_current_context(self) -> CareerContextSnapshot:
+        """Select both current IDs in one statement, then load those exact versions."""
+
+        with self._session_factory() as session:
+            profile_id_query = (
+                select(UserProfileORM.id)
+                .where(UserProfileORM.profile_key == PROFILE_KEY)
+                .order_by(UserProfileORM.version.desc())
+                .limit(1)
+                .scalar_subquery()
+            )
+            intent_id_query = (
+                select(SearchIntentORM.id)
+                .where(SearchIntentORM.intent_key == SEARCH_INTENT_KEY)
+                .order_by(SearchIntentORM.version.desc())
+                .limit(1)
+                .scalar_subquery()
+            )
+            profile_id, intent_id = session.execute(
+                select(profile_id_query, intent_id_query)
+            ).one()
+            profile = (
+                _load_profile(session, profile_id)
+                if profile_id is not None
+                else None
+            )
+            intent_model = (
+                session.get(SearchIntentORM, intent_id)
+                if intent_id is not None
+                else None
+            )
+            return CareerContextSnapshot(
+                profile=profile,
+                search_intent=(
+                    _search_intent_detail(intent_model)
+                    if intent_model is not None
+                    else None
+                ),
+            )
+
     def get_current_profile(self) -> ProfileDetail | None:
         with self._session_factory() as session:
             profile_id = session.scalar(
@@ -262,9 +303,11 @@ class SqlAlchemyCareerContextQueryRepository(
                 .order_by(UserProfileORM.version.desc())
                 .limit(1)
             )
-            if profile_id is None:
-                return None
-            return _load_profile(session, profile_id)
+            return (
+                _load_profile(session, profile_id)
+                if profile_id is not None
+                else None
+            )
 
     def get_current_search_intent(self) -> SearchIntentDetail | None:
         with self._session_factory() as session:

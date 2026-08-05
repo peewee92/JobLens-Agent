@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import (
+    get_career_context_release_readiness_use_case,
     get_get_profile_use_case,
     get_get_search_intent_use_case,
     get_save_profile_use_case,
@@ -13,10 +14,14 @@ from app.api.deps import (
 )
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.career_context import (
+    CareerContextReleaseReadinessResponse,
     ProfileResponse,
     SaveProfileRequest,
     SaveSearchIntentRequest,
     SearchIntentResponse,
+)
+from app.application.career_context.release import (
+    GetCareerContextReleaseReadinessUseCase,
 )
 from app.application.career_context.use_cases import (
     GetProfileUseCase,
@@ -26,6 +31,19 @@ from app.application.career_context.use_cases import (
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/career-context/release-readiness",
+    response_model=CareerContextReleaseReadinessResponse,
+)
+def get_career_context_release_readiness(
+    use_case: Annotated[
+        GetCareerContextReleaseReadinessUseCase,
+        Depends(get_career_context_release_readiness_use_case),
+    ],
+) -> CareerContextReleaseReadinessResponse:
+    return CareerContextReleaseReadinessResponse.from_detail(use_case.execute())
 
 
 @router.get(

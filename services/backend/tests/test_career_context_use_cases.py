@@ -178,6 +178,32 @@ def test_profile_update_creates_new_version_and_preserves_history(
         assert count(session, ProfileEvidenceORM) == 4
 
 
+def test_current_context_snapshot_returns_one_selected_latest_version_pair(
+    session_factory: sessionmaker[Session],
+) -> None:
+    profile_use_case = make_profile_use_case(session_factory)
+    intent_use_case = make_intent_use_case(session_factory)
+    profile_use_case.execute(profile_command())
+    intent_use_case.execute(intent_command())
+    expected_profile = profile_use_case.execute(
+        profile_command(1, headline="Confirmed Profile v2")
+    )
+    expected_intent = intent_use_case.execute(
+        replace(intent_command(1), minimum_salary_k=25)
+    )
+
+    snapshot = SqlAlchemyCareerContextQueryRepository(
+        session_factory
+    ).get_current_context()
+
+    assert snapshot.profile is not None
+    assert snapshot.search_intent is not None
+    assert snapshot.profile.id == expected_profile.id
+    assert snapshot.profile.version == 2
+    assert snapshot.search_intent.id == expected_intent.id
+    assert snapshot.search_intent.version == 2
+
+
 def test_profile_rejects_skill_without_evidence_and_writes_nothing(
     session_factory: sessionmaker[Session],
 ) -> None:

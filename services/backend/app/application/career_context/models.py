@@ -87,3 +87,11 @@ class SearchIntentDetail:
     hard_constraints: tuple[str, ...]
     soft_preferences: tuple[str, ...]
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class CareerContextSnapshot:
+    """One atomically selected pair of current confirmed version identities."""
+
+    profile: ProfileDetail | None
+    search_intent: SearchIntentDetail | None

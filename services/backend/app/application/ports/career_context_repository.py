@@ -4,6 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.application.career_context.models import (
+    CareerContextSnapshot,
     ProfileDetail,
     SaveProfileCommand,
     SaveSearchIntentCommand,
@@ -43,6 +44,10 @@ class AbstractCareerContextRepository(ABC):
 
 class AbstractCareerContextQueryRepository(ABC):
     """Read-only current-version queries for API/Web/Agent consumers."""
+
+    @abstractmethod
+    def get_current_context(self) -> CareerContextSnapshot:
+        """Atomically select current Profile/SearchIntent version identities."""
 
     @abstractmethod
     def get_current_profile(self) -> ProfileDetail | None:

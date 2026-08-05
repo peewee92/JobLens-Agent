@@ -10,10 +10,14 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.deps import (
+    get_career_context_release_readiness_use_case,
     get_get_profile_use_case,
     get_get_search_intent_use_case,
     get_save_profile_use_case,
     get_save_search_intent_use_case,
+)
+from app.application.career_context.release import (
+    GetCareerContextReleaseReadinessUseCase,
 )
 from app.application.career_context.use_cases import (
     GetProfileUseCase,
@@ -22,7 +26,12 @@ from app.application.career_context.use_cases import (
     SaveSearchIntentUseCase,
 )
 from app.db.base import Base
-from app.db.models import SearchIntentORM, UserProfileORM
+from app.db.models import (
+    ProfileSkillEvidenceORM,
+    SearchIntentORM,
+    TraceSpanORM,
+    UserProfileORM,
+)
 from app.main import app
 from app.repositories import (
     SqlAlchemyCareerContextQueryRepository,
@@ -49,6 +58,9 @@ def api_environment(tmp_path: Path) -> Iterator[tuple[TestClient, sessionmaker[S
 
     app.dependency_overrides[get_get_profile_use_case] = lambda: GetProfileUseCase(
         query_repository
+    )
+    app.dependency_overrides[get_career_context_release_readiness_use_case] = (
+        lambda: GetCareerContextReleaseReadinessUseCase(query_repository)
     )
     app.dependency_overrides[get_save_profile_use_case] = lambda: SaveProfileUseCase(
         uow_factory
@@ -248,6 +260,111 @@ def test_search_intent_rejects_roles_that_normalize_to_empty(
         assert session.scalar(select(func.count(SearchIntentORM.id))) == 0
 
 
+def test_release_readiness_reports_missing_confirmed_versions_without_writes(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+
+    response = client.get("/api/v1/career-context/release-readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["releaseEligible"] is False
+    assert {item["code"] for item in body["blockers"]} == {
+        "profile_missing",
+        "search_intent_missing",
+    }
+    assert body["dbWrites"] == 0
+    assert body["providerCalls"] == 0
+    assert body["traceRunsCreated"] == 0
+    with factory() as session:
+        assert session.scalar(select(func.count(UserProfileORM.id))) == 0
+        assert session.scalar(select(func.count(SearchIntentORM.id))) == 0
+        assert session.scalar(select(func.count(TraceSpanORM.id))) == 0
+
+
+def test_release_readiness_requires_both_current_confirmed_versions(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _factory = api_environment
+
+    assert client.put("/api/v1/profile", json=profile_payload()).status_code == 200
+    profile_only = client.get("/api/v1/career-context/release-readiness")
+    assert profile_only.status_code == 200
+    assert profile_only.json()["releaseEligible"] is False
+    assert {item["code"] for item in profile_only.json()["blockers"]} == {
+        "search_intent_missing"
+    }
+
+    assert (
+        client.put("/api/v1/search-intent", json=intent_payload()).status_code
+        == 200
+    )
+    complete = client.get("/api/v1/career-context/release-readiness")
+    assert complete.status_code == 200
+    body = complete.json()
+    assert body["releaseEligible"] is True
+    assert body["confirmationBoundary"] == "explicit_versioned_user_confirmation"
+    assert body["profileVersion"] == 1
+    assert body["profileEvidenceCount"] == 2
+    assert body["profileSkillCount"] == 2
+    assert body["searchIntentVersion"] == 1
+    assert body["searchIntentTargetRoleCount"] == 2
+    assert body["blockers"] == []
+
+
+def test_release_readiness_detects_corrupted_skill_evidence_links(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    assert client.put("/api/v1/profile", json=profile_payload()).status_code == 200
+    assert (
+        client.put("/api/v1/search-intent", json=intent_payload()).status_code
+        == 200
+    )
+    with factory() as session:
+        session.query(ProfileSkillEvidenceORM).delete()
+        session.commit()
+
+    response = client.get("/api/v1/career-context/release-readiness")
+
+    assert response.status_code == 200
+    assert response.json()["releaseEligible"] is False
+    assert {item["code"] for item in response.json()["blockers"]} == {
+        "profile_skill_evidence_missing"
+    }
+
+
+def test_release_readiness_query_preserves_versions_and_trace_count(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, factory = api_environment
+    assert client.put("/api/v1/profile", json=profile_payload()).status_code == 200
+    assert (
+        client.put("/api/v1/search-intent", json=intent_payload()).status_code
+        == 200
+    )
+    with factory() as session:
+        before = (
+            session.scalar(select(func.count(UserProfileORM.id))),
+            session.scalar(select(func.count(SearchIntentORM.id))),
+            session.scalar(select(func.count(TraceSpanORM.id))),
+        )
+
+    assert (
+        client.get("/api/v1/career-context/release-readiness").status_code
+        == 200
+    )
+
+    with factory() as session:
+        after = (
+            session.scalar(select(func.count(UserProfileORM.id))),
+            session.scalar(select(func.count(SearchIntentORM.id))),
+            session.scalar(select(func.count(TraceSpanORM.id))),
+        )
+    assert after == before == (1, 1, 0)
+
+
 def test_openapi_contains_career_context_operations(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
@@ -257,6 +374,7 @@ def test_openapi_contains_career_context_operations(
 
     assert openapi.status_code == 200
     paths = openapi.json()["paths"]
+    assert paths["/api/v1/career-context/release-readiness"]["get"]
     assert paths["/api/v1/profile"]["get"]
     assert paths["/api/v1/profile"]["put"]
     assert paths["/api/v1/search-intent"]["get"]

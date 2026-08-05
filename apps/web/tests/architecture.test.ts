@@ -42,6 +42,19 @@ test("the Profile Client Component calls only same-origin proxies", async () => 
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
 });
 
+test("Profile page consumes Backend career-context release facts without implementing policy", async () => {
+  const source = await readFile(join(webRoot, "app/profile/page.tsx"), "utf8");
+  assert.match(source, /fetchCareerContextReleaseReadiness/);
+  assert.match(source, /releaseReadiness\.releaseEligible/);
+  assert.match(source, /releaseReadiness\.blockers/);
+  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /profileEval|acceptedBaseline|OPENAI_API_KEY/);
+  assert.doesNotMatch(
+    source,
+    /evidenceIds\.length\s*>|targetRoles\.length\s*>|yearsOfExperience\s*</,
+  );
+});
+
 test("the Resume Proposal Client Component calls only the same-origin proxy", async () => {
   const source = await readFile(
     join(webRoot, "components/resume-proposal-panel.tsx"),
