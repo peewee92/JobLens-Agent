@@ -72,6 +72,13 @@ def build_requirement_acceptance_session_manifest(
     full JD text, raw Trace output, or human note bodies.
     """
 
+    if not readiness.dataset_fingerprint or not readiness.source_version:
+        raise ValueError(
+            "Requirement acceptance Session Manifest requires a validated formal "
+            "dataset fingerprint and source version."
+        )
+    dataset_fingerprint = readiness.dataset_fingerprint
+
     now = generated_at or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
@@ -79,7 +86,7 @@ def build_requirement_acceptance_session_manifest(
         now = now.astimezone(timezone.utc)
 
     session_id = requirement_acceptance_session_id(
-        dataset_fingerprint=readiness.dataset_fingerprint,
+        dataset_fingerprint=dataset_fingerprint,
         reviewer=readiness.reviewer,
         title=readiness.title,
         provider=readiness.provider,
@@ -157,7 +164,7 @@ def build_requirement_acceptance_session_manifest(
         "generatedAt": now.isoformat(),
         "state": manifest_state,
         "identity": {
-            "datasetFingerprint": readiness.dataset_fingerprint,
+            "datasetFingerprint": dataset_fingerprint,
             "sourceVersion": readiness.source_version,
             "selectedCount": readiness.selected_count,
             "datasetFileName": dataset_path.name,

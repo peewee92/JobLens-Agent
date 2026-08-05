@@ -1,6 +1,7 @@
 """Controlled post-Continue Requirement acceptance resume operator tests."""
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -314,6 +315,38 @@ def test_resume_policy_binds_continue_review_run_and_remaining_budget(
     )
     assert authorized.state is RequirementAcceptanceResumeOperatorState.AUTHORIZED
     assert authorized.execution_authorized is True
+
+
+def test_resume_policy_rejects_datasetless_dashboard_readiness(
+    tmp_path: Path,
+) -> None:
+    private_root = tmp_path / "private"
+    dataset = private_root / "datasets" / f"formal-{'a' * 16}.json"
+    run = _run(completed_count=3)
+    readiness = replace(
+        _readiness(requested=17),
+        dataset_fingerprint=None,
+        source_version=None,
+    )
+
+    plan = evaluate_requirement_acceptance_resume_operator(
+        readiness=readiness,
+        existing_run=run,
+        dataset_path=dataset,
+        expected_dataset_path=dataset,
+        private_root=private_root,
+        session_manifest_path=None,
+        expected_run_id="run_1",
+        expected_canary_review_id="review_1",
+        execute_requested=True,
+        live_cost_confirmed=True,
+    )
+
+    assert plan.state is RequirementAcceptanceResumeOperatorState.BLOCKED
+    assert "formal_dataset_identity_missing" in {
+        item.code for item in plan.blockers
+    }
+    assert plan.execution_authorized is False
 
 
 def test_resume_policy_preserves_historical_review_after_post_review_retry(

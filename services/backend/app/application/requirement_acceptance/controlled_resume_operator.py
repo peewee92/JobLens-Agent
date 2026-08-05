@@ -81,6 +81,12 @@ def evaluate_requirement_acceptance_resume_operator(
             RequirementAcceptanceResumeOperatorBlocker(code=code, message=message)
         )
 
+    if not readiness.dataset_fingerprint or not readiness.source_version:
+        block(
+            "formal_dataset_identity_missing",
+            "Controlled resume requires a validated formal dataset fingerprint and source version.",
+        )
+
     if not dataset.is_relative_to(private):
         block(
             "dataset_outside_private_root",

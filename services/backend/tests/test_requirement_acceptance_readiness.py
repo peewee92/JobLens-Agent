@@ -1,11 +1,14 @@
 """Readiness policy tests for the first credential-backed Requirement run."""
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from app.application.requirement_acceptance.readiness import (
     RequirementAcceptanceReadinessNextAction,
@@ -414,6 +417,25 @@ def test_session_identity_is_stable_across_budget_and_export_time() -> None:
     assert first == second
     assert first.startswith("reqacceptsession_")
     assert changed_model != first
+
+
+def test_session_manifest_rejects_datasetless_dashboard_readiness() -> None:
+    readiness = replace(
+        _evaluate(existing_run=None, max_new_extractions=1),
+        dataset_fingerprint=None,
+        source_version=None,
+    )
+
+    with pytest.raises(ValueError, match="validated formal dataset"):
+        build_requirement_acceptance_session_manifest(
+            readiness=readiness,
+            existing_run=None,
+            dataset_path=Path("formal-review.json"),
+            extractor_version="requirement-extractor-v1",
+            prompt_version="requirement-extraction-v1",
+            recommended_command=None,
+            generated_at=NOW,
+        )
 
 
 def test_session_manifest_contains_references_not_raw_sensitive_evidence() -> None:

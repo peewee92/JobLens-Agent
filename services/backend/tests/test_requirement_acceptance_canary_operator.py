@@ -1,6 +1,7 @@
 """Explicit live Requirement Canary operator boundary tests."""
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -231,6 +232,34 @@ def test_operator_policy_separates_ready_plan_from_explicit_authorization(
     )
     assert authorized.state is RequirementAcceptanceCanaryOperatorState.AUTHORIZED
     assert authorized.execution_authorized is True
+
+
+def test_operator_policy_rejects_datasetless_dashboard_readiness(
+    tmp_path: Path,
+) -> None:
+    private_root = tmp_path / "private"
+    dataset = private_root / "datasets" / f"formal-{'a' * 16}.json"
+    readiness = replace(
+        _readiness(requested=1),
+        dataset_fingerprint=None,
+        source_version=None,
+    )
+
+    plan = evaluate_requirement_acceptance_canary_operator(
+        readiness=readiness,
+        dataset_path=dataset,
+        expected_dataset_path=dataset,
+        private_root=private_root,
+        session_manifest_path=None,
+        execute_requested=True,
+        live_cost_confirmed=True,
+    )
+
+    assert plan.state is RequirementAcceptanceCanaryOperatorState.BLOCKED
+    assert "formal_dataset_identity_missing" in {
+        item.code for item in plan.blockers
+    }
+    assert plan.execution_authorized is False
 
 
 def test_operator_policy_requires_canonical_private_handoff_and_run_canary_action(

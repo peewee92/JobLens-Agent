@@ -49,6 +49,8 @@ Requirement 质量治理进一步区分：
 
 项目尚未批准基于 accepted/rejected 百分比的自动晋级阈值，因此 Web 和 Backend 都不能把 20 条 Review 完成自动解释为模型通过。Final Decision 保存 evidence fingerprint；如果后续 JD 或 Extraction 更新，历史结论仍保留，但 accepted-baseline Query 会撤销该 Batch 的当前 Match 资格。
 
+真实验收开始前的 Readiness 也是动态派生事实：formal dataset、Provider config、API Key presence、Alembic revision、Existing Run 和人工 decision 必须在每次读取时重新组合。Read-only Web Dashboard 与 CLI 复用同一 Policy 和 DB/Alembic 只读适配器；Web 只提供 Human Gate 可见性，不能迁移数据库、启动 Provider、Resume 或提交质量结论。
+
 模型 cohort 获得人工接受后，单个岗位仍需通过 Job Requirement Fact Release Gate：latest Extraction 必须对应当前 JD，cohort 与 accepted baseline 精确一致，Trace 成功且 input refs、逐条 output 与数据库 Requirement 完全一致。该 Gate 是只读信任链，不运行 Match，也不把模型质量结论扩张为岗位推荐结论。
 
 ### 2.3 Match Eval（Single/Batch Match）
