@@ -24,6 +24,7 @@ from app.application.job_requirements.use_cases import (
     GetJobRequirementExtractionUseCase,
     GetLatestJobRequirementsUseCase,
 )
+from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
@@ -521,6 +522,20 @@ def get_job_requirement_release_readiness_use_case(
         requirements=requirements,
         reviews=reviews,
         traces=traces,
+    )
+
+
+def get_match_input_readiness_use_case(
+    career_context: GetCareerContextReleaseReadinessUseCase = Depends(
+        get_career_context_release_readiness_use_case
+    ),
+    job_requirements: GetJobRequirementReleaseReadinessUseCase = Depends(
+        get_job_requirement_release_readiness_use_case
+    ),
+) -> GetMatchInputReadinessUseCase:
+    return GetMatchInputReadinessUseCase(
+        career_context=career_context,
+        job_requirements=job_requirements,
     )
 
 

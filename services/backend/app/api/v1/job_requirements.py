@@ -10,12 +10,14 @@ from app.api.deps import (
     get_job_requirement_extraction_use_case,
     get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
+    get_match_input_readiness_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.job_requirements import (
     JobRequirementExtractionResponse,
     JobRequirementReleaseReadinessResponse,
 )
+from app.api.v1.schemas.match_inputs import MatchInputReadinessResponse
 from app.application.job_requirements.release import (
     GetJobRequirementReleaseReadinessUseCase,
 )
@@ -24,6 +26,7 @@ from app.application.job_requirements.use_cases import (
     GetJobRequirementExtractionUseCase,
     GetLatestJobRequirementsUseCase,
 )
+from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 
 router = APIRouter(prefix="/jobs")
 
@@ -64,6 +67,21 @@ def get_job_requirement_release_readiness(
     return JobRequirementReleaseReadinessResponse.from_detail(
         use_case.execute(job_id)
     )
+
+
+@router.get(
+    "/{job_id}/match-input-readiness",
+    response_model=MatchInputReadinessResponse,
+    responses={status.HTTP_404_NOT_FOUND: {"model": ApiErrorResponse}},
+)
+def get_match_input_readiness(
+    job_id: str,
+    use_case: Annotated[
+        GetMatchInputReadinessUseCase,
+        Depends(get_match_input_readiness_use_case),
+    ],
+) -> MatchInputReadinessResponse:
+    return MatchInputReadinessResponse.from_detail(use_case.execute(job_id))
 
 
 @router.get(
