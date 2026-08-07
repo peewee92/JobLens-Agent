@@ -31,14 +31,14 @@ export function JobRequirementExtractButton({
         | ApiErrorBody;
       if (!response.ok) {
         throw new Error(
-          "error" in body ? body.error.message : `抽取失败（${response.status}）`,
+          "error" in body ? body.error.message : `分析失败（${response.status}）`,
         );
       }
       router.refresh();
       setStatus("idle");
     } catch (caught) {
       setStatus("error");
-      setMessage(caught instanceof Error ? caught.message : "抽取岗位要求时发生未知错误。");
+      setMessage(caught instanceof Error ? caught.message : "分析岗位要求时发生未知错误。");
     }
   }
 
@@ -51,13 +51,13 @@ export function JobRequirementExtractButton({
         type="button"
       >
         {status === "submitting"
-          ? "正在抽取…"
+          ? "正在分析…"
           : hasExisting
-            ? "重新抽取新版本"
-            : "抽取结构化岗位要求"}
+            ? "重新分析岗位要求"
+            : "分析岗位要求"}
       </button>
       {disabled ? (
-        <p className="notice">当前岗位没有足够的 JD 文本，无法抽取。</p>
+        <p className="notice">当前岗位缺少足够的 JD 文本，暂时无法分析岗位要求。</p>
       ) : null}
       {status === "error" ? <p className="inline-error">{message}</p> : null}
     </div>

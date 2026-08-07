@@ -66,6 +66,18 @@ test("the Resume Proposal Client Component calls only the same-origin proxy", as
   assert.doesNotMatch(source, /fetch\("\/api\/profile"/);
 });
 
+test("the Resume Proposal file field keeps drag-and-drop wired to the same file validation path", async () => {
+  const source = await readFile(
+    join(webRoot, "components/resume-proposal-panel.tsx"),
+    "utf8",
+  );
+  assert.match(source, /onDragOver=/);
+  assert.match(source, /onDrop=/);
+  assert.match(source, /dataTransfer\.files/);
+  assert.match(source, /validateResumeFile/);
+  assert.match(source, /function selectResumeFile[\s\S]*setProposal\(null\)/);
+});
+
 test("the Job Requirement Client calls only its same-origin command proxy", async () => {
   const source = await readFile(
     join(webRoot, "components/job-requirement-extract-button.tsx"),

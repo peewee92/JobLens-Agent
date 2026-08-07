@@ -632,6 +632,20 @@ h3 {
   padding: 14px;
 }
 
+.drop-file-field {
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.drop-file-field.is-dragging {
+  border-color: #6b7fa8;
+  background: #eef3fb;
+  box-shadow: inset 0 0 0 1px #c8d4ea;
+}
+
+.file-drop-hint {
+  margin: -4px 0 10px;
+}
+
 .proposal-divider {
   display: flex;
   align-items: center;
@@ -832,9 +846,54 @@ h3 {
   border-color: #f5c6c1;
 }
 
+.review-pending {
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-color: #ead8a5;
+}
+
 .requirement-section {
   display: grid;
   gap: 16px;
+}
+
+.readiness-blocker-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.readiness-blocker-item {
+  padding: 12px 14px;
+  border: 1px solid rgba(154, 103, 0, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.readiness-blocker-item strong {
+  display: block;
+  color: var(--ink);
+}
+
+.readiness-blocker-item p {
+  margin: 5px 0 0;
+  color: #5f6674;
+  line-height: 1.55;
+}
+
+.technical-details {
+  margin-top: 14px;
+  color: var(--muted);
+}
+
+.technical-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.technical-details .code,
+.technical-details ul {
+  margin-top: 10px;
 }
 
 .requirement-lede {

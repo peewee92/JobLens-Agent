@@ -4,7 +4,7 @@ import test from "node:test";
 import type {JobRequirement, JobRequirementReleaseReadiness} from "@/lib/contracts";
 import {
   requirementImportanceLabel,
-  requirementReleaseBlockerLabels,
+  requirementReleaseBlockerCopy,
   requirementReleaseLabel,
   requirementTypeLabel,
   sortJobRequirements,
@@ -57,19 +57,25 @@ test("Requirement release labels distinguish allowed facts from blockers", () =>
     blockers: [],
   };
 
-  assert.equal(requirementReleaseLabel(base), "已通过 Requirement 事实发布门禁");
-  assert.match(
+  assert.equal(requirementReleaseLabel(base), "岗位要求已准备好，可以开始匹配");
+  assert.equal(
     requirementReleaseLabel({
       ...base,
       releaseEligible: false,
       blockers: [{code: "extraction_input_stale", message: "stale"}],
     }),
-    /1 个阻塞项/,
+    "岗位要求还在准备中，暂时不能开始匹配",
   );
-  assert.equal(
-    requirementReleaseBlockerLabels.extraction_input_stale,
-    "Extraction 已不对应当前 JD",
-  );
+  assert.deepEqual(requirementReleaseBlockerCopy("accepted_baseline_missing"), {
+    title: "系统还在确认 AI 分析是否足够可靠",
+    description:
+      "在用于岗位匹配前，我们会先人工抽查 AI 对岗位要求的理解，避免错误分析影响推荐结果。",
+  });
+  assert.deepEqual(requirementReleaseBlockerCopy("requirement_extraction_missing"), {
+    title: "这个岗位还没有完成要求分析",
+    description:
+      "点击“分析岗位要求”，系统会从 JD 中整理学历、经验、技能和职责等关键要求。",
+  });
 });
 
 

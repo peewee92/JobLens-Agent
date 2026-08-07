@@ -26,27 +26,81 @@ export function requirementImportanceLabel(
   }[importance];
 }
 
-export const requirementReleaseBlockerLabels: Record<string, string> = {
-  accepted_baseline_missing: "尚无当前有效的人工接受 Requirement 基线",
-  requirement_extraction_missing: "该岗位尚无 Requirement Extraction",
-  extraction_input_stale: "Extraction 已不对应当前 JD",
-  extraction_cohort_mismatch: "Extraction 模型版本与人工接受基线不一致",
-  requirements_empty: "Extraction 没有 Requirement 事实",
-  requirement_count_mismatch: "Requirement 计数与实际记录不一致",
-  trace_missing: "Extraction Trace 不存在",
-  trace_failed: "Extraction Trace 记录了执行错误",
-  trace_capability_mismatch: "Trace 不是 Requirement Extraction 能力运行",
-  trace_cohort_mismatch: "Trace 模型版本与 Extraction 不一致",
-  trace_input_mismatch: "Trace 输入引用与岗位或 JD 不一致",
-  trace_output_mismatch: "Trace 输出数量与持久化 Requirement 不一致",
+export type RequirementReleaseBlockerCopy = {
+  title: string;
+  description: string;
 };
+
+const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerCopy> = {
+  accepted_baseline_missing: {
+    title: "系统还在确认 AI 分析是否足够可靠",
+    description:
+      "在用于岗位匹配前，我们会先人工抽查 AI 对岗位要求的理解，避免错误分析影响推荐结果。",
+  },
+  requirement_extraction_missing: {
+    title: "这个岗位还没有完成要求分析",
+    description:
+      "点击“分析岗位要求”，系统会从 JD 中整理学历、经验、技能和职责等关键要求。",
+  },
+  extraction_input_stale: {
+    title: "岗位内容有更新，需要重新分析",
+    description: "当前分析基于旧版 JD。为避免用过期信息匹配，请重新分析岗位要求。",
+  },
+  extraction_cohort_mismatch: {
+    title: "岗位要求分析版本已更新",
+    description: "当前结果来自旧的分析版本，需要重新分析后才能用于匹配。",
+  },
+  requirements_empty: {
+    title: "没有识别到可用的岗位要求",
+    description: "这次分析没有得到可核对的要求，建议检查 JD 内容后重新分析。",
+  },
+  requirement_count_mismatch: {
+    title: "岗位要求数据需要重新校验",
+    description: "系统发现分析结果不完整，为避免错误匹配，暂时不会使用这份结果。",
+  },
+  trace_missing: {
+    title: "岗位要求分析记录不完整",
+    description: "系统缺少这次分析的验证记录，需要重新分析后才能用于匹配。",
+  },
+  trace_failed: {
+    title: "岗位要求分析没有成功完成",
+    description: "这次分析过程中出现错误，请重新分析岗位要求后再尝试匹配。",
+  },
+  trace_capability_mismatch: {
+    title: "岗位要求分析记录需要重新校验",
+    description: "系统发现分析记录类型不一致，为避免错误匹配，暂时不会使用这份结果。",
+  },
+  trace_cohort_mismatch: {
+    title: "岗位要求分析版本不一致",
+    description: "分析结果与验证记录来自不同版本，需要重新分析后才能用于匹配。",
+  },
+  trace_input_mismatch: {
+    title: "岗位内容与分析记录不一致",
+    description: "系统发现当前 JD 与分析时的输入不一致，需要重新分析后才能用于匹配。",
+  },
+  trace_output_mismatch: {
+    title: "岗位要求分析结果不完整",
+    description: "系统发现展示的岗位要求与分析记录不一致，需要重新分析后才能用于匹配。",
+  },
+};
+
+export function requirementReleaseBlockerCopy(
+  code: string,
+): RequirementReleaseBlockerCopy {
+  return (
+    requirementReleaseBlockerCopies[code] ?? {
+      title: "岗位要求暂时还不能用于匹配",
+      description: "系统检测到一项准备工作未完成，请稍后重试或查看技术详情。",
+    }
+  );
+}
 
 export function requirementReleaseLabel(
   readiness: JobRequirementReleaseReadiness,
 ): string {
   return readiness.releaseEligible
-    ? "已通过 Requirement 事实发布门禁"
-    : `不可供 Match 使用：${readiness.blockers.length} 个阻塞项`;
+    ? "岗位要求已准备好，可以开始匹配"
+    : "岗位要求还在准备中，暂时不能开始匹配";
 }
 
 export function sortJobRequirements(

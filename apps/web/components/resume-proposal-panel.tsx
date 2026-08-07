@@ -1,11 +1,12 @@
 "use client";
 
-import {FormEvent, useState} from "react";
+import {DragEvent, FormEvent, useState} from "react";
 
 import type {
   ApiErrorBody,
   ProfileExtractionProposal,
 } from "@/lib/contracts";
+import {validateResumeFile} from "@/lib/resume-files";
 
 type ProposalState = {
   kind: "idle" | "submitting" | "success" | "error";
@@ -28,8 +29,39 @@ export function ResumeProposalPanel({
 }) {
   const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [proposal, setProposal] = useState<ProfileExtractionProposal | null>(null);
   const [state, setState] = useState<ProposalState>({kind: "idle", message: ""});
+
+  function selectResumeFile(file: File | null) {
+    setProposal(null);
+    if (!file) {
+      setResumeFile(null);
+      setState({kind: "idle", message: ""});
+      return;
+    }
+    const validationError = validateResumeFile(file);
+    if (validationError) {
+      setResumeFile(null);
+      setState({kind: "error", message: validationError});
+      return;
+    }
+    setResumeFile(file);
+    setState({kind: "idle", message: ""});
+  }
+
+  function dropResumeFile(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDraggingFile(false);
+    const files = event.dataTransfer.files;
+    if (files.length !== 1) {
+      setProposal(null);
+      setResumeFile(null);
+      setState({kind: "error", message: "一次请只拖入 1 个 PDF 或 DOCX 文件。"});
+      return;
+    }
+    selectResumeFile(files[0] ?? null);
+  }
 
   async function acceptResponse(response: Response) {
     if (!response.ok) {
@@ -92,12 +124,28 @@ export function ResumeProposalPanel({
       </p>
 
       <form className="proposal-file-form" onSubmit={proposeFile}>
-        <div className="file-field compact-file-field">
+        <div
+          className={`file-field compact-file-field drop-file-field${isDraggingFile ? " is-dragging" : ""}`}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={dropResumeFile}
+        >
           <span>上传 PDF 或 DOCX</span>
+          <p className="muted-copy file-drop-hint">
+            {isDraggingFile ? "松开即可添加文件" : "拖拽文件到这里，或点击下方选择文件"}
+          </p>
           <input
             type="file"
             accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => setResumeFile(event.target.files?.[0] ?? null)}
+            onChange={(event) => selectResumeFile(event.target.files?.[0] ?? null)}
           />
         </div>
         <div className="actions">
@@ -108,7 +156,7 @@ export function ResumeProposalPanel({
           >
             {state.kind === "submitting" ? "处理中…" : "从文件生成提案"}
           </button>
-          <span className="muted-copy">
+          <span className="muted-copy" aria-live="polite">
             {resumeFile ? `${resumeFile.name} · ${Math.ceil(resumeFile.size / 1024)} KiB` : "未选择文件"}
           </span>
         </div>

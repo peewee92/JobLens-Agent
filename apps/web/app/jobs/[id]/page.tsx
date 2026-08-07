@@ -13,7 +13,7 @@ import {
 import {formatDateTime, formatSalary} from "@/lib/format";
 import {
   requirementImportanceLabel,
-  requirementReleaseBlockerLabels,
+  requirementReleaseBlockerCopy,
   requirementReleaseLabel,
   requirementTypeLabel,
   sortJobRequirements,
@@ -49,7 +49,7 @@ export default async function JobDetailPage({
     requirementError =
       caught instanceof BackendApiError
         ? caught.message
-        : "读取结构化岗位要求时发生未知错误。";
+        : "读取岗位要求分析结果时发生未知错误。";
   }
   try {
     releaseReadiness = await fetchJobRequirementReleaseReadiness(id);
@@ -57,7 +57,7 @@ export default async function JobDetailPage({
     releaseReadinessError =
       caught instanceof BackendApiError
         ? caught.message
-        : "读取 Requirement 事实发布门禁时发生未知错误。";
+        : "读取岗位匹配准备状态时发生未知错误。";
   }
 
   return (
@@ -99,9 +99,9 @@ export default async function JobDetailPage({
           <section className="detail-section requirement-section">
             <div className="section-title-row">
               <div>
-                <h2>结构化岗位要求</h2>
+                <h2>岗位要求分析</h2>
                 <p className="lede requirement-lede">
-                  后续 Eligibility、Match 和 Gap 只应引用这里的 Requirement ID 与 JD 证据片段。
+                  系统会先把原始 JD 整理成可核对的学历、经验、技能和职责。只有完成质量检查的结果，才会用于后续岗位匹配。
                 </p>
               </div>
               <JobRequirementExtractButton
@@ -113,32 +113,54 @@ export default async function JobDetailPage({
 
             {requirementError ? <p className="inline-error">{requirementError}</p> : null}
             {releaseReadinessError ? (
-              <p className="inline-error">门禁状态不可用：{releaseReadinessError}</p>
+              <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}
             {releaseReadiness ? (
-              <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-rejected"}`}>
+              <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
                   <>
                     <p>
-                      当前 Extraction、Trace、JD 输入和人工接受基线的模型 cohort 已对齐；未来 Match 只能消费该状态为通过的 Requirement 事实。
+                      这份岗位已经完成要求分析，并且当前 AI 分析方式已通过人工抽查，现在可以用于你的岗位匹配。
                     </p>
-                    <p className="code">
-                      Baseline：{releaseReadiness.acceptedBaselineBatchId} · Decision：{releaseReadiness.acceptedBaselineDecisionId}
-                    </p>
-                    <p className="code">
-                      Evidence Fingerprint：{releaseReadiness.acceptedBaselineEvidenceFingerprint}
-                    </p>
+                    <details className="technical-details">
+                      <summary>查看验证详情</summary>
+                      <p className="code">
+                        Baseline：{releaseReadiness.acceptedBaselineBatchId} · Decision：{releaseReadiness.acceptedBaselineDecisionId}
+                      </p>
+                      <p className="code">
+                        Evidence Fingerprint：{releaseReadiness.acceptedBaselineEvidenceFingerprint}
+                      </p>
+                    </details>
                   </>
                 ) : (
-                  <ul>
-                    {releaseReadiness.blockers.map((blocker) => (
-                      <li key={blocker.code}>
-                        {requirementReleaseBlockerLabels[blocker.code] ?? blocker.message}
-                        <span className="code"> · {blocker.code}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p>
+                      还有 {releaseReadiness.blockers.length} 项准备工作未完成。完成后，系统才会把这份岗位要求用于匹配，避免因为未校验的数据给出误导性的推荐。
+                    </p>
+                    <div className="readiness-blocker-list">
+                      {releaseReadiness.blockers.map((blocker) => {
+                        const copy = requirementReleaseBlockerCopy(blocker.code);
+                        return (
+                          <div className="readiness-blocker-item" key={blocker.code}>
+                            <strong>{copy.title}</strong>
+                            <p>{copy.description}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <details className="technical-details">
+                      <summary>查看技术详情</summary>
+                      <ul>
+                        {releaseReadiness.blockers.map((blocker) => (
+                          <li key={blocker.code}>
+                            <span className="code">{blocker.code}</span>
+                            {blocker.message ? ` · ${blocker.message}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </>
                 )}
               </div>
             ) : null}
