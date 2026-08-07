@@ -136,9 +136,10 @@ try {
   assert.equal(empty.providerCalls, 0);
   assert.equal(empty.traceRunsCreated, 0);
   const emptyPage = await pageHtml("/profile");
-  assert.match(emptyPage, /个人侧事实尚未通过 Match 输入门禁/);
-  assert.match(emptyPage, /尚未确认职业画像版本/);
-  assert.match(emptyPage, /尚未确认求职意向版本/);
+  assert.match(emptyPage, /还需要补充一些信息，才能用于后续岗位匹配/);
+  assert.match(emptyPage, /还没有保存你的职业背景/);
+  assert.match(emptyPage, /还没有保存你的求职偏好/);
+  assert.match(emptyPage, /查看技术详情/);
 
   const profilePayload = {
     expectedVersion: 0,
@@ -218,11 +219,13 @@ try {
   assert.doesNotMatch(serialized, /profileKey|intentKey|acceptedBaseline|apiKey|model/);
 
   const releasedPage = await pageHtml("/profile");
-  assert.match(releasedPage, /个人侧事实已可供未来 Match 使用/);
-  assert.match(releasedPage, /Profile 版本/);
-  assert.match(releasedPage, /SearchIntent 版本/);
-  assert.match(releasedPage, /DB writes[\s\S]{0,30}0/);
-  assert.match(releasedPage, /Provider calls[\s\S]{0,30}0/);
+  assert.match(releasedPage, /你的信息已准备好，可用于后续岗位匹配/);
+  assert.match(releasedPage, /真实经历/);
+  assert.match(releasedPage, /已确认技能/);
+  assert.match(releasedPage, /目标岗位/);
+  assert.match(releasedPage, /查看技术详情/);
+  assert.match(releasedPage, /dbWrites=[\s\S]{0,30}0/);
+  assert.match(releasedPage, /providerCalls=[\s\S]{0,30}0/);
 
   console.log(
     "Career context release smoke passed: missing → profile-only → confirmed Profile+SearchIntent released with zero query side effects.",

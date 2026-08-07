@@ -4,6 +4,7 @@ import {useRouter} from "next/navigation";
 import {useState} from "react";
 
 import type {ApiErrorBody, JobRequirementExtraction} from "@/lib/contracts";
+import {userFacingApiError} from "@/lib/user-facing-errors";
 
 export function JobRequirementExtractButton({
   jobId,
@@ -31,7 +32,10 @@ export function JobRequirementExtractButton({
         | ApiErrorBody;
       if (!response.ok) {
         throw new Error(
-          "error" in body ? body.error.message : `分析失败（${response.status}）`,
+          userFacingApiError(
+            "error" in body ? body : null,
+            `岗位要求分析失败（${response.status}），请稍后重试。`,
+          ),
         );
       }
       router.refresh();

@@ -9,6 +9,8 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "../..");
 const backendRoot = join(repoRoot, "services/backend");
+const backendBin = join(backendRoot, ".venv/bin");
+const nextBin = join(webRoot, "node_modules/next/dist/bin/next");
 const samplePath = join(repoRoot, "data/samples/collector-report-minimal.json");
 const backendPort = 8871;
 const webPort = 8872;
@@ -52,7 +54,7 @@ async function html(path) {
 
 try {
   console.log("[smoke] migrating temporary database");
-  const migration = spawnSync("uv", ["run", "alembic", "upgrade", "head"], {
+  const migration = spawnSync(join(backendBin, "alembic"), ["upgrade", "head"], {
     cwd: backendRoot,
     env: {...process.env, APP_ENV: "test", DATABASE_URL: databaseUrl},
     encoding: "utf8",
@@ -60,7 +62,7 @@ try {
   assert.equal(migration.status, 0, migration.stdout + migration.stderr);
 
   console.log("[smoke] starting FastAPI");
-  start("uv", ["run", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
+  start(join(backendBin, "uvicorn"), ["app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
     cwd: backendRoot,
     env: {
       ...process.env,
@@ -73,14 +75,10 @@ try {
   await waitFor(`${backendUrl}/api/v1/health`);
 
   console.log("[smoke] starting Next.js");
-  start(
-    "env",
-    ["-u", "NODE_OPTIONS", "pnpm", "exec", "next", "start", "-p", String(webPort)],
-    {
-      cwd: webRoot,
-      env: {...process.env, JOBLENS_BACKEND_URL: backendUrl},
-    },
-  );
+  start(process.execPath, [nextBin, "start", "-p", String(webPort)], {
+    cwd: webRoot,
+    env: {...process.env, NODE_OPTIONS: "", JOBLENS_BACKEND_URL: backendUrl},
+  });
   await waitFor(`${webUrl}/import`);
 
   console.log("[smoke] uploading DOCX, confirming Profile and saving SearchIntent");
@@ -91,10 +89,8 @@ try {
   ].join("\n");
   const resumeDocxPath = join(tempRoot, "resume.docx");
   const makeDocx = spawnSync(
-    "uv",
+    join(backendBin, "python"),
     [
-      "run",
-      "python",
       "-c",
       "import html,os,sys,zipfile; ps=''.join('<w:p><w:r><w:t>'+html.escape(x)+'</w:t></w:r></w:p>' for x in os.environ['RESUME_TEXT'].splitlines()); xml='<?xml version=\"1.0\" encoding=\"UTF-8\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>'+ps+'</w:body></w:document>'; z=zipfile.ZipFile(sys.argv[1],'w',zipfile.ZIP_DEFLATED); z.writestr('[Content_Types].xml','<Types/>'); z.writestr('word/document.xml',xml); z.close()",
       resumeDocxPath,
@@ -177,10 +173,10 @@ try {
   const profileHtml = await html("/profile");
   assert.match(profileHtml, /8 年前端经验，正在转向 AI 应用工程/);
   assert.match(profileHtml, /Agent/);
-  assert.match(profileHtml, /从简历生成待确认提案/);
+  assert.match(profileHtml, /从简历快速填充职业背景/);
   assert.match(profileHtml, /上传 PDF 或 DOCX/);
   assert.match(profileHtml, /不接受长期驻场/);
-  assert.match(profileHtml, /当前版本[\s\S]{0,30}1/);
+  assert.match(profileHtml, /已保存/);
   assert.doesNotMatch(
     profileHtml,
     /profileKey|intentKey|sourceRaw|candidateRaw|canonicalKey/,
@@ -188,7 +184,7 @@ try {
 
   console.log("[smoke] checking import page");
   const importHtml = await html("/import");
-  assert.match(importHtml, /选择 Collector report/);
+  assert.match(importHtml, /添加浏览器插件收集的岗位/);
 
   console.log("[smoke] importing Collector report through Next proxy");
   const report = JSON.parse(await readFile(samplePath, "utf8"));
@@ -225,7 +221,7 @@ try {
   console.log("[smoke] rendering Job detail and extracting Requirements");
   const detailBefore = await html(`/jobs/${jobMatch[1]}`);
   assert.match(detailBefore, /负责 AI 应用、RAG 和 Agent 能力建设/);
-  assert.match(detailBefore, /尚未生成 JobRequirement/);
+  assert.match(detailBefore, /这个岗位还没有做要求分析/);
   const firstRequirementRun = await fetch(
     `${webUrl}/api/jobs/${jobMatch[1]}/requirement-extractions`,
     {method: "POST"},
@@ -248,19 +244,20 @@ try {
   const secondRequirements = await secondRequirementRun.json();
   assert.notEqual(secondRequirements.extractionId, firstRequirements.extractionId);
   const detailHtml = await html(`/jobs/${jobMatch[1]}`);
-  assert.match(detailHtml, /结构化岗位要求/);
-  assert.match(detailHtml, /Fixture 抽取结果/);
+  assert.match(detailHtml, /岗位要求分析/);
+  assert.match(detailHtml, /演示分析结果/);
   assert.match(detailHtml, /Python/);
   assert.match(detailHtml, /FastAPI/);
-  assert.match(detailHtml, /Trace：[\s\S]{0,30}run_/);
+  assert.match(detailHtml, /查看分析详情/);
+  assert.match(detailHtml, /trace=[\s\S]{0,30}run_/);
   assert.match(detailHtml, /打开原始岗位/);
   assert.doesNotMatch(detailHtml, /sourceRaw|canonicalKey|normalizedSourceUrl/);
 
   console.log("[smoke] rendering Import audit");
   const auditHtml = await html(`/imports/${importResult.importId}`);
-  assert.match(auditHtml, /导入批次审计/);
+  assert.match(auditHtml, /这批岗位处理得怎么样/);
   assert.match(auditHtml, new RegExp(importResult.importId));
-  assert.match(auditHtml, /Candidate 汇总/);
+  assert.match(auditHtml, /候选数据统计/);
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
   console.log(

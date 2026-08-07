@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type {CareerContextReleaseReadiness} from "@/lib/contracts";
 import {
-  careerContextReleaseBlockerLabels,
+  careerContextReleaseBlockerCopy,
   careerContextReleaseLabel,
 } from "@/lib/career-context";
 
@@ -39,18 +39,18 @@ function readiness(
 test("career context release labels distinguish confirmed facts from blockers", () => {
   assert.equal(
     careerContextReleaseLabel(readiness(true)),
-    "个人侧事实已可供未来 Match 使用",
+    "你的信息已准备好，可用于后续岗位匹配",
   );
   assert.equal(
     careerContextReleaseLabel(readiness(false)),
-    "个人侧事实尚未通过 Match 输入门禁",
+    "还需要补充一些信息，才能用于后续岗位匹配",
   );
   assert.equal(
-    careerContextReleaseBlockerLabels.profile_skill_evidence_missing,
-    "技能没有关联 Evidence",
+    careerContextReleaseBlockerCopy("profile_skill_evidence_missing").title,
+    "有技能还没有经历支撑",
   );
   assert.equal(
-    careerContextReleaseBlockerLabels.search_intent_missing,
-    "尚未确认求职意向版本",
+    careerContextReleaseBlockerCopy("search_intent_missing").title,
+    "还没有保存你的求职偏好",
   );
 });

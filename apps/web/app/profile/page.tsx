@@ -7,9 +7,10 @@ import {
   fetchCurrentSearchIntent,
 } from "@/lib/backend";
 import {
-  careerContextReleaseBlockerLabels,
+  careerContextReleaseBlockerCopy,
   careerContextReleaseLabel,
 } from "@/lib/career-context";
+import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,13 @@ export default async function ProfilePage() {
   } catch (caught) {
     const message =
       caught instanceof BackendApiError
-        ? caught.message
-        : "读取职业画像时发生未知错误。";
+        ? userFacingErrorCode(caught.code, "暂时无法读取你的背景信息，请稍后重试。")
+        : "暂时无法读取你的背景信息，请稍后重试。";
     return (
       <>
         <section className="page-heading">
-          <p className="eyebrow">Career Context</p>
-          <h1>职业画像与求职意向</h1>
+          <p className="eyebrow">我的背景</p>
+          <h1>我的背景和求职偏好</h1>
         </section>
         <ServiceError message={message} />
       </>
@@ -44,29 +45,25 @@ export default async function ProfilePage() {
   } catch (caught) {
     releaseReadinessError =
       caught instanceof BackendApiError
-        ? caught.message
-        : "读取个人侧 Match 输入门禁时发生未知错误。";
+        ? userFacingErrorCode(caught.code, "暂时无法检查你的信息是否完整，请稍后重试。")
+        : "暂时无法检查你的信息是否完整，请稍后重试。";
   }
 
   return (
     <>
       <section className="page-heading">
-        <p className="eyebrow">Career Context</p>
-        <h1>确认事实，再定义你想找什么</h1>
+        <p className="eyebrow">我的背景</p>
+        <h1>我的背景和求职偏好</h1>
         <p className="lede">
-          Profile 只保存你确认过的事实。每个技能必须引用 Evidence；SearchIntent
-          独立记录硬约束与软偏好。每次保存都会生成新版本，不覆盖历史。
+          告诉 JobLens 你真实做过什么、会什么，以及你想找什么样的工作。AI 可以帮你从简历生成草稿，但只有你确认保存的信息才会用于岗位匹配。
         </p>
       </section>
 
       <section className="detail-card">
         <div className="section-heading-row">
           <div>
-            <h2>未来 Match 的个人侧事实门禁</h2>
-            <p className="muted">
-              这里只验证你显式确认的最新 Profile 与 SearchIntent，不把简历提案或
-              Profile Eval 结果自动写成用户事实。
-            </p>
+            <h2>匹配准备情况</h2>
+            <p className="muted">这里会告诉你还缺什么，不需要理解系统内部的版本或验证流程。</p>
           </div>
         </div>
 
@@ -77,62 +74,61 @@ export default async function ProfilePage() {
         {releaseReadiness ? (
           <div
             className={`review-result ${
-              releaseReadiness.releaseEligible
-                ? "review-accepted"
-                : "review-rejected"
+              releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"
             }`}
           >
             <strong>{careerContextReleaseLabel(releaseReadiness)}</strong>
             {releaseReadiness.releaseEligible ? (
               <>
-                <p>
-                  当前两个版本均由用户显式确认，且 Profile 的 Skill→Evidence
-                  引用和 SearchIntent 目标岗位完整。未来 Match 必须记录实际使用的版本号。
-                </p>
+                <p>职业背景和求职偏好都已确认。后续匹配只会使用这些你亲自确认过的信息。</p>
                 <div className="summary-grid eval-summary-grid">
                   <div className="summary-card">
-                    <span>Profile 版本</span>
-                    <strong>{releaseReadiness.profileVersion}</strong>
+                    <span>真实经历</span>
+                    <strong>{releaseReadiness.profileEvidenceCount}</strong>
                   </div>
                   <div className="summary-card">
-                    <span>Evidence / Skills</span>
-                    <strong>
-                      {releaseReadiness.profileEvidenceCount} / {releaseReadiness.profileSkillCount}
-                    </strong>
-                  </div>
-                  <div className="summary-card">
-                    <span>SearchIntent 版本</span>
-                    <strong>{releaseReadiness.searchIntentVersion}</strong>
+                    <span>已确认技能</span>
+                    <strong>{releaseReadiness.profileSkillCount}</strong>
                   </div>
                   <div className="summary-card">
                     <span>目标岗位</span>
                     <strong>{releaseReadiness.searchIntentTargetRoleCount}</strong>
                   </div>
                 </div>
-                <p className="code">
-                  Profile：{releaseReadiness.profileId} · SearchIntent：
-                  {releaseReadiness.searchIntentId}
-                </p>
               </>
             ) : (
               <>
-                <p>
-                  先修复以下确认态事实，再允许未来 Match 消费；页面不会替你生成或猜测缺失数据。
-                </p>
-                <ul>
-                  {releaseReadiness.blockers.map((blocker) => (
-                    <li key={blocker.code}>
-                      {careerContextReleaseBlockerLabels[blocker.code] ?? blocker.message}
-                      <span className="code"> · {blocker.code}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p>把下面这些信息补齐后，后续岗位匹配才能使用这些内容。系统不会擅自猜测你的经历或偏好。</p>
+                <div className="readiness-blocker-list">
+                  {releaseReadiness.blockers.map((blocker) => {
+                    const copy = careerContextReleaseBlockerCopy(blocker.code);
+                    return (
+                      <div className="readiness-blocker-item" key={blocker.code}>
+                        <strong>{copy.title}</strong>
+                        <p>{copy.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </>
             )}
-            <p className="muted">
-              本查询副作用：DB writes {releaseReadiness.dbWrites} · Provider calls{" "}
-              {releaseReadiness.providerCalls} · Trace runs {releaseReadiness.traceRunsCreated}
-            </p>
+
+            <details className="technical-details">
+              <summary>查看技术详情</summary>
+              <p className="code">
+                Background：{releaseReadiness.profileId ?? "—"} v{releaseReadiness.profileVersion ?? "—"} · Preferences：{releaseReadiness.searchIntentId ?? "—"} v{releaseReadiness.searchIntentVersion ?? "—"}
+              </p>
+              <p className="code">
+                dbWrites={releaseReadiness.dbWrites} · providerCalls={releaseReadiness.providerCalls} · traces={releaseReadiness.traceRunsCreated}
+              </p>
+              {releaseReadiness.blockers.length > 0 ? (
+                <ul>
+                  {releaseReadiness.blockers.map((blocker) => (
+                    <li key={blocker.code} className="code">{blocker.code}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </details>
           </div>
         ) : null}
       </section>

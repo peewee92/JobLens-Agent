@@ -125,14 +125,76 @@ select {
 }
 
 .site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding-block: 22px 36px;
   color: var(--muted);
   font-size: 13px;
 }
 
+.site-footer a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .hero,
 .page-heading {
   margin-bottom: 28px;
+}
+
+.product-hero {
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
+  box-shadow: var(--shadow);
+}
+
+.product-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 24px 0;
+}
+
+.product-step-card {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+}
+
+.product-step-card p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.product-step-card a {
+  color: var(--brand-dark);
+  font-weight: 750;
+}
+
+.step-number {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 14px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-weight: 800;
+}
+
+.product-trust-note {
+  margin-top: 24px;
+}
+
+.compact-technical-details {
+  margin-top: 8px;
 }
 
 .eyebrow {
@@ -959,7 +1021,8 @@ h3 {
   .detail-grid,
   .proposal-grid,
   .profile-grid,
-  .editor-card-grid {
+  .editor-card-grid,
+  .product-step-grid {
     grid-template-columns: 1fr;
   }
 

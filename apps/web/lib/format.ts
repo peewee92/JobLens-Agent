@@ -18,18 +18,18 @@ export function formatSalary(
 
 export function formatRemoteStatus(status: RemoteStatus): string {
   return {
-    confirmed: "明确支持远程",
-    rejected: "明确不支持远程",
-    unknown: "远程信息不足",
+    confirmed: "支持远程",
+    rejected: "不支持远程",
+    unknown: "未说明是否远程",
   }[status];
 }
 
 export function formatImportOutcome(outcome: ImportOutcome): string {
   return {
-    created: "新建",
-    updated: "更新",
-    skipped: "跳过",
-    error: "错误",
+    created: "已添加",
+    updated: "已更新",
+    skipped: "未添加",
+    error: "处理失败",
   }[outcome];
 }
 

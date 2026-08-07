@@ -6,6 +6,7 @@ import {BackendApiError, fetchJobPage} from "@/lib/backend";
 import type {SearchParams} from "@/lib/contracts";
 import {formatDateTime, formatSalary} from "@/lib/format";
 import {buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
+import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +22,13 @@ export default async function JobsPage({
   } catch (caught) {
     const message =
       caught instanceof BackendApiError
-        ? caught.message
-        : "读取岗位池时发生未知错误。";
+        ? userFacingErrorCode(caught.code, "暂时无法读取岗位列表，请稍后重试。")
+        : "暂时无法读取岗位列表，请稍后重试。";
     return (
       <>
         <section className="page-heading">
-          <p className="eyebrow">Job Pool</p>
-          <h1>岗位池</h1>
+          <p className="eyebrow">我的岗位</p>
+          <h1>我的岗位</h1>
         </section>
         <ServiceError message={message} />
       </>
@@ -40,10 +41,10 @@ export default async function JobsPage({
   return (
     <>
       <section className="page-heading">
-        <p className="eyebrow">Job Pool</p>
-        <h1>从真实岗位中缩小目标范围</h1>
+        <p className="eyebrow">我的岗位</p>
+        <h1>集中查看你感兴趣的岗位</h1>
         <p className="lede">
-          所有筛选条件都会保存在 URL 中。JobLens 只展示标准化公开字段，原始采集证据仍保留在 Backend。
+          按关键词、城市、薪资和远程方式筛选，点进岗位后可以查看完整 JD 和岗位要求分析。
         </p>
       </section>
 
@@ -72,9 +73,9 @@ export default async function JobsPage({
           <label htmlFor="remoteStatus">远程状态</label>
           <select id="remoteStatus" name="remoteStatus" defaultValue={filters.remoteStatus}>
             <option value="">全部</option>
-            <option value="confirmed">明确支持远程</option>
-            <option value="rejected">明确不支持远程</option>
-            <option value="unknown">远程信息不足</option>
+            <option value="confirmed">支持远程</option>
+            <option value="rejected">不支持远程</option>
+            <option value="unknown">未说明是否远程</option>
           </select>
         </div>
         <div className="field">
@@ -93,22 +94,22 @@ export default async function JobsPage({
         <div className="filter-actions">
           <button className="button" type="submit">应用筛选</button>
           <Link className="button-ghost" href="/jobs">清空条件</Link>
-          <Link className="button-secondary" href="/import">导入更多岗位</Link>
+          <Link className="button-secondary" href="/import">添加更多岗位</Link>
         </div>
       </form>
 
       <div className="result-bar">
         <span>共 {page.total} 个岗位，本页 {page.items.length} 个</span>
-        <span>偏移量 {page.offset}</span>
+        <span>第 {Math.floor(page.offset / page.limit) + 1} 页</span>
       </div>
 
       {page.items.length === 0 ? (
         <section className="empty-state">
           <h2>没有符合当前条件的岗位</h2>
-          <p>尝试降低薪资下限、清空远程状态，或者先导入新的 Collector report。</p>
+          <p>可以尝试放宽筛选条件，或者先添加更多感兴趣的岗位。</p>
           <div className="actions">
             <Link className="button" href="/jobs">清空筛选</Link>
-            <Link className="button-ghost" href="/import">导入岗位</Link>
+            <Link className="button-ghost" href="/import">添加岗位</Link>
           </div>
         </section>
       ) : (

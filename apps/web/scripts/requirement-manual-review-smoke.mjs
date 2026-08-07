@@ -220,7 +220,7 @@ try {
   );
 
   const jobBeforeFinalDecision = await pageHtml("/jobs/job_manual_smoke_00");
-  assert.match(jobBeforeFinalDecision, /岗位要求还在准备中，暂时不能开始匹配/);
+  assert.match(jobBeforeFinalDecision, /岗位要求还在准备中，暂时不会用于匹配/);
   assert.match(jobBeforeFinalDecision, /系统还在确认 AI 分析是否足够可靠/);
   assert.match(jobBeforeFinalDecision, /accepted_baseline_missing/);
 
@@ -285,7 +285,7 @@ try {
   );
 
   const releasedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
-  assert.match(releasedJobPage, /岗位要求已准备好，可以开始匹配/);
+  assert.match(releasedJobPage, /岗位要求已准备好，可用于后续匹配/);
   assert.match(releasedJobPage, new RegExp(finalDecision.evidenceFingerprint));
 
   const finalizedPage = await pageHtml(
@@ -330,7 +330,7 @@ try {
   );
 
   const blockedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
-  assert.match(blockedJobPage, /岗位要求还在准备中，暂时不能开始匹配/);
+  assert.match(blockedJobPage, /岗位要求还在准备中，暂时不会用于匹配/);
   assert.match(blockedJobPage, /accepted_baseline_missing/);
 
   const stalePage = await pageHtml(

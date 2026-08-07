@@ -5,6 +5,7 @@ import {FormEvent, useMemo, useState} from "react";
 
 import {ResumeProposalPanel} from "@/components/resume-proposal-panel";
 import {proposalToProfileDraft} from "@/lib/profile-proposal";
+import {userFacingApiError} from "@/lib/user-facing-errors";
 import type {
   ApiErrorBody,
   EvidenceType,
@@ -47,7 +48,7 @@ function lines(values: string[]): string {
 async function apiMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
-    return body.error?.message ?? `保存失败（${response.status}）。`;
+    return userFacingApiError(body, `保存失败（${response.status}），请稍后重试。`);
   } catch {
     return `保存失败（${response.status}）。`;
   }
@@ -161,7 +162,7 @@ export function ProfileEditor({
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setProfileState({kind: "saving", message: "正在保存职业画像…"});
+    setProfileState({kind: "saving", message: "正在保存你的职业背景…"});
     const payload: SaveProfilePayload = {
       expectedVersion: profileVersion,
       headline,
@@ -184,11 +185,11 @@ export function ProfileEditor({
       setProfileVersion(saved.version);
       setProfileState({
         kind: "success",
-        message: `职业画像已确认并保存为版本 ${saved.version}。`,
+        message: "职业背景已保存。后续匹配会使用这份你确认过的信息。",
       });
       router.refresh();
     } catch {
-      setProfileState({kind: "error", message: "保存失败，请确认 Web 与 Backend 已启动。"});
+      setProfileState({kind: "error", message: "保存失败，请稍后重试。"});
     }
   }
 
@@ -206,7 +207,7 @@ export function ProfileEditor({
 
   async function saveIntent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIntentState({kind: "saving", message: "正在保存求职意向…"});
+    setIntentState({kind: "saving", message: "正在保存求职偏好…"});
     const payload: SaveSearchIntentPayload = {
       expectedVersion: intentVersion,
       targetRoles: splitList(targetRoles),
@@ -235,11 +236,11 @@ export function ProfileEditor({
       setIntentVersion(saved.version);
       setIntentState({
         kind: "success",
-        message: `求职意向已保存为版本 ${saved.version}。`,
+        message: "求职偏好已保存。"
       });
       router.refresh();
     } catch {
-      setIntentState({kind: "error", message: "保存失败，请确认 Web 与 Backend 已启动。"});
+      setIntentState({kind: "error", message: "保存失败，请稍后重试。"});
     }
   }
 
@@ -249,10 +250,10 @@ export function ProfileEditor({
       <form className="panel profile-form" onSubmit={saveProfile}>
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">Confirmed facts</p>
-            <h2>职业画像</h2>
+            <p className="eyebrow">我的真实经历</p>
+            <h2>我的职业背景</h2>
           </div>
-          <span className="version-badge">当前版本 {profileVersion}</span>
+          <span className="version-badge">{profileVersion > 0 ? "已保存" : "尚未保存"}</span>
         </div>
 
         <div className="profile-grid">
@@ -282,15 +283,15 @@ export function ProfileEditor({
 
         <div className="subsection-heading">
           <div>
-            <h3>Evidence</h3>
-            <p>先记录真实经历，再让技能引用这些证据。</p>
+            <h3>经历与成果</h3>
+            <p>记录真正做过的工作、项目、教育和成果，后面的技能需要从这些经历中找到依据。</p>
           </div>
           <button
             className="button-secondary"
             type="button"
             onClick={() => setEvidence((items) => [...items, {...EMPTY_EVIDENCE}])}
           >
-            + 添加证据
+            + 添加经历
           </button>
         </div>
 
@@ -299,12 +300,12 @@ export function ProfileEditor({
             <article className="editor-card" key={`evidence-${index}`}>
               <div className="editor-card-grid">
                 <div className="field">
-                  <label htmlFor={`evidence-key-${index}`}>引用 key</label>
+                  <label htmlFor={`evidence-key-${index}`}>这段经历的简称</label>
                   <input
                     id={`evidence-key-${index}`}
                     value={item.key}
                     onChange={(event) => updateEvidence(index, {key: event.target.value})}
-                    placeholder="joblens-project"
+                    placeholder="例如：JobLens 项目"
                     required
                   />
                 </div>
@@ -325,7 +326,7 @@ export function ProfileEditor({
                   </select>
                 </div>
                 <div className="field profile-span-2">
-                  <label htmlFor={`evidence-summary-${index}`}>事实摘要</label>
+                  <label htmlFor={`evidence-summary-${index}`}>我做了什么</label>
                   <textarea
                     id={`evidence-summary-${index}`}
                     value={item.summary}
@@ -336,18 +337,21 @@ export function ProfileEditor({
                     required
                   />
                 </div>
-                <div className="field profile-span-2">
-                  <label htmlFor={`evidence-source-${index}`}>来源</label>
-                  <input
-                    id={`evidence-source-${index}`}
-                    value={item.source}
-                    onChange={(event) =>
-                      updateEvidence(index, {source: event.target.value})
-                    }
-                    placeholder="confirmed by user"
-                    required
-                  />
-                </div>
+                <details className="technical-details profile-span-2">
+                  <summary>查看来源记录</summary>
+                  <div className="field">
+                    <label htmlFor={`evidence-source-${index}`}>来源记录（用于后续核对）</label>
+                    <input
+                      id={`evidence-source-${index}`}
+                      value={item.source}
+                      onChange={(event) =>
+                        updateEvidence(index, {source: event.target.value})
+                      }
+                      placeholder="例如：本人确认、简历、项目记录"
+                      required
+                    />
+                  </div>
+                </details>
               </div>
               <button
                 className="danger-link"
@@ -355,7 +359,7 @@ export function ProfileEditor({
                 disabled={evidence.length === 1}
                 onClick={() => setEvidence((items) => items.filter((_, i) => i !== index))}
               >
-                删除证据
+                删除这段经历
               </button>
             </article>
           ))}
@@ -363,8 +367,8 @@ export function ProfileEditor({
 
         <div className="subsection-heading">
           <div>
-            <h3>技能与证据链接</h3>
-            <p>每个技能至少勾选一条 Evidence，否则 Backend 会拒绝新版本。</p>
+            <h3>我的技能</h3>
+            <p>每项技能至少选择一段能证明它的真实经历，避免把“想学”误当成“已经会”。</p>
           </div>
           <button
             className="button-secondary"
@@ -385,7 +389,7 @@ export function ProfileEditor({
                     id={`skill-name-${index}`}
                     value={item.name}
                     onChange={(event) => updateSkill(index, {name: event.target.value})}
-                    placeholder="Agent Application Engineering"
+                    placeholder="例如：React、TypeScript、Agent 应用开发"
                     required
                   />
                 </div>
@@ -406,9 +410,9 @@ export function ProfileEditor({
                 </div>
               </div>
               <fieldset className="evidence-picker">
-                <legend>支撑 Evidence</legend>
+                <legend>哪些经历能证明这项技能</legend>
                 {selectableEvidence.length === 0 ? (
-                  <p>先填写 Evidence key。</p>
+                  <p>先补充上面的经历与成果。</p>
                 ) : (
                   selectableEvidence.map((key) => (
                     <label key={key}>
@@ -436,7 +440,7 @@ export function ProfileEditor({
 
         <div className="actions">
           <button className="button" type="submit" disabled={profileState.kind === "saving"}>
-            保存职业画像新版本
+            保存我的职业背景
           </button>
         </div>
         {profileState.kind !== "idle" ? (
@@ -449,10 +453,10 @@ export function ProfileEditor({
       <form className="panel profile-form" onSubmit={saveIntent}>
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">Search constraints</p>
-            <h2>求职意向</h2>
+            <p className="eyebrow">我想找什么</p>
+            <h2>求职偏好</h2>
           </div>
-          <span className="version-badge">当前版本 {intentVersion}</span>
+          <span className="version-badge">{intentVersion > 0 ? "已保存" : "尚未保存"}</span>
         </div>
 
         <div className="profile-grid">
@@ -462,7 +466,7 @@ export function ProfileEditor({
               id="targetRoles"
               value={targetRoles}
               onChange={(event) => setTargetRoles(event.target.value)}
-              placeholder={"AI Application Engineer\nAgent Engineer"}
+              placeholder={"AI 应用工程师\nAgent 工程师"}
               required
             />
           </div>
@@ -510,18 +514,18 @@ export function ProfileEditor({
               <option value="junior">初级</option>
               <option value="mid">中级</option>
               <option value="senior">高级</option>
-              <option value="staff">Staff</option>
-              <option value="lead">Lead</option>
-              <option value="principal">Principal</option>
+              <option value="staff">资深专家（Staff）</option>
+              <option value="lead">技术负责人（Lead）</option>
+              <option value="principal">首席 / 专家（Principal）</option>
             </select>
           </div>
           <div className="field">
-            <label htmlFor="employmentTypes">雇佣类型</label>
+            <label htmlFor="employmentTypes">工作形式</label>
             <textarea
               id="employmentTypes"
               value={employmentTypes}
               onChange={(event) => setEmploymentTypes(event.target.value)}
-              placeholder="full_time"
+              placeholder="例如：全职、合同、兼职"
             />
           </div>
           <div className="field">
@@ -534,7 +538,7 @@ export function ProfileEditor({
             />
           </div>
           <div className="field profile-span-2">
-            <label htmlFor="hardConstraints">硬约束（未来 Eligibility 使用）</label>
+            <label htmlFor="hardConstraints">不能接受的条件</label>
             <textarea
               id="hardConstraints"
               value={hardConstraints}
@@ -543,7 +547,7 @@ export function ProfileEditor({
             />
           </div>
           <div className="field profile-span-2">
-            <label htmlFor="softPreferences">软偏好（未来 Ranking 使用）</label>
+            <label htmlFor="softPreferences">更喜欢的条件</label>
             <textarea
               id="softPreferences"
               value={softPreferences}
@@ -555,7 +559,7 @@ export function ProfileEditor({
 
         <div className="actions">
           <button className="button" type="submit" disabled={intentState.kind === "saving"}>
-            保存求职意向新版本
+            保存求职偏好
           </button>
         </div>
         {intentState.kind !== "idle" ? (

@@ -11,6 +11,7 @@ import {
   fetchLatestJobRequirements,
 } from "@/lib/backend";
 import {formatDateTime, formatSalary} from "@/lib/format";
+import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
   requirementReleaseBlockerCopy,
@@ -35,7 +36,9 @@ export default async function JobDetailPage({
       notFound();
     }
     const message =
-      caught instanceof BackendApiError ? caught.message : "读取岗位详情时发生未知错误。";
+      caught instanceof BackendApiError
+        ? userFacingErrorCode(caught.code, "暂时无法读取岗位详情，请稍后重试。")
+        : "暂时无法读取岗位详情，请稍后重试。";
     return <ServiceError message={message} />;
   }
 
@@ -48,28 +51,28 @@ export default async function JobDetailPage({
   } catch (caught) {
     requirementError =
       caught instanceof BackendApiError
-        ? caught.message
-        : "读取岗位要求分析结果时发生未知错误。";
+        ? userFacingErrorCode(caught.code, "暂时无法读取岗位要求分析结果，请稍后重试。")
+        : "暂时无法读取岗位要求分析结果，请稍后重试。";
   }
   try {
     releaseReadiness = await fetchJobRequirementReleaseReadiness(id);
   } catch (caught) {
     releaseReadinessError =
       caught instanceof BackendApiError
-        ? caught.message
-        : "读取岗位匹配准备状态时发生未知错误。";
+        ? userFacingErrorCode(caught.code, "暂时无法检查岗位匹配准备状态，请稍后重试。")
+        : "暂时无法检查岗位匹配准备状态，请稍后重试。";
   }
 
   return (
     <>
       <div className="actions" style={{marginBottom: 18}}>
-        <Link className="button-ghost" href="/jobs">← 返回岗位池</Link>
+        <Link className="button-ghost" href="/jobs">← 返回我的岗位</Link>
       </div>
       <section className="detail-grid">
         <article className="detail-card">
           <header className="detail-header">
             <div>
-              <p className="eyebrow">Job Detail</p>
+              <p className="eyebrow">岗位详情</p>
               <h1>{job.title}</h1>
               <p className="company">{job.company}</p>
             </div>
@@ -79,7 +82,7 @@ export default async function JobDetailPage({
           <div className="tags">
             {job.area ? <span className="tag">{job.area}</span> : null}
             <RemoteStatusPill status={job.remoteStatus} />
-            <span className="tag">置信等级：{job.remoteConfidence}</span>
+            {job.remoteConfidence === "high" ? <span className="tag">远程信息较明确</span> : null}
           </div>
 
           <section className="detail-section">
@@ -101,7 +104,7 @@ export default async function JobDetailPage({
               <div>
                 <h2>岗位要求分析</h2>
                 <p className="lede requirement-lede">
-                  系统会先把原始 JD 整理成可核对的学历、经验、技能和职责。只有完成质量检查的结果，才会用于后续岗位匹配。
+                  系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。只有完成质量检查的结果，才会用于后续岗位匹配。
                 </p>
               </div>
               <JobRequirementExtractButton
@@ -121,10 +124,10 @@ export default async function JobDetailPage({
                 {releaseReadiness.releaseEligible ? (
                   <>
                     <p>
-                      这份岗位已经完成要求分析，并且当前 AI 分析方式已通过人工抽查，现在可以用于你的岗位匹配。
+                      这份岗位已经完成要求分析，并且当前 AI 分析方式已通过人工抽查，可作为后续岗位匹配的数据依据。
                     </p>
                     <details className="technical-details">
-                      <summary>查看验证详情</summary>
+                      <summary>查看技术详情</summary>
                       <p className="code">
                         Baseline：{releaseReadiness.acceptedBaselineBatchId} · Decision：{releaseReadiness.acceptedBaselineDecisionId}
                       </p>
@@ -167,17 +170,19 @@ export default async function JobDetailPage({
             {extraction ? (
               <>
                 <div className="requirement-run-meta">
-                  <span className="version-badge">{extraction.extractorVersion}</span>
-                  <span>Provider：{extraction.provider}</span>
-                  <span>Model：{extraction.model}</span>
-                  <span>抽取时间：{formatDateTime(extraction.createdAt)}</span>
-                  <span className="code">Trace：{extraction.traceRunId}</span>
+                  <span>分析时间：{formatDateTime(extraction.createdAt)}</span>
                 </div>
                 {extraction.provider === "fixture" ? (
                   <p className="notice">
-                    当前为 Fixture 抽取结果，只证明工程链路可运行，不代表真实模型质量。
+                    当前是演示分析结果，仅用于验证功能，不会作为正式岗位匹配依据。
                   </p>
                 ) : null}
+                <details className="technical-details">
+                  <summary>查看分析详情</summary>
+                  <p className="code">
+                    extractor={extraction.extractorVersion} · provider={extraction.provider} · model={extraction.model} · trace={extraction.traceRunId}
+                  </p>
+                </details>
                 <div className="requirement-list">
                   {sortJobRequirements(extraction.requirements).map((requirement) => (
                     <article className="requirement-card" key={requirement.id}>
@@ -191,17 +196,21 @@ export default async function JobDetailPage({
                         ) : null}
                       </div>
                       <p>{requirement.originalText}</p>
+                      <small className="muted-copy">岗位原文依据</small>
                       <blockquote>{requirement.evidenceSpan}</blockquote>
-                      <small className="code">
-                        {requirement.id} · confidence {requirement.confidence.toFixed(2)}
-                      </small>
+                      <details className="technical-details compact-technical-details">
+                        <summary>查看分析依据</summary>
+                        <small className="code">
+                          {requirement.id} · confidence={requirement.confidence.toFixed(2)}
+                        </small>
+                      </details>
                     </article>
                   ))}
                 </div>
               </>
             ) : (
               <p className="notice">
-                尚未生成 JobRequirement。原始 JD 仍可查看，但不能作为后续 Match 的隐式事实源。
+                这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会把长篇岗位描述整理成更容易核对的学历、经验、技能和职责。
               </p>
             )}
           </section>
@@ -214,7 +223,10 @@ export default async function JobDetailPage({
             <div><span className="meta-label">学历</span><strong>{job.education || "未说明"}</strong></div>
             <div><span className="meta-label">来源</span><strong>{job.source}</strong></div>
             <div><span className="meta-label">采集时间</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
-            <div><span className="meta-label">JobLens ID</span><strong className="code">{job.id}</strong></div>
+            <details className="technical-details">
+              <summary>查看技术详情</summary>
+              <p className="code">JobLens ID：{job.id}</p>
+            </details>
           </div>
           <div className="actions" style={{marginTop: 24}}>
             <a className="button" href={job.sourceUrl} target="_blank" rel="noreferrer">

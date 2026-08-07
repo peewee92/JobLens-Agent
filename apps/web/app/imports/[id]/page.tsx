@@ -5,6 +5,7 @@ import {ImportOutcomePill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {BackendApiError, fetchImportDetail} from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
+import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
@@ -22,26 +23,27 @@ export default async function ImportDetailPage({
       notFound();
     }
     const message =
-      caught instanceof BackendApiError ? caught.message : "读取导入审计时发生未知错误。";
+      caught instanceof BackendApiError
+        ? userFacingErrorCode(caught.code, "暂时无法读取这批岗位的处理结果，请稍后重试。")
+        : "暂时无法读取这批岗位的处理结果，请稍后重试。";
     return <ServiceError message={message} />;
   }
 
   return (
     <>
       <section className="page-heading">
-        <p className="eyebrow">Import Audit</p>
-        <h1>导入批次审计</h1>
+        <p className="eyebrow">添加结果</p>
+        <h1>这批岗位处理得怎么样</h1>
         <p className="lede">
-          这里展示公开、脱敏后的批次事实。原始 candidate 和错误 raw 保留在 Backend，不通过普通 Web 页面暴露。
+          这里告诉你哪些岗位已经添加、哪些更新了已有信息，以及哪些没有成功处理。
         </p>
-        <p className="code">{detail.importId}</p>
       </section>
 
       <div className="summary-grid">
-        <div className="summary-card"><span>收到</span><strong>{detail.received}</strong></div>
-        <div className="summary-card"><span>新建</span><strong>{detail.created}</strong></div>
-        <div className="summary-card"><span>更新</span><strong>{detail.updated}</strong></div>
-        <div className="summary-card"><span>跳过</span><strong>{detail.skipped}</strong></div>
+        <div className="summary-card"><span>文件中的岗位</span><strong>{detail.received}</strong></div>
+        <div className="summary-card"><span>新增</span><strong>{detail.created}</strong></div>
+        <div className="summary-card"><span>信息已更新</span><strong>{detail.updated}</strong></div>
+        <div className="summary-card"><span>未添加</span><strong>{detail.skipped}</strong></div>
       </div>
 
       <section className="detail-grid">
@@ -54,7 +56,7 @@ export default async function ImportDetailPage({
               <table className="audit-table">
                 <thead>
                   <tr>
-                    <th>Index</th>
+                    <th>序号</th>
                     <th>结果</th>
                     <th>岗位</th>
                     <th>错误</th>
@@ -67,7 +69,7 @@ export default async function ImportDetailPage({
                       <td><ImportOutcomePill outcome={item.outcome} /></td>
                       <td>
                         {item.jobId ? (
-                          <Link className="code" href={`/jobs/${item.jobId}`}>{item.jobId}</Link>
+                          <Link href={`/jobs/${item.jobId}`}>查看岗位</Link>
                         ) : "—"}
                       </td>
                       <td>{item.errorMessage || item.errorCode || "—"}</td>
@@ -80,7 +82,7 @@ export default async function ImportDetailPage({
 
           {detail.errors.length > 0 ? (
             <section className="detail-section">
-              <h2>公开错误信息</h2>
+              <h2>没有成功添加的原因</h2>
               {detail.errors.map((error) => (
                 <div className="inline-error" key={`${error.index}-${error.code}`}>
                   <strong>第 {error.index} 条 · {error.code}</strong>
@@ -92,31 +94,25 @@ export default async function ImportDetailPage({
         </article>
 
         <aside className="detail-card">
-          <h2>批次上下文</h2>
+          <h2>这批数据</h2>
           <div className="meta-list">
-            <div><span className="meta-label">Collector 版本</span><strong>{detail.collectorVersion || detail.sourceVersion}</strong></div>
+            <div><span className="meta-label">插件版本</span><strong>{detail.collectorVersion || detail.sourceVersion}</strong></div>
             <div><span className="meta-label">采集时间</span><strong>{formatDateTime(detail.collectedAt)}</strong></div>
-            <div><span className="meta-label">导入时间</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
+            <div><span className="meta-label">添加时间</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
           </div>
 
-          <section className="detail-section">
-            <h3>Candidate 汇总</h3>
-            <div className="summary-grid">
-              <div className="summary-card"><span>总数</span><strong>{detail.candidateSummary.total}</strong></div>
-              <div className="summary-card"><span>保留</span><strong>{detail.candidateSummary.kept}</strong></div>
-              <div className="summary-card"><span>淘汰</span><strong>{detail.candidateSummary.rejected}</strong></div>
-              <div className="summary-card"><span>未知</span><strong>{detail.candidateSummary.unknown}</strong></div>
-            </div>
-          </section>
-
-          <section className="detail-section">
-            <h3>搜索意图快照</h3>
+          <details className="technical-details">
+            <summary>查看技术详情</summary>
+            <p className="code">Import ID：{detail.importId}</p>
+            <h3>候选数据统计</h3>
+            <pre className="code notice">{JSON.stringify(detail.candidateSummary, null, 2)}</pre>
+            <h3>采集时的筛选信息</h3>
             <pre className="code notice">{JSON.stringify(detail.searchIntentSnapshot, null, 2)}</pre>
-          </section>
+          </details>
 
           <div className="actions">
-            <Link className="button" href="/jobs">查看岗位池</Link>
-            <Link className="button-ghost" href="/import">继续导入</Link>
+            <Link className="button" href="/jobs">查看我的岗位</Link>
+            <Link className="button-ghost" href="/import">继续添加岗位</Link>
           </div>
         </aside>
       </section>

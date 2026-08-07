@@ -57,14 +57,14 @@ test("Requirement release labels distinguish allowed facts from blockers", () =>
     blockers: [],
   };
 
-  assert.equal(requirementReleaseLabel(base), "岗位要求已准备好，可以开始匹配");
+  assert.equal(requirementReleaseLabel(base), "岗位要求已准备好，可用于后续匹配");
   assert.equal(
     requirementReleaseLabel({
       ...base,
       releaseEligible: false,
       blockers: [{code: "extraction_input_stale", message: "stale"}],
     }),
-    "岗位要求还在准备中，暂时不能开始匹配",
+    "岗位要求还在准备中，暂时不会用于匹配",
   );
   assert.deepEqual(requirementReleaseBlockerCopy("accepted_baseline_missing"), {
     title: "系统还在确认 AI 分析是否足够可靠",
@@ -74,7 +74,7 @@ test("Requirement release labels distinguish allowed facts from blockers", () =>
   assert.deepEqual(requirementReleaseBlockerCopy("requirement_extraction_missing"), {
     title: "这个岗位还没有完成要求分析",
     description:
-      "点击“分析岗位要求”，系统会从 JD 中整理学历、经验、技能和职责等关键要求。",
+      "点击“分析岗位要求”，系统会从岗位描述中整理学历、经验、技能和职责等关键要求。",
   });
 });
 

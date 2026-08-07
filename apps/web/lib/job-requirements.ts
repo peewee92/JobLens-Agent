@@ -40,11 +40,11 @@ const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerC
   requirement_extraction_missing: {
     title: "这个岗位还没有完成要求分析",
     description:
-      "点击“分析岗位要求”，系统会从 JD 中整理学历、经验、技能和职责等关键要求。",
+      "点击“分析岗位要求”，系统会从岗位描述中整理学历、经验、技能和职责等关键要求。",
   },
   extraction_input_stale: {
     title: "岗位内容有更新，需要重新分析",
-    description: "当前分析基于旧版 JD。为避免用过期信息匹配，请重新分析岗位要求。",
+    description: "当前分析基于旧版岗位描述。为避免用过期信息匹配，请重新分析岗位要求。",
   },
   extraction_cohort_mismatch: {
     title: "岗位要求分析版本已更新",
@@ -52,7 +52,7 @@ const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerC
   },
   requirements_empty: {
     title: "没有识别到可用的岗位要求",
-    description: "这次分析没有得到可核对的要求，建议检查 JD 内容后重新分析。",
+    description: "这次分析没有得到可核对的要求，建议检查岗位描述后重新分析。",
   },
   requirement_count_mismatch: {
     title: "岗位要求数据需要重新校验",
@@ -76,7 +76,7 @@ const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerC
   },
   trace_input_mismatch: {
     title: "岗位内容与分析记录不一致",
-    description: "系统发现当前 JD 与分析时的输入不一致，需要重新分析后才能用于匹配。",
+    description: "系统发现当前岗位描述与分析时的输入不一致，需要重新分析后才能用于匹配。",
   },
   trace_output_mismatch: {
     title: "岗位要求分析结果不完整",
@@ -99,8 +99,8 @@ export function requirementReleaseLabel(
   readiness: JobRequirementReleaseReadiness,
 ): string {
   return readiness.releaseEligible
-    ? "岗位要求已准备好，可以开始匹配"
-    : "岗位要求还在准备中，暂时不能开始匹配";
+    ? "岗位要求已准备好，可用于后续匹配"
+    : "岗位要求还在准备中，暂时不会用于匹配";
 }
 
 export function sortJobRequirements(
