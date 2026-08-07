@@ -9,6 +9,8 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "../..");
 const backendRoot = join(repoRoot, "services/backend");
+const backendBin = join(backendRoot, ".venv/bin");
+const nextBin = join(webRoot, "node_modules/next/dist/bin/next");
 const backendPort = 8881;
 const webPort = 8882;
 const backendUrl = `http://127.0.0.1:${backendPort}`;
@@ -60,11 +62,11 @@ async function review(runId, decision, notes) {
 try {
   const env = {...process.env, APP_ENV: "test", DATABASE_URL: databaseUrl};
   console.log("[eval-smoke] migrating and seeding temporary database");
-  for (const args of [
-    ["run", "alembic", "upgrade", "head"],
-    ["run", "python", "-m", "scripts.seed_profile_eval_review_smoke"],
+  for (const [command, args] of [
+    [join(backendBin, "alembic"), ["upgrade", "head"]],
+    [join(backendBin, "python"), ["-m", "scripts.seed_profile_eval_review_smoke"]],
   ]) {
-    const result = spawnSync("uv", args, {
+    const result = spawnSync(command, args, {
       cwd: backendRoot,
       env,
       encoding: "utf8",
@@ -73,16 +75,15 @@ try {
   }
 
   console.log("[eval-smoke] starting FastAPI and production Next");
-  start("uv", ["run", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
+  start(join(backendBin, "uvicorn"), ["app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
     cwd: backendRoot,
     env,
   });
   await waitFor(`${backendUrl}/api/v1/health`);
-  start(
-    "env",
-    ["-u", "NODE_OPTIONS", "pnpm", "exec", "next", "start", "-p", String(webPort)],
-    {cwd: webRoot, env: {...process.env, JOBLENS_BACKEND_URL: backendUrl}},
-  );
+  start(process.execPath, [nextBin, "start", "-p", String(webPort)], {
+    cwd: webRoot,
+    env: {...process.env, NODE_OPTIONS: "", JOBLENS_BACKEND_URL: backendUrl},
+  });
   await waitFor(`${webUrl}/evals/profile`);
 
   console.log("[eval-smoke] checking history and failed-case-first detail");
