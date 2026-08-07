@@ -164,9 +164,10 @@ Profile 页面可以明确区分：
 - Resumable Database Preparation Checkpoint 已完成：以数据库绝对路径 + Alembic Head 生成稳定操作 ID，按 `planned → backup_verified → migration_attempted → applied` 持久化私有 Receipt；只有未尝试的 verified backup 可自动续跑，inconclusive attempt 禁止重试，到 Head 但 Receipt 未完成时可基于 DB facts 恢复；本地真实 DB 已从 `20260803_0010` 升级到 `20260804_0013`，旧 Revision Backup、Hash、Integrity、新 Schema 与幂等重跑均已验证；
 - Explicit Live Canary Operator 已完成：只接受 fingerprint-addressed canonical private dataset，将 read-only Readiness 与 Provider 副作用分离，要求 `--execute-canary` 和成本/人工审核双确认；执行前后原子更新 Session Manifest，以 Run Case `attemptCount` 增量、Extraction ID 和 Trace ID证明本次证据；第三次累计 Attempt 后只返回 Workbench，不能自动 Continue/Stop，也不提供 Fixture 路径；
 - Controlled Resume Operator 已完成：只允许 `nextAction=resume_run`，显式绑定 canonical Dataset、Run ID、不可变 Continue Review ID 和剩余 Case 预算；执行前验证冻结 Case/Extraction/Trace 证据，复用数据库 Execution Lease，部分完成时生成下一次专用 Resume 计划命令，20 Case 完成时只交接 frozen Manual Review Batch；
+- 2026-08-07：OpenAI-compatible Provider 兼容层已支持 `responses/chat_completions` 双协议、可选 thinking 开关、completion 上限和 HTTP `traceId` 保留；基元律动 `deepseek-v4-flash` 的首个 v3 Live Canary 已真实成功，1 次调用生成 1 个 Extraction、18 条 Requirement 和成功 Trace，19 Case 保持 deferred，未超预算；该结果只证明接口与结构化链路可运行，不代表模型质量通过；
 - Fixture 不能正式 Review，失败 Live 只能 rejected，合格 Live accepted 后才能成为正式 baseline；
 - Job 详情页可显式触发新版本并展示 Requirement ID、importance、evidenceSpan、confidence 与 Trace；
-- 尚未完成带真实凭据的 20-job Provider Extraction、逐条人工决策和真实 Batch Final Decision，因此当前只有工程门禁证据，仍不能视为生产模型质量结论，也不进入 Match。
+- 尚未完成剩余 19-job Provider Extraction、逐条人工决策和真实 Batch Final Decision；当前虽已有首个真实成功 Case，仍不能视为生产模型质量结论，也不进入 Match。
 
 ### 验收
 
