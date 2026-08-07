@@ -19,6 +19,9 @@ def build_profile_extractor(settings: Settings) -> AbstractProfileExtractor:
             api_key=settings.openai_api_key,
             model=settings.profile_extractor_model,
             base_url=settings.openai_base_url,
+            api_style=settings.profile_extractor_api_style,
+            enable_thinking=settings.profile_extractor_enable_thinking,
+            max_completion_tokens=settings.profile_extractor_max_completion_tokens,
             timeout_seconds=settings.profile_extractor_timeout_seconds,
         )
     return DisabledProfileExtractor()

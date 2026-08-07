@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/joblens.db"
     profile_extractor_provider: str = "disabled"
     profile_extractor_model: str = ""
+    profile_extractor_api_style: Literal["responses", "chat_completions"] = "responses"
+    profile_extractor_enable_thinking: bool | None = None
+    profile_extractor_max_completion_tokens: int | None = None
     profile_extractor_timeout_seconds: float = 60.0
     requirement_extractor_provider: str = "disabled"
     requirement_extractor_model: str = ""
