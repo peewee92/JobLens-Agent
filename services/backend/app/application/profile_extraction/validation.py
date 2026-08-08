@@ -4,7 +4,13 @@ from __future__ import annotations
 from app.application.profile_extraction.errors import (
     InvalidProfileExtractorOutputError,
 )
-from app.application.profile_extraction.models import ProfileExtractionOutput
+from app.application.profile_extraction.models import (
+    ProfileExtractionOutput,
+    ProposedEvidence,
+)
+
+_INLINE_MARKDOWN_FORMATTING = frozenset({"*", "`"})
+_MIN_FORMAT_ALIGNMENT_CHARS = 8
 
 
 def validate_profile_extraction_output(
@@ -27,6 +33,7 @@ def validate_profile_extraction_output(
         raise InvalidProfileExtractorOutputError("at least one Skill is required")
 
     evidence_keys: set[str] = set()
+    aligned_evidence: list[ProposedEvidence] = []
     for evidence in output.evidence:
         key = evidence.key.strip()
         if not key:
@@ -49,10 +56,20 @@ def validate_profile_extraction_output(
             raise InvalidProfileExtractorOutputError(
                 f"Evidence {key} evidenceSpan must not be empty"
             )
-        if span not in resume_text:
+        aligned_span = _align_exact_source_span(resume_text, span)
+        if aligned_span is None:
             raise InvalidProfileExtractorOutputError(
                 f"Evidence {key} evidenceSpan does not occur in resume text"
             )
+        aligned_evidence.append(
+            ProposedEvidence(
+                key=evidence.key,
+                type=evidence.type,
+                summary=evidence.summary,
+                source=evidence.source,
+                evidence_span=aligned_span,
+            )
+        )
 
     skill_names: set[str] = set()
     for skill in output.skills:
@@ -74,4 +91,76 @@ def validate_profile_extraction_output(
                 f"Skill {skill.name.strip()} references unknown Evidence: {unknown[0]}"
             )
 
-    return output
+    if all(
+        aligned.evidence_span == original.evidence_span
+        for aligned, original in zip(aligned_evidence, output.evidence, strict=True)
+    ):
+        return output
+    return ProfileExtractionOutput(
+        headline=output.headline,
+        years_of_experience=output.years_of_experience,
+        evidence=tuple(aligned_evidence),
+        skills=output.skills,
+        warnings=output.warnings,
+    )
+
+
+def _align_exact_source_span(resume_text: str, model_span: str) -> str | None:
+    """Recover an exact source substring only for unique presentation-only differences.
+
+    The model is still not allowed to paraphrase evidence. This helper ignores only
+    whitespace and inline Markdown emphasis/code markers, then requires exactly one
+    matching location in the source before returning the original contiguous slice.
+    """
+
+    if model_span in resume_text:
+        return model_span
+
+    target, _ = _format_projection(model_span)
+    if len(target) < _MIN_FORMAT_ALIGNMENT_CHARS:
+        return None
+    source, source_indexes = _format_projection(resume_text)
+    if not target or len(target) > len(source):
+        return None
+
+    positions: list[int] = []
+    start = 0
+    while True:
+        position = source.find(target, start)
+        if position < 0:
+            break
+        positions.append(position)
+        if len(positions) > 1:
+            return None
+        start = position + 1
+    if len(positions) != 1:
+        return None
+
+    position = positions[0]
+    source_start = source_indexes[position]
+    source_end = source_indexes[position + len(target) - 1] + 1
+    while (
+        source_start > 0
+        and resume_text[source_start - 1] in _INLINE_MARKDOWN_FORMATTING
+    ):
+        source_start -= 1
+    while (
+        source_end < len(resume_text)
+        and resume_text[source_end] in _INLINE_MARKDOWN_FORMATTING
+    ):
+        source_end += 1
+
+    candidate = resume_text[source_start:source_end]
+    candidate_projection, _ = _format_projection(candidate)
+    return candidate if candidate_projection == target else None
+
+
+def _format_projection(value: str) -> tuple[str, tuple[int, ...]]:
+    projected: list[str] = []
+    indexes: list[int] = []
+    for index, character in enumerate(value):
+        if character.isspace() or character in _INLINE_MARKDOWN_FORMATTING:
+            continue
+        projected.append(character)
+        indexes.append(index)
+    return "".join(projected), tuple(indexes)

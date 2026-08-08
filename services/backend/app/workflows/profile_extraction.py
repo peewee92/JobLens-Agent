@@ -23,7 +23,7 @@ from app.application.tracing import TraceWrite
 
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
-EXTRACTOR_VERSION = "profile-extractor-v1"
+EXTRACTOR_VERSION = "profile-extractor-v2"
 PROMPT_VERSION = "profile-proposal-v1"
 MIN_RESUME_CHARS = 50
 MAX_RESUME_CHARS = 30_000
@@ -64,7 +64,7 @@ class ProposeProfileFromResumeWorkflow:
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
             output = result.output
-            validate_profile_extraction_output(normalized_text, output)
+            output = validate_profile_extraction_output(normalized_text, output)
         except (
             ProfileExtractorUnavailableError,
             ProfileExtractorFailedError,

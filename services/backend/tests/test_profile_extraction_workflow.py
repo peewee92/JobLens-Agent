@@ -86,7 +86,7 @@ def test_success_returns_proposal_and_writes_sanitized_trace(
         trace = session.get(TraceSpanORM, proposal.run_id)
         assert trace is not None
         assert trace.capability == "profile_extraction"
-        assert trace.version == "profile-extractor-v1"
+        assert trace.version == "profile-extractor-v2"
         assert trace.prompt_version == "profile-proposal-v1"
         assert trace.model == "fixture-profile-extractor"
         assert trace.error is None
@@ -104,6 +104,65 @@ def test_invalid_resume_text_opens_no_provider_or_trace(
         workflow(FixtureProfileExtractor(), session_factory).execute("too short")
 
     assert count_rows(session_factory, TraceSpanORM) == 0
+
+
+class MarkdownSpanExtractor(AbstractProfileExtractor):
+    @property
+    def model_name(self) -> str:
+        return "markdown-span"
+
+    def extract(self, resume_text: str) -> ProfileExtractorResult:
+        return ProfileExtractorResult(
+            output=ProfileExtractionOutput(
+                headline="AI 产品经理",
+                years_of_experience=8,
+                evidence=(
+                    ProposedEvidence(
+                        key="ahoy-design",
+                        type=EvidenceType.PROJECT,
+                        summary="主导 AI Agent 产品方案设计",
+                        source="resume",
+                        evidence_span=(
+                            "主导 AI Agent 协作产品从 0 到 1 方案设计，"
+                            "定义核心场景并完成上线验证。"
+                        ),
+                    ),
+                ),
+                skills=(
+                    ProposedSkill(
+                        name="AI Agent",
+                        level=SkillLevel.STRONG,
+                        evidence_keys=("ahoy-design",),
+                    ),
+                ),
+                warnings=(),
+            ),
+            model=self.model_name,
+        )
+
+
+def test_successful_alignment_is_shared_by_proposal_and_trace(
+    session_factory: sessionmaker[Session],
+) -> None:
+    resume = (
+        "8 年产品与工程经验。\n"
+        "- **主导 AI Agent 协作产品从 0 到 1 方案设计**，"
+        "定义核心场景并完成上线验证。"
+    )
+
+    proposal = workflow(MarkdownSpanExtractor(), session_factory).execute(resume)
+
+    expected = (
+        "**主导 AI Agent 协作产品从 0 到 1 方案设计**，"
+        "定义核心场景并完成上线验证。"
+    )
+    assert proposal.evidence[0].evidence_span == expected
+    assert expected in resume
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.run_id)
+        assert trace is not None
+        assert trace.error is None
+        assert trace.output["evidence"][0]["evidenceSpan"] == expected
 
 
 class InvalidSpanExtractor(AbstractProfileExtractor):

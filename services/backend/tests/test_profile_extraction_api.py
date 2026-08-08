@@ -81,7 +81,7 @@ def test_post_profile_proposal_returns_reviewable_output_without_confirming_prof
     assert response.status_code == 200
     body = response.json()
     assert body["runId"].startswith("run_")
-    assert body["extractorVersion"] == "profile-extractor-v1"
+    assert body["extractorVersion"] == "profile-extractor-v2"
     assert body["promptVersion"] == "profile-proposal-v1"
     assert body["yearsOfExperience"] == 8
     assert {item["name"] for item in body["skills"]} >= {
