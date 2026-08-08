@@ -59,7 +59,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/profile-proposals \
   --data '{"resumeText":"8 年前端经验。负责 Electron 桌面端与 React、TypeScript 业务开发，并参与 Agent 功能落地。"}'
 ```
 
-返回的是待确认 Proposal，不会写 confirmed Profile。每个 Evidence 都必须包含简历中的原文 `evidenceSpan`；每次成功/失败运行写入 `trace_spans`，Trace 只保存简历 SHA-256 与字符数，不保存完整简历文本。
+返回的是待确认 Proposal，不会写 confirmed Profile。每个 Evidence 最终都必须包含简历中的原文 `evidenceSpan`；`profile-extractor-v2` 仅允许把模型因空白或 Markdown `*` / 反引号展示符造成的差异，在**唯一命中**时确定性对齐回真实连续原文，任何改写、幻觉或多义匹配仍 fail-closed。每次成功/失败运行写入 `trace_spans`，Trace 只保存简历 SHA-256 与字符数，不保存完整简历文本。
 
 文件上传复用同一 Workflow：
 

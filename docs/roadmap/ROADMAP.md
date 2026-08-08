@@ -106,7 +106,7 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - Profile/SearchIntent 不可变版本、`expectedVersion` 冲突保护、API 与 Web 编辑闭环已完成；
 - Confirmed Career Context Release Gate 已完成：只读验证最新用户确认 Profile/SearchIntent、Profile Evidence/Skill 引用和目标岗位完整性，返回精确 IDs/versions 与结构化 blockers；不读取 Profile Eval baseline、不调用 Provider、不产生 Trace，Profile 页面展示未来 Match 的个人侧输入状态；
 - Resume Text → Profile Proposal、strict Structured Output、evidenceSpan/reference 门禁、Trace 0004 和 10-case Profile Eval 已完成；
-- PDF/DOCX 文本摄取、文件隐私边界与 Web 上传已完成；Eval Run/Case Result、`profile-eval-gate-v1`、baseline 对比、人工 accept/reject Review、正式 accepted baseline 与 Eval Review Web 已完成；下一步是带真实凭据的 Provider Eval 和人工质量结论。Fixture 通过仍不代表生产模型质量。
+- PDF/DOCX 文本摄取、文件隐私边界与 Web 上传已完成；`profile-extractor-v2` 保持 evidence fail-closed，并仅对空白或 Markdown `*` / 反引号造成的展示差异做唯一、确定性的原文连续片段对齐，改写/幻觉/多义匹配仍拒绝；Eval Run/Case Result、`profile-eval-gate-v1`、baseline 对比、人工 accept/reject Review、正式 accepted baseline 与 Eval Review Web 已完成；下一步是带真实凭据的 Provider Eval 和人工质量结论。Fixture 通过仍不代表生产模型质量。
 
 ### 验收
 
