@@ -248,9 +248,11 @@ try {
   assert.match(detailHtml, /演示分析结果/);
   assert.match(detailHtml, /Python/);
   assert.match(detailHtml, /FastAPI/);
-  assert.match(detailHtml, /查看分析详情/);
-  assert.match(detailHtml, /trace=[\s\S]{0,30}run_/);
+  assert.match(detailHtml, /岗位原文依据/);
+  assert.match(detailHtml, /重新分析岗位要求/);
   assert.match(detailHtml, /打开原始岗位/);
+  assert.doesNotMatch(detailHtml, /查看技术详情|查看分析详情/);
+  assert.doesNotMatch(detailHtml, /confidence=|extractor=|trace=|JobLens ID/);
   assert.doesNotMatch(detailHtml, /sourceRaw|canonicalKey|normalizedSourceUrl/);
 
   console.log("[smoke] rendering Import audit");

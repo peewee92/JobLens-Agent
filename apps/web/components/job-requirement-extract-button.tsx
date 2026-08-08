@@ -49,7 +49,7 @@ export function JobRequirementExtractButton({
   return (
     <div>
       <button
-        className="button-secondary"
+        className="button-secondary requirement-action-button"
         disabled={disabled || status === "submitting"}
         onClick={extract}
         type="button"

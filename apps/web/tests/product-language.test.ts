@@ -32,13 +32,21 @@ test("profile primary copy uses user language and keeps implementation facts in 
   assert.doesNotMatch(page, /本查询副作用/);
 });
 
-test("job detail defaults to user-facing requirement analysis and folds implementation metadata", async () => {
+test("job detail keeps internal requirement metadata out of the ordinary user experience", async () => {
   const page = await source("app/jobs/[id]/page.tsx");
+  const button = await source("components/job-requirement-extract-button.tsx");
+  const css = await source("app/globals.css");
+
   assert.match(page, /岗位要求分析/);
-  assert.match(page, /查看分析详情/);
-  assert.doesNotMatch(page, /<span>Provider：/);
-  assert.doesNotMatch(page, /<span className="code">Trace：/);
-  assert.doesNotMatch(page, /confidence \{/);
+  assert.match(page, /岗位原文依据/);
+  assert.doesNotMatch(page, /查看技术详情/);
+  assert.doesNotMatch(page, /查看分析详情/);
+  assert.doesNotMatch(page, /Baseline：|Decision：|Evidence Fingerprint：/);
+  assert.doesNotMatch(page, /<span className="code">\{blocker\.code\}<\/span>/);
+  assert.doesNotMatch(page, /confidence=/);
+  assert.doesNotMatch(page, /extractor=|provider=|model=|trace=/);
+  assert.match(button, /requirement-action-button/);
+  assert.match(css, /\.requirement-action-button[\s\S]*white-space:\s*nowrap/);
 });
 
 test("home page explains the product as a simple job-search workflow", async () => {

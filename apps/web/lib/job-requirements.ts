@@ -90,7 +90,7 @@ export function requirementReleaseBlockerCopy(
   return (
     requirementReleaseBlockerCopies[code] ?? {
       title: "岗位要求暂时还不能用于匹配",
-      description: "系统检测到一项准备工作未完成，请稍后重试或查看技术详情。",
+      description: "还有一项准备工作没有完成。你可以稍后重试；如果持续出现问题，再联系维护人员检查。",
     }
   );
 }

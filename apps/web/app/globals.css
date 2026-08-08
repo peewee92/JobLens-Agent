@@ -292,6 +292,11 @@ h3 {
   border-color: #cfddff;
 }
 
+.requirement-action-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .button-ghost {
   color: #465268;
   background: white;

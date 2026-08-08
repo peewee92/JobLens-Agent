@@ -122,47 +122,25 @@ export default async function JobDetailPage({
               <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
-                  <>
-                    <p>
-                      这份岗位已经完成要求分析，并且当前 AI 分析方式已通过人工抽查，可作为后续岗位匹配的数据依据。
-                    </p>
-                    <details className="technical-details">
-                      <summary>查看技术详情</summary>
-                      <p className="code">
-                        Baseline：{releaseReadiness.acceptedBaselineBatchId} · Decision：{releaseReadiness.acceptedBaselineDecisionId}
-                      </p>
-                      <p className="code">
-                        Evidence Fingerprint：{releaseReadiness.acceptedBaselineEvidenceFingerprint}
-                      </p>
-                    </details>
-                  </>
+                  <p>
+                    这份岗位已经完成要求分析，并且当前分析方式已通过质量检查，可以作为后续岗位匹配的数据依据。
+                  </p>
                 ) : (
                   <>
                     <p>
                       还有 {releaseReadiness.blockers.length} 项准备工作未完成。完成后，系统才会把这份岗位要求用于匹配，避免因为未校验的数据给出误导性的推荐。
                     </p>
                     <div className="readiness-blocker-list">
-                      {releaseReadiness.blockers.map((blocker) => {
+                      {releaseReadiness.blockers.map((blocker, index) => {
                         const copy = requirementReleaseBlockerCopy(blocker.code);
                         return (
-                          <div className="readiness-blocker-item" key={blocker.code}>
+                          <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
                             <strong>{copy.title}</strong>
                             <p>{copy.description}</p>
                           </div>
                         );
                       })}
                     </div>
-                    <details className="technical-details">
-                      <summary>查看技术详情</summary>
-                      <ul>
-                        {releaseReadiness.blockers.map((blocker) => (
-                          <li key={blocker.code}>
-                            <span className="code">{blocker.code}</span>
-                            {blocker.message ? ` · ${blocker.message}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
                   </>
                 )}
               </div>
@@ -177,15 +155,9 @@ export default async function JobDetailPage({
                     当前是演示分析结果，仅用于验证功能，不会作为正式岗位匹配依据。
                   </p>
                 ) : null}
-                <details className="technical-details">
-                  <summary>查看分析详情</summary>
-                  <p className="code">
-                    extractor={extraction.extractorVersion} · provider={extraction.provider} · model={extraction.model} · trace={extraction.traceRunId}
-                  </p>
-                </details>
                 <div className="requirement-list">
                   {sortJobRequirements(extraction.requirements).map((requirement) => (
-                    <article className="requirement-card" key={requirement.id}>
+                    <article className="requirement-card" key={requirement.requirementIndex}>
                       <div className="tags">
                         <span className={`tag importance-${requirement.importance}`}>
                           {requirementImportanceLabel(requirement.importance)}
@@ -198,12 +170,6 @@ export default async function JobDetailPage({
                       <p>{requirement.originalText}</p>
                       <small className="muted-copy">岗位原文依据</small>
                       <blockquote>{requirement.evidenceSpan}</blockquote>
-                      <details className="technical-details compact-technical-details">
-                        <summary>查看分析依据</summary>
-                        <small className="code">
-                          {requirement.id} · confidence={requirement.confidence.toFixed(2)}
-                        </small>
-                      </details>
                     </article>
                   ))}
                 </div>
@@ -223,10 +189,6 @@ export default async function JobDetailPage({
             <div><span className="meta-label">学历</span><strong>{job.education || "未说明"}</strong></div>
             <div><span className="meta-label">来源</span><strong>{job.source}</strong></div>
             <div><span className="meta-label">采集时间</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
-            <details className="technical-details">
-              <summary>查看技术详情</summary>
-              <p className="code">JobLens ID：{job.id}</p>
-            </details>
           </div>
           <div className="actions" style={{marginTop: 24}}>
             <a className="button" href={job.sourceUrl} target="_blank" rel="noreferrer">
