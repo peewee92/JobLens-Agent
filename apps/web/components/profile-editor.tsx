@@ -1,10 +1,13 @@
 "use client";
 
 import {useRouter} from "next/navigation";
-import {FormEvent, useMemo, useState} from "react";
+import {FormEvent, useMemo, useRef, useState} from "react";
 
 import {ResumeProposalPanel} from "@/components/resume-proposal-panel";
-import {proposalToProfileDraft} from "@/lib/profile-proposal";
+import {
+  isBlankProfileDraft,
+  proposalToProfileDraft,
+} from "@/lib/profile-proposal";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 import type {
   ApiErrorBody,
@@ -83,6 +86,7 @@ export function ProfileEditor({
   initialIntent: SearchIntent | null;
 }) {
   const router = useRouter();
+  const profileFormRef = useRef<HTMLFormElement>(null);
   const [profileVersion, setProfileVersion] = useState(initialProfile?.version ?? 0);
   const [headline, setHeadline] = useState(initialProfile?.headline ?? "");
   const [years, setYears] = useState(
@@ -193,7 +197,14 @@ export function ProfileEditor({
     }
   }
 
-  function applyProposal(proposal: ProfileExtractionProposal) {
+  function currentProfileDraft() {
+    return {headline, years, evidence, skills};
+  }
+
+  function applyProposal(
+    proposal: ProfileExtractionProposal,
+    mode: "auto" | "replace" = "replace",
+  ) {
     const draft = proposalToProfileDraft(proposal);
     setHeadline(draft.headline);
     setYears(draft.years);
@@ -201,8 +212,23 @@ export function ProfileEditor({
     setSkills(draft.skills);
     setProfileState({
       kind: "idle",
-      message: `已采用提案 ${proposal.runId} 到编辑表单；请继续核对并手动保存。`,
+      message:
+        mode === "auto"
+          ? "AI 已根据简历填好职业背景草稿。请检查内容，确认无误后保存。"
+          : "已用这份 AI 草稿替换当前编辑内容。请检查后保存。",
     });
+  }
+
+  function handleProposalReady(proposal: ProfileExtractionProposal): boolean {
+    if (profileVersion !== 0 || !isBlankProfileDraft(currentProfileDraft())) {
+      return false;
+    }
+    applyProposal(proposal, "auto");
+    return true;
+  }
+
+  function focusProfileDraft() {
+    profileFormRef.current?.scrollIntoView({behavior: "smooth", block: "start"});
   }
 
   async function saveIntent(event: FormEvent<HTMLFormElement>) {
@@ -246,8 +272,17 @@ export function ProfileEditor({
 
   return (
     <div className="profile-layout">
-      <ResumeProposalPanel onApply={applyProposal} />
-      <form className="panel profile-form" onSubmit={saveProfile}>
+      <ResumeProposalPanel
+        onProposalReady={handleProposalReady}
+        onApply={(proposal) => applyProposal(proposal, "replace")}
+        onReviewDraft={focusProfileDraft}
+      />
+      <form
+        id="profile-background"
+        ref={profileFormRef}
+        className="panel profile-form"
+        onSubmit={saveProfile}
+      >
         <div className="section-title-row">
           <div>
             <p className="eyebrow">我的真实经历</p>

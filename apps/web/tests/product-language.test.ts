@@ -49,3 +49,15 @@ test("home page explains the product as a simple job-search workflow", async () 
   assert.match(page, /查看岗位/);
   assert.doesNotMatch(page, /redirect\(/);
 });
+
+test("AI resume success auto-fills an empty career draft without silently replacing existing edits", async () => {
+  const editor = await source("components/profile-editor.tsx");
+  const panel = await source("components/resume-proposal-panel.tsx");
+
+  assert.match(editor, /isBlankProfileDraft\(currentProfileDraft\(\)\)/);
+  assert.match(editor, /applyProposal\(proposal, "auto"\)/);
+  assert.match(panel, /自动填入下方职业背景草稿/);
+  assert.match(panel, /用这份草稿替换当前编辑内容/);
+  assert.match(panel, /自动填草稿 · 不自动保存/);
+  assert.doesNotMatch(panel, /填到下方，继续检查和修改/);
+});

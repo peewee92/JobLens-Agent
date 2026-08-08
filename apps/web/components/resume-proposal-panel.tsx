@@ -41,18 +41,24 @@ async function apiMessage(response: Response): Promise<string> {
 }
 
 export function ResumeProposalPanel({
+  onProposalReady,
   onApply,
+  onReviewDraft,
 }: {
+  onProposalReady: (proposal: ProfileExtractionProposal) => boolean;
   onApply: (proposal: ProfileExtractionProposal) => void;
+  onReviewDraft: () => void;
 }) {
   const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [proposal, setProposal] = useState<ProfileExtractionProposal | null>(null);
+  const [proposalApplied, setProposalApplied] = useState(false);
   const [state, setState] = useState<ProposalState>({kind: "idle", message: ""});
 
   function selectResumeFile(file: File | null) {
     setProposal(null);
+    setProposalApplied(false);
     if (!file) {
       setResumeFile(null);
       setState({kind: "idle", message: ""});
@@ -74,6 +80,7 @@ export function ResumeProposalPanel({
     const files = event.dataTransfer.files;
     if (files.length !== 1) {
       setProposal(null);
+      setProposalApplied(false);
       setResumeFile(null);
       setState({kind: "error", message: "一次请只拖入 1 个 PDF 或 DOCX 文件。"});
       return;
@@ -87,16 +94,21 @@ export function ResumeProposalPanel({
       return;
     }
     const result = (await response.json()) as ProfileExtractionProposal;
+    const autoApplied = onProposalReady(result);
     setProposal(result);
+    setProposalApplied(autoApplied);
     setState({
       kind: "success",
-      message: "简历草稿已生成。请逐项检查，确认没有遗漏或写错，再填入你的职业背景。",
+      message: autoApplied
+        ? "AI 已整理好简历，并自动填入下方职业背景草稿。请检查后再保存。"
+        : "AI 已整理好一份新草稿。为避免覆盖你当前正在编辑的内容，请先检查，再决定是否替换。",
     });
   }
 
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setProposal(null);
+    setProposalApplied(false);
     setState({kind: "submitting", message: "正在整理你的简历…"});
     try {
       const response = await fetch("/api/profile-proposals", {
@@ -114,6 +126,7 @@ export function ResumeProposalPanel({
     event.preventDefault();
     if (!resumeFile) return;
     setProposal(null);
+    setProposalApplied(false);
     setState({kind: "submitting", message: "正在读取文件并整理你的简历…"});
     const form = new FormData();
     form.set("file", resumeFile, resumeFile.name);
@@ -135,10 +148,10 @@ export function ResumeProposalPanel({
           <p className="eyebrow">AI 简历整理</p>
           <h2 id="resume-proposal-title">从简历快速填充职业背景</h2>
         </div>
-        <span className="version-badge">不会自动保存</span>
+        <span className="version-badge">自动填草稿 · 不自动保存</span>
       </div>
       <p className="muted-copy">
-        可上传 5 MiB 内的 PDF/DOCX，或直接粘贴文本。扫描版 PDF 暂时无法识别。AI 只会生成待确认草稿，必须由你检查并保存后，才会用于岗位匹配。
+        可上传 5 MiB 内的 PDF/DOCX，或直接粘贴文本。扫描版 PDF 暂时无法识别。职业背景为空时，AI 会自动填好可编辑草稿；只有你检查并保存后，才会用于后续岗位匹配。
       </p>
 
       <form className="proposal-file-form" onSubmit={proposeFile}>
@@ -260,13 +273,30 @@ export function ResumeProposalPanel({
             </div>
           ) : null}
 
-          <button
-            className="button-secondary"
-            type="button"
-            onClick={() => onApply(proposal)}
-          >
-            填到下方，继续检查和修改
-          </button>
+          {proposalApplied ? (
+            <button
+              className="button"
+              type="button"
+              onClick={onReviewDraft}
+            >
+              去检查并保存职业背景
+            </button>
+          ) : (
+            <button
+              className="button-secondary"
+              type="button"
+              onClick={() => {
+                onApply(proposal);
+                setProposalApplied(true);
+                setState({
+                  kind: "success",
+                  message: "已用这份 AI 草稿替换当前编辑内容。请检查后再保存。",
+                });
+              }}
+            >
+              用这份草稿替换当前编辑内容
+            </button>
+          )}
         </div>
       ) : null}
     </section>

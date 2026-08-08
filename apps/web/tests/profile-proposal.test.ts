@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {ProfileExtractionProposal} from "../lib/contracts";
-import {proposalToProfileDraft} from "../lib/profile-proposal";
+import {
+  isBlankProfileDraft,
+  proposalToProfileDraft,
+} from "../lib/profile-proposal";
 
 const proposal: ProfileExtractionProposal = {
   runId: "run_test",
@@ -58,4 +61,58 @@ test("proposalToProfileDraft does not mutate provider arrays", () => {
   draft.skills[0].evidenceKeys.push("other");
 
   assert.deepEqual(proposal.skills[0].evidenceKeys, ["work-1"]);
+});
+
+test("blank Profile drafts are safe to auto-fill from an AI proposal", () => {
+  assert.equal(
+    isBlankProfileDraft({
+      headline: "",
+      years: "",
+      evidence: [{key: "", type: "project", summary: "", source: "confirmed by user"}],
+      skills: [{name: "", level: "working", evidenceKeys: []}],
+    }),
+    true,
+  );
+});
+
+test("existing or manually edited Profile drafts are never auto-overwritten", () => {
+  assert.equal(
+    isBlankProfileDraft({
+      headline: "AI 产品经理",
+      years: "",
+      evidence: [{key: "", type: "project", summary: "", source: "confirmed by user"}],
+      skills: [{name: "", level: "working", evidenceKeys: []}],
+    }),
+    false,
+  );
+  assert.equal(
+    isBlankProfileDraft({
+      headline: "",
+      years: "",
+      evidence: [{key: "ahoy", type: "project", summary: "Agent 项目", source: "本人确认"}],
+      skills: [{name: "", level: "working", evidenceKeys: []}],
+    }),
+    false,
+  );
+  assert.equal(
+    isBlankProfileDraft({
+      headline: "",
+      years: "",
+      evidence: [{key: "", type: "work", summary: "", source: "confirmed by user"}],
+      skills: [{name: "", level: "working", evidenceKeys: []}],
+    }),
+    false,
+  );
+  assert.equal(
+    isBlankProfileDraft({
+      headline: "",
+      years: "",
+      evidence: [
+        {key: "", type: "project", summary: "", source: "confirmed by user"},
+        {key: "", type: "project", summary: "", source: "confirmed by user"},
+      ],
+      skills: [{name: "", level: "working", evidenceKeys: []}],
+    }),
+    false,
+  );
 });
