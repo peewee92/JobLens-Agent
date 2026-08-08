@@ -63,6 +63,95 @@ def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
     assert result.output_tokens == 40
 
 
+def test_openai_requirement_adapter_schema_requires_normalized_capability_for_skills() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "evidenceSpan": "熟练掌握 Python",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(output),
+                        }
+                    }
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            client=client,
+        ).extract("岗位要求：熟练掌握 Python。")
+
+    schema = captured["response_format"]["json_schema"]["schema"]
+    skill_schema = schema["$defs"]["_SkillRequirementOutput"]
+    other_schema = schema["$defs"]["_OtherRequirementOutput"]
+    assert skill_schema["properties"]["type"]["const"] == "skill"
+    assert skill_schema["properties"]["normalizedCapability"]["type"] == "string"
+    assert skill_schema["properties"]["normalizedCapability"]["minLength"] == 1
+    assert {item.get("type") for item in other_schema["properties"]["normalizedCapability"]["anyOf"]} == {"string", "null"}
+
+
+def test_openai_requirement_adapter_rejects_skill_without_normalized_capability() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "具备业务理解能力",
+                    "normalizedCapability": None,
+                    "importance": "preferred",
+                    "evidenceSpan": "具备业务理解能力",
+                    "confidence": 0.9,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(output),
+                        }
+                    }
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            client=client,
+        )
+        with pytest.raises(RequirementExtractorFailedError, match="ValidationError"):
+            extractor.extract("岗位要求：具备业务理解能力。")
+
+
 def test_openai_requirement_adapter_supports_chat_completions_strict_schema() -> None:
     captured: dict = {}
 

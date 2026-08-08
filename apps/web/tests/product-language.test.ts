@@ -61,3 +61,15 @@ test("AI resume success auto-fills an empty career draft without silently replac
   assert.match(panel, /自动填草稿 · 不自动保存/);
   assert.doesNotMatch(panel, /填到下方，继续检查和修改/);
 });
+
+test("career background defaults to card review and only expands the detailed editor on demand", async () => {
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(editor, /AI 对我的理解/);
+  assert.match(editor, /内容没问题，确认保存/);
+  assert.match(editor, /有问题，编辑详情/);
+  assert.match(editor, /待你确认/);
+  assert.match(editor, /isProfileEditorOpen/);
+  assert.match(editor, /setIsProfileEditorOpen\(true\)/);
+  assert.match(editor, /完成编辑，返回审核/);
+});

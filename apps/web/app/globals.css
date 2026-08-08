@@ -427,6 +427,193 @@ h3 {
   gap: 22px;
 }
 
+.section-support-copy {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.profile-status-dirty {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.profile-review {
+  display: grid;
+  gap: 20px;
+}
+
+.profile-review-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px;
+  border: 1px dashed #c7d0df;
+  border-radius: 16px;
+  background: var(--soft);
+}
+
+.profile-review-empty h3,
+.profile-review-empty p {
+  margin: 0;
+}
+
+.profile-review-empty p {
+  margin-top: 7px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.profile-review-hero {
+  padding: 24px;
+  border: 1px solid #d8e0ec;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #f7f9fd 0%, #eef3fb 100%);
+}
+
+.profile-review-hero h3 {
+  margin: 7px 0 8px;
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.25;
+}
+
+.profile-review-hero p {
+  margin: 0;
+  color: #566279;
+  font-weight: 650;
+}
+
+.review-label {
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.profile-review-section {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-review-heading,
+.profile-detail-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.profile-review-heading h3,
+.profile-detail-editor-heading h3 {
+  margin: 4px 0 0;
+}
+
+.profile-detail-editor-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.review-count {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.profile-review-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-review-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+
+.profile-review-card p {
+  margin: 10px 0 0;
+  color: #344056;
+  line-height: 1.62;
+}
+
+.profile-review-more {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.profile-review-more summary {
+  cursor: pointer;
+  color: var(--brand-dark);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.profile-review-more[open] .profile-review-card-grid,
+.profile-review-more[open] .profile-skill-cloud {
+  margin-top: 12px;
+}
+
+.profile-skill-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.profile-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border: 1px solid #d8e0ec;
+  border-radius: 999px;
+  background: #f8faff;
+}
+
+.profile-skill-chip strong {
+  font-size: 13px;
+}
+
+.profile-skill-chip small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-review-check {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  border-radius: 13px;
+  background: #f8f5ea;
+  color: #675b37;
+}
+
+.profile-review-check span {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.profile-review-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.profile-saved-copy {
+  color: var(--success);
+  font-weight: 750;
+}
+
+.profile-detail-editor {
+  display: grid;
+  gap: 20px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
 .section-title-row,
 .subsection-heading {
   display: flex;
@@ -1031,8 +1218,15 @@ h3 {
   }
 
   .section-title-row,
-  .subsection-heading {
+  .subsection-heading,
+  .profile-review-empty,
+  .profile-review-heading,
+  .profile-detail-editor-heading {
     flex-direction: column;
+  }
+
+  .profile-review-card-grid {
+    grid-template-columns: 1fr;
   }
 
   .summary-grid {

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
-from typing import Any
+from typing import Annotated, Any, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -26,16 +26,40 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class _RequirementOutput(_StrictModel):
-    type: RequirementType
+class _RequirementOutputBase(_StrictModel):
     original_text: str = Field(alias="originalText", min_length=1, max_length=4000)
+    importance: RequirementImportance
+    evidence_span: str = Field(alias="evidenceSpan", min_length=1, max_length=4000)
+    confidence: float = Field(ge=0, le=1)
+
+
+class _SkillRequirementOutput(_RequirementOutputBase):
+    type: Literal[RequirementType.SKILL]
+    normalized_capability: str = Field(
+        alias="normalizedCapability",
+        min_length=1,
+        max_length=255,
+    )
+
+
+class _OtherRequirementOutput(_RequirementOutputBase):
+    type: Literal[
+        RequirementType.EXPERIENCE,
+        RequirementType.EDUCATION,
+        RequirementType.RESPONSIBILITY,
+        RequirementType.DOMAIN,
+        RequirementType.CONSTRAINT,
+    ]
     normalized_capability: str | None = Field(
         alias="normalizedCapability",
         max_length=255,
     )
-    importance: RequirementImportance
-    evidence_span: str = Field(alias="evidenceSpan", min_length=1, max_length=4000)
-    confidence: float = Field(ge=0, le=1)
+
+
+_RequirementOutput = Annotated[
+    _SkillRequirementOutput | _OtherRequirementOutput,
+    Field(discriminator="type"),
+]
 
 
 class _RequirementsOutput(_StrictModel):

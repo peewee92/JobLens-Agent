@@ -130,7 +130,7 @@ curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirements
 curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirement-extractions/reqrun_xxx
 ```
 
-每条 Requirement 都必须有命中 JD 原文的 `evidenceSpan`；重新抽取会创建新 Run，不覆盖历史。Trace input 只保存 Job ID、JD SHA-256 与字符数。后续 Eligibility / Match / Gap 必须复用 JobRequirement，不应重新解释 raw JD。
+每条 Requirement 都必须有命中 JD 原文的 `evidenceSpan`；`skill` 类型在 Provider Structured Output 阶段就必须返回非空 `normalizedCapability`，Domain Gate 会再次校验，避免出现 Schema 接受但业务层拒绝的漂移。重新抽取会创建新 Run，不覆盖历史。Trace input 只保存 Job ID、JD SHA-256 与字符数。后续 Eligibility / Match / Gap 必须复用 JobRequirement，不应重新解释 raw JD。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 

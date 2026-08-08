@@ -37,6 +37,24 @@ const EMPTY_SKILL: SkillDraft = {
   evidenceKeys: [],
 };
 
+const evidenceTypeLabels: Record<EvidenceType, string> = {
+  work: "工作经历",
+  project: "项目经历",
+  education: "教育经历",
+  achievement: "成果",
+  self_report: "本人补充",
+};
+
+const skillLevelLabels: Record<SkillLevel, string> = {
+  strong: "强项",
+  working: "可工作使用",
+  basic: "基础了解",
+  unknown: "待确认",
+};
+
+const REVIEW_EVIDENCE_LIMIT = 6;
+const REVIEW_SKILL_LIMIT = 12;
+
 function splitList(value: string): string[] {
   return value
     .split(/[\n,，]/)
@@ -100,6 +118,8 @@ export function ProfileEditor({
     kind: "idle",
     message: "",
   });
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
   const [targetRoles, setTargetRoles] = useState(
@@ -138,8 +158,30 @@ export function ProfileEditor({
     () => evidence.map((item) => item.key.trim()).filter(Boolean),
     [evidence],
   );
+  const reviewEvidence = useMemo(
+    () => evidence.filter((item) => item.summary.trim() || item.key.trim()),
+    [evidence],
+  );
+  const reviewSkills = useMemo(
+    () => skills.filter((item) => item.name.trim()),
+    [skills],
+  );
+  const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
+  const profileStatusLabel = profileDraftBlank
+    ? "尚未填写"
+    : profileDirty || profileVersion === 0
+      ? "待你确认"
+      : "已保存";
+
+  function markProfileDirty() {
+    setProfileDirty(true);
+    if (profileState.kind === "success") {
+      setProfileState({kind: "idle", message: ""});
+    }
+  }
 
   function updateEvidence(index: number, patch: Partial<EvidenceDraft>) {
+    markProfileDirty();
     setEvidence((items) =>
       items.map((item, itemIndex) =>
         itemIndex === index ? {...item, ...patch} : item,
@@ -148,6 +190,7 @@ export function ProfileEditor({
   }
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
+    markProfileDirty();
     setSkills((items) =>
       items.map((item, itemIndex) =>
         itemIndex === index ? {...item, ...patch} : item,
@@ -187,6 +230,8 @@ export function ProfileEditor({
       }
       const saved = (await response.json()) as UserProfile;
       setProfileVersion(saved.version);
+      setProfileDirty(false);
+      setIsProfileEditorOpen(false);
       setProfileState({
         kind: "success",
         message: "职业背景已保存。后续匹配会使用这份你确认过的信息。",
@@ -210,6 +255,8 @@ export function ProfileEditor({
     setYears(draft.years);
     setEvidence(draft.evidence);
     setSkills(draft.skills);
+    setProfileDirty(true);
+    setIsProfileEditorOpen(false);
     setProfileState({
       kind: "idle",
       message:
@@ -229,6 +276,16 @@ export function ProfileEditor({
 
   function focusProfileDraft() {
     profileFormRef.current?.scrollIntoView({behavior: "smooth", block: "start"});
+  }
+
+  function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    if (isProfileEditorOpen) {
+      event.preventDefault();
+      setIsProfileEditorOpen(false);
+      focusProfileDraft();
+      return;
+    }
+    void saveProfile(event);
   }
 
   async function saveIntent(event: FormEvent<HTMLFormElement>) {
@@ -281,15 +338,156 @@ export function ProfileEditor({
         id="profile-background"
         ref={profileFormRef}
         className="panel profile-form"
-        onSubmit={saveProfile}
+        onSubmit={handleProfileSubmit}
       >
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">我的真实经历</p>
+            <p className="eyebrow">AI 对我的理解</p>
             <h2>我的职业背景</h2>
+            <p className="section-support-copy">
+              先快速确认 JobLens 对你的理解是否准确；只有发现问题时，才需要展开详细编辑。
+            </p>
           </div>
-          <span className="version-badge">{profileVersion > 0 ? "已保存" : "尚未保存"}</span>
+          <span className={`version-badge${profileDirty ? " profile-status-dirty" : ""}`}>
+            {profileStatusLabel}
+          </span>
         </div>
+
+        {profileDraftBlank ? (
+          <section className="profile-review-empty">
+            <div>
+              <h3>还没有可确认的职业背景</h3>
+              <p>
+                推荐先用上方“AI 简历整理”自动生成草稿；如果暂时没有简历，也可以手动填写。
+              </p>
+            </div>
+            <button
+              className="button-secondary"
+              type="button"
+              onClick={() => setIsProfileEditorOpen(true)}
+            >
+              手动填写
+            </button>
+          </section>
+        ) : (
+          <div className="profile-review">
+            <section className="profile-review-hero">
+              <div>
+                <span className="review-label">职业定位</span>
+                <h3>{headline || "职业定位待补充"}</h3>
+                <p>
+                  {years.trim() ? `${years} 年工作经验` : "工作年限待确认"}
+                  {reviewEvidence.length ? ` · ${reviewEvidence.length} 条真实经历` : ""}
+                  {reviewSkills.length ? ` · ${reviewSkills.length} 项技能` : ""}
+                </p>
+              </div>
+            </section>
+
+            <section className="profile-review-section">
+              <div className="profile-review-heading">
+                <div>
+                  <span className="review-label">代表经历</span>
+                  <h3>这些是系统理解到的真实经历</h3>
+                </div>
+                <span className="review-count">{reviewEvidence.length} 条</span>
+              </div>
+              <div className="profile-review-card-grid">
+                {reviewEvidence.slice(0, REVIEW_EVIDENCE_LIMIT).map((item, index) => (
+                  <article className="profile-review-card" key={`${item.key}-${index}`}>
+                    <span className="tag">{evidenceTypeLabels[item.type]}</span>
+                    <p>{item.summary || "这段经历还需要补充说明"}</p>
+                  </article>
+                ))}
+              </div>
+              {reviewEvidence.length > REVIEW_EVIDENCE_LIMIT ? (
+                <details className="profile-review-more">
+                  <summary>查看其余 {reviewEvidence.length - REVIEW_EVIDENCE_LIMIT} 条经历</summary>
+                  <div className="profile-review-card-grid">
+                    {reviewEvidence.slice(REVIEW_EVIDENCE_LIMIT).map((item, index) => (
+                      <article className="profile-review-card" key={`${item.key}-more-${index}`}>
+                        <span className="tag">{evidenceTypeLabels[item.type]}</span>
+                        <p>{item.summary}</p>
+                      </article>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </section>
+
+            <section className="profile-review-section">
+              <div className="profile-review-heading">
+                <div>
+                  <span className="review-label">核心技能</span>
+                  <h3>这些能力会用于后续岗位匹配</h3>
+                </div>
+                <span className="review-count">{reviewSkills.length} 项</span>
+              </div>
+              <div className="profile-skill-cloud">
+                {reviewSkills.slice(0, REVIEW_SKILL_LIMIT).map((item) => (
+                  <span className="profile-skill-chip" key={item.name}>
+                    <strong>{item.name}</strong>
+                    <small>{skillLevelLabels[item.level]}</small>
+                  </span>
+                ))}
+              </div>
+              {reviewSkills.length > REVIEW_SKILL_LIMIT ? (
+                <details className="profile-review-more">
+                  <summary>查看其余 {reviewSkills.length - REVIEW_SKILL_LIMIT} 项技能</summary>
+                  <div className="profile-skill-cloud">
+                    {reviewSkills.slice(REVIEW_SKILL_LIMIT).map((item) => (
+                      <span className="profile-skill-chip" key={item.name}>
+                        <strong>{item.name}</strong>
+                        <small>{skillLevelLabels[item.level]}</small>
+                      </span>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+            </section>
+
+            <div className="profile-review-check">
+              <strong>确认前重点看 3 件事</strong>
+              <span>职业定位是否像你 · 经历是否确实做过 · 技能是否有真实经历支撑</span>
+            </div>
+
+            <div className="actions profile-review-actions">
+              {profileDirty || profileVersion === 0 ? (
+                <button className="button" type="submit" disabled={profileState.kind === "saving"}>
+                  {profileState.kind === "saving" ? "正在保存…" : "内容没问题，确认保存"}
+                </button>
+              ) : (
+                <span className="profile-saved-copy">这份职业背景已经确认并保存。</span>
+              )}
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => setIsProfileEditorOpen(true)}
+              >
+                {profileDirty || profileVersion === 0 ? "有问题，编辑详情" : "编辑职业背景"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isProfileEditorOpen ? (
+          <section className="profile-detail-editor" aria-label="职业背景详细编辑">
+            <div className="profile-detail-editor-heading">
+              <div>
+                <span className="review-label">详细编辑</span>
+                <h3>修改不准确或遗漏的内容</h3>
+                <p>这里只在需要时使用。修改完成后先返回卡片审核，再确认保存。</p>
+              </div>
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => {
+                  setIsProfileEditorOpen(false);
+                  focusProfileDraft();
+                }}
+              >
+                完成编辑，返回审核
+              </button>
+            </div>
 
         <div className="profile-grid">
           <div className="field profile-span-2">
@@ -297,7 +495,10 @@ export function ProfileEditor({
             <input
               id="headline"
               value={headline}
-              onChange={(event) => setHeadline(event.target.value)}
+              onChange={(event) => {
+                setHeadline(event.target.value);
+                markProfileDirty();
+              }}
               placeholder="例如：8 年前端经验，正在转向 AI 应用工程"
               required
             />
@@ -310,7 +511,10 @@ export function ProfileEditor({
               min="0"
               step="0.5"
               value={years}
-              onChange={(event) => setYears(event.target.value)}
+              onChange={(event) => {
+                setYears(event.target.value);
+                markProfileDirty();
+              }}
               placeholder="8"
             />
           </div>
@@ -324,7 +528,10 @@ export function ProfileEditor({
           <button
             className="button-secondary"
             type="button"
-            onClick={() => setEvidence((items) => [...items, {...EMPTY_EVIDENCE}])}
+            onClick={() => {
+              markProfileDirty();
+              setEvidence((items) => [...items, {...EMPTY_EVIDENCE}]);
+            }}
           >
             + 添加经历
           </button>
@@ -392,7 +599,10 @@ export function ProfileEditor({
                 className="danger-link"
                 type="button"
                 disabled={evidence.length === 1}
-                onClick={() => setEvidence((items) => items.filter((_, i) => i !== index))}
+                onClick={() => {
+                  markProfileDirty();
+                  setEvidence((items) => items.filter((_, i) => i !== index));
+                }}
               >
                 删除这段经历
               </button>
@@ -408,7 +618,10 @@ export function ProfileEditor({
           <button
             className="button-secondary"
             type="button"
-            onClick={() => setSkills((items) => [...items, {...EMPTY_SKILL}])}
+            onClick={() => {
+              markProfileDirty();
+              setSkills((items) => [...items, {...EMPTY_SKILL}]);
+            }}
           >
             + 添加技能
           </button>
@@ -465,7 +678,10 @@ export function ProfileEditor({
                 className="danger-link"
                 type="button"
                 disabled={skills.length === 1}
-                onClick={() => setSkills((items) => items.filter((_, i) => i !== index))}
+                onClick={() => {
+                  markProfileDirty();
+                  setSkills((items) => items.filter((_, i) => i !== index));
+                }}
               >
                 删除技能
               </button>
@@ -473,11 +689,21 @@ export function ProfileEditor({
           ))}
         </div>
 
-        <div className="actions">
-          <button className="button" type="submit" disabled={profileState.kind === "saving"}>
-            保存我的职业背景
-          </button>
-        </div>
+            <div className="actions">
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => {
+                  setIsProfileEditorOpen(false);
+                  focusProfileDraft();
+                }}
+              >
+                完成编辑，返回审核
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         {profileState.kind !== "idle" ? (
           <p className={profileState.kind === "error" ? "inline-error" : "notice"}>
             {profileState.message}

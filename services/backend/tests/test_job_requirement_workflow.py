@@ -86,7 +86,7 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
     ).execute(job_id="job_fixture", description=description)
 
     assert proposal.trace_run_id.startswith("run_")
-    assert proposal.extractor_version == "requirement-extractor-v3"
+    assert proposal.extractor_version == "requirement-extractor-v4"
     assert proposal.prompt_version == "requirement-extraction-v1"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
