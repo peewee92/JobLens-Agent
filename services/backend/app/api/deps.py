@@ -29,6 +29,7 @@ from app.application.job_requirements.use_cases import (
 )
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
+from app.application.match_review import GetMatchReviewReadinessUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
@@ -647,6 +648,19 @@ def get_list_jobs_use_case(
     repository: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> ListJobsUseCase:
     return ListJobsUseCase(repository)
+
+
+def get_match_review_readiness_use_case(
+    jobs: ListJobsUseCase = Depends(get_list_jobs_use_case),
+    match_inputs: GetMatchInputReadinessUseCase = Depends(
+        get_match_input_readiness_use_case
+    ),
+) -> GetMatchReviewReadinessUseCase:
+    return GetMatchReviewReadinessUseCase(
+        jobs=jobs,
+        match_inputs=match_inputs,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+    )
 
 
 def get_get_job_use_case(
