@@ -30,6 +30,8 @@ class SemanticMatchEvalCase:
     evidence: JobEvidenceRetrievalResult
     expected_eligibility: str
     expected_verdict: str
+    expected_evidence_ids: tuple[str, ...]
+    provider_expected: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +42,11 @@ class SemanticMatchEvalCaseResult:
     actual_eligibility: str | None
     expected_verdict: str
     actual_verdict: str | None
+    expected_evidence_ids: tuple[str, ...]
+    actual_evidence_ids: tuple[str, ...]
+    actual_reason: str | None
+    provider_expected: bool
+    trace_run_id: str | None
     error: str | None = None
 
 
@@ -48,6 +55,15 @@ class SemanticMatchEvalReport:
     total: int
     passed: int
     failed: int
+    succeeded: int
+    errors: int
+    verdict_accuracy: float
+    evidence_accuracy: float
+    workflow_success_rate: float
+    trace_coverage: float
+    provider_expected_cases: int
+    traced_provider_cases: int
+    confusion_matrix: dict[str, dict[str, int]]
     cases: tuple[SemanticMatchEvalCaseResult, ...]
 
 
@@ -82,11 +98,14 @@ def run_semantic_match_eval(
                 eligibility=case.eligibility,
                 evidence=case.evidence,
             )
-            actual_verdict = result.assessments[0].verdict.value
+            assessment = result.assessments[0]
+            actual_verdict = assessment.verdict.value
             actual_eligibility = result.eligibility.value
+            actual_evidence_ids = tuple(assessment.evidence_ids)
             passed = (
                 actual_verdict == case.expected_verdict
                 and actual_eligibility == case.expected_eligibility
+                and actual_evidence_ids == case.expected_evidence_ids
             )
             results.append(
                 SemanticMatchEvalCaseResult(
@@ -96,6 +115,11 @@ def run_semantic_match_eval(
                     actual_eligibility=actual_eligibility,
                     expected_verdict=case.expected_verdict,
                     actual_verdict=actual_verdict,
+                    expected_evidence_ids=case.expected_evidence_ids,
+                    actual_evidence_ids=actual_evidence_ids,
+                    actual_reason=assessment.reason,
+                    provider_expected=case.provider_expected,
+                    trace_run_id=result.trace_run_id,
                 )
             )
         except Exception as error:
@@ -107,16 +131,50 @@ def run_semantic_match_eval(
                     actual_eligibility=None,
                     expected_verdict=case.expected_verdict,
                     actual_verdict=None,
+                    expected_evidence_ids=case.expected_evidence_ids,
+                    actual_evidence_ids=(),
+                    actual_reason=None,
+                    provider_expected=case.provider_expected,
+                    trace_run_id=getattr(error, "run_id", None),
                     error=f"{type(error).__name__}: {error}",
                 )
             )
 
     result_tuple = tuple(results)
+    total = len(result_tuple)
     passed = sum(item.passed for item in result_tuple)
+    succeeded = sum(item.error is None for item in result_tuple)
+    verdict_correct = sum(
+        item.actual_verdict == item.expected_verdict for item in result_tuple
+    )
+    evidence_correct = sum(
+        item.actual_evidence_ids == item.expected_evidence_ids
+        and item.error is None
+        for item in result_tuple
+    )
+    provider_expected_cases = sum(item.provider_expected for item in result_tuple)
+    traced_provider_cases = sum(
+        item.provider_expected and item.trace_run_id is not None
+        for item in result_tuple
+    )
+    confusion_matrix = _confusion_matrix(result_tuple)
     return SemanticMatchEvalReport(
-        total=len(result_tuple),
+        total=total,
         passed=passed,
-        failed=len(result_tuple) - passed,
+        failed=total - passed,
+        succeeded=succeeded,
+        errors=total - succeeded,
+        verdict_accuracy=verdict_correct / total,
+        evidence_accuracy=evidence_correct / total,
+        workflow_success_rate=succeeded / total,
+        trace_coverage=(
+            traced_provider_cases / provider_expected_cases
+            if provider_expected_cases
+            else 1.0
+        ),
+        provider_expected_cases=provider_expected_cases,
+        traced_provider_cases=traced_provider_cases,
+        confusion_matrix=confusion_matrix,
         cases=result_tuple,
     )
 
@@ -196,10 +254,35 @@ def _case_from_payload(case_id: str, payload: dict) -> SemanticMatchEvalCase:
         ),
         candidate_count=len(candidates),
     )
+    expected_verdict = str(payload["expectedVerdict"])
+    expected_evidence_ids = tuple(
+        str(item) for item in payload.get("expectedEvidenceIds", [])
+    )
     return SemanticMatchEvalCase(
         id=case_id,
         eligibility=eligibility,
         evidence=evidence,
         expected_eligibility=str(payload["expectedEligibility"]),
-        expected_verdict=str(payload["expectedVerdict"]),
+        expected_verdict=expected_verdict,
+        expected_evidence_ids=expected_evidence_ids,
+        provider_expected=(
+            bool(candidates)
+            and eligibility_status is not RequirementFitStatus.MATCHED
+        ),
     )
+
+
+def _confusion_matrix(
+    results: tuple[SemanticMatchEvalCaseResult, ...],
+) -> dict[str, dict[str, int]]:
+    labels = ("matched", "partial", "not_matched")
+    columns = (*labels, "error")
+    matrix = {
+        expected: {actual: 0 for actual in columns}
+        for expected in labels
+    }
+    for item in results:
+        actual = item.actual_verdict if item.actual_verdict in labels else "error"
+        if item.expected_verdict in matrix:
+            matrix[item.expected_verdict][actual] += 1
+    return matrix
