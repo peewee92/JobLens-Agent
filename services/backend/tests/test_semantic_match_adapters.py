@@ -111,14 +111,17 @@ def test_openai_semantic_matcher_uses_strict_chat_schema_without_overall_eligibi
     system_prompt = captured["messages"][0]["content"]
     assert "related" in system_prompt
     assert "matched" in system_prompt
-    assert "Requirement: 熟悉 MCP 协议" in system_prompt
-    assert "Evidence: 实现 Agent Function Calling、工具调用和工具集成" in system_prompt
+    assert "shared core mechanism" in system_prompt
+    assert "surface workflow similarity" in system_prompt
+    assert "Requirement: 熟悉 Kafka 消费者模型" in system_prompt
+    assert "Evidence: 使用 RabbitMQ 实现异步消费、重试和死信队列" in system_prompt
     assert "Verdict: partial" in system_prompt
-    assert "Requirement: 熟悉 FastAPI" in system_prompt
-    assert "Evidence: 使用 Python 开发 REST API 服务，但没有明确使用 FastAPI" in system_prompt
-    assert "Requirement: 熟悉 MCP 协议" in system_prompt
-    assert "Evidence: 使用 React 开发 AI 聊天界面" in system_prompt
+    assert "Evidence: 使用 cron 定时执行批处理任务并发送结果" in system_prompt
     assert "Verdict: not_matched" in system_prompt
+    assert "Requirement: 熟悉 React Native" in system_prompt
+    assert "Evidence: 使用 React 开发复杂 Web 应用" in system_prompt
+    assert "Requirement: 熟悉 Redis 缓存设计" in system_prompt
+    assert "Evidence: 使用 localStorage 保存浏览器偏好" in system_prompt
     assert "related-only Evidence can never justify matched" in system_prompt
     user_payload = json.loads(captured["messages"][1]["content"])
     assert user_payload["requirements"][0]["candidates"][0]["evidenceId"] == "ev_tools"

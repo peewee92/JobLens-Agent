@@ -376,42 +376,26 @@ def _response_trace_id(response: httpx.Response) -> str | None:
 _SYSTEM_PROMPT = """Judge how well each supplied Profile Evidence candidate supports one JobRequirement.
 
 Rules:
-- Use only the supplied JobRequirement and candidate Evidence. Do not use outside knowledge or infer unstated career facts.
+- Use only the supplied JobRequirement and candidate Evidence as career facts. You may use general technical/domain knowledge only to judge the relationship between capabilities explicitly named in those inputs; never invent unstated career facts.
 - Return each requested requirement exactly once and in the same order.
 - matched means cited Evidence explicitly demonstrates the requirement.
 - related-only Evidence can never justify matched.
-- Use partial when the supplied Evidence demonstrates a meaningful related or transferable capability but does not explicitly prove the full requirement.
-- Do not choose not_matched only because the exact target technology or phrase is absent. If the Evidence concretely demonstrates a transferable sub-capability or closely related implementation work, use partial.
-- A candidate marked relevanceTier=related is only a retrieval signal that it is worth judging; it is not proof by itself. If the candidate content is merely adjacent and does not demonstrate a meaningful transferable capability, use not_matched.
+- partial requires a meaningful shared core mechanism, protocol/runtime semantics, data model, API pattern, or implementation concern that makes the demonstrated capability genuinely transferable to the requirement.
+- Surface workflow similarity, shared business context, generic scheduling, generic CRUD, or merely being in the same broad technology area is not enough for partial; use not_matched when the shared mechanism is weak or absent.
+- Do not choose not_matched only because the exact target technology or phrase is absent. If the Evidence concretely demonstrates a transferable core capability, use partial.
+- A candidate marked relevanceTier=related is only a retrieval signal that it is worth judging; it is not proof by itself and does not force partial.
 - partial must cite the real candidate evidenceIds that make it relevant.
 - not_matched must return an empty evidenceIds list.
 - Never invent evidenceIds, skills, years of experience, education, employers, responsibilities, or achievements.
 - Do not output or change overall Eligibility, recommendation, ranking, probability, or score. Deterministic Eligibility is owned by another gate.
 
 Calibration examples:
-1. Requirement: 熟悉 MCP 协议
-   Evidence: 实现 Agent Function Calling、工具调用和工具集成
-   Candidate tier: related
-   Verdict: partial
-   Why: the Evidence demonstrates closely related tool-integration capability, but does not explicitly prove MCP experience.
-
-2. Requirement: 熟悉 FastAPI
-   Evidence: 使用 Python 开发 REST API 服务，但没有明确使用 FastAPI
-   Candidate tier: related
-   Verdict: partial
-   Why: the Evidence demonstrates transferable Python API implementation capability, but does not explicitly prove FastAPI usage.
-
-3. Requirement: 熟悉 MCP 协议
-   Evidence: 使用 React 开发 AI 聊天界面
-   Candidate tier: related
-   Verdict: not_matched
-   Why: AI product adjacency alone does not demonstrate protocol or tool-integration capability.
-
-4. Requirement: 精通 Java
-   Evidence: 使用 Java 开发订单服务并负责线上问题排查
-   Candidate tier: direct
-   Verdict: matched
-   Why: the Evidence explicitly demonstrates Java implementation experience.
+- Requirement: 熟悉 MCP 协议 | Evidence: 实现 Agent Function Calling、工具调用和工具集成 | Verdict: partial | shared core mechanism: tool invocation/integration, but no explicit MCP.
+- Requirement: 熟悉 Kafka 消费者模型 | Evidence: 使用 RabbitMQ 实现异步消费、重试和死信队列 | Verdict: partial | shared core mechanism: asynchronous messaging and consumer reliability semantics.
+- Requirement: 熟悉 Kafka 消费者模型 | Evidence: 使用 cron 定时执行批处理任务并发送结果 | Verdict: not_matched | surface workflow similarity only: scheduled processing is not message-consumer semantics.
+- Requirement: 熟悉 React Native | Evidence: 使用 React 开发复杂 Web 应用 | Verdict: partial | shared core mechanism: React component/state model, but no mobile runtime evidence.
+- Requirement: 熟悉 Redis 缓存设计 | Evidence: 使用 localStorage 保存浏览器偏好 | Verdict: not_matched | storage adjacency alone does not demonstrate cache-server design semantics.
+- Requirement: 精通 Java | Evidence: 使用 Java 开发订单服务并负责线上问题排查 | Verdict: matched | explicit Java implementation evidence.
 
 Return no prose outside the strict schema.
 """
