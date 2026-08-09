@@ -178,7 +178,7 @@ MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementI
 
 ### Semantic Match Eval
 
-Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases，覆盖 direct / related / no-candidate 与 `matched / partial / not_matched`。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
+Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases，覆盖 direct / related / no-candidate 与 `matched / partial / not_matched`。在 Prompt v2 calibration 之后，另有 `semantic-match-blind-holdout-v1.jsonl` 作为 10 条盲测集：3 `matched` / 4 `partial` / 3 `not_matched`，10 条都有 Candidate Evidence 且都会真正进入 Provider；测试会拒绝与 calibration case 或 Prompt v2 完整示例文本重复。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
 
 本地 fixture 验证：
 
@@ -199,7 +199,7 @@ uv run python -m scripts.run_semantic_match_eval \
   --json
 ```
 
-没有 `--confirm-live-cost` 会在 Provider 调用前拒绝执行；live 模式没有显式 `--max-cases` 也会拒绝执行。`qualityGateApplied=false` 表示当前不会因为某个准确率自动发布或拒绝模型；live 结果仍需要人工查看错误案例、reason 和 Trace。synthetic Match Eval 也不能替代 ROADMAP 要求的 20 个真实岗位人工 Match 评审与未来 UserFeedback 基准。
+没有 `--confirm-live-cost` 会在 Provider 调用前拒绝执行；live 模式没有显式 `--max-cases` 也会拒绝执行。Blind holdout 可通过 `--dataset ../../data/evals/semantic-match/semantic-match-blind-holdout-v1.jsonl` 显式选择，但真实运行仍必须经过 HUMAN_GATE 授权。`qualityGateApplied=false` 表示当前不会因为某个准确率自动发布或拒绝模型；live 结果仍需要人工查看错误案例、reason 和 Trace。synthetic Match Eval 也不能替代 ROADMAP 要求的 20 个真实岗位人工 Match 评审与未来 UserFeedback 基准。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 
