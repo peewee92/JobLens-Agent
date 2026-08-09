@@ -203,7 +203,8 @@ Profile 页面可以明确区分：
 - 已完成 `semantic-match-blind-holdout-v1` 的 10-case `deepseek-v4-flash` live Eval：9/10 通过，verdict/evidence accuracy=90%，workflow success/Trace coverage=100%。3 个 `matched`、4 个 `partial` 全部正确；3 个 `not_matched` 中有 1 条 Kafka requirement + cron batch Evidence 被模型判为 `partial`，暴露“表面流程相似被误当可迁移核心能力”的假阳性边界。该 holdout 已消费，后续 Prompt 调整不得再把它当无偏验证集；正式业务 DB 未写入。
 - 已完成 `Semantic Match prompt v3` 假阳性边界校准：`partial` 现在要求 Evidence 与 Requirement 共享 core mechanism / protocol-runtime semantics / data model / API pattern / implementation concern；generic scheduling、generic CRUD、共享业务场景或同属大类不再足以构成 `partial`。同时明确一般技术知识只能判断输入中已出现能力的关系，不能补造用户职业事实。synthetic quality harness 与全量回归通过。
 - 已完成 `semantic-match-blind-holdout-v2` 的 10-case `deepseek-v4-flash` live Eval：3 `matched` / 4 `partial` / 3 `not_matched` 全部正确，verdict/evidence accuracy、workflow success、Trace coverage 均为 100%；10 条全部真实进入 Provider，使用 `semantic-match-v3`。该 holdout 与 calibration、已消费 holdout v1、Prompt v3 完整示例均保持不重复，正式业务 DB 未写入。该结果提供新的泛化证据，但仍不构成自动 release approval，也不能替代 ROADMAP 的 20 个真实岗位人工评审。
-- 尚未完成 MatchReport 正式 DB migration、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
+- 已完成 20 岗位人工 Match 评审的只读 readiness gate：`GET /api/v1/match-review/readiness` 复用每个岗位的 Match Input Readiness，并额外要求 `match_reports` persistence schema 已就绪；只有 20/20 岗位输入可信且持久化准备完成时才 `readyForHumanReview=true`。当前真实 DB 实测为 20 个 Job、0 个 input-ready、`match_reports` 表缺失，因此稳定 fail-closed，且 `dbWrites/providerCalls/traceRunsCreated` 均为 0。
+- 尚未完成 MatchReport 正式 DB migration、20 岗位人工 Match 评审本身与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
 
 ### 任务
 

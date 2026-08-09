@@ -178,6 +178,14 @@ MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementI
 
 `match_reports` 持久化使用不可变 JSON snapshot，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。runtime 在任何 Semantic/Provider 工作前先检查 `match_reports` 表是否存在；schema 未准备好时稳定返回 `409 match_report_persistence_not_ready`，不会偷偷建表、写 Trace 或产生 Provider 成本。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库。
 
+20 岗位人工 Match 评审还有一个只读 readiness 入口：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/match-review/readiness
+```
+
+它只扫描最多 20 个岗位并复用现有 Match Input Readiness，要求 20/20 岗位都已有可信 Profile + Requirement 输入，同时要求 `match_reports` schema 已就绪；否则 `readyForHumanReview=false` 并返回 blockers。该接口不会运行 Eligibility/Semantic Match，不调用 Provider、不创建 Trace、不写数据库。当前真实 DB 仍未应用 0016，且 Requirement 真实人工基线尚未完成，因此该门禁会 fail-closed。
+
 ### Semantic Match Eval
 
 Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases。已消费的 `semantic-match-blind-holdout-v1.jsonl` 在 prompt v2 上真实运行 10 条，得到 verdict/evidence accuracy 90%、workflow/Trace 100%，唯一错误是 Kafka requirement + cron batch Evidence 被判 `partial`。v3 修复该假阳性边界后，冻结了一套全新的 `semantic-match-blind-holdout-v2.jsonl`，与 calibration、holdout v1 及 Prompt v3 完整示例保持不重复；该 v2 holdout 的 10 条真实 Provider 调用全部符合预先人工标签，verdict/evidence accuracy、workflow success、Trace coverage 均为 100%。两套 holdout 一经消费均不能再作为后续 prompt 的无偏验证集。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
