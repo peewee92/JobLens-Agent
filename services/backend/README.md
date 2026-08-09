@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化，以及 Phase 3B-2 不可变人工 Review、Accepted Baseline、Web 审查与 CLI baseline 选择机制。Requirement 的真实 Provider 质量、20 个真实岗位人工验收仍未完成；尚未进入 Eligibility / Match。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的首个确定性 Eligibility Gate 切片。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Eligibility 执行仍由 Match Input Readiness fail-closed；Semantic Match / Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -131,6 +131,18 @@ curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/requirement-extractions/reqrun_xx
 ```
 
 每条 Requirement 都必须有命中 JD 原文的 `evidenceSpan`；`skill` 类型在 Provider Structured Output 阶段就必须返回非空 `normalizedCapability`，Domain Gate 会再次校验，避免出现 Schema 接受但业务层拒绝的漂移。重新抽取会创建新 Run，不覆盖历史。Trace input 只保存 Job ID、JD SHA-256 与字符数。后续 Eligibility / Match / Gap 必须复用 JobRequirement，不应重新解释 raw JD。
+
+### Deterministic Eligibility Gate
+
+Phase 4 的首个切片提供只读接口：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/eligibility
+```
+
+Eligibility 只使用用户已确认的当前 Profile 与当前 JobRequirement，不调用 LLM、不创建 Trace、不写数据库，也不展示百分制“匹配概率”。每条 Requirement 返回 `matched / conditional / missing`、可追溯的 `evidenceIds` / `profileFactRefs` 和解释原因；整体结果为 `eligible / conditional / blocked`。明确 `must_have + missing` 会将岗位判为 `blocked`，而无法可靠判断的硬条件保持 `conditional`，不做语义猜测。专项年限不会使用总工作年限冒充。
+
+该接口首先执行现有 Match Input Readiness。只要 Profile/SearchIntent 或 Requirement Fact 尚未通过可信输入门禁，就返回 `409 eligibility_inputs_not_ready`，不会绕过 Requirement 人工质量基线执行真实 Match 判断。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 

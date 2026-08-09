@@ -185,10 +185,12 @@ Profile 页面可以明确区分：
 
 目标：让单个岗位判断“是否值得投、为什么”可信、可解释。
 
-### 当前进度（2026-08-05）
+### 当前进度（2026-08-09）
 
-- 已完成只读 `Match Input Readiness` 预检，统一组合 Confirmed Career Context 与 Job Requirement Fact Release Gate；它只暴露 blockers 和冻结事实身份，不运行 Eligibility、LLM、Trace 或数据库写入。
-- Eligibility 规则、Evidence Retrieval、Semantic Match 与 MatchReport 尚未实现；真实 Requirement 人工验收完成前仍不得执行 Match。
+- 已完成只读 `Match Input Readiness` 预检，统一组合 Confirmed Career Context 与 Job Requirement Fact Release Gate；它只暴露 blockers 和冻结事实身份，不运行 LLM、Trace 或数据库写入。
+- 已完成 Phase 4 首个确定性 `Eligibility Gate` 切片：只读组合当前已确认 Profile 与当前 JobRequirement，逐条输出 `matched / conditional / missing`、`evidenceIds / profileFactRefs` 与原因，整体输出 `eligible / conditional / blocked`；`must_have + missing => blocked`，专项年限不使用总工作年限冒充，不做模糊百分制评分。
+- Eligibility 执行仍严格受 Match Input Readiness 约束；真实 Requirement 20 岗位人工验收未完成时返回 `eligibility_inputs_not_ready`，不得绕过门禁执行真实判断。
+- Evidence Retrieval 的语义检索、Semantic Match、持久化 MatchReport 与 Match Eval 尚未实现。
 
 ### 任务
 
