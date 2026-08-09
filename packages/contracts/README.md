@@ -20,6 +20,7 @@ Schemas:
 - `job-requirement.schema.json` — 单条 evidence-grounded JobRequirement；包含 Extraction ID、原文、归一化能力、importance、evidenceSpan、confidence 与 extractorVersion
 - `job-requirement-extraction.schema.json` — 不可变 Requirement Extraction Run；记录 Job/input hash/provider/model/prompt/Trace 与逐条 Requirements，作为 Match/Gap/Prepare 统一事实来源
 - `evidence-retrieval.schema.json` — Phase 4 只读候选证据检索结果；区分 `direct / related` 与检索依据，只返回已确认 Profile Evidence，不包含 `matched/status` 等 Match verdict 字段
+- `semantic-match.schema.json` — Phase 4 Semantic Match 暂态结果；保留 deterministic `eligibility / eligibilityStatus`，另行输出 `matched / partial / not_matched` 语义判断，Provider 无权输出或升级 Eligibility、推荐等级或分数
 - `user-feedback.schema.json` — 用户对推荐的人类反馈（v0.1 新增）
 - `job-target.schema.json` — 目标岗位集，v0.2 演进为 TargetCohort
 - `match-report.schema.json` — 岗位匹配报告；v0.1 字段已落地，P1 增强 eligibility/evidenceLinks
