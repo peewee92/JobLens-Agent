@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 的首轮 blind holdout 为 9/10，v3 进一步约束“表面流程相似 ≠ shared core mechanism”，随后在一套全新的 10-case blind holdout v2 上达到 10/10，workflow/Trace coverage 均为 100%。该结果仍只是质量证据，不是自动 release approval。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 的首轮 blind holdout 为 9/10，v3 进一步约束“表面流程相似 ≠ shared core mechanism”，随后在一套全新的 10-case blind holdout v2 上达到 10/10，workflow/Trace coverage 均为 100%。该结果仍只是质量证据，不是自动 release approval。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 持久化 runtime 已实现但真实数据库 schema 尚未迁移。Phase 5 已具备纯只读 Batch Ranking application use case：组合每岗最新 MatchReport snapshot、当前 SearchIntent.softPreferences 与 Job title/area 元数据，复用确定性 Ranking Policy 返回稳定排序；它不生成新 Match、不调用 Provider/Trace，也不写数据库。
 
 ## Prerequisites
 
