@@ -174,7 +174,9 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/match-report
 
 MatchReport 在一次 guarded Semantic Match 后，由 Backend 的确定性 Recommendation Policy 生成 `strong / good / stretch / low / blocked`。v1 规则不使用百分制阈值：`Eligibility=blocked => blocked`；`Eligibility=conditional => stretch`；`eligible` 后再根据 `must_have + preferred` 的 semantic verdict 区分 `strong / good / low`。deterministic `missing` 在最终摘要拥有更高优先级，即使 Semantic 返回 `matched` 也不能进入“明确匹配/核心优势”；`partial + missing` 可以同时表达“存在相关证据”和“仍有硬条件缺口”。Bonus 未命中不会进入“主要风险”。
 
-MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不持久化、不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
+MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
+
+持久化基础已经准备好：`match_reports` 使用不可变 JSON snapshot 保存完整报告，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库，因此当前 API/use case 仍保持 transient，正式接线必须在真实 migration 获得授权之后进行。
 
 ### Semantic Match Eval
 
