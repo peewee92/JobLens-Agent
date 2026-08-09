@@ -232,6 +232,10 @@ Profile 页面可以明确区分：
 
 目标：从“单个岗位判断”到“一批岗位排序 + 人类反馈闭环”。
 
+### 当前进度（2026-08-10）
+
+- 已完成 Phase 5 首个纯确定性 Ranking Policy 切片：消费已存在的 `StoredMatchReport` snapshot，按 `strong > good > stretch > low > blocked` 稳定排序；`blocked` 默认隐藏，显式包含时始终沉底；同推荐等级保持输入顺序且不修改输入集合。该切片不查询数据库、不调用 Provider、不创建 Trace，也尚未引入 SearchIntent softPreferences、批量 Match 队列或 UserFeedback。
+
 ### 任务
 
 1. 批量 Match 队列；
