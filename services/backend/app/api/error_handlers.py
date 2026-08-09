@@ -15,6 +15,7 @@ from app.application.career_context import (
     SearchIntentNotFoundError,
 )
 from app.application.eligibility import EligibilityInputsNotReadyError
+from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
 from app.application.job_import_queries import JobImportNotFoundError
 from app.application.job_imports.errors import (
     ImportIdentityConflictError,
@@ -103,6 +104,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "eligibility_inputs_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(EvidenceRetrievalInputsNotReadyError)
+    async def handle_evidence_retrieval_inputs_not_ready(
+        _request: Request,
+        error: EvidenceRetrievalInputsNotReadyError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "evidence_retrieval_inputs_not_ready",
             str(error),
         )
 

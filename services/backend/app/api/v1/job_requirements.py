@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, status
 from app.api.deps import (
     get_extract_job_requirements_use_case,
     get_job_eligibility_use_case,
+    get_job_evidence_retrieval_use_case,
     get_job_requirement_extraction_use_case,
     get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
@@ -15,12 +16,14 @@ from app.api.deps import (
 )
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.eligibility import JobEligibilityResponse
+from app.api.v1.schemas.evidence_retrieval import JobEvidenceRetrievalResponse
 from app.api.v1.schemas.job_requirements import (
     JobRequirementExtractionResponse,
     JobRequirementReleaseReadinessResponse,
 )
 from app.api.v1.schemas.match_inputs import MatchInputReadinessResponse
 from app.application.eligibility import EvaluateJobEligibilityUseCase
+from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_requirements.release import (
     GetJobRequirementReleaseReadinessUseCase,
 )
@@ -103,6 +106,24 @@ def get_job_eligibility(
     ],
 ) -> JobEligibilityResponse:
     return JobEligibilityResponse.from_detail(use_case.execute(job_id))
+
+
+@router.get(
+    "/{job_id}/evidence-candidates",
+    response_model=JobEvidenceRetrievalResponse,
+    responses={
+        status.HTTP_404_NOT_FOUND: {"model": ApiErrorResponse},
+        status.HTTP_409_CONFLICT: {"model": ApiErrorResponse},
+    },
+)
+def get_job_evidence_candidates(
+    job_id: str,
+    use_case: Annotated[
+        RetrieveJobEvidenceUseCase,
+        Depends(get_job_evidence_retrieval_use_case),
+    ],
+) -> JobEvidenceRetrievalResponse:
+    return JobEvidenceRetrievalResponse.from_detail(use_case.execute(job_id))
 
 
 @router.get(

@@ -112,8 +112,18 @@ def _extraction(*requirements: JobRequirementDetail) -> JobRequirementExtraction
 
 
 class _Readiness:
-    def __init__(self, eligible: bool = True) -> None:
+    def __init__(
+        self,
+        eligible: bool = True,
+        *,
+        profile_id: str = "profile_1",
+        profile_version: int = 1,
+        extraction_id: str = "reqrun_1",
+    ) -> None:
         self.eligible = eligible
+        self.profile_id = profile_id
+        self.profile_version = profile_version
+        self.extraction_id = extraction_id
 
     def execute(self, job_id: str):
         return type(
@@ -123,6 +133,19 @@ class _Readiness:
                 "job_id": job_id,
                 "inputs_release_eligible": self.eligible,
                 "blockers": () if self.eligible else (type("B", (), {"code": "quality_gate"})(),),
+                "career_context": type(
+                    "CareerReadiness",
+                    (),
+                    {
+                        "profile_id": self.profile_id,
+                        "profile_version": self.profile_version,
+                    },
+                )(),
+                "job_requirements": type(
+                    "RequirementReadiness",
+                    (),
+                    {"extraction_id": self.extraction_id},
+                )(),
             },
         )()
 
@@ -268,3 +291,24 @@ def test_eligibility_refuses_to_run_before_match_inputs_are_released() -> None:
 
     with pytest.raises(EligibilityInputsNotReadyError):
         use_case.execute("job_1")
+
+
+def test_eligibility_fails_closed_if_profile_or_requirement_changes_after_readiness() -> None:
+    profile = _profile()
+    extraction = _extraction(
+        _requirement(
+            0,
+            type=RequirementType.SKILL,
+            text="熟悉 RAG",
+            importance=RequirementImportance.MUST_HAVE,
+            capability="RAG",
+        )
+    )
+    stale = EvaluateJobEligibilityUseCase(
+        readiness=_Readiness(profile_version=99),
+        profiles=_Profiles(profile),
+        requirements=_Requirements(extraction),
+    )
+
+    with pytest.raises(EligibilityInputsNotReadyError, match="changed after readiness"):
+        stale.execute("job_1")

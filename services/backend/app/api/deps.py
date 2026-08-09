@@ -14,6 +14,7 @@ from app.application.career_context.use_cases import (
     SaveSearchIntentUseCase,
 )
 from app.application.eligibility import EvaluateJobEligibilityUseCase
+from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
@@ -552,6 +553,24 @@ def get_job_eligibility_use_case(
     ),
 ) -> EvaluateJobEligibilityUseCase:
     return EvaluateJobEligibilityUseCase(
+        readiness=readiness,
+        profiles=profiles,
+        requirements=requirements,
+    )
+
+
+def get_job_evidence_retrieval_use_case(
+    readiness: GetMatchInputReadinessUseCase = Depends(
+        get_match_input_readiness_use_case
+    ),
+    profiles: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> RetrieveJobEvidenceUseCase:
+    return RetrieveJobEvidenceUseCase(
         readiness=readiness,
         profiles=profiles,
         requirements=requirements,
