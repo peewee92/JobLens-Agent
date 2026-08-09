@@ -14,6 +14,7 @@ from app.application.career_context import (
     ProfileNotFoundError,
     SearchIntentNotFoundError,
 )
+from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.job_import_queries import JobImportNotFoundError
 from app.application.job_imports.errors import (
     ImportIdentityConflictError,
@@ -92,6 +93,17 @@ def register_exception_handlers(app: FastAPI) -> None:
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "request_validation_error",
             "Request body or parameters are invalid.",
+        )
+
+    @app.exception_handler(EligibilityInputsNotReadyError)
+    async def handle_eligibility_inputs_not_ready(
+        _request: Request,
+        error: EligibilityInputsNotReadyError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "eligibility_inputs_not_ready",
+            str(error),
         )
 
     @app.exception_handler(ProfileNotFoundError)

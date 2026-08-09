@@ -4,6 +4,7 @@ import type {
   ApiErrorBody,
   CareerContextReleaseReadiness,
   JobDetail,
+  JobEligibilityResult,
   JobImportDetail,
   AcceptedProfileEvalBaseline,
   JobPage,
@@ -98,6 +99,12 @@ export function fetchJobPage(query: URLSearchParams): Promise<JobPage> {
 
 export function fetchJobDetail(jobId: string): Promise<JobDetail> {
   return backendJson<JobDetail>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function fetchJobEligibility(jobId: string): Promise<JobEligibilityResult> {
+  return backendJson<JobEligibilityResult>(
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/eligibility`,
+  );
 }
 
 export function fetchLatestJobRequirements(

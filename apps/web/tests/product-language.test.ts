@@ -49,6 +49,20 @@ test("job detail keeps internal requirement metadata out of the ordinary user ex
   assert.match(css, /\.requirement-action-button[\s\S]*white-space:\s*nowrap/);
 });
 
+test("job detail explains deterministic eligibility without fake match scores", async () => {
+  const page = await source("app/jobs/[id]/page.tsx");
+  const eligibility = await source("lib/eligibility.ts");
+
+  assert.match(page, /这个岗位适合我吗/);
+  assert.match(page, /已匹配/);
+  assert.match(page, /待确认/);
+  assert.match(page, /明显缺失/);
+  assert.match(page, /不使用模糊的百分制匹配分数/);
+  assert.match(eligibility, /当前不建议优先投入/);
+  assert.doesNotMatch(page, /匹配度[:：]?\s*\d+%/);
+  assert.doesNotMatch(page, /score/);
+});
+
 test("home page explains the product as a simple job-search workflow", async () => {
   const page = await source("app/page.tsx");
   assert.match(page, /先把自己和岗位看清楚/);

@@ -228,6 +228,37 @@ export interface JobRequirementReleaseReadiness {
   blockers: JobRequirementReleaseBlocker[];
 }
 
+export type RequirementFitStatus = "matched" | "conditional" | "missing";
+export type EligibilityDecision = "eligible" | "conditional" | "blocked";
+
+export interface RequirementEligibilityResult {
+  requirementId: string;
+  requirementIndex: number;
+  type: RequirementType;
+  importance: RequirementImportance;
+  originalText: string;
+  normalizedCapability: string | null;
+  status: RequirementFitStatus;
+  evidenceIds: string[];
+  profileFactRefs: string[];
+  reason: string;
+}
+
+export interface JobEligibilityResult {
+  jobId: string;
+  profileId: string;
+  profileVersion: number;
+  extractionId: string;
+  eligibility: EligibilityDecision;
+  requirements: RequirementEligibilityResult[];
+  matchedCount: number;
+  conditionalCount: number;
+  missingCount: number;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export interface JobRequirementExtraction {
   extractionId: string;
   jobId: string;

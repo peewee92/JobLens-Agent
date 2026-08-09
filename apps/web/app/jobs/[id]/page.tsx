@@ -7,9 +7,16 @@ import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchJobDetail,
+  fetchJobEligibility,
   fetchJobRequirementReleaseReadiness,
   fetchLatestJobRequirements,
 } from "@/lib/backend";
+import {
+  eligibilityDescriptions,
+  eligibilityLabels,
+  groupEligibilityRequirements,
+  requirementFitLabels,
+} from "@/lib/eligibility";
 import {formatDateTime, formatSalary} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
@@ -44,8 +51,10 @@ export default async function JobDetailPage({
 
   let extraction = null;
   let releaseReadiness = null;
+  let eligibility = null;
   let requirementError = "";
   let releaseReadinessError = "";
+  let eligibilityError = "";
   try {
     extraction = await fetchLatestJobRequirements(id);
   } catch (caught) {
@@ -62,6 +71,19 @@ export default async function JobDetailPage({
         ? userFacingErrorCode(caught.code, "暂时无法检查岗位匹配准备状态，请稍后重试。")
         : "暂时无法检查岗位匹配准备状态，请稍后重试。";
   }
+  try {
+    eligibility = await fetchJobEligibility(id);
+  } catch (caught) {
+    if (!(caught instanceof BackendApiError && caught.code === "eligibility_inputs_not_ready")) {
+      eligibilityError =
+        caught instanceof BackendApiError
+          ? userFacingErrorCode(caught.code, "暂时无法判断这个岗位与你的职业背景是否匹配。")
+          : "暂时无法判断这个岗位与你的职业背景是否匹配。";
+    }
+  }
+  const groupedEligibility = eligibility
+    ? groupEligibilityRequirements(eligibility.requirements)
+    : null;
 
   return (
     <>
@@ -97,6 +119,83 @@ export default async function JobDetailPage({
                 ? job.skills.map((skill) => <span className="tag" key={skill}>{skill}</span>)
                 : <span className="tag">尚未提取技能</span>}
             </div>
+          </section>
+
+          <section className="detail-section eligibility-section">
+            <div className="section-title-row">
+              <div>
+                <p className="eyebrow">结合我的职业背景</p>
+                <h2>这个岗位适合我吗？</h2>
+                <p className="lede requirement-lede">
+                  这里只判断当前已确认资料能不能支撑岗位硬条件，不使用模糊的百分制匹配分数。
+                </p>
+              </div>
+            </div>
+
+            {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
+            {eligibility && groupedEligibility ? (
+              <div className={`eligibility-summary eligibility-${eligibility.eligibility}`}>
+                <div className="eligibility-summary-header">
+                  <div>
+                    <span className="review-label">当前判断</span>
+                    <h3>{eligibilityLabels[eligibility.eligibility]}</h3>
+                    <p>{eligibilityDescriptions[eligibility.eligibility]}</p>
+                  </div>
+                  <div className="eligibility-counts" aria-label="匹配结果统计">
+                    <span><strong>{eligibility.matchedCount}</strong> 已匹配</span>
+                    <span><strong>{eligibility.conditionalCount}</strong> 待确认</span>
+                    <span><strong>{eligibility.missingCount}</strong> 明显缺失</span>
+                  </div>
+                </div>
+
+                <div className="eligibility-groups">
+                  {(["missing", "conditional", "matched"] as const).map((status) => {
+                    const items = groupedEligibility[status];
+                    if (items.length === 0) return null;
+                    return (
+                      <section className="eligibility-group" key={status}>
+                        <div className="eligibility-group-heading">
+                          <h3>{requirementFitLabels[status]}</h3>
+                          <span>{items.length} 项</span>
+                        </div>
+                        <div className="eligibility-result-list">
+                          {items.map((item) => (
+                            <article className={`eligibility-result-card fit-${status}`} key={item.requirementIndex}>
+                              <div className="tags">
+                                <span className={`tag importance-${item.importance}`}>
+                                  {requirementImportanceLabel(item.importance)}
+                                </span>
+                                <span className="tag">{requirementTypeLabel(item.type)}</span>
+                                {item.normalizedCapability ? (
+                                  <span className="tag">{item.normalizedCapability}</span>
+                                ) : null}
+                              </div>
+                              <strong>{item.originalText}</strong>
+                              <p>{item.reason}</p>
+                              {item.evidenceIds.length > 0 ? (
+                                <small className="muted-copy">
+                                  有 {item.evidenceIds.length} 条已确认经历作为依据
+                                </small>
+                              ) : null}
+                              {item.profileFactRefs.includes("yearsOfExperience") ? (
+                                <small className="muted-copy">依据包含你已确认的总工作年限</small>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : !eligibilityError ? (
+              <div className="review-result review-pending">
+                <strong>匹配判断还没有开始</strong>
+                <p>
+                  需要先确认你的职业背景，并让这份岗位要求通过质量检查。准备完成后，这里会显示“已匹配 / 待确认 / 明显缺失”。
+                </p>
+              </div>
+            ) : null}
           </section>
 
           <section className="detail-section requirement-section">

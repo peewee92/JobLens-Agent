@@ -7,17 +7,20 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.deps import (
     get_extract_job_requirements_use_case,
+    get_job_eligibility_use_case,
     get_job_requirement_extraction_use_case,
     get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
     get_match_input_readiness_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
+from app.api.v1.schemas.eligibility import JobEligibilityResponse
 from app.api.v1.schemas.job_requirements import (
     JobRequirementExtractionResponse,
     JobRequirementReleaseReadinessResponse,
 )
 from app.api.v1.schemas.match_inputs import MatchInputReadinessResponse
+from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.job_requirements.release import (
     GetJobRequirementReleaseReadinessUseCase,
 )
@@ -82,6 +85,24 @@ def get_match_input_readiness(
     ],
 ) -> MatchInputReadinessResponse:
     return MatchInputReadinessResponse.from_detail(use_case.execute(job_id))
+
+
+@router.get(
+    "/{job_id}/eligibility",
+    response_model=JobEligibilityResponse,
+    responses={
+        status.HTTP_404_NOT_FOUND: {"model": ApiErrorResponse},
+        status.HTTP_409_CONFLICT: {"model": ApiErrorResponse},
+    },
+)
+def get_job_eligibility(
+    job_id: str,
+    use_case: Annotated[
+        EvaluateJobEligibilityUseCase,
+        Depends(get_job_eligibility_use_case),
+    ],
+) -> JobEligibilityResponse:
+    return JobEligibilityResponse.from_detail(use_case.execute(job_id))
 
 
 @router.get(
