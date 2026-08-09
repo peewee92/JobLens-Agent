@@ -3,36 +3,144 @@
   "$id": "https://joblens.local/schemas/match-report.schema.json",
   "title": "MatchReport",
   "type": "object",
-  "required": ["jobId", "profileVersion", "score", "recommendation", "matches", "gaps"],
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "profileId",
+    "profileVersion",
+    "extractionId",
+    "eligibility",
+    "recommendation",
+    "summary",
+    "strengths",
+    "risks",
+    "requirementResults",
+    "matchedRequirementIds",
+    "partialRequirementIds",
+    "missingRequirementIds",
+    "evidenceLinks",
+    "matcherVersion",
+    "promptVersion",
+    "model",
+    "traceRunId",
+    "dbWrites",
+    "providerCalls",
+    "traceRunsCreated"
+  ],
   "properties": {
-    "jobId": {"type": "string"},
-    "profileVersion": {"type": "integer"},
-    "score": {"type": "number", "minimum": 0, "maximum": 100},
-    "recommendation": {"enum": ["strong", "good", "stretch", "low"]},
-    "summary": {"type": "string"},
-    "matches": {
+    "jobId": {"type": "string", "minLength": 1},
+    "profileId": {"type": "string", "minLength": 1},
+    "profileVersion": {"type": "integer", "minimum": 1},
+    "extractionId": {"type": "string", "minLength": 1},
+    "eligibility": {"enum": ["eligible", "conditional", "blocked"]},
+    "recommendation": {"enum": ["strong", "good", "stretch", "low", "blocked"]},
+    "summary": {"type": "string", "minLength": 1},
+    "strengths": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/insight"}
+    },
+    "risks": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/insight"}
+    },
+    "requirementResults": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/requirementResult"}
+    },
+    "matchedRequirementIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "partialRequirementIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "missingRequirementIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "evidenceLinks": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["requirement", "userEvidenceIds", "jobEvidence"],
+        "additionalProperties": false,
+        "required": ["requirementId", "evidenceIds"],
         "properties": {
-          "requirement": {"type": "string"},
-          "userEvidenceIds": {"type": "array", "items": {"type": "string"}},
-          "jobEvidence": {"type": "string"}
+          "requirementId": {"type": "string", "minLength": 1},
+          "evidenceIds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
         }
       }
     },
-    "gaps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["requirement", "severity", "jobEvidence"],
-        "properties": {
-          "requirement": {"type": "string"},
-          "severity": {"enum": ["high", "medium", "low"]},
-          "jobEvidence": {"type": "string"},
-          "currentEvidence": {"type": ["string", "null"]}
+    "matcherVersion": {"type": "string", "minLength": 1},
+    "promptVersion": {"type": "string", "minLength": 1},
+    "model": {"type": ["string", "null"]},
+    "traceRunId": {"type": ["string", "null"]},
+    "dbWrites": {"const": 0},
+    "providerCalls": {"type": "integer", "minimum": 0, "maximum": 1},
+    "traceRunsCreated": {"type": "integer", "minimum": 0, "maximum": 1}
+  },
+  "$defs": {
+    "insight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirementId", "requirementText", "reason", "evidenceIds"],
+      "properties": {
+        "requirementId": {"type": "string", "minLength": 1},
+        "requirementText": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "evidenceIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
         }
+      }
+    },
+    "requirementResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementId",
+        "requirementIndex",
+        "type",
+        "importance",
+        "originalText",
+        "normalizedCapability",
+        "eligibilityStatus",
+        "semanticVerdict",
+        "evidenceIds",
+        "profileFactRefs",
+        "reason"
+      ],
+      "properties": {
+        "requirementId": {"type": "string", "minLength": 1},
+        "requirementIndex": {"type": "integer", "minimum": 0},
+        "type": {
+          "enum": ["skill", "experience", "education", "responsibility", "domain", "constraint"]
+        },
+        "importance": {"enum": ["must_have", "preferred", "bonus"]},
+        "originalText": {"type": "string", "minLength": 1},
+        "normalizedCapability": {"type": ["string", "null"]},
+        "eligibilityStatus": {"enum": ["matched", "conditional", "missing"]},
+        "semanticVerdict": {"enum": ["matched", "partial", "not_matched"]},
+        "evidenceIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "profileFactRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reason": {"type": "string", "minLength": 1}
       }
     }
   }

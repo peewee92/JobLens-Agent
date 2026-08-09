@@ -191,15 +191,18 @@ Profile 页面可以明确区分：
 - 已完成 Phase 4 首个确定性 `Eligibility Gate` 切片：只读组合当前已确认 Profile 与当前 JobRequirement，逐条输出 `matched / conditional / missing`、`evidenceIds / profileFactRefs` 与原因，整体输出 `eligible / conditional / blocked`；`must_have + missing => blocked`，专项年限不使用总工作年限冒充，不做模糊百分制评分。
 - Eligibility 执行仍严格受 Match Input Readiness 约束；真实 Requirement 20 岗位人工验收未完成时返回 `eligibility_inputs_not_ready`，不得绕过门禁执行真实判断。
 - 已完成 Phase 4 第二个 `Evidence Retrieval v1` 切片：只读返回每条 Requirement 的真实 Profile Evidence 候选，区分 `direct / related` 与 `exact_skill_link / explicit_text_overlap / related_capability_hint`；Retrieval 不输出 Match verdict，不调用 Provider、不创建 Trace、不写数据库，并在 Readiness 后复核冻结 Profile/Extraction 身份防止 stale 输入。
-- 当前 related hint 仅覆盖已明确批准的 MCP → Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入候选关系；向量/Embedding 语义检索尚未引入。Semantic Match、持久化 MatchReport 与 Match Eval 尚未实现。
+- 当前 related hint 仅覆盖已明确批准的 MCP → Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入候选关系；向量/Embedding 语义检索尚未引入。
+- 已完成 guarded `Semantic Match v1`：模型只判断真实 Candidate Evidence 与 JobRequirement 的 `matched / partial / not_matched`，不能输出或改写 Eligibility / recommendation / ranking / score；related-only Evidence 不得升级为 matched，真实调用创建 Trace，Provider 默认 disabled。
+- 已完成 transient `MatchReport v1 + Recommendation Policy + Web 摘要卡片`：`blocked` 不可升级、`conditional => stretch`，`eligible` 再按 must-have/preferred 的 semantic verdict 确定 `strong / good / low`；无百分制匹配概率，用户必须明确点击才会触发完整 Semantic Match。MatchReport 暂不持久化。
+- 尚未完成真实 Semantic Match Provider 质量验证、持久化 MatchReport、Match Eval 与 20 岗位人工 Match 评审；Requirement 真实人工基线未通过前仍不能执行正式 Match。
 
 ### 任务
 
-1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）；
+1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）— v1 已完成；
 2. `Evidence Retrieval`（从 UserProfile 拉相关 Evidence）— v1 deterministic candidate retrieval 已完成；
-3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）；
-4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）；
-5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked`；
+3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）— guarded v1 已完成，真实 Provider 质量待验；
+4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）— transient v1 已完成；
+5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked` — deterministic policy v1 已完成；
 6. `Match Eval` 数据集与断言（含 UserFeedback 作为人工基准）。
 
 ### 验收

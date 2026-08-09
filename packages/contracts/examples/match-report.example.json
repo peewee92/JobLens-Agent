@@ -1,0 +1,67 @@
+{
+  "jobId": "job_example",
+  "profileId": "profile_example",
+  "profileVersion": 3,
+  "extractionId": "reqrun_example",
+  "eligibility": "blocked",
+  "recommendation": "blocked",
+  "summary": "存在明确硬条件缺口，当前不建议优先投入。",
+  "strengths": [
+    {
+      "requirementId": "req_rag",
+      "requirementText": "熟悉 RAG",
+      "reason": "已确认技能中存在 RAG，并能追溯到真实经历。",
+      "evidenceIds": ["ev_rag"]
+    }
+  ],
+  "risks": [
+    {
+      "requirementId": "req_mcp",
+      "requirementText": "熟悉 MCP 协议",
+      "reason": "工具调用经历与 MCP 相关，但不足以证明已经具备 MCP 经验。",
+      "evidenceIds": ["ev_tools"]
+    }
+  ],
+  "requirementResults": [
+    {
+      "requirementId": "req_rag",
+      "requirementIndex": 0,
+      "type": "skill",
+      "importance": "must_have",
+      "originalText": "熟悉 RAG",
+      "normalizedCapability": "RAG",
+      "eligibilityStatus": "matched",
+      "semanticVerdict": "matched",
+      "evidenceIds": ["ev_rag"],
+      "profileFactRefs": [],
+      "reason": "已确认技能中存在 RAG，并能追溯到真实经历。"
+    },
+    {
+      "requirementId": "req_mcp",
+      "requirementIndex": 1,
+      "type": "skill",
+      "importance": "must_have",
+      "originalText": "熟悉 MCP 协议",
+      "normalizedCapability": "MCP",
+      "eligibilityStatus": "missing",
+      "semanticVerdict": "partial",
+      "evidenceIds": ["ev_tools"],
+      "profileFactRefs": [],
+      "reason": "工具调用经历与 MCP 相关，但不足以证明已经具备 MCP 经验。"
+    }
+  ],
+  "matchedRequirementIds": ["req_rag"],
+  "partialRequirementIds": ["req_mcp"],
+  "missingRequirementIds": ["req_mcp"],
+  "evidenceLinks": [
+    {"requirementId": "req_rag", "evidenceIds": ["ev_rag"]},
+    {"requirementId": "req_mcp", "evidenceIds": ["ev_tools"]}
+  ],
+  "matcherVersion": "semantic-match-v1",
+  "promptVersion": "semantic-match-v1",
+  "model": "fixture-semantic-matcher",
+  "traceRunId": "run_example",
+  "dbWrites": 0,
+  "providerCalls": 1,
+  "traceRunsCreated": 1
+}

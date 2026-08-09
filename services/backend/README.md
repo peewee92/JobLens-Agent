@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的确定性 Eligibility Gate 与 Evidence Retrieval v1。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Eligibility / Evidence Retrieval 执行仍由 Match Input Readiness fail-closed；Semantic Match / Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1 和 transient MatchReport / Recommendation Policy。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；Semantic Match 的真实 Provider 质量尚未验证，MatchReport 尚未持久化，Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -155,6 +155,26 @@ curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/evidence-candidates
 Retrieval 的职责只是回答“哪些已确认的真实经历值得拿来继续判断”，不输出 `matched / missing` verdict。v1 只使用三类确定性依据：已确认 Skill → Evidence 的直接链接、Requirement capability 在 Evidence 原文中的显式出现，以及少量保守的 related capability hint。当前仅对已经明确批准的 MCP 场景提供 `Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入` 相关候选；这类结果标记为 `related`，不得因此认定 MCP 已满足。
 
 每个 Candidate 都返回真实 `evidenceId / evidenceKey / evidenceType / summary / source`、`direct / related` 层级、retrieval basis、matched terms 和原因。英文短能力词使用词边界匹配，避免 `AI` 之类短词误命中英文单词内部。接口不调用 Provider、不创建 Trace、不写数据库；可信输入未准备好时返回 `409 evidence_retrieval_inputs_not_ready`，并同样复核 Readiness 后的冻结输入身份。
+
+### Guarded Semantic Match + transient MatchReport
+
+Semantic Match 只消费已通过 Eligibility 与 Evidence Retrieval 的冻结事实：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/semantic-match
+```
+
+Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
+
+用户级 transient MatchReport 入口：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/match-report
+```
+
+MatchReport 在一次 guarded Semantic Match 后，由 Backend 的确定性 Recommendation Policy 生成 `strong / good / stretch / low / blocked`。v1 规则不使用百分制阈值：`Eligibility=blocked => blocked`；`Eligibility=conditional => stretch`；`eligible` 后再根据 `must_have + preferred` 的 semantic verdict 区分 `strong / good / low`。deterministic `missing` 在最终摘要拥有更高优先级，即使 Semantic 返回 `matched` 也不能进入“明确匹配/核心优势”；`partial + missing` 可以同时表达“存在相关证据”和“仍有硬条件缺口”。Bonus 未命中不会进入“主要风险”。
+
+MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不持久化、不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 
