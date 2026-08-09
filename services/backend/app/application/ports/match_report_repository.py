@@ -26,3 +26,8 @@ class AbstractMatchReportQueryRepository(ABC):
     @abstractmethod
     def list_for_job(self, job_id: str) -> "tuple[StoredMatchReport, ...]":
         raise NotImplementedError
+
+    @abstractmethod
+    def list_latest_for_jobs(self, job_ids: tuple[str, ...]) -> "tuple[StoredMatchReport, ...]":
+        """Return at most one newest snapshot per requested Job, preserving request order."""
+        raise NotImplementedError

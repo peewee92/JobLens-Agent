@@ -69,6 +69,29 @@ class SqlAlchemyMatchReportQueryRepository(AbstractMatchReportQueryRepository):
             ).all()
             return tuple(_stored(record) for record in records)
 
+    def list_latest_for_jobs(self, job_ids: tuple[str, ...]) -> tuple[StoredMatchReport, ...]:
+        requested = tuple(dict.fromkeys(job_ids))
+        if not requested:
+            return ()
+        with self._session_factory() as session:
+            records = session.scalars(
+                select(MatchReportORM)
+                .where(MatchReportORM.job_id.in_(requested))
+                .order_by(
+                    MatchReportORM.job_id.asc(),
+                    MatchReportORM.created_at.desc(),
+                    MatchReportORM.id.desc(),
+                )
+            ).all()
+        latest_by_job: dict[str, StoredMatchReport] = {}
+        for record in records:
+            latest_by_job.setdefault(record.job_id, _stored(record))
+        return tuple(
+            latest_by_job[job_id]
+            for job_id in requested
+            if job_id in latest_by_job
+        )
+
 
 def _snapshot(report: MatchReport) -> dict:
     return {

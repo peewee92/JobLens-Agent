@@ -108,6 +108,27 @@ def test_match_report_repository_appends_history_instead_of_overwriting_same_job
         assert len(session.scalars(select(MatchReportORM)).all()) == 2
 
 
+def test_match_report_query_lists_latest_snapshot_per_requested_job_in_request_order(tmp_path: Path) -> None:
+    factory = _factory(tmp_path)
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        job_1_old = uow.reports.add(_report(job_id="job_1", trace_run_id="run_1_old"))
+        uow.commit()
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        job_2 = uow.reports.add(_report(job_id="job_2", trace_run_id="run_2"))
+        uow.commit()
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        job_1_new = uow.reports.add(_report(job_id="job_1", trace_run_id="run_1_new"))
+        uow.commit()
+
+    latest = SqlAlchemyMatchReportQueryRepository(factory).list_latest_for_jobs(
+        ("job_2", "job_missing", "job_1", "job_2")
+    )
+
+    assert tuple(item.id for item in latest) == (job_2.id, job_1_new.id)
+    assert tuple(item.report.trace_run_id for item in latest) == ("run_2", "run_1_new")
+    assert job_1_old.id not in {item.id for item in latest}
+
+
 def test_match_report_unit_of_work_rolls_back_uncommitted_snapshot(tmp_path: Path) -> None:
     factory = _factory(tmp_path)
 
