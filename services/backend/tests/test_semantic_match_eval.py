@@ -34,6 +34,20 @@ QUALITY_DATASET = (
     / "semantic-match"
     / "semantic-match-quality-v1.jsonl"
 )
+CALIBRATION_DATASET = (
+    Path(__file__).resolve().parents[3]
+    / "data"
+    / "evals"
+    / "semantic-match"
+    / "semantic-match-calibration-v2-canary.jsonl"
+)
+BLIND_HOLDOUT_DATASET = (
+    Path(__file__).resolve().parents[3]
+    / "data"
+    / "evals"
+    / "semantic-match"
+    / "semantic-match-blind-holdout-v1.jsonl"
+)
 
 
 @pytest.fixture
@@ -127,6 +141,62 @@ class _UnderMatchingMatcher(AbstractSemanticMatcher):
             ),
             model=self.model_name,
         )
+
+
+def test_blind_holdout_dataset_is_balanced_provider_bound_and_calibration_distinct() -> None:
+    from app.llm.semantic_matchers import _SYSTEM_PROMPT
+
+    holdout = load_semantic_match_eval_cases(BLIND_HOLDOUT_DATASET)
+    calibration = load_semantic_match_eval_cases(CALIBRATION_DATASET)
+
+    assert len(holdout) == 10
+    verdict_counts = {
+        verdict: sum(case.expected_verdict == verdict for case in holdout)
+        for verdict in ("matched", "partial", "not_matched")
+    }
+    assert verdict_counts == {"matched": 3, "partial": 4, "not_matched": 3}
+    assert all(case.provider_expected for case in holdout)
+    assert all(case.evidence.requirements[0].candidates for case in holdout)
+
+    for case in holdout:
+        candidate_ids = {
+            candidate.evidence_id
+            for candidate in case.evidence.requirements[0].candidates
+        }
+        if case.expected_verdict == "not_matched":
+            assert case.expected_evidence_ids == ()
+        else:
+            assert case.expected_evidence_ids
+            assert set(case.expected_evidence_ids) <= candidate_ids
+
+    calibration_ids = {case.id for case in calibration}
+    assert calibration_ids.isdisjoint(case.id for case in holdout)
+
+    calibration_pairs = {
+        (
+            case.eligibility.requirements[0].original_text,
+            tuple(
+                candidate.summary
+                for candidate in case.evidence.requirements[0].candidates
+            ),
+        )
+        for case in calibration
+    }
+    holdout_pairs = {
+        (
+            case.eligibility.requirements[0].original_text,
+            tuple(
+                candidate.summary
+                for candidate in case.evidence.requirements[0].candidates
+            ),
+        )
+        for case in holdout
+    }
+    assert calibration_pairs.isdisjoint(holdout_pairs)
+
+    for requirement_text, candidate_summaries in holdout_pairs:
+        assert requirement_text not in _SYSTEM_PROMPT
+        assert all(summary not in _SYSTEM_PROMPT for summary in candidate_summaries)
 
 
 def test_quality_eval_surfaces_model_mismatch_without_automatic_release_gate(
