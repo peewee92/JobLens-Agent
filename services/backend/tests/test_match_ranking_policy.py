@@ -3,7 +3,9 @@ from datetime import UTC, datetime
 
 from app.application.eligibility import EligibilityDecision
 from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
+from app.application.job_queries.models import JobListItem
 from app.application.match_ranking import rank_match_reports
+from app.domain.jobs import RemoteConfidence, RemoteStatus
 
 
 def _stored(report_id: str, recommendation: MatchRecommendation) -> StoredMatchReport:
@@ -67,6 +69,54 @@ def test_rank_match_reports_can_include_blocked_only_at_the_end() -> None:
         "blocked-a",
         "blocked-b",
     )
+
+
+def _job(job_id: str, *, title: str, area: str | None = None) -> JobListItem:
+    return JobListItem(
+        id=job_id,
+        title=title,
+        company="Example",
+        area=area,
+        salary_min_k=None,
+        salary_max_k=None,
+        remote_status=RemoteStatus.UNKNOWN,
+        remote_confidence=RemoteConfidence.LOW,
+        source="fixture",
+        source_url="about:blank",
+        source_version=None,
+        collected_at=None,
+    )
+
+
+def test_rank_match_reports_uses_explicit_soft_preference_matches_only_within_same_recommendation() -> None:
+    reports = (
+        _stored("plain-strong", MatchRecommendation.STRONG),
+        _stored("agent-good", MatchRecommendation.GOOD),
+        _stored("agent-strong", MatchRecommendation.STRONG),
+    )
+    jobs = {
+        "job_plain-strong": _job("job_plain-strong", title="Frontend Engineer"),
+        "job_agent-good": _job("job_agent-good", title="AI Agent Engineer"),
+        "job_agent-strong": _job("job_agent-strong", title="AI Agent Frontend Engineer"),
+    }
+
+    ranked = rank_match_reports(reports, soft_preferences=("AI Agent",), jobs_by_id=jobs)
+
+    assert tuple(item.id for item in ranked) == (
+        "agent-strong",
+        "plain-strong",
+        "agent-good",
+    )
+
+
+def test_rank_match_reports_does_not_match_short_preferences_inside_words() -> None:
+    reports = (_stored("embedded", MatchRecommendation.GOOD), _stored("exact", MatchRecommendation.GOOD))
+    jobs = {
+        "job_embedded": _job("job_embedded", title="Mainframe Engineer"),
+        "job_exact": _job("job_exact", title="AI Engineer"),
+    }
+    ranked = rank_match_reports(reports, soft_preferences=("AI",), jobs_by_id=jobs)
+    assert tuple(item.id for item in ranked) == ("exact", "embedded")
 
 
 def test_rank_match_reports_is_stable_for_equal_recommendations_and_does_not_mutate_input() -> None:
