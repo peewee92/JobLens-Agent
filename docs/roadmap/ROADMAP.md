@@ -199,8 +199,8 @@ Profile 页面可以明确区分：
 - 已完成首轮 3-case `deepseek-v4-flash` live Semantic Match Canary：3 条 workflow 全部成功、2 条需要 Provider 且 Trace coverage=100%；Java direct 正确为 `matched`，无候选场景正确为 deterministic `not_matched`，MCP related 人工期望 `partial` 但模型返回 `not_matched`，首轮 verdict/evidence accuracy 均为 66.7%。该结果显示模型在 related-but-not-explicit 边界偏保守，不构成 release 通过证据，也未触发自动阈值或继续扩跑。
 - 已完成 `Semantic Match prompt v2` 小型校准：加入 MCP/Function Calling 与 FastAPI/Python API 两个 `partial` 正例、MCP/React AI UI 的 `not_matched` 反例以及 Java direct 的 `matched` 锚点；同时明确 related 候选只是检索信号、不能自动 `partial`，related-only 仍绝不能 `matched`。synthetic quality Eval 10/10 与全量回归通过。
 - 已完成 5-case `deepseek-v4-flash` Prompt v2 live Calibration Canary：3 个 related/transferable 正例全部为 `partial`，MCP/React AI UI 负例保持 `not_matched`，Java direct 保持 `matched`；verdict/evidence accuracy、workflow success、Trace coverage 均为 100%，且 `partial -> matched=0`、`not_matched -> partial=0`。首轮 v1 中 MCP `partial -> not_matched` 的过度保守错误在 v2 中被修复。该 5-case 校准集仍只是小样本边界证据，不构成 release 通过；v2 五次调用共 3002 input tokens，较 v1 Prompt 明显增加输入成本，后续扩大样本时需继续观察质量/成本权衡。
-- 已完成 `semantic-match-blind-holdout-v1`：10 条 Prompt v2 未直接示范的人工标注 synthetic blind cases，标签分布为 3 `matched` / 4 `partial` / 3 `not_matched`；全部包含 Candidate Evidence、10/10 都会进入 Provider。测试同时校验与 calibration case ID/Requirement+Evidence 文本对无重复，且不会直接复用 Prompt v2 的完整 Requirement/Evidence 示例文本。该数据集目前只完成离线固定与防泄漏校验，尚未执行真实 Provider。
-- 尚未完成 blind holdout 真实 Provider 质量验证、持久化 MatchReport、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
+- 已完成 `semantic-match-blind-holdout-v1` 的 10-case `deepseek-v4-flash` live Eval：9/10 通过，verdict/evidence accuracy=90%，workflow success/Trace coverage=100%。3 个 `matched`、4 个 `partial` 全部正确；3 个 `not_matched` 中有 1 条 Kafka requirement + cron batch Evidence 被模型判为 `partial`，暴露“表面流程相似被误当可迁移核心能力”的假阳性边界。该 holdout 已消费，后续 Prompt 调整不得再把它当无偏验证集；正式业务 DB 未写入。
+- 尚未完成针对该假阳性边界的下一轮校准、新的 blind holdout 验证、持久化 MatchReport、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
 
 ### 任务
 
@@ -209,7 +209,7 @@ Profile 页面可以明确区分：
 3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）— guarded v1 已完成，真实 Provider 质量待验；
 4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）— transient v1 已完成；
 5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked` — deterministic policy v1 已完成；
-6. `Match Eval` 数据集与断言 — v1 synthetic quality harness、Prompt v2 calibration canary 与 10-case blind holdout 已完成；blind holdout 真实 Provider Eval、20 岗位人工评审与 UserFeedback 人工基准待完成。
+6. `Match Eval` 数据集与断言 — v1 synthetic quality harness、Prompt v2 calibration canary 与 10-case blind holdout live Eval 已完成；假阳性边界校准、新 blind holdout、20 岗位人工评审与 UserFeedback 人工基准待完成。
 
 ### 验收
 
