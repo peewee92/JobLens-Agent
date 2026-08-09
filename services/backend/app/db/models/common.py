@@ -117,3 +117,7 @@ def new_requirement_acceptance_run_case_id() -> str:
 
 def new_requirement_acceptance_canary_review_id() -> str:
     return new_prefixed_id("reqacceptcanary")
+
+
+def new_match_report_id() -> str:
+    return new_prefixed_id("match")

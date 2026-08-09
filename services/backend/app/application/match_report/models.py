@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 from app.application.eligibility import EligibilityDecision, RequirementFitStatus
@@ -69,3 +70,10 @@ class MatchReport:
     db_writes: int = 0
     provider_calls: int = 0
     trace_runs_created: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class StoredMatchReport:
+    id: str
+    report: MatchReport
+    created_at: datetime

@@ -19,6 +19,7 @@ from app.db.models.job_requirement import (
     JobRequirementORM,
 )
 from app.db.models.job_source import JobSourceORM
+from app.db.models.match_report import MatchReportORM
 from app.db.models.profile_eval import (
     ProfileEvalCaseResultORM,
     ProfileEvalReviewORM,
@@ -58,6 +59,7 @@ __all__ = [
     "JobRequirementExtractionORM",
     "JobRequirementORM",
     "JobSourceORM",
+    "MatchReportORM",
     "ProfileEvalCaseResultORM",
     "ProfileEvalReviewORM",
     "ProfileEvalRunORM",

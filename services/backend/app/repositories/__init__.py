@@ -24,6 +24,13 @@ from app.repositories.sqlalchemy_job_requirement_unit_of_work import (
     SqlAlchemyJobRequirementUnitOfWork,
 )
 from app.repositories.sqlalchemy_job_repository import SqlAlchemyJobRepository
+from app.repositories.sqlalchemy_match_report_repository import (
+    SqlAlchemyMatchReportQueryRepository,
+    SqlAlchemyMatchReportRepository,
+)
+from app.repositories.sqlalchemy_match_report_unit_of_work import (
+    SqlAlchemyMatchReportUnitOfWork,
+)
 from app.repositories.sqlalchemy_profile_eval_repository import (
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalRepository,
@@ -79,6 +86,9 @@ __all__ = [
     "SqlAlchemyJobRequirementRepository",
     "SqlAlchemyJobRequirementUnitOfWork",
     "SqlAlchemyJobRepository",
+    "SqlAlchemyMatchReportQueryRepository",
+    "SqlAlchemyMatchReportRepository",
+    "SqlAlchemyMatchReportUnitOfWork",
     "SqlAlchemyProfileEvalQueryRepository",
     "SqlAlchemyProfileEvalRepository",
     "SqlAlchemyProfileEvalReviewRepository",

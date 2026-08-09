@@ -24,6 +24,11 @@ from app.application.ports.job_requirement_repository import (
 from app.application.ports.job_requirement_unit_of_work import (
     AbstractJobRequirementUnitOfWork,
 )
+from app.application.ports.match_report_repository import (
+    AbstractMatchReportQueryRepository,
+    AbstractMatchReportRepository,
+)
+from app.application.ports.match_report_unit_of_work import AbstractMatchReportUnitOfWork
 from app.application.ports.profile_eval_repository import (
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalRepository,
@@ -89,6 +94,9 @@ __all__ = [
     "AbstractJobRequirementRepository",
     "AbstractJobRequirementUnitOfWork",
     "AbstractJobRepository",
+    "AbstractMatchReportQueryRepository",
+    "AbstractMatchReportRepository",
+    "AbstractMatchReportUnitOfWork",
     "AbstractProfileEvalQueryRepository",
     "AbstractProfileEvalRepository",
     "AbstractProfileEvalReviewRepository",

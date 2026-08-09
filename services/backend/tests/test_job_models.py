@@ -71,6 +71,7 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
         "requirement_review_batch_cases",
         "requirement_review_batch_final_decisions",
         "requirement_review_case_reviews",
+        "match_reports",
     }
 
     engine.dispose()

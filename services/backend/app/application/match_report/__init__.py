@@ -6,6 +6,7 @@ from app.application.match_report.models import (
     MatchReport,
     MatchReportInsight,
     MatchReportRequirementResult,
+    StoredMatchReport,
 )
 from app.application.match_report.policy import recommend_match
 from app.application.match_report.use_case import BuildJobMatchReportUseCase
@@ -17,6 +18,7 @@ __all__ = [
     "MatchReport",
     "MatchReportInsight",
     "MatchReportRequirementResult",
+    "StoredMatchReport",
     "build_match_report",
     "recommend_match",
 ]
