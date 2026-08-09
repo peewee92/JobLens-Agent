@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 修复 related-but-transferable 过度保守，10-case blind holdout 达到 9/10；v3 进一步约束“表面流程相似 ≠ shared core mechanism”，用于降低 `not_matched -> partial` 假阳性。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 的首轮 blind holdout 为 9/10，v3 进一步约束“表面流程相似 ≠ shared core mechanism”，随后在一套全新的 10-case blind holdout v2 上达到 10/10，workflow/Trace coverage 均为 100%。该结果仍只是质量证据，不是自动 release approval。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -178,7 +178,7 @@ MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementI
 
 ### Semantic Match Eval
 
-Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases。已消费的 `semantic-match-blind-holdout-v1.jsonl` 在 prompt v2 上真实运行 10 条，得到 verdict/evidence accuracy 90%、workflow/Trace 100%，唯一错误是 Kafka requirement + cron batch Evidence 被判 `partial`。该 holdout 已用于诊断 v3，不能再次作为 v3 的无偏验证集；后续需要冻结新的 blind holdout。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
+Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases。已消费的 `semantic-match-blind-holdout-v1.jsonl` 在 prompt v2 上真实运行 10 条，得到 verdict/evidence accuracy 90%、workflow/Trace 100%，唯一错误是 Kafka requirement + cron batch Evidence 被判 `partial`。v3 修复该假阳性边界后，冻结了一套全新的 `semantic-match-blind-holdout-v2.jsonl`，与 calibration、holdout v1 及 Prompt v3 完整示例保持不重复；该 v2 holdout 的 10 条真实 Provider 调用全部符合预先人工标签，verdict/evidence accuracy、workflow success、Trace coverage 均为 100%。两套 holdout 一经消费均不能再作为后续 prompt 的无偏验证集。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
 
 本地 fixture 验证：
 
@@ -199,7 +199,7 @@ uv run python -m scripts.run_semantic_match_eval \
   --json
 ```
 
-没有 `--confirm-live-cost` 会在 Provider 调用前拒绝执行；live 模式没有显式 `--max-cases` 也会拒绝执行。Blind holdout 可通过 `--dataset ../../data/evals/semantic-match/semantic-match-blind-holdout-v1.jsonl` 显式选择，但真实运行仍必须经过 HUMAN_GATE 授权。`qualityGateApplied=false` 表示当前不会因为某个准确率自动发布或拒绝模型；live 结果仍需要人工查看错误案例、reason 和 Trace。synthetic Match Eval 也不能替代 ROADMAP 要求的 20 个真实岗位人工 Match 评审与未来 UserFeedback 基准。
+没有 `--confirm-live-cost` 会在 Provider 调用前拒绝执行；live 模式没有显式 `--max-cases` 也会拒绝执行。Blind holdout 通过 `--dataset` 显式选择，且每一套已运行的数据集都要视为已消费，不得在 prompt 调整后继续冒充无偏验证。`qualityGateApplied=false` 表示当前不会因为某个准确率自动发布或拒绝模型；live 结果仍需要人工查看错误案例、reason 和 Trace。synthetic / blind Match Eval 都不能替代 ROADMAP 要求的 20 个真实岗位人工 Match 评审与未来 UserFeedback 基准。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 
