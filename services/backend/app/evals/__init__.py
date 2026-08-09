@@ -23,6 +23,13 @@ from app.evals.profile_extraction import (
     run_profile_eval,
 )
 from app.evals.requirement_eval_runs import RunRequirementEvalUseCase
+from app.evals.semantic_match import (
+    SemanticMatchEvalCase,
+    SemanticMatchEvalCaseResult,
+    SemanticMatchEvalReport,
+    load_semantic_match_eval_cases,
+    run_semantic_match_eval,
+)
 
 __all__ = [
     "DEFAULT_PROFILE_EVAL_GATE",
@@ -40,8 +47,13 @@ __all__ = [
     "RequirementEvalMode",
     "RunProfileEvalUseCase",
     "RunRequirementEvalUseCase",
+    "SemanticMatchEvalCase",
+    "SemanticMatchEvalCaseResult",
+    "SemanticMatchEvalReport",
     "load_job_requirement_eval_cases",
     "load_profile_eval_cases",
+    "load_semantic_match_eval_cases",
     "run_job_requirement_eval",
     "run_profile_eval",
+    "run_semantic_match_eval",
 ]

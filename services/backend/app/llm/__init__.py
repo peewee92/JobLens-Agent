@@ -7,6 +7,12 @@ from app.llm.job_requirement_extractors import (
     OpenAIJobRequirementExtractor,
 )
 from app.llm.requirement_extractor_factory import build_job_requirement_extractor
+from app.llm.semantic_matcher_factory import build_semantic_matcher
+from app.llm.semantic_matchers import (
+    DisabledSemanticMatcher,
+    FixtureSemanticMatcher,
+    OpenAISemanticMatcher,
+)
 from app.llm.profile_extractors import (
     DisabledProfileExtractor,
     FixtureProfileExtractor,
@@ -16,10 +22,14 @@ from app.llm.profile_extractors import (
 __all__ = [
     "DisabledJobRequirementExtractor",
     "DisabledProfileExtractor",
+    "DisabledSemanticMatcher",
     "FixtureJobRequirementExtractor",
     "FixtureProfileExtractor",
+    "FixtureSemanticMatcher",
     "OpenAIJobRequirementExtractor",
     "OpenAIProfileExtractor",
+    "OpenAISemanticMatcher",
     "build_job_requirement_extractor",
     "build_profile_extractor",
+    "build_semantic_matcher",
 ]

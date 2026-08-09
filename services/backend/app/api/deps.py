@@ -27,6 +27,7 @@ from app.application.job_requirements.use_cases import (
     GetLatestJobRequirementsUseCase,
 )
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
+from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
@@ -59,6 +60,7 @@ from app.application.requirement_reviews.use_cases import (
 from app.application.ports.job_requirement_release_repository import (
     AbstractJobRequirementReleaseQueryRepository,
 )
+from app.application.ports.semantic_matcher import AbstractSemanticMatcher
 from app.application.ports import (
     AbstractCareerContextQueryRepository,
     AbstractCareerContextUnitOfWork,
@@ -83,7 +85,11 @@ from app.application.ports import (
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.document_parsers import ResumeDocumentParser
-from app.llm import build_job_requirement_extractor, build_profile_extractor
+from app.llm import (
+    build_job_requirement_extractor,
+    build_profile_extractor,
+    build_semantic_matcher,
+)
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
     SqlAlchemyJobRequirementReleaseQueryRepository,
 )
@@ -109,6 +115,7 @@ from app.workflows import (
     ExtractJobRequirementsWorkflow,
     ProposeProfileFromDocumentWorkflow,
     ProposeProfileFromResumeWorkflow,
+    SemanticMatchWorkflow,
 )
 from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION, PROMPT_VERSION
 
@@ -181,6 +188,20 @@ def get_job_requirement_workflow(
     trace_uow_factory: TraceUnitOfWorkFactory = Depends(get_trace_uow_factory),
 ) -> ExtractJobRequirementsWorkflow:
     return ExtractJobRequirementsWorkflow(extractor, trace_uow_factory)
+
+
+def get_semantic_matcher() -> AbstractSemanticMatcher:
+    return build_semantic_matcher(get_settings())
+
+
+def get_semantic_match_workflow(
+    matcher: AbstractSemanticMatcher = Depends(get_semantic_matcher),
+    trace_uow_factory: TraceUnitOfWorkFactory = Depends(get_trace_uow_factory),
+) -> SemanticMatchWorkflow:
+    return SemanticMatchWorkflow(
+        matcher=matcher,
+        trace_uow_factory=trace_uow_factory,
+    )
 
 
 def get_job_requirement_query_repository() -> AbstractJobRequirementQueryRepository:
@@ -574,6 +595,20 @@ def get_job_evidence_retrieval_use_case(
         readiness=readiness,
         profiles=profiles,
         requirements=requirements,
+    )
+
+
+def get_semantic_match_use_case(
+    eligibility: EvaluateJobEligibilityUseCase = Depends(get_job_eligibility_use_case),
+    evidence: RetrieveJobEvidenceUseCase = Depends(
+        get_job_evidence_retrieval_use_case
+    ),
+    workflow: SemanticMatchWorkflow = Depends(get_semantic_match_workflow),
+) -> RunJobSemanticMatchUseCase:
+    return RunJobSemanticMatchUseCase(
+        eligibility=eligibility,
+        evidence=evidence,
+        workflow=workflow,
     )
 
 

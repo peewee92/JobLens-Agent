@@ -16,6 +16,12 @@ from app.application.career_context import (
 )
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
+from app.application.semantic_match.errors import (
+    InvalidSemanticMatcherOutputError,
+    SemanticMatcherFailedError,
+    SemanticMatcherUnavailableError,
+    SemanticMatchInputsNotReadyError,
+)
 from app.application.job_import_queries import JobImportNotFoundError
 from app.application.job_imports.errors import (
     ImportIdentityConflictError,
@@ -115,6 +121,50 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "evidence_retrieval_inputs_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(SemanticMatchInputsNotReadyError)
+    async def handle_semantic_match_inputs_not_ready(
+        _request: Request,
+        error: SemanticMatchInputsNotReadyError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "semantic_match_inputs_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(SemanticMatcherUnavailableError)
+    async def handle_semantic_matcher_unavailable(
+        _request: Request,
+        error: SemanticMatcherUnavailableError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "semantic_matcher_unavailable",
+            str(error),
+        )
+
+    @app.exception_handler(SemanticMatcherFailedError)
+    async def handle_semantic_matcher_failed(
+        _request: Request,
+        error: SemanticMatcherFailedError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "semantic_matcher_failed",
+            str(error),
+        )
+
+    @app.exception_handler(InvalidSemanticMatcherOutputError)
+    async def handle_invalid_semantic_matcher_output(
+        _request: Request,
+        error: InvalidSemanticMatcherOutputError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_502_BAD_GATEWAY,
+            "invalid_semantic_matcher_output",
             str(error),
         )
 
