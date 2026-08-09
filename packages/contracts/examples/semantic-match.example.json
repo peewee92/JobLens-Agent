@@ -24,7 +24,7 @@
   "partialCount": 1,
   "notMatchedCount": 0,
   "matcherVersion": "semantic-match-v1",
-  "promptVersion": "semantic-match-v1",
+  "promptVersion": "semantic-match-v2",
   "model": "example-model",
   "traceRunId": "run_example",
   "dbWrites": 0,

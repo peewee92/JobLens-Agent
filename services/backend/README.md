@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1 synthetic quality harness。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；Semantic Match 的真实 Provider 质量尚未验证，MatchReport 尚未持久化，Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1 synthetic quality harness。Semantic Match 已完成首轮 3-case live Canary，并因 `partial vs not_matched` 偏保守问题升级到 prompt v2 calibration；尚需下一批 live Canary 验证校准效果。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -164,7 +164,7 @@ Semantic Match 只消费已通过 Eligibility 与 Evidence Retrieval 的冻结�
 curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/semantic-match
 ```
 
-Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
+Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。prompt v2 针对首轮 live Canary 暴露的 `partial vs not_matched` 边界加入对比校准示例：相关且具备可迁移子能力时应为 `partial`，仅场景相邻但没有实质能力支撑时应为 `not_matched`；`relevanceTier=related` 本身不构成满足要求的证明。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
 
 用户级 transient MatchReport 入口：
 
