@@ -3,8 +3,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from app.application.job_queries.models import JobListItem
+from app.application.job_queries.models import JobDetail, JobListItem
 from app.application.match_report import MatchRecommendation, StoredMatchReport
+from app.application.ports.career_context_repository import AbstractCareerContextQueryRepository
+from app.application.ports.job_query_repository import AbstractJobQueryRepository
+from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
 
 def _contains_term(text: str, term: str) -> bool:
     start = text.find(term)
@@ -32,7 +35,7 @@ def rank_match_reports(
     *,
     include_blocked: bool = False,
     soft_preferences: tuple[str, ...] = (),
-    jobs_by_id: Mapping[str, JobListItem] | None = None,
+    jobs_by_id: Mapping[str, JobListItem | JobDetail] | None = None,
 ) -> tuple[StoredMatchReport, ...]:
     """Return a stable deterministic ranking without mutating source reports."""
     visible = (
@@ -66,3 +69,45 @@ def rank_match_reports(
             ),
         )
     )
+
+
+class BatchRankMatchReportsUseCase:
+    """Compose persisted reports and current read models into one ranked batch."""
+
+    def __init__(
+        self,
+        *,
+        report_repository: AbstractMatchReportQueryRepository,
+        career_context_repository: AbstractCareerContextQueryRepository,
+        job_repository: AbstractJobQueryRepository,
+    ) -> None:
+        self._report_repository = report_repository
+        self._career_context_repository = career_context_repository
+        self._job_repository = job_repository
+
+    def execute(
+        self,
+        job_ids: tuple[str, ...],
+        *,
+        include_blocked: bool = False,
+    ) -> tuple[StoredMatchReport, ...]:
+        if not job_ids:
+            return ()
+
+        reports = self._report_repository.list_latest_for_jobs(job_ids)
+        if not reports:
+            return ()
+
+        search_intent = self._career_context_repository.get_current_search_intent()
+        report_job_ids = tuple(dict.fromkeys(item.report.job_id for item in reports))
+        jobs_by_id = {
+            job_id: job
+            for job_id in report_job_ids
+            if (job := self._job_repository.get_job(job_id)) is not None
+        }
+        return rank_match_reports(
+            reports,
+            include_blocked=include_blocked,
+            soft_preferences=(search_intent.soft_preferences if search_intent is not None else ()),
+            jobs_by_id=jobs_by_id,
+        )
