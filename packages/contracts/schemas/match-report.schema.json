@@ -83,7 +83,7 @@
     "promptVersion": {"type": "string", "minLength": 1},
     "model": {"type": ["string", "null"]},
     "traceRunId": {"type": ["string", "null"]},
-    "dbWrites": {"const": 0},
+    "dbWrites": {"const": 1},
     "providerCalls": {"type": "integer", "minimum": 0, "maximum": 1},
     "traceRunsCreated": {"type": "integer", "minimum": 0, "maximum": 1}
   },

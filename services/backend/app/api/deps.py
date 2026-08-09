@@ -3,6 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import Depends
+from sqlalchemy import inspect
 
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
@@ -84,7 +85,7 @@ from app.application.ports import (
     AbstractUnitOfWork,
 )
 from app.core.config import get_settings
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
 from app.document_parsers import ResumeDocumentParser
 from app.llm import (
     build_job_requirement_extractor,
@@ -101,6 +102,7 @@ from app.repositories import (
     SqlAlchemyJobQueryRepository,
     SqlAlchemyJobRequirementQueryRepository,
     SqlAlchemyJobRequirementUnitOfWork,
+    SqlAlchemyMatchReportUnitOfWork,
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
     SqlAlchemyRequirementAcceptanceRunQueryRepository,
@@ -616,7 +618,11 @@ def get_semantic_match_use_case(
 def get_match_report_use_case(
     semantic_match: RunJobSemanticMatchUseCase = Depends(get_semantic_match_use_case),
 ) -> BuildJobMatchReportUseCase:
-    return BuildJobMatchReportUseCase(semantic_match)
+    return BuildJobMatchReportUseCase(
+        semantic_match,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+        uow_factory=lambda: SqlAlchemyMatchReportUnitOfWork(SessionLocal),
+    )
 
 
 def get_latest_job_requirements_use_case(

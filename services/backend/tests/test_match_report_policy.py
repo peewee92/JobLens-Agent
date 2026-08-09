@@ -60,6 +60,109 @@ def _semantic(
     )
 
 
+class _SemanticRunner:
+    def __init__(self, result: JobSemanticMatchResult) -> None:
+        self.result = result
+        self.calls = 0
+
+    def execute(self, job_id: str) -> JobSemanticMatchResult:
+        assert job_id == "job_1"
+        self.calls += 1
+        return self.result
+
+
+class _ReportRepository:
+    def __init__(self) -> None:
+        self.added = []
+
+    def add(self, report):
+        self.added.append(report)
+        return None
+
+
+class _ReportUnitOfWork:
+    def __init__(self) -> None:
+        self.reports = _ReportRepository()
+        self.committed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        return None
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def rollback(self) -> None:
+        return None
+
+
+def test_match_report_persistence_gate_fails_before_semantic_provider_work() -> None:
+    from app.application.match_report import (
+        BuildJobMatchReportUseCase,
+        MatchReportPersistenceNotReadyError,
+    )
+
+    runner = _SemanticRunner(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+            ),
+        )
+    )
+
+    use_case = BuildJobMatchReportUseCase(
+        runner,
+        persistence_ready=lambda: False,
+        uow_factory=lambda: (_ for _ in ()).throw(AssertionError("must not open UoW")),
+    )
+
+    import pytest
+
+    with pytest.raises(MatchReportPersistenceNotReadyError):
+        use_case.execute("job_1")
+
+    assert runner.calls == 0
+
+
+def test_match_report_runtime_persists_one_immutable_snapshot_when_schema_ready() -> None:
+    from app.application.match_report import BuildJobMatchReportUseCase
+
+    runner = _SemanticRunner(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+            ),
+        )
+    )
+    uow = _ReportUnitOfWork()
+    use_case = BuildJobMatchReportUseCase(
+        runner,
+        persistence_ready=lambda: True,
+        uow_factory=lambda: uow,
+    )
+
+    report = use_case.execute("job_1")
+
+    assert runner.calls == 1
+    assert report.db_writes == 1
+    assert uow.committed is True
+    assert uow.reports.added == [report]
+
+
 def test_blocked_eligibility_can_never_be_upgraded_by_semantic_match() -> None:
     from app.application.match_report import MatchRecommendation, build_match_report
 

@@ -16,6 +16,7 @@ from app.application.career_context import (
 )
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
+from app.application.match_report import MatchReportPersistenceNotReadyError
 from app.application.semantic_match.errors import (
     InvalidSemanticMatcherOutputError,
     SemanticMatcherFailedError,
@@ -132,6 +133,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "semantic_match_inputs_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(MatchReportPersistenceNotReadyError)
+    async def handle_match_report_persistence_not_ready(
+        _request: Request,
+        error: MatchReportPersistenceNotReadyError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "match_report_persistence_not_ready",
             str(error),
         )
 

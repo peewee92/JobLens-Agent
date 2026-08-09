@@ -89,6 +89,26 @@ def test_match_report_api_returns_recommendation_and_traceable_evidence() -> Non
     assert body["traceRunsCreated"] == 1
 
 
+def test_match_report_api_fails_closed_when_persistence_schema_is_not_ready() -> None:
+    from app.application.match_report import MatchReportPersistenceNotReadyError
+
+    class _NotReadyUseCase:
+        def execute(self, job_id: str) -> MatchReport:
+            raise MatchReportPersistenceNotReadyError(
+                "MatchReport persistence schema is not ready"
+            )
+
+    app.dependency_overrides[get_match_report_use_case] = _NotReadyUseCase
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/jobs/job_1/match-report")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "match_report_persistence_not_ready"
+
+
 def test_openapi_registers_match_report_as_explicit_post_without_request_body() -> None:
     with TestClient(app) as client:
         operation = client.get("/openapi.json").json()["paths"][

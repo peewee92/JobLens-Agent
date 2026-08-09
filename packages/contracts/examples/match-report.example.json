@@ -61,7 +61,7 @@
   "promptVersion": "semantic-match-v3",
   "model": "fixture-semantic-matcher",
   "traceRunId": "run_example",
-  "dbWrites": 0,
+  "dbWrites": 1,
   "providerCalls": 1,
   "traceRunsCreated": 1
 }
