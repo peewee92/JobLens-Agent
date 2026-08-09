@@ -1,0 +1,33 @@
+{
+  "jobId": "job_1",
+  "profileId": "profile_1",
+  "profileVersion": 3,
+  "extractionId": "reqrun_1",
+  "requirements": [
+    {
+      "requirementId": "req_mcp",
+      "requirementIndex": 0,
+      "type": "skill",
+      "importance": "must_have",
+      "originalText": "熟悉 MCP 协议",
+      "normalizedCapability": "MCP",
+      "candidates": [
+        {
+          "evidenceId": "ev_tools",
+          "evidenceKey": "agent-tools",
+          "evidenceType": "project",
+          "summary": "设计 Agent 工具调用、Function Calling、工具集成与用户确认流程。",
+          "source": "confirmed by user",
+          "relevanceTier": "related",
+          "retrievalBasis": "related_capability_hint",
+          "matchedTerms": ["Function Calling", "工具调用", "工具集成"],
+          "reason": "这段已确认经历包含与“MCP”相关的能力线索，只能作为相关候选，不能因此认定已经满足岗位要求。"
+        }
+      ]
+    }
+  ],
+  "candidateCount": 1,
+  "dbWrites": 0,
+  "providerCalls": 0,
+  "traceRunsCreated": 0
+}

@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的首个确定性 Eligibility Gate 切片。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Eligibility 执行仍由 Match Input Readiness fail-closed；Semantic Match / Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的确定性 Eligibility Gate 与 Evidence Retrieval v1。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Eligibility / Evidence Retrieval 执行仍由 Match Input Readiness fail-closed；Semantic Match / Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -142,7 +142,19 @@ curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/eligibility
 
 Eligibility 只使用用户已确认的当前 Profile 与当前 JobRequirement，不调用 LLM、不创建 Trace、不写数据库，也不展示百分制“匹配概率”。每条 Requirement 返回 `matched / conditional / missing`、可追溯的 `evidenceIds` / `profileFactRefs` 和解释原因；整体结果为 `eligible / conditional / blocked`。明确 `must_have + missing` 会将岗位判为 `blocked`，而无法可靠判断的硬条件保持 `conditional`，不做语义猜测。专项年限不会使用总工作年限冒充。
 
-该接口首先执行现有 Match Input Readiness。只要 Profile/SearchIntent 或 Requirement Fact 尚未通过可信输入门禁，就返回 `409 eligibility_inputs_not_ready`，不会绕过 Requirement 人工质量基线执行真实 Match 判断。
+该接口首先执行现有 Match Input Readiness。只要 Profile/SearchIntent 或 Requirement Fact 尚未通过可信输入门禁，就返回 `409 eligibility_inputs_not_ready`，不会绕过 Requirement 人工质量基线执行真实 Match 判断。Readiness 通过后还会再次核对冻结的 Profile ID/version 与 Extraction ID，防止检查完成后输入切换造成 stale Match。
+
+### Deterministic Evidence Retrieval
+
+Phase 4 第二个切片提供只读候选证据接口：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/jobs/job_xxx/evidence-candidates
+```
+
+Retrieval 的职责只是回答“哪些已确认的真实经历值得拿来继续判断”，不输出 `matched / missing` verdict。v1 只使用三类确定性依据：已确认 Skill → Evidence 的直接链接、Requirement capability 在 Evidence 原文中的显式出现，以及少量保守的 related capability hint。当前仅对已经明确批准的 MCP 场景提供 `Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入` 相关候选；这类结果标记为 `related`，不得因此认定 MCP 已满足。
+
+每个 Candidate 都返回真实 `evidenceId / evidenceKey / evidenceType / summary / source`、`direct / related` 层级、retrieval basis、matched terms 和原因。英文短能力词使用词边界匹配，避免 `AI` 之类短词误命中英文单词内部。接口不调用 Provider、不创建 Trace、不写数据库；可信输入未准备好时返回 `409 evidence_retrieval_inputs_not_ready`，并同样复核 Readiness 后的冻结输入身份。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 

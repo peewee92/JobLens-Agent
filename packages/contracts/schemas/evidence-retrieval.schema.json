@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/evidence-retrieval.schema.json",
+  "title": "JobEvidenceRetrieval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "profileId",
+    "profileVersion",
+    "extractionId",
+    "requirements",
+    "candidateCount",
+    "dbWrites",
+    "providerCalls",
+    "traceRunsCreated"
+  ],
+  "properties": {
+    "jobId": {"type": "string", "minLength": 1},
+    "profileId": {"type": "string", "minLength": 1},
+    "profileVersion": {"type": "integer", "minimum": 1},
+    "extractionId": {"type": "string", "minLength": 1},
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirementId",
+          "requirementIndex",
+          "type",
+          "importance",
+          "originalText",
+          "normalizedCapability",
+          "candidates"
+        ],
+        "properties": {
+          "requirementId": {"type": "string", "minLength": 1},
+          "requirementIndex": {"type": "integer", "minimum": 0},
+          "type": {
+            "enum": ["skill", "experience", "education", "responsibility", "domain", "constraint"]
+          },
+          "importance": {"enum": ["must_have", "preferred", "bonus"]},
+          "originalText": {"type": "string", "minLength": 1},
+          "normalizedCapability": {"type": ["string", "null"]},
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "evidenceId",
+                "evidenceKey",
+                "evidenceType",
+                "summary",
+                "source",
+                "relevanceTier",
+                "retrievalBasis",
+                "matchedTerms",
+                "reason"
+              ],
+              "properties": {
+                "evidenceId": {"type": "string", "minLength": 1},
+                "evidenceKey": {"type": "string", "minLength": 1},
+                "evidenceType": {
+                  "enum": ["work", "project", "education", "achievement", "self_report"]
+                },
+                "summary": {"type": "string", "minLength": 1},
+                "source": {"type": "string", "minLength": 1},
+                "relevanceTier": {"enum": ["direct", "related"]},
+                "retrievalBasis": {
+                  "enum": ["exact_skill_link", "explicit_text_overlap", "related_capability_hint"]
+                },
+                "matchedTerms": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1},
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "reason": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "candidateCount": {"type": "integer", "minimum": 0},
+    "dbWrites": {"const": 0},
+    "providerCalls": {"const": 0},
+    "traceRunsCreated": {"const": 0}
+  }
+}

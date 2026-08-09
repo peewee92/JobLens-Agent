@@ -190,12 +190,13 @@ Profile 页面可以明确区分：
 - 已完成只读 `Match Input Readiness` 预检，统一组合 Confirmed Career Context 与 Job Requirement Fact Release Gate；它只暴露 blockers 和冻结事实身份，不运行 LLM、Trace 或数据库写入。
 - 已完成 Phase 4 首个确定性 `Eligibility Gate` 切片：只读组合当前已确认 Profile 与当前 JobRequirement，逐条输出 `matched / conditional / missing`、`evidenceIds / profileFactRefs` 与原因，整体输出 `eligible / conditional / blocked`；`must_have + missing => blocked`，专项年限不使用总工作年限冒充，不做模糊百分制评分。
 - Eligibility 执行仍严格受 Match Input Readiness 约束；真实 Requirement 20 岗位人工验收未完成时返回 `eligibility_inputs_not_ready`，不得绕过门禁执行真实判断。
-- Evidence Retrieval 的语义检索、Semantic Match、持久化 MatchReport 与 Match Eval 尚未实现。
+- 已完成 Phase 4 第二个 `Evidence Retrieval v1` 切片：只读返回每条 Requirement 的真实 Profile Evidence 候选，区分 `direct / related` 与 `exact_skill_link / explicit_text_overlap / related_capability_hint`；Retrieval 不输出 Match verdict，不调用 Provider、不创建 Trace、不写数据库，并在 Readiness 后复核冻结 Profile/Extraction 身份防止 stale 输入。
+- 当前 related hint 仅覆盖已明确批准的 MCP → Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入候选关系；向量/Embedding 语义检索尚未引入。Semantic Match、持久化 MatchReport 与 Match Eval 尚未实现。
 
 ### 任务
 
 1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）；
-2. `Evidence Retrieval`（从 UserProfile 拉相关 Evidence）；
+2. `Evidence Retrieval`（从 UserProfile 拉相关 Evidence）— v1 deterministic candidate retrieval 已完成；
 3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）；
 4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）；
 5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked`；

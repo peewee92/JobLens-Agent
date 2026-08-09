@@ -19,6 +19,7 @@ Schemas:
 - `search-intent.schema.json` — 独立版本化求职意向，区分 hardConstraints 与 softPreferences
 - `job-requirement.schema.json` — 单条 evidence-grounded JobRequirement；包含 Extraction ID、原文、归一化能力、importance、evidenceSpan、confidence 与 extractorVersion
 - `job-requirement-extraction.schema.json` — 不可变 Requirement Extraction Run；记录 Job/input hash/provider/model/prompt/Trace 与逐条 Requirements，作为 Match/Gap/Prepare 统一事实来源
+- `evidence-retrieval.schema.json` — Phase 4 只读候选证据检索结果；区分 `direct / related` 与检索依据，只返回已确认 Profile Evidence，不包含 `matched/status` 等 Match verdict 字段
 - `user-feedback.schema.json` — 用户对推荐的人类反馈（v0.1 新增）
 - `job-target.schema.json` — 目标岗位集，v0.2 演进为 TargetCohort
 - `match-report.schema.json` — 岗位匹配报告；v0.1 字段已落地，P1 增强 eligibility/evidenceLinks
