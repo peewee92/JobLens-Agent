@@ -1,0 +1,270 @@
+"""Deterministic Recommendation Policy + transient MatchReport tests."""
+from __future__ import annotations
+
+from app.application.eligibility import EligibilityDecision, RequirementFitStatus
+from app.application.semantic_match import (
+    JobSemanticMatchResult,
+    SemanticAssessmentSource,
+    SemanticMatchVerdict,
+    SemanticRequirementAssessment,
+)
+from app.domain.job_requirements import RequirementImportance, RequirementType
+
+
+def _assessment(
+    requirement_id: str,
+    index: int,
+    *,
+    importance: RequirementImportance,
+    verdict: SemanticMatchVerdict,
+    eligibility_status: RequirementFitStatus = RequirementFitStatus.MATCHED,
+    evidence_ids: tuple[str, ...] = ("ev_1",),
+) -> SemanticRequirementAssessment:
+    return SemanticRequirementAssessment(
+        requirement_id=requirement_id,
+        requirement_index=index,
+        type=RequirementType.SKILL,
+        importance=importance,
+        original_text=f"requirement {requirement_id}",
+        normalized_capability=requirement_id,
+        eligibility_status=eligibility_status,
+        verdict=verdict,
+        evidence_ids=evidence_ids if verdict is not SemanticMatchVerdict.NOT_MATCHED else (),
+        profile_fact_refs=(),
+        reason=f"reason for {requirement_id}",
+        source=SemanticAssessmentSource.DETERMINISTIC,
+    )
+
+
+def _semantic(
+    *,
+    eligibility: EligibilityDecision,
+    assessments: tuple[SemanticRequirementAssessment, ...],
+) -> JobSemanticMatchResult:
+    return JobSemanticMatchResult(
+        job_id="job_1",
+        profile_id="profile_1",
+        profile_version=3,
+        extraction_id="reqrun_1",
+        eligibility=eligibility,
+        assessments=assessments,
+        matched_count=sum(item.verdict is SemanticMatchVerdict.MATCHED for item in assessments),
+        partial_count=sum(item.verdict is SemanticMatchVerdict.PARTIAL for item in assessments),
+        not_matched_count=sum(item.verdict is SemanticMatchVerdict.NOT_MATCHED for item in assessments),
+        matcher_version="semantic-match-v1",
+        prompt_version="semantic-match-v1",
+        model="fixture-semantic-matcher",
+        trace_run_id="run_1",
+        provider_calls=1,
+        trace_runs_created=1,
+    )
+
+
+def test_blocked_eligibility_can_never_be_upgraded_by_semantic_match() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.BLOCKED,
+            assessments=(
+                _assessment(
+                    "req_mcp",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.PARTIAL,
+                    eligibility_status=RequirementFitStatus.MISSING,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.BLOCKED
+    assert report.eligibility is EligibilityDecision.BLOCKED
+    assert report.partial_requirement_ids == ("req_mcp",)
+    assert report.missing_requirement_ids == ("req_mcp",)
+
+
+def test_even_semantic_matched_cannot_upgrade_blocked_eligibility() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.BLOCKED,
+            assessments=(
+                _assessment(
+                    "req_backend",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                    eligibility_status=RequirementFitStatus.MISSING,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.BLOCKED
+    assert report.missing_requirement_ids == ("req_backend",)
+    assert report.matched_requirement_ids == ()
+    assert report.strengths == ()
+    assert report.requirement_results[0].semantic_verdict is SemanticMatchVerdict.MATCHED
+
+
+def test_conditional_without_hard_missing_is_stretch() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.CONDITIONAL,
+            assessments=(
+                _assessment(
+                    "req_office_ai",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.PARTIAL,
+                    eligibility_status=RequirementFitStatus.CONDITIONAL,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.STRETCH
+    assert "挑战" in report.summary
+
+
+def test_eligible_with_every_must_have_and_preferred_matched_is_strong() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+                _assessment(
+                    "req_agent",
+                    1,
+                    importance=RequirementImportance.PREFERRED,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+                _assessment(
+                    "req_langchain",
+                    2,
+                    importance=RequirementImportance.BONUS,
+                    verdict=SemanticMatchVerdict.NOT_MATCHED,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.STRONG
+    assert report.matched_requirement_ids == ("req_rag", "req_agent")
+    assert [item.requirement_id for item in report.strengths] == ["req_rag", "req_agent"]
+
+
+def test_eligible_with_preferred_gap_is_good() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+                _assessment(
+                    "req_mcp",
+                    1,
+                    importance=RequirementImportance.PREFERRED,
+                    verdict=SemanticMatchVerdict.PARTIAL,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.GOOD
+    assert report.partial_requirement_ids == ("req_mcp",)
+    assert [item.requirement_id for item in report.risks] == ["req_mcp"]
+
+
+def test_eligible_without_must_have_and_with_no_matched_core_preference_is_low() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_domain",
+                    0,
+                    importance=RequirementImportance.PREFERRED,
+                    verdict=SemanticMatchVerdict.NOT_MATCHED,
+                ),
+                _assessment(
+                    "req_bonus",
+                    1,
+                    importance=RequirementImportance.BONUS,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+            ),
+        )
+    )
+
+    assert report.recommendation is MatchRecommendation.LOW
+
+
+def test_bonus_gap_does_not_surface_as_a_primary_risk() -> None:
+    from app.application.match_report import build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                ),
+                _assessment(
+                    "req_autogpt",
+                    1,
+                    importance=RequirementImportance.BONUS,
+                    verdict=SemanticMatchVerdict.NOT_MATCHED,
+                ),
+            ),
+        )
+    )
+
+    assert report.risks == ()
+
+
+def test_match_report_evidence_links_only_reference_semantic_assessment_evidence() -> None:
+    from app.application.match_report import build_match_report
+
+    report = build_match_report(
+        _semantic(
+            eligibility=EligibilityDecision.ELIGIBLE,
+            assessments=(
+                _assessment(
+                    "req_rag",
+                    0,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED,
+                    evidence_ids=("ev_rag", "ev_agent"),
+                ),
+            ),
+        )
+    )
+
+    assert report.evidence_links[0].requirement_id == "req_rag"
+    assert report.evidence_links[0].evidence_ids == ("ev_rag", "ev_agent")
+    assert report.db_writes == 0
+    assert report.provider_calls == 1
+    assert report.trace_runs_created == 1

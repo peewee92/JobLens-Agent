@@ -97,6 +97,25 @@ test("the Job Requirement Route Handler delegates to Backend without extraction 
   assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
 });
 
+test("the Match Report Client runs only after explicit user action through same-origin proxy", async () => {
+  const client = await readFile(
+    join(webRoot, "components/job-match-report-panel.tsx"),
+    "utf8",
+  );
+  const route = await readFile(
+    join(webRoot, "app/api/jobs/[id]/match-report/route.ts"),
+    "utf8",
+  );
+  const page = await readFile(join(webRoot, "app/jobs/[id]/page.tsx"), "utf8");
+
+  assert.match(client, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/match-report`/);
+  assert.match(client, /method:\s*"POST"/);
+  assert.match(route, /backendResponse/);
+  assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
+  assert.doesNotMatch(route, /recommendation\s*=|strong|stretch/);
+  assert.doesNotMatch(page, /fetchJobMatchReport|\/match-report/);
+});
+
 test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {
   const source = await readFile(
     join(webRoot, "app/jobs/[id]/page.tsx"),

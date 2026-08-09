@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
+import {JobMatchReportPanel} from "@/components/job-match-report-panel";
 import {JobRequirementExtractButton} from "@/components/job-requirement-extract-button";
 import {RemoteStatusPill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
@@ -131,6 +132,8 @@ export default async function JobDetailPage({
                 </p>
               </div>
             </div>
+
+            <JobMatchReportPanel enabled={eligibility !== null} jobId={job.id} />
 
             {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
             {eligibility && groupedEligibility ? (

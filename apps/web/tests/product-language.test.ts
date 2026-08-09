@@ -63,6 +63,23 @@ test("job detail explains deterministic eligibility without fake match scores", 
   assert.doesNotMatch(page, /score/);
 });
 
+test("match report card leads with a recommendation and keeps AI execution explicit", async () => {
+  const panel = await source("components/job-match-report-panel.tsx");
+  const copy = await source("lib/match-report.ts");
+
+  assert.match(panel, /完整匹配建议/);
+  assert.match(panel, /生成完整匹配建议/);
+  assert.match(panel, /核心优势/);
+  assert.match(panel, /主要风险/);
+  assert.match(panel, /AI/);
+  assert.match(copy, /值得优先投/);
+  assert.match(copy, /值得投/);
+  assert.match(copy, /可以尝试/);
+  assert.match(copy, /当前不建议优先投入/);
+  assert.doesNotMatch(panel, /匹配度[:：]?\s*\d+%/);
+  assert.doesNotMatch(panel, /score/);
+});
+
 test("home page explains the product as a simple job-search workflow", async () => {
   const page = await source("app/page.tsx");
   assert.match(page, /先把自己和岗位看清楚/);

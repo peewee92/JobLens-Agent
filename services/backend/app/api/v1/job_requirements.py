@@ -13,6 +13,7 @@ from app.api.deps import (
     get_job_requirement_release_readiness_use_case,
     get_latest_job_requirements_use_case,
     get_match_input_readiness_use_case,
+    get_match_report_use_case,
     get_semantic_match_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
@@ -23,6 +24,7 @@ from app.api.v1.schemas.job_requirements import (
     JobRequirementReleaseReadinessResponse,
 )
 from app.api.v1.schemas.match_inputs import MatchInputReadinessResponse
+from app.api.v1.schemas.match_report import JobMatchReportResponse
 from app.api.v1.schemas.semantic_match import JobSemanticMatchResponse
 from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
@@ -35,6 +37,7 @@ from app.application.job_requirements.use_cases import (
     GetLatestJobRequirementsUseCase,
 )
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
+from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
 
 router = APIRouter(prefix="/jobs")
@@ -146,6 +149,25 @@ def run_semantic_match(
     ],
 ) -> JobSemanticMatchResponse:
     return JobSemanticMatchResponse.from_detail(use_case.execute(job_id))
+
+
+@router.post(
+    "/{job_id}/match-report",
+    response_model=JobMatchReportResponse,
+    responses={
+        status.HTTP_409_CONFLICT: {"model": ApiErrorResponse},
+        status.HTTP_502_BAD_GATEWAY: {"model": ApiErrorResponse},
+        status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ApiErrorResponse},
+    },
+)
+def build_match_report(
+    job_id: str,
+    use_case: Annotated[
+        BuildJobMatchReportUseCase,
+        Depends(get_match_report_use_case),
+    ],
+) -> JobMatchReportResponse:
+    return JobMatchReportResponse.from_detail(use_case.execute(job_id))
 
 
 @router.get(

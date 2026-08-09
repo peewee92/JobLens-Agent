@@ -250,6 +250,14 @@ try {
   assert.match(detailHtml, /FastAPI/);
   assert.match(detailHtml, /岗位原文依据/);
   assert.match(detailHtml, /重新分析岗位要求/);
+  assert.match(detailHtml, /生成完整匹配建议/);
+  assert.match(detailHtml, /AI 只会判断已确认经历与岗位要求之间的语义关系/);
+  const blockedMatchReport = await fetch(
+    `${webUrl}/api/jobs/${jobMatch[1]}/match-report`,
+    {method: "POST"},
+  );
+  assert.equal(blockedMatchReport.status, 409);
+  assert.equal((await blockedMatchReport.json()).error.code, "semantic_match_inputs_not_ready");
   assert.match(detailHtml, /打开原始岗位/);
   assert.doesNotMatch(detailHtml, /查看技术详情|查看分析详情/);
   assert.doesNotMatch(detailHtml, /confidence=|extractor=|trace=|JobLens ID/);
@@ -263,7 +271,7 @@ try {
   assert.doesNotMatch(auditHtml, /candidateRaw|sourceRaw|canonicalKey/);
 
   console.log(
-    "Web smoke E2E passed: DOCX → proposal → profile → intent → import → requirements → jobs → audit.",
+    "Web smoke E2E passed: DOCX → proposal → profile → intent → import → requirements → match-report gate → jobs → audit.",
   );
 } catch (error) {
   for (const processInfo of children) {

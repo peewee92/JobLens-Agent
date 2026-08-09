@@ -1,8 +1,15 @@
 """Application orchestration for one transient Semantic Match run."""
 from __future__ import annotations
 
-from app.application.eligibility import EvaluateJobEligibilityUseCase
-from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
+from app.application.eligibility import (
+    EligibilityInputsNotReadyError,
+    EvaluateJobEligibilityUseCase,
+)
+from app.application.evidence_retrieval import (
+    EvidenceRetrievalInputsNotReadyError,
+    RetrieveJobEvidenceUseCase,
+)
+from app.application.semantic_match.errors import SemanticMatchInputsNotReadyError
 from app.application.semantic_match.models import JobSemanticMatchResult
 from app.workflows.semantic_match import SemanticMatchWorkflow
 
@@ -22,8 +29,16 @@ class RunJobSemanticMatchUseCase:
         self._workflow = workflow
 
     def execute(self, job_id: str) -> JobSemanticMatchResult:
-        eligibility = self._eligibility.execute(job_id)
-        evidence = self._evidence.execute(job_id)
+        try:
+            eligibility = self._eligibility.execute(job_id)
+            evidence = self._evidence.execute(job_id)
+        except (
+            EligibilityInputsNotReadyError,
+            EvidenceRetrievalInputsNotReadyError,
+        ) as error:
+            raise SemanticMatchInputsNotReadyError(
+                "Semantic Match requires current released Eligibility and Evidence Retrieval inputs."
+            ) from error
         return self._workflow.execute(
             eligibility=eligibility,
             evidence=evidence,

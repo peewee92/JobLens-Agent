@@ -19,6 +19,10 @@ const messages: Record<string, string> = {
   requirement_extractor_unavailable: "岗位要求分析暂时不可用，请稍后重试。",
   requirement_extractor_failed: "这次岗位要求分析没有成功，请稍后重试。",
   invalid_requirement_extractor_output: "这次岗位要求分析结果不完整，请稍后重试。",
+  semantic_match_inputs_not_ready: "你的职业背景或岗位要求刚刚发生了变化，请刷新页面确认最新内容后再生成完整匹配建议。",
+  semantic_matcher_unavailable: "完整匹配建议暂时不可用；你仍可以先参考上方的硬条件判断。",
+  semantic_matcher_failed: "这次 AI 匹配分析没有成功，请稍后重试。",
+  invalid_semantic_matcher_output: "这次 AI 匹配结果不完整，没有生成正式建议，请稍后重试。",
   internal_server_error: "服务暂时出了点问题，请稍后重试。",
 };
 

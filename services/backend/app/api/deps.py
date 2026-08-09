@@ -27,6 +27,7 @@ from app.application.job_requirements.use_cases import (
     GetLatestJobRequirementsUseCase,
 )
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
+from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
@@ -610,6 +611,12 @@ def get_semantic_match_use_case(
         evidence=evidence,
         workflow=workflow,
     )
+
+
+def get_match_report_use_case(
+    semantic_match: RunJobSemanticMatchUseCase = Depends(get_semantic_match_use_case),
+) -> BuildJobMatchReportUseCase:
+    return BuildJobMatchReportUseCase(semantic_match)
 
 
 def get_latest_job_requirements_use_case(

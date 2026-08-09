@@ -25,6 +25,13 @@ test("primary user flows translate stable backend errors into actionable Chinese
     ),
     "这次岗位要求分析没有成功，请稍后重试。",
   );
+  assert.equal(
+    userFacingApiError(
+      {error: {code: "semantic_matcher_unavailable", message: "provider disabled"}},
+      "完整匹配建议生成失败，请稍后重试。",
+    ),
+    "完整匹配建议暂时不可用；你仍可以先参考上方的硬条件判断。",
+  );
 });
 
 test("unknown backend messages are not leaked into the ordinary user flow", () => {

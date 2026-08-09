@@ -259,6 +259,59 @@ export interface JobEligibilityResult {
   traceRunsCreated: number;
 }
 
+export type SemanticMatchVerdict = "matched" | "partial" | "not_matched";
+export type MatchRecommendation = "strong" | "good" | "stretch" | "low" | "blocked";
+
+export interface MatchReportInsight {
+  requirementId: string;
+  requirementText: string;
+  reason: string;
+  evidenceIds: string[];
+}
+
+export interface MatchReportRequirementResult {
+  requirementId: string;
+  requirementIndex: number;
+  type: RequirementType;
+  importance: RequirementImportance;
+  originalText: string;
+  normalizedCapability: string | null;
+  eligibilityStatus: RequirementFitStatus;
+  semanticVerdict: SemanticMatchVerdict;
+  evidenceIds: string[];
+  profileFactRefs: string[];
+  reason: string;
+}
+
+export interface MatchEvidenceLink {
+  requirementId: string;
+  evidenceIds: string[];
+}
+
+export interface JobMatchReport {
+  jobId: string;
+  profileId: string;
+  profileVersion: number;
+  extractionId: string;
+  eligibility: EligibilityDecision;
+  recommendation: MatchRecommendation;
+  summary: string;
+  strengths: MatchReportInsight[];
+  risks: MatchReportInsight[];
+  requirementResults: MatchReportRequirementResult[];
+  matchedRequirementIds: string[];
+  partialRequirementIds: string[];
+  missingRequirementIds: string[];
+  evidenceLinks: MatchEvidenceLink[];
+  matcherVersion: string;
+  promptVersion: string;
+  model: string | null;
+  traceRunId: string | null;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export interface JobRequirementExtraction {
   extractionId: string;
   jobId: string;
