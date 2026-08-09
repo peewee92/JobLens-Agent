@@ -156,7 +156,7 @@ Retrieval 的职责只是回答“哪些已确认的真实经历值得拿来继�
 
 每个 Candidate 都返回真实 `evidenceId / evidenceKey / evidenceType / summary / source`、`direct / related` 层级、retrieval basis、matched terms 和原因。英文短能力词使用词边界匹配，避免 `AI` 之类短词误命中英文单词内部。接口不调用 Provider、不创建 Trace、不写数据库；可信输入未准备好时返回 `409 evidence_retrieval_inputs_not_ready`，并同样复核 Readiness 后的冻结输入身份。
 
-### Guarded Semantic Match + transient MatchReport
+### Guarded Semantic Match + persisted MatchReport
 
 Semantic Match 只消费已通过 Eligibility 与 Evidence Retrieval 的冻结事实：
 
@@ -166,7 +166,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/semantic-match
 
 Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。prompt v3 允许模型使用一般技术知识判断**输入中已明确出现的能力之间**是否共享核心机制，但职业事实仍只能来自 Requirement + Candidate Evidence。`partial` 需要共享 protocol/runtime semantics、data model、API pattern 或实际 implementation concern；generic scheduling、generic CRUD、共享业务场景或同属一个大类都不足以构成 `partial`。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
 
-用户级 transient MatchReport 入口：
+用户级 persisted MatchReport 入口：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/match-report
@@ -174,9 +174,9 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/match-report
 
 MatchReport 在一次 guarded Semantic Match 后，由 Backend 的确定性 Recommendation Policy 生成 `strong / good / stretch / low / blocked`。v1 规则不使用百分制阈值：`Eligibility=blocked => blocked`；`Eligibility=conditional => stretch`；`eligible` 后再根据 `must_have + preferred` 的 semantic verdict 区分 `strong / good / low`。deterministic `missing` 在最终摘要拥有更高优先级，即使 Semantic 返回 `matched` 也不能进入“明确匹配/核心优势”；`partial + missing` 可以同时表达“存在相关证据”和“仍有硬条件缺口”。Bonus 未命中不会进入“主要风险”。
 
-MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
+MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。成功 runtime 会追加一个不可变 `match_reports` snapshot，并返回 `dbWrites=1`。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
 
-持久化基础已经准备好：`match_reports` 使用不可变 JSON snapshot 保存完整报告，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库，因此当前 API/use case 仍保持 transient，正式接线必须在真实 migration 获得授权之后进行。
+`match_reports` 持久化使用不可变 JSON snapshot，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。runtime 在任何 Semantic/Provider 工作前先检查 `match_reports` 表是否存在；schema 未准备好时稳定返回 `409 match_report_persistence_not_ready`，不会偷偷建表、写 Trace 或产生 Provider 成本。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库。
 
 ### Semantic Match Eval
 

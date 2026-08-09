@@ -25,7 +25,7 @@ Schemas:
 - `semantic-match-eval-report.schema.json` — Match Eval 自包含报告；包含 verdict/evidence accuracy、workflow success、Trace coverage、混淆矩阵、逐案例结果和临时 Eval Trace 摘要，不代表自动 release gate
 - `user-feedback.schema.json` — 用户对推荐的人类反馈（v0.1 新增）
 - `job-target.schema.json` — 目标岗位集，v0.2 演进为 TargetCohort
-- `match-report.schema.json` — Phase 4 transient MatchReport；组合 immutable Eligibility 与 Semantic Match，Backend policy 输出 `strong / good / stretch / low / blocked`，包含可追溯 strengths/risks/requirementResults/evidenceLinks，不包含百分制匹配概率
+- `match-report.schema.json` — Phase 4 persisted MatchReport snapshot；组合 immutable Eligibility 与 Semantic Match，Backend policy 输出 `strong / good / stretch / low / blocked`，包含可追溯 strengths/risks/requirementResults/evidenceLinks，不包含百分制匹配概率；runtime 成功时 `dbWrites=1`
 - `skill-gap.schema.json` — 能力差距；v0.2，P1 增强优先级字段
 
 领域关系见 `docs/architecture/DOMAIN-MODEL.md`。

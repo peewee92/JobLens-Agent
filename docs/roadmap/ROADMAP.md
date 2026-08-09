@@ -194,7 +194,7 @@ Profile 页面可以明确区分：
 - 当前 related hint 仅覆盖已明确批准的 MCP → Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入候选关系；向量/Embedding 语义检索尚未引入。
 - 已完成 guarded `Semantic Match v1`：模型只判断真实 Candidate Evidence 与 JobRequirement 的 `matched / partial / not_matched`，不能输出或改写 Eligibility / recommendation / ranking / score；related-only Evidence 不得升级为 matched，真实调用创建 Trace，Provider 默认 disabled。
 - 已完成 transient `MatchReport v1 + Recommendation Policy + Web 摘要卡片`：`blocked` 不可升级、`conditional => stretch`，`eligible` 再按 must-have/preferred 的 semantic verdict 确定 `strong / good / low`；无百分制匹配概率，用户必须明确点击才会触发完整 Semantic Match。
-- 已完成 MatchReport 持久化基础切片：新增不可变 `match_reports` snapshot ORM、Repository/Query Repository、显式 Unit of Work 与 `20260810_0016` migration 定义；临时 SQLite 已验证 upgrade/downgrade、历史追加不覆盖、未 commit 自动 rollback、Evidence/Profile fact refs/Trace/Prompt/Model 身份可完整 round-trip。该 migration **尚未应用到真实业务 DB**，API/use case 也仍保持 transient，不会在缺表状态下偷偷写入。
+- 已完成 MatchReport 持久化 runtime wiring：`match_reports` snapshot ORM、Repository/Query Repository、显式 Unit of Work 与 `20260810_0016` migration 定义已接入 `POST /match-report`；成功 runtime 追加一个不可变 snapshot 并返回 `dbWrites=1`。在任何 Semantic/Provider 工作前先检查 `match_reports` 表，缺表时稳定返回 `409 match_report_persistence_not_ready`，不会偷偷建表、写 Trace 或产生 Provider 成本。临时 SQLite 已验证 upgrade/downgrade、历史追加不覆盖、未 commit rollback；真实业务 DB 仍停在 `20260805_0015`，**尚未应用 0016 migration**。
 - 已完成 `Match Eval v1` 基础设施：保留 3 条 Contract/Safety cases，并新增 10 条人工标注 synthetic quality cases；报告 verdict/evidence accuracy、workflow success、Trace coverage、混淆矩阵与逐案例 reason/Trace。fixture 全量验证 10/10 通过仅证明 harness 可重复，不代表真实模型质量。
 - live Match Eval operator 默认不写正式业务 DB，真实 Provider 必须显式 `--confirm-live-cost` 且设置 `--max-cases`；当前没有自动质量放行阈值，真实结果必须人工复核。
 - 已完成首轮 3-case `deepseek-v4-flash` live Semantic Match Canary：3 条 workflow 全部成功、2 条需要 Provider 且 Trace coverage=100%；Java direct 正确为 `matched`，无候选场景正确为 deterministic `not_matched`，MCP related 人工期望 `partial` 但模型返回 `not_matched`，首轮 verdict/evidence accuracy 均为 66.7%。该结果显示模型在 related-but-not-explicit 边界偏保守，不构成 release 通过证据，也未触发自动阈值或继续扩跑。
@@ -203,14 +203,14 @@ Profile 页面可以明确区分：
 - 已完成 `semantic-match-blind-holdout-v1` 的 10-case `deepseek-v4-flash` live Eval：9/10 通过，verdict/evidence accuracy=90%，workflow success/Trace coverage=100%。3 个 `matched`、4 个 `partial` 全部正确；3 个 `not_matched` 中有 1 条 Kafka requirement + cron batch Evidence 被模型判为 `partial`，暴露“表面流程相似被误当可迁移核心能力”的假阳性边界。该 holdout 已消费，后续 Prompt 调整不得再把它当无偏验证集；正式业务 DB 未写入。
 - 已完成 `Semantic Match prompt v3` 假阳性边界校准：`partial` 现在要求 Evidence 与 Requirement 共享 core mechanism / protocol-runtime semantics / data model / API pattern / implementation concern；generic scheduling、generic CRUD、共享业务场景或同属大类不再足以构成 `partial`。同时明确一般技术知识只能判断输入中已出现能力的关系，不能补造用户职业事实。synthetic quality harness 与全量回归通过。
 - 已完成 `semantic-match-blind-holdout-v2` 的 10-case `deepseek-v4-flash` live Eval：3 `matched` / 4 `partial` / 3 `not_matched` 全部正确，verdict/evidence accuracy、workflow success、Trace coverage 均为 100%；10 条全部真实进入 Provider，使用 `semantic-match-v3`。该 holdout 与 calibration、已消费 holdout v1、Prompt v3 完整示例均保持不重复，正式业务 DB 未写入。该结果提供新的泛化证据，但仍不构成自动 release approval，也不能替代 ROADMAP 的 20 个真实岗位人工评审。
-- 尚未完成 MatchReport 正式 DB migration + API/use case 接线、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
+- 尚未完成 MatchReport 正式 DB migration、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
 
 ### 任务
 
 1. `Eligibility Gate`（确定性 / 半确定性硬条件判定）— v1 已完成；
 2. `Evidence Retrieval`（从 UserProfile 拉相关 Evidence）— v1 deterministic candidate retrieval 已完成；
 3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）— guarded v1 已完成，真实 Provider 质量待验；
-4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）— transient v1 + immutable persistence foundation 已完成；正式 migration / runtime wiring 待完成；
+4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）— immutable persistence + runtime fail-closed wiring 已完成；正式 DB migration 待授权；
 5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked` — deterministic policy v1 已完成；
 6. `Match Eval` 数据集与断言 — v1 synthetic quality harness、Prompt v2 calibration canary、两轮 10-case blind holdout live Eval 与 prompt v3 假阳性边界校准已完成；20 岗位人工评审与 UserFeedback 人工基准待完成。
 
