@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1 synthetic quality harness。Semantic Match 已完成首轮 3-case live Canary，并因 `partial vs not_matched` 偏保守问题升级到 prompt v2 calibration；尚需下一批 live Canary 验证校准效果。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 修复 related-but-transferable 过度保守，10-case blind holdout 达到 9/10；v3 进一步约束“表面流程相似 ≠ shared core mechanism”，用于降低 `not_matched -> partial` 假阳性。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 尚未持久化，Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -164,7 +164,7 @@ Semantic Match 只消费已通过 Eligibility 与 Evidence Retrieval 的冻结�
 curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/semantic-match
 ```
 
-Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。prompt v2 针对首轮 live Canary 暴露的 `partial vs not_matched` 边界加入对比校准示例：相关且具备可迁移子能力时应为 `partial`，仅场景相邻但没有实质能力支撑时应为 `not_matched`；`relevanceTier=related` 本身不构成满足要求的证明。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
+Provider 只允许逐条输出 `matched / partial / not_matched` 和真实 `evidenceIds`。它不能输出 Eligibility、recommendation、ranking、score 或 probability；related-only Evidence 不能被提升成 `matched`，并且 Semantic verdict 永远不能改写 deterministic Eligibility。prompt v3 允许模型使用一般技术知识判断**输入中已明确出现的能力之间**是否共享核心机制，但职业事实仍只能来自 Requirement + Candidate Evidence。`partial` 需要共享 protocol/runtime semantics、data model、API pattern 或实际 implementation concern；generic scheduling、generic CRUD、共享业务场景或同属一个大类都不足以构成 `partial`。真实 Provider 默认 `SEMANTIC_MATCH_PROVIDER=disabled`，只有人工明确配置并授权后才会调用。
 
 用户级 transient MatchReport 入口：
 
@@ -178,7 +178,7 @@ MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementI
 
 ### Semantic Match Eval
 
-Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases，覆盖 direct / related / no-candidate 与 `matched / partial / not_matched`。在 Prompt v2 calibration 之后，另有 `semantic-match-blind-holdout-v1.jsonl` 作为 10 条盲测集：3 `matched` / 4 `partial` / 3 `not_matched`，10 条都有 Candidate Evidence 且都会真正进入 Provider；测试会拒绝与 calibration case 或 Prompt v2 完整示例文本重复。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
+Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases。已消费的 `semantic-match-blind-holdout-v1.jsonl` 在 prompt v2 上真实运行 10 条，得到 verdict/evidence accuracy 90%、workflow/Trace 100%，唯一错误是 Kafka requirement + cron batch Evidence 被判 `partial`。该 holdout 已用于诊断 v3，不能再次作为 v3 的无偏验证集；后续需要冻结新的 blind holdout。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
 
 本地 fixture 验证：
 

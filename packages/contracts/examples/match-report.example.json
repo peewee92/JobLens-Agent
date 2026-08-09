@@ -58,7 +58,7 @@
     {"requirementId": "req_mcp", "evidenceIds": ["ev_tools"]}
   ],
   "matcherVersion": "semantic-match-v1",
-  "promptVersion": "semantic-match-v2",
+  "promptVersion": "semantic-match-v3",
   "model": "fixture-semantic-matcher",
   "traceRunId": "run_example",
   "dbWrites": 0,
