@@ -194,7 +194,8 @@ Profile 页面可以明确区分：
 - 当前 related hint 仅覆盖已明确批准的 MCP → Function Calling / Tool Calling / 工具调用 / 工具集成 / 工具接入候选关系；向量/Embedding 语义检索尚未引入。
 - 已完成 guarded `Semantic Match v1`：模型只判断真实 Candidate Evidence 与 JobRequirement 的 `matched / partial / not_matched`，不能输出或改写 Eligibility / recommendation / ranking / score；related-only Evidence 不得升级为 matched，真实调用创建 Trace，Provider 默认 disabled。
 - 已完成 transient `MatchReport v1 + Recommendation Policy + Web 摘要卡片`：`blocked` 不可升级、`conditional => stretch`，`eligible` 再按 must-have/preferred 的 semantic verdict 确定 `strong / good / low`；无百分制匹配概率，用户必须明确点击才会触发完整 Semantic Match。MatchReport 暂不持久化。
-- 尚未完成真实 Semantic Match Provider 质量验证、持久化 MatchReport、Match Eval 与 20 岗位人工 Match 评审；Requirement 真实人工基线未通过前仍不能执行正式 Match。
+- 已完成 `Match Eval v1` 基础设施：保留 3 条 Contract/Safety cases，并新增 10 条人工标注 synthetic quality cases；报告 verdict/evidence accuracy、workflow success、Trace coverage、混淆矩阵与逐案例 reason/Trace。fixture 全量验证 10/10 通过仅证明 harness 可重复，不代表真实模型质量。
+- live Match Eval operator 默认不写正式业务 DB，真实 Provider 必须显式 `--confirm-live-cost` 且设置 `--max-cases`；当前没有自动质量放行阈值，真实结果必须人工复核。尚未完成真实 Semantic Match Provider 质量验证、持久化 MatchReport、20 岗位人工 Match 评审与基于 UserFeedback 的人工基准；Requirement 真实人工基线未通过前仍不能执行正式 Match。
 
 ### 任务
 
@@ -203,7 +204,7 @@ Profile 页面可以明确区分：
 3. `Semantic Match`（LLM，基于 Evidence 与 JobRequirement）— guarded v1 已完成，真实 Provider 质量待验；
 4. `MatchReport` Structured Output（`eligibility` / `recommendation` / `matchedRequirementIds` / `missingRequirementIds` / `evidenceLinks`）— transient v1 已完成；
 5. 推荐等级：`strong` / `good` / `stretch` / `low` / `blocked` — deterministic policy v1 已完成；
-6. `Match Eval` 数据集与断言（含 UserFeedback 作为人工基准）。
+6. `Match Eval` 数据集与断言 — v1 synthetic quality harness 已完成；真实 Provider Eval、20 岗位人工评审与 UserFeedback 人工基准待完成。
 
 ### 验收
 

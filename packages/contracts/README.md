@@ -21,6 +21,8 @@ Schemas:
 - `job-requirement-extraction.schema.json` — 不可变 Requirement Extraction Run；记录 Job/input hash/provider/model/prompt/Trace 与逐条 Requirements，作为 Match/Gap/Prepare 统一事实来源
 - `evidence-retrieval.schema.json` — Phase 4 只读候选证据检索结果；区分 `direct / related` 与检索依据，只返回已确认 Profile Evidence，不包含 `matched/status` 等 Match verdict 字段
 - `semantic-match.schema.json` — Phase 4 Semantic Match 暂态结果；保留 deterministic `eligibility / eligibilityStatus`，另行输出 `matched / partial / not_matched` 语义判断，Provider 无权输出或升级 Eligibility、推荐等级或分数
+- `semantic-match-eval-case.schema.json` — Match Eval JSONL 单案例契约；人工标注 expected verdict / evidence IDs，并显式携带冻结 Eligibility 与 Candidate Evidence
+- `semantic-match-eval-report.schema.json` — Match Eval 自包含报告；包含 verdict/evidence accuracy、workflow success、Trace coverage、混淆矩阵、逐案例结果和临时 Eval Trace 摘要，不代表自动 release gate
 - `user-feedback.schema.json` — 用户对推荐的人类反馈（v0.1 新增）
 - `job-target.schema.json` — 目标岗位集，v0.2 演进为 TargetCohort
 - `match-report.schema.json` — Phase 4 transient MatchReport；组合 immutable Eligibility 与 Semantic Match，Backend policy 输出 `strong / good / stretch / low / blocked`，包含可追溯 strengths/risks/requirementResults/evidenceLinks，不包含百分制匹配概率

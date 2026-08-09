@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/semantic-match-eval-report.schema.json",
+  "title": "SemanticMatchEvalReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dataset",
+    "datasetVersion",
+    "mode",
+    "provider",
+    "model",
+    "qualityGateApplied",
+    "humanReviewRequired",
+    "metrics",
+    "confusionMatrix",
+    "cases",
+    "traces"
+  ],
+  "properties": {
+    "dataset": {"type": "string", "minLength": 1},
+    "datasetVersion": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["fixture", "live"]},
+    "provider": {"enum": ["fixture", "openai"]},
+    "model": {"type": "string", "minLength": 1},
+    "qualityGateApplied": {"const": false},
+    "humanReviewRequired": {"type": "boolean"},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "succeeded",
+        "errors",
+        "verdictAccuracy",
+        "evidenceAccuracy",
+        "workflowSuccessRate",
+        "traceCoverage",
+        "providerExpectedCases",
+        "tracedProviderCases"
+      ],
+      "properties": {
+        "total": {"type": "integer", "minimum": 1},
+        "passed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "succeeded": {"type": "integer", "minimum": 0},
+        "errors": {"type": "integer", "minimum": 0},
+        "verdictAccuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidenceAccuracy": {"type": "number", "minimum": 0, "maximum": 1},
+        "workflowSuccessRate": {"type": "number", "minimum": 0, "maximum": 1},
+        "traceCoverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "providerExpectedCases": {"type": "integer", "minimum": 0},
+        "tracedProviderCases": {"type": "integer", "minimum": 0}
+      }
+    },
+    "confusionMatrix": {"type": "object"},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "passed",
+          "expectedEligibility",
+          "actualEligibility",
+          "expectedVerdict",
+          "actualVerdict",
+          "expectedEvidenceIds",
+          "actualEvidenceIds",
+          "actualReason",
+          "providerExpected",
+          "traceRunId",
+          "error"
+        ],
+        "properties": {
+          "caseId": {"type": "string", "minLength": 1},
+          "passed": {"type": "boolean"},
+          "expectedEligibility": {"enum": ["eligible", "conditional", "blocked"]},
+          "actualEligibility": {"type": ["string", "null"]},
+          "expectedVerdict": {"enum": ["matched", "partial", "not_matched"]},
+          "actualVerdict": {"type": ["string", "null"]},
+          "expectedEvidenceIds": {"type": "array", "items": {"type": "string"}},
+          "actualEvidenceIds": {"type": "array", "items": {"type": "string"}},
+          "actualReason": {"type": ["string", "null"]},
+          "providerExpected": {"type": "boolean"},
+          "traceRunId": {"type": ["string", "null"]},
+          "error": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runId",
+          "capability",
+          "version",
+          "model",
+          "promptVersion",
+          "inputRefs",
+          "output",
+          "latencyMs",
+          "inputTokens",
+          "outputTokens",
+          "error"
+        ],
+        "properties": {
+          "runId": {"type": "string", "minLength": 1},
+          "capability": {"const": "semantic_match"},
+          "version": {"type": "string", "minLength": 1},
+          "model": {"type": "string", "minLength": 1},
+          "promptVersion": {"type": "string", "minLength": 1},
+          "inputRefs": {"type": "object"},
+          "output": {"type": ["object", "null"]},
+          "latencyMs": {"type": "integer", "minimum": 0},
+          "inputTokens": {"type": ["integer", "null"], "minimum": 0},
+          "outputTokens": {"type": ["integer", "null"], "minimum": 0},
+          "error": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

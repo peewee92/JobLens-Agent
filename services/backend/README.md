@@ -2,7 +2,7 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
-当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1 和 transient MatchReport / Recommendation Policy。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；Semantic Match 的真实 Provider 质量尚未验证，MatchReport 尚未持久化，Ranking 尚未实现。
+当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1 synthetic quality harness。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；Semantic Match 的真实 Provider 质量尚未验证，MatchReport 尚未持久化，Ranking 尚未实现。
 
 ## Prerequisites
 
@@ -175,6 +175,31 @@ curl -X POST http://127.0.0.1:8000/api/v1/jobs/job_xxx/match-report
 MatchReport 在一次 guarded Semantic Match 后，由 Backend 的确定性 Recommendation Policy 生成 `strong / good / stretch / low / blocked`。v1 规则不使用百分制阈值：`Eligibility=blocked => blocked`；`Eligibility=conditional => stretch`；`eligible` 后再根据 `must_have + preferred` 的 semantic verdict 区分 `strong / good / low`。deterministic `missing` 在最终摘要拥有更高优先级，即使 Semantic 返回 `matched` 也不能进入“明确匹配/核心优势”；`partial + missing` 可以同时表达“存在相关证据”和“仍有硬条件缺口”。Bonus 未命中不会进入“主要风险”。
 
 MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不持久化、不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
+
+### Semantic Match Eval
+
+Match Eval v1 把“护栏是否正确”和“模型质量是否正确”分开验证。`semantic-match-v1.jsonl` 是最小 Contract/Safety Eval；`semantic-match-quality-v1.jsonl` 是 10 条人工标注的 synthetic quality cases，覆盖 direct / related / no-candidate 与 `matched / partial / not_matched`。当前质量指标只用于观测与人工审查，不存在自动 release threshold。
+
+本地 fixture 验证：
+
+```bash
+SEMANTIC_MATCH_PROVIDER=fixture \
+uv run python -m scripts.run_semantic_match_eval --json
+```
+
+报告包含 `verdictAccuracy / evidenceAccuracy / workflowSuccessRate / traceCoverage`、混淆矩阵、逐案例 actual reason / Evidence IDs / Trace ID。Eval Trace 只写临时 SQLite，随后汇总进 JSON 报告，不写正式 `data/joblens.db`。
+
+真实 Provider Eval 必须同时显式确认成本并限制案例数，例如：
+
+```bash
+SEMANTIC_MATCH_PROVIDER=openai \
+uv run python -m scripts.run_semantic_match_eval \
+  --max-cases 3 \
+  --confirm-live-cost \
+  --json
+```
+
+没有 `--confirm-live-cost` 会在 Provider 调用前拒绝执行；live 模式没有显式 `--max-cases` 也会拒绝执行。`qualityGateApplied=false` 表示当前不会因为某个准确率自动发布或拒绝模型；live 结果仍需要人工查看错误案例、reason 和 Trace。synthetic Match Eval 也不能替代 ROADMAP 要求的 20 个真实岗位人工 Match 评审与未来 UserFeedback 基准。
 
 Requirement Eval 会保存不可变 Run、逐 Case 结果和 Trace 关联：
 
