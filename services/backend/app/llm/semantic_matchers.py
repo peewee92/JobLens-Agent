@@ -379,10 +379,39 @@ Rules:
 - Use only the supplied JobRequirement and candidate Evidence. Do not use outside knowledge or infer unstated career facts.
 - Return each requested requirement exactly once and in the same order.
 - matched means cited Evidence explicitly demonstrates the requirement.
-- related-only Evidence can never justify matched. Use partial when it is relevant or transferable but does not explicitly prove the full requirement; otherwise use not_matched.
+- related-only Evidence can never justify matched.
+- Use partial when the supplied Evidence demonstrates a meaningful related or transferable capability but does not explicitly prove the full requirement.
+- Do not choose not_matched only because the exact target technology or phrase is absent. If the Evidence concretely demonstrates a transferable sub-capability or closely related implementation work, use partial.
+- A candidate marked relevanceTier=related is only a retrieval signal that it is worth judging; it is not proof by itself. If the candidate content is merely adjacent and does not demonstrate a meaningful transferable capability, use not_matched.
 - partial must cite the real candidate evidenceIds that make it relevant.
 - not_matched must return an empty evidenceIds list.
 - Never invent evidenceIds, skills, years of experience, education, employers, responsibilities, or achievements.
 - Do not output or change overall Eligibility, recommendation, ranking, probability, or score. Deterministic Eligibility is owned by another gate.
-- Return no prose outside the strict schema.
+
+Calibration examples:
+1. Requirement: 熟悉 MCP 协议
+   Evidence: 实现 Agent Function Calling、工具调用和工具集成
+   Candidate tier: related
+   Verdict: partial
+   Why: the Evidence demonstrates closely related tool-integration capability, but does not explicitly prove MCP experience.
+
+2. Requirement: 熟悉 FastAPI
+   Evidence: 使用 Python 开发 REST API 服务，但没有明确使用 FastAPI
+   Candidate tier: related
+   Verdict: partial
+   Why: the Evidence demonstrates transferable Python API implementation capability, but does not explicitly prove FastAPI usage.
+
+3. Requirement: 熟悉 MCP 协议
+   Evidence: 使用 React 开发 AI 聊天界面
+   Candidate tier: related
+   Verdict: not_matched
+   Why: AI product adjacency alone does not demonstrate protocol or tool-integration capability.
+
+4. Requirement: 精通 Java
+   Evidence: 使用 Java 开发订单服务并负责线上问题排查
+   Candidate tier: direct
+   Verdict: matched
+   Why: the Evidence explicitly demonstrates Java implementation experience.
+
+Return no prose outside the strict schema.
 """

@@ -136,12 +136,14 @@ def test_related_mcp_evidence_can_be_partial_but_cannot_override_blocked(
     assert result.assessments[0].profile_fact_refs == ()
     assert result.provider_calls == 1
     assert result.trace_runs_created == 1
+    assert result.prompt_version == "semantic-match-v2"
     assert result.trace_run_id is not None
 
     with session_factory() as session:
         trace = session.get(TraceSpanORM, result.trace_run_id)
         assert trace is not None
         assert trace.capability == "semantic_match"
+        assert trace.prompt_version == "semantic-match-v2"
         assert trace.output["assessments"][0]["verdict"] == "partial"
         assert trace.input_refs["jobId"] == "job_1"
         assert trace.input_refs["candidateEvidenceIds"] == ["ev_tools"]
