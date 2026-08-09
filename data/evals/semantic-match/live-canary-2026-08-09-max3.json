@@ -1,0 +1,146 @@
+{
+  "dataset": "semantic-match-quality-v1.jsonl",
+  "datasetVersion": "semantic-match-quality-v1",
+  "mode": "live",
+  "provider": "openai",
+  "model": "deepseek-v4-flash",
+  "providerConfiguration": {
+    "apiStyle": "chat_completions",
+    "enableThinking": false,
+    "maxCompletionTokens": 2048,
+    "timeoutSeconds": 120
+  },
+  "qualityGateApplied": false,
+  "humanReviewRequired": true,
+  "maxCasesAuthorized": 3,
+  "metrics": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "succeeded": 3,
+    "errors": 0,
+    "verdictAccuracy": 0.6666666666666666,
+    "evidenceAccuracy": 0.6666666666666666,
+    "workflowSuccessRate": 1.0,
+    "traceCoverage": 1.0,
+    "providerExpectedCases": 2,
+    "tracedProviderCases": 2
+  },
+  "confusionMatrix": {
+    "matched": {"matched": 1, "partial": 0, "not_matched": 0, "error": 0},
+    "partial": {"matched": 0, "partial": 0, "not_matched": 1, "error": 0},
+    "not_matched": {"matched": 0, "partial": 0, "not_matched": 1, "error": 0}
+  },
+  "cases": [
+    {
+      "caseId": "mcp-related-blocked",
+      "passed": false,
+      "expectedEligibility": "blocked",
+      "actualEligibility": "blocked",
+      "expectedVerdict": "partial",
+      "actualVerdict": "not_matched",
+      "expectedEvidenceIds": ["ev_tools"],
+      "actualEvidenceIds": [],
+      "actualReason": "Evidence only mentions Agent Function Calling and tool integration, with no explicit mention of MCP protocol.",
+      "providerExpected": true,
+      "traceRunId": "run_709c9c27aefa47c4a4501a189155a44c",
+      "error": null
+    },
+    {
+      "caseId": "java-direct-blocked",
+      "passed": true,
+      "expectedEligibility": "blocked",
+      "actualEligibility": "blocked",
+      "expectedVerdict": "matched",
+      "actualVerdict": "matched",
+      "expectedEvidenceIds": ["ev_java"],
+      "actualEvidenceIds": ["ev_java"],
+      "actualReason": "Evidence explicitly states use of Java for development and troubleshooting, directly demonstrating proficiency in Java.",
+      "providerExpected": true,
+      "traceRunId": "run_857e4022fbc24aa7a2673b68006d24f7",
+      "error": null
+    },
+    {
+      "caseId": "no-candidate-domain",
+      "passed": true,
+      "expectedEligibility": "conditional",
+      "actualEligibility": "conditional",
+      "expectedVerdict": "not_matched",
+      "actualVerdict": "not_matched",
+      "expectedEvidenceIds": [],
+      "actualEvidenceIds": [],
+      "actualReason": "没有检索到可供语义判断的已确认职业证据。",
+      "providerExpected": false,
+      "traceRunId": null,
+      "error": null
+    }
+  ],
+  "traces": [
+    {
+      "runId": "run_709c9c27aefa47c4a4501a189155a44c",
+      "capability": "semantic_match",
+      "version": "semantic-match-v1",
+      "model": "deepseek-v4-flash",
+      "promptVersion": "semantic-match-v1",
+      "inputRefs": {
+        "jobId": "job_mcp-related-blocked",
+        "profileId": "profile_mcp-related-blocked",
+        "profileVersion": 1,
+        "extractionId": "reqrun_mcp-related-blocked",
+        "requirementIds": ["req_mcp"],
+        "candidateEvidenceIds": ["ev_tools"],
+        "inputSha256": "a4b4442f08c4a74ee9b442becd49adc1b4d3fb972fa64a97bd781b7d853060d7"
+      },
+      "output": {
+        "assessments": [
+          {
+            "requirementId": "req_mcp",
+            "verdict": "not_matched",
+            "evidenceIds": [],
+            "reason": "Evidence only mentions Agent Function Calling and tool integration, with no explicit mention of MCP protocol."
+          }
+        ]
+      },
+      "latencyMs": 4240,
+      "inputTokens": 277,
+      "outputTokens": 51,
+      "error": null
+    },
+    {
+      "runId": "run_857e4022fbc24aa7a2673b68006d24f7",
+      "capability": "semantic_match",
+      "version": "semantic-match-v1",
+      "model": "deepseek-v4-flash",
+      "promptVersion": "semantic-match-v1",
+      "inputRefs": {
+        "jobId": "job_java-direct-blocked",
+        "profileId": "profile_java-direct-blocked",
+        "profileVersion": 1,
+        "extractionId": "reqrun_java-direct-blocked",
+        "requirementIds": ["req_java"],
+        "candidateEvidenceIds": ["ev_java"],
+        "inputSha256": "a00f8ba928027b005e932f0c4c0dde6c7a1d3a598d1a474fea25d5d5b8ed8efe"
+      },
+      "output": {
+        "assessments": [
+          {
+            "requirementId": "req_java",
+            "verdict": "matched",
+            "evidenceIds": ["ev_java"],
+            "reason": "Evidence explicitly states use of Java for development and troubleshooting, directly demonstrating proficiency in Java."
+          }
+        ]
+      },
+      "latencyMs": 3780,
+      "inputTokens": 273,
+      "outputTokens": 68,
+      "error": null
+    }
+  ],
+  "review": {
+    "prediction": "partial",
+    "observed": "not_matched",
+    "finding": "The live model was conservative on related-but-not-explicit MCP evidence. The prompt already defines related-only relevant or transferable evidence as partial, so this result is a model-quality signal rather than a missing contract rule.",
+    "releaseDecision": "none"
+  }
+}
