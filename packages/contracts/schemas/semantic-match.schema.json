@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/semantic-match.schema.json",
+  "title": "JobSemanticMatch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "jobId",
+    "profileId",
+    "profileVersion",
+    "extractionId",
+    "eligibility",
+    "assessments",
+    "matchedCount",
+    "partialCount",
+    "notMatchedCount",
+    "matcherVersion",
+    "promptVersion",
+    "model",
+    "traceRunId",
+    "dbWrites",
+    "providerCalls",
+    "traceRunsCreated"
+  ],
+  "properties": {
+    "jobId": {"type": "string", "minLength": 1},
+    "profileId": {"type": "string", "minLength": 1},
+    "profileVersion": {"type": "integer", "minimum": 1},
+    "extractionId": {"type": "string", "minLength": 1},
+    "eligibility": {"enum": ["eligible", "conditional", "blocked"]},
+    "assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requirementId",
+          "requirementIndex",
+          "type",
+          "importance",
+          "originalText",
+          "normalizedCapability",
+          "eligibilityStatus",
+          "verdict",
+          "evidenceIds",
+          "profileFactRefs",
+          "reason",
+          "source"
+        ],
+        "properties": {
+          "requirementId": {"type": "string", "minLength": 1},
+          "requirementIndex": {"type": "integer", "minimum": 0},
+          "type": {
+            "enum": ["skill", "experience", "education", "responsibility", "domain", "constraint"]
+          },
+          "importance": {"enum": ["must_have", "preferred", "bonus"]},
+          "originalText": {"type": "string", "minLength": 1},
+          "normalizedCapability": {"type": ["string", "null"]},
+          "eligibilityStatus": {"enum": ["matched", "conditional", "missing"]},
+          "verdict": {"enum": ["matched", "partial", "not_matched"]},
+          "evidenceIds": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "profileFactRefs": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "reason": {"type": "string", "minLength": 1},
+          "source": {"enum": ["deterministic", "provider"]}
+        }
+      }
+    },
+    "matchedCount": {"type": "integer", "minimum": 0},
+    "partialCount": {"type": "integer", "minimum": 0},
+    "notMatchedCount": {"type": "integer", "minimum": 0},
+    "matcherVersion": {"const": "semantic-match-v1"},
+    "promptVersion": {"const": "semantic-match-v1"},
+    "model": {"type": ["string", "null"]},
+    "traceRunId": {"type": ["string", "null"]},
+    "dbWrites": {"const": 0},
+    "providerCalls": {"type": "integer", "minimum": 0, "maximum": 1},
+    "traceRunsCreated": {"type": "integer", "minimum": 0, "maximum": 1}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "jobId": "job_example",
+  "profileId": "profile_example",
+  "profileVersion": 3,
+  "extractionId": "reqrun_example",
+  "eligibility": "blocked",
+  "assessments": [
+    {
+      "requirementId": "req_mcp",
+      "requirementIndex": 0,
+      "type": "skill",
+      "importance": "must_have",
+      "originalText": "熟悉 MCP 协议",
+      "normalizedCapability": "MCP",
+      "eligibilityStatus": "missing",
+      "verdict": "partial",
+      "evidenceIds": ["ev_tools"],
+      "profileFactRefs": [],
+      "reason": "工具调用经历与 MCP 相关，但不足以证明已经具备 MCP 经验。",
+      "source": "provider"
+    }
+  ],
+  "matchedCount": 0,
+  "partialCount": 1,
+  "notMatchedCount": 0,
+  "matcherVersion": "semantic-match-v1",
+  "promptVersion": "semantic-match-v1",
+  "model": "example-model",
+  "traceRunId": "run_example",
+  "dbWrites": 0,
+  "providerCalls": 1,
+  "traceRunsCreated": 1
+}
