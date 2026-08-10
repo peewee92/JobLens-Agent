@@ -243,6 +243,7 @@ Profile 页面可以明确区分：
 - 已完成 UserFeedback 领域契约与确定性校验首切片：decision 固定为 `interested / maybe / rejected`，反馈必须绑定具体 immutable `matchReportId + jobId`；reasons 使用稳定枚举并去重，`rejected` 至少一个结构化 reason，`other` 必须附 note。同步收紧跨组件 JSON Schema 与 example；本切片不落库、不新增 API、不触发 migration。
 - 已完成 UserFeedback persistence foundation：新增 immutable `user_feedback` ORM、Repository/Query Repository、显式 Unit of Work 与 `20260810_0017` migration 定义；Feedback 以外键绑定 `match_reports.id + jobs.id`，支持按 Feedback ID、MatchReport、Job 回查历史，追加写不覆盖旧反馈，未 commit 自动 rollback。新增只读 persistence readiness gate 与 SQLAlchemy schema inspector，同时要求 `match_reports` 和 `user_feedback` 表存在，缺失时返回结构化 blocker 且 `dbWrites/providerCalls/traceRunsCreated` 均为 0。migration 仅在临时 SQLite 验证 upgrade/downgrade，真实业务 DB 仍停在 `20260805_0015`，未执行 0016/0017 migration。
 - 已完成 guarded UserFeedback 写入 use case 与 `POST /api/v1/user-feedback`：写入前先检查两张 persistence 表，再读取 immutable MatchReport 并校验请求 `jobId` 与报告绑定 Job 一致，最后才通过显式 Unit of Work 追加一条反馈；成功返回 `dbWrites=1 / providerCalls=0 / traceRunsCreated=0`。真实 DB 未迁移时稳定返回 `409 user_feedback_persistence_not_ready`，不会读取不存在的 MatchReport 表、更不会自动迁移或写入。
+- 已完成 UserFeedback 只读历史回查：`GET /api/v1/user-feedback` 要求且只允许 `matchReportId` / `jobId` 二选一，复用 Query Repository 按 immutable MatchReport 或 Job 返回反馈历史，并显式返回 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`；schema 未准备时在任何反馈查询前继续 fail-closed `409 user_feedback_persistence_not_ready`，不触发 migration、Provider 或 Trace。
 
 ### 任务
 
