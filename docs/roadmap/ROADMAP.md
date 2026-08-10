@@ -244,6 +244,7 @@ Profile 页面可以明确区分：
 - 已完成 UserFeedback persistence foundation：新增 immutable `user_feedback` ORM、Repository/Query Repository、显式 Unit of Work 与 `20260810_0017` migration 定义；Feedback 以外键绑定 `match_reports.id + jobs.id`，支持按 Feedback ID、MatchReport、Job 回查历史，追加写不覆盖旧反馈，未 commit 自动 rollback。新增只读 persistence readiness gate 与 SQLAlchemy schema inspector，同时要求 `match_reports` 和 `user_feedback` 表存在，缺失时返回结构化 blocker 且 `dbWrites/providerCalls/traceRunsCreated` 均为 0。migration 仅在临时 SQLite 验证 upgrade/downgrade，真实业务 DB 仍停在 `20260805_0015`，未执行 0016/0017 migration。
 - 已完成 guarded UserFeedback 写入 use case 与 `POST /api/v1/user-feedback`：写入前先检查两张 persistence 表，再读取 immutable MatchReport 并校验请求 `jobId` 与报告绑定 Job 一致，最后才通过显式 Unit of Work 追加一条反馈；成功返回 `dbWrites=1 / providerCalls=0 / traceRunsCreated=0`。真实 DB 未迁移时稳定返回 `409 user_feedback_persistence_not_ready`，不会读取不存在的 MatchReport 表、更不会自动迁移或写入。
 - 已完成 UserFeedback 只读历史回查：`GET /api/v1/user-feedback` 要求且只允许 `matchReportId` / `jobId` 二选一，复用 Query Repository 按 immutable MatchReport 或 Job 返回反馈历史，并显式返回 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`；schema 未准备时在任何反馈查询前继续 fail-closed `409 user_feedback_persistence_not_ready`，不触发 migration、Provider 或 Trace。
+- 已完成 UserFeedback → Match Eval 的首个确定性统计基线：按 immutable `matchReportId` 精确关联 MatchReport，同一报告存在多次反馈时只取最新一次作为当前观察，同时保留完整反馈记录数；输出 decision 分布、recommendation × decision 矩阵、rejected reason 计数、缺失 MatchReport IDs 与覆盖数。该统计明确把反馈视为用户偏好观察而非客观 Match ground truth，`qualityGateApplied=false`，不生成准确率/概率或自动 release 结论；缺失报告不按 Job 猜测回填。
 
 ### 任务
 
