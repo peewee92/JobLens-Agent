@@ -27,6 +27,8 @@ from app.application.job_requirements.use_cases import (
     GetJobRequirementExtractionUseCase,
     GetLatestJobRequirementsUseCase,
 )
+from app.application.match_batch_execution import ExecuteBatchMatchUseCase
+from app.application.match_batch_planning import PlanBatchMatchUseCase
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
@@ -672,6 +674,20 @@ def get_create_user_feedback_use_case(
         reports=reports,
         persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
         uow_factory=lambda: SqlAlchemyUserFeedbackUnitOfWork(SessionLocal),
+    )
+
+
+def get_batch_match_execution_use_case(
+    readiness: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
+    report_runner: BuildJobMatchReportUseCase = Depends(get_match_report_use_case),
+) -> ExecuteBatchMatchUseCase:
+    planner = PlanBatchMatchUseCase(
+        readiness_gate=readiness,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+    )
+    return ExecuteBatchMatchUseCase(
+        planner=planner,
+        report_runner=report_runner,
     )
 
 
