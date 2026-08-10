@@ -32,7 +32,7 @@ from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.match_review import GetMatchReviewReadinessUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
-from app.application.user_feedback import CreateUserFeedbackUseCase
+from app.application.user_feedback import CreateUserFeedbackUseCase, ListUserFeedbackUseCase
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
@@ -118,6 +118,9 @@ from app.repositories import (
     SqlAlchemyRequirementReviewUnitOfWork,
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
+)
+from app.repositories.sqlalchemy_user_feedback_repository import (
+    SqlAlchemyUserFeedbackQueryRepository,
 )
 from app.repositories.sqlalchemy_user_feedback_schema import (
     inspect_user_feedback_persistence_readiness,
@@ -638,6 +641,13 @@ def get_match_report_use_case(
 
 def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
     return SqlAlchemyMatchReportQueryRepository(SessionLocal)
+
+
+def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:
+    return ListUserFeedbackUseCase(
+        repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+    )
 
 
 def get_create_user_feedback_use_case(

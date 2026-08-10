@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
+from app.application.ports.user_feedback_repository import AbstractUserFeedbackQueryRepository
 from app.application.ports.user_feedback_unit_of_work import AbstractUserFeedbackUnitOfWork
 from app.application.user_feedback_persistence import UserFeedbackPersistenceReadiness
 from app.domain.user_feedback import (
@@ -41,6 +42,51 @@ class CreateUserFeedbackResult:
     db_writes: int = 1
     provider_calls: int = 0
     trace_runs_created: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ListUserFeedbackResult:
+    feedback: tuple[StoredUserFeedback, ...]
+    db_writes: int = 0
+    provider_calls: int = 0
+    trace_runs_created: int = 0
+
+
+class ListUserFeedbackUseCase:
+    """Read immutable feedback history for exactly one provenance scope."""
+
+    def __init__(
+        self,
+        *,
+        repository: AbstractUserFeedbackQueryRepository,
+        persistence_readiness: PersistenceReadinessCheck,
+    ) -> None:
+        self._repository = repository
+        self._persistence_readiness = persistence_readiness
+
+    def execute(
+        self,
+        *,
+        match_report_id: str | None = None,
+        job_id: str | None = None,
+    ) -> ListUserFeedbackResult:
+        normalized_match_report_id = match_report_id.strip() if match_report_id else None
+        normalized_job_id = job_id.strip() if job_id else None
+        if bool(normalized_match_report_id) == bool(normalized_job_id):
+            raise ValueError("exactly one of match_report_id or job_id is required")
+
+        readiness = self._persistence_readiness()
+        if not readiness.ready:
+            blockers = ", ".join(readiness.blocker_codes)
+            raise UserFeedbackPersistenceNotReadyError(
+                f"UserFeedback persistence schema is not ready: {blockers}"
+            )
+
+        if normalized_match_report_id is not None:
+            feedback = self._repository.list_for_match_report(normalized_match_report_id)
+        else:
+            feedback = self._repository.list_for_job(normalized_job_id or "")
+        return ListUserFeedbackResult(feedback=feedback)
 
 
 class CreateUserFeedbackUseCase:
@@ -101,5 +147,7 @@ __all__ = [
     "CreateUserFeedbackUseCase",
     "FeedbackMatchReportMismatchError",
     "FeedbackMatchReportNotFoundError",
+    "ListUserFeedbackResult",
+    "ListUserFeedbackUseCase",
     "UserFeedbackPersistenceNotReadyError",
 ]
