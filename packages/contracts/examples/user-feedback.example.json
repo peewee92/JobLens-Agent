@@ -1,0 +1,9 @@
+{
+  "id": "feedback_01",
+  "matchReportId": "match_01",
+  "jobId": "job_01",
+  "decision": "maybe",
+  "reasons": ["skill_gap", "location"],
+  "note": "Backend evidence is still weak; location is also less convenient.",
+  "createdAt": "2026-08-10T09:30:00+08:00"
+}

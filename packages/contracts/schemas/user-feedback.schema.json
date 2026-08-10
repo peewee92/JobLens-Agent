@@ -3,35 +3,43 @@
   "$id": "https://joblens.local/schemas/user-feedback.schema.json",
   "title": "UserFeedback",
   "type": "object",
-  "required": ["id", "jobId", "profileVersion", "decision"],
+  "additionalProperties": false,
+  "required": ["id", "matchReportId", "jobId", "decision", "reasons", "note", "createdAt"],
   "properties": {
-    "id": {"type": "string", "description": "UserFeedback 唯一 id"},
-    "jobId": {"type": "string", "description": "被反馈的 Job id"},
-    "profileVersion": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "产生该反馈时使用的 UserProfile 版本"
-    },
+    "id": {"type": "string", "minLength": 1, "description": "UserFeedback 唯一 id"},
     "matchReportId": {
-      "type": ["string", "null"],
-      "description": "对应的 MatchReport id（若有）"
+      "type": "string",
+      "minLength": 1,
+      "description": "被评价的 immutable MatchReport snapshot id；反馈必须可回查到具体判断版本"
     },
+    "jobId": {"type": "string", "minLength": 1, "description": "被反馈的 Job id"},
     "decision": {
       "enum": ["interested", "maybe", "rejected"],
       "description": "interested=值得投；maybe=可以考虑；rejected=不适合"
     },
     "reasons": {
       "type": "array",
-      "items": {"type": "string"},
-      "description": "反馈原因（结构化标签 + 自由文本）"
+      "uniqueItems": true,
+      "items": {
+        "enum": ["role_fit", "skill_gap", "compensation", "location", "seniority", "company", "work_mode", "other"]
+      },
+      "description": "稳定、可统计的结构化反馈原因"
     },
-    "comment": {
+    "note": {
       "type": ["string", "null"],
-      "description": "用户备注"
+      "minLength": 1,
+      "description": "可选自由备注；reason=other 时必须提供"
     },
-    "createdAt": {
-      "type": "string",
-      "description": "ISO8601 创建时间"
+    "createdAt": {"type": "string", "format": "date-time", "description": "ISO8601 创建时间"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"decision": {"const": "rejected"}}, "required": ["decision"]},
+      "then": {"properties": {"reasons": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"reasons": {"contains": {"const": "other"}}}, "required": ["reasons"]},
+      "then": {"properties": {"note": {"type": "string", "minLength": 1}}}
     }
-  }
+  ]
 }
