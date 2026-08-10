@@ -72,11 +72,13 @@ JobLens 内部统一、稳定的岗位实体，保存用于查询、匹配和排
 - 字段见 `user-feedback.schema.json`：`decision`（`interested` / `maybe` / `rejected`）、`reasons`、`comment`。
 - 作为 `Match Eval` 人工基准；作为 v0.2 `Target Cohort` 来源之一（`createdFromFeedback`）。
 
-### JobTarget / TargetCohort
+### TargetCohort
 
-目标岗位集。v0.1 不引入；v0.2 由收藏岗位或 UserFeedback 聚合形成，概念从 `JobTarget` 演进为 `TargetCohort`。
+目标岗位集。v0.1 不引入；v0.2 由显式人工选择或 UserFeedback 候选形成，跨组件契约已从旧 `JobTarget` 演进为 `TargetCohort`。
 
-- 字段演进见 `job-target.schema.json`：增加 `selectionSource` / `jobIds` / `sampleSize` / `filters` / `createdFromFeedback`。
+- `job-target.schema.json` 当前字段包含 `selectionSource` / `jobIds` / `sampleSize` / `filters` / `createdFromFeedback`；
+- `selectionSource=user_feedback` 时，每个 cohort Job 必须保留唯一 `feedbackId + matchReportId + jobId` 来源，不能丢失反馈到 MatchReport 的追溯链；
+- `selectionSource=manual` 时不得声称存在 Feedback provenance。
 
 ### SkillGap
 

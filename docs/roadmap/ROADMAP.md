@@ -278,6 +278,10 @@ Profile 页面可以明确区分：
 
 目标：把岗位池变成用户自己的学习路线，而不是通用课程。
 
+### 当前进度（2026-08-10）
+
+- 已完成 TargetCohort 最小领域契约：`job-target.schema.json` 正式演进为 `TargetCohort`，新增 `selectionSource / sampleSize / createdFromFeedback`；Backend 提供 immutable `TargetCohortSnapshot`，稳定去重 `jobIds` 并冻结 `sampleSize`。`user_feedback` 来源必须对 cohort 内每个 Job 提供且只提供一条 `feedbackId + matchReportId + jobId` provenance；manual 来源不得伪造 Feedback provenance。该切片仅冻结领域/跨组件契约，不创建正式 DB 表、不新增 API、不运行 Provider/Trace，也不自动把 `maybe` 推断为正式 Target Cohort 成员。
+
 ### 任务
 
 1. 创建 `Target Cohort`（收藏岗位 / UserFeedback 聚合，概念从 `JobTarget` 演进）；
