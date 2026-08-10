@@ -245,6 +245,7 @@ Profile 页面可以明确区分：
 - 已完成 guarded UserFeedback 写入 use case 与 `POST /api/v1/user-feedback`：写入前先检查两张 persistence 表，再读取 immutable MatchReport 并校验请求 `jobId` 与报告绑定 Job 一致，最后才通过显式 Unit of Work 追加一条反馈；成功返回 `dbWrites=1 / providerCalls=0 / traceRunsCreated=0`。真实 DB 未迁移时稳定返回 `409 user_feedback_persistence_not_ready`，不会读取不存在的 MatchReport 表、更不会自动迁移或写入。
 - 已完成 UserFeedback 只读历史回查：`GET /api/v1/user-feedback` 要求且只允许 `matchReportId` / `jobId` 二选一，复用 Query Repository 按 immutable MatchReport 或 Job 返回反馈历史，并显式返回 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`；schema 未准备时在任何反馈查询前继续 fail-closed `409 user_feedback_persistence_not_ready`，不触发 migration、Provider 或 Trace。
 - 已完成 UserFeedback → Match Eval 的首个确定性统计基线：按 immutable `matchReportId` 精确关联 MatchReport，同一报告存在多次反馈时只取最新一次作为当前观察，同时保留完整反馈记录数；输出 decision 分布、recommendation × decision 矩阵、rejected reason 计数、缺失 MatchReport IDs 与覆盖数。该统计明确把反馈视为用户偏好观察而非客观 Match ground truth，`qualityGateApplied=false`，不生成准确率/概率或自动 release 结论；缺失报告不按 Job 猜测回填。
+- 已完成按 Job 构建 UserFeedback Match Eval 观察的只读 application query：`UserFeedbackMatchEvalQueryUseCase` 在 persistence readiness 通过后读取该 Job 的 immutable Feedback 与 MatchReport 历史并复用同一确定性统计器；schema 未就绪时在任何 repository read 前 fail-closed。结果显式 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`，当前尚未暴露 HTTP API，也不把反馈升级为质量放行证据。
 
 ### 任务
 
