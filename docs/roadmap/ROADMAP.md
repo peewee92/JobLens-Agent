@@ -238,7 +238,8 @@ Profile 页面可以明确区分：
 - 已完成 `SearchIntent.softPreferences` 的最小确定性次级排序：只在同一 recommendation 等级内，根据偏好词是否明确出现在岗位 `title / area` 中进行稳定排序；不得跨 recommendation 等级逆转，也不做语义猜测、LLM 调用或隐藏分数。
 - 已完成批量 Ranking 的只读 MatchReport 查询基础：`AbstractMatchReportQueryRepository.list_latest_for_jobs(...)` / SQLAlchemy 实现可一次读取多个岗位，每个岗位只返回最新 immutable snapshot，去重重复 jobId、跳过缺失岗位并保持调用方请求顺序；不在 SQL 层复制 Ranking 策略、不生成新 Match、不调用 Provider/Trace，也不写正式数据库。
 - 已完成纯只读 `BatchRankMatchReportsUseCase`：输入一批 jobId 后组合每岗最新 MatchReport、当前 `SearchIntent.softPreferences` 与对应 Job `title / area`，复用现有 Ranking Policy 输出稳定排序；无 report 时提前停止，缺 SearchIntent/Job 元数据时 fail-soft 保持基础排序，只读取实际有 report 的 Job 元数据。该 use case 不生成新 Match、不调用 Provider/Trace、不写数据库。
-- 已完成 Batch Ranking 只读 API/Web query wiring：Backend `GET /api/v1/match-ranking` 接受重复 `jobId` 与 `includeBlocked`，Web `/api/match-ranking` 仅做 same-origin 参数/响应代理，不复制 Ranking 策略。Application 层在排序前过滤与当前 Profile `id/version` 或岗位最新 Requirement Extraction 不一致的 stale MatchReport；真实 `match_reports` schema 未准备时在 SQL 查询前 fail-closed 返回 `409 match_report_persistence_not_ready`。当前仍未实现批量生成 Match 队列与 UserFeedback。
+- 已完成 Batch Ranking 只读 API/Web query wiring：Backend `GET /api/v1/match-ranking` 接受重复 `jobId` 与 `includeBlocked`，Web `/api/match-ranking` 仅做 same-origin 参数/响应代理，不复制 Ranking 策略。Application 层在排序前过滤与当前 Profile `id/version` 或岗位最新 Requirement Extraction 不一致的 stale MatchReport；真实 `match_reports` schema 未准备时在 SQL 查询前 fail-closed 返回 `409 match_report_persistence_not_ready`。
+- 已完成批量 Match 队列的首个只读 Planning 切片：`PlanBatchMatchUseCase` 对输入 jobId 稳定去重，复用单岗 Match Input Readiness 分类 `ready / input_blocked / persistence_blocked`；输入事实 blocker 优先保留，只有输入已可信但 `match_reports` schema 未就绪时才标记 persistence blocker。Planner 明确 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`，不运行 Eligibility/Semantic Match。实际批量执行队列与 UserFeedback 仍未实现。
 
 ### 任务
 
