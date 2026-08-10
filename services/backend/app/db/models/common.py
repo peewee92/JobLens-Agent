@@ -121,3 +121,7 @@ def new_requirement_acceptance_canary_review_id() -> str:
 
 def new_match_report_id() -> str:
     return new_prefixed_id("match")
+
+
+def new_user_feedback_id() -> str:
+    return new_prefixed_id("feedback")

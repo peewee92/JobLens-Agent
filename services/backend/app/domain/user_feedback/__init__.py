@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -66,4 +67,16 @@ class UserFeedbackDraft:
         )
 
 
-__all__ = ["FeedbackDecision", "FeedbackReason", "UserFeedbackDraft"]
+@dataclass(frozen=True, slots=True)
+class StoredUserFeedback:
+    id: str
+    feedback: UserFeedbackDraft
+    created_at: datetime
+
+
+__all__ = [
+    "FeedbackDecision",
+    "FeedbackReason",
+    "StoredUserFeedback",
+    "UserFeedbackDraft",
+]

@@ -63,6 +63,7 @@ REQUIREMENT_ACCEPTANCE_TABLES = (
     | {"requirement_acceptance_canary_reviews"}
 )
 MATCH_REPORT_TABLES = {"match_reports"}
+USER_FEEDBACK_TABLES = {"user_feedback"}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
@@ -73,6 +74,7 @@ EXPECTED_TABLES = (
     | REQUIREMENT_REVIEW_TABLES
     | REQUIREMENT_ACCEPTANCE_TABLES
     | MATCH_REPORT_TABLES
+    | USER_FEEDBACK_TABLES
 )
 
 
@@ -377,6 +379,23 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
         item["name"]
         for item in inspector.get_indexes("requirement_acceptance_execution_leases")
     } >= {"ix_requirement_acceptance_execution_leases_expires_at"}
+    feedback_foreign_keys = inspector.get_foreign_keys("user_feedback")
+    assert any(
+        item["constrained_columns"] == ["match_report_id"]
+        and item["referred_table"] == "match_reports"
+        for item in feedback_foreign_keys
+    )
+    assert any(
+        item["constrained_columns"] == ["job_id"]
+        and item["referred_table"] == "jobs"
+        for item in feedback_foreign_keys
+    )
+    assert {
+        item["name"] for item in inspector.get_indexes("user_feedback")
+    } >= {
+        "ix_user_feedback_match_report_created_at",
+        "ix_user_feedback_job_created_at",
+    }
     engine.dispose()
 
     _run_alembic(database_url, "downgrade", "20260805_0014")
@@ -385,6 +404,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
     )
@@ -402,6 +422,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
@@ -423,6 +444,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     assert "description_snapshot" not in downgraded_columns
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
@@ -444,6 +466,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     engine = create_engine(database_url)
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES

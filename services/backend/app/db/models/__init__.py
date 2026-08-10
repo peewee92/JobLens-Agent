@@ -45,6 +45,7 @@ from app.db.models.requirement_review import (
     RequirementReviewCaseReviewORM,
 )
 from app.db.models.trace_span import TraceSpanORM
+from app.db.models.user_feedback import UserFeedbackORM
 
 __all__ = [
     "JobORM",
@@ -75,4 +76,5 @@ __all__ = [
     "RequirementReviewBatchORM",
     "RequirementReviewCaseReviewORM",
     "TraceSpanORM",
+    "UserFeedbackORM",
 ]
