@@ -184,7 +184,9 @@ curl 'http://127.0.0.1:8000/api/v1/match-ranking?jobId=job_a&jobId=job_b&include
 
 该接口只读取每岗最新 MatchReport snapshot，复用 Backend Ranking Policy 与当前 `SearchIntent.softPreferences`，不会生成新 Match、调用 Provider、创建 Trace 或写数据库。为避免旧结论污染当前排序，返回前会校验 MatchReport 的 `profileId/profileVersion` 与当前 Profile 一致，并要求 `extractionId` 等于该岗位当前最新 Requirement Extraction；stale snapshot 会被过滤。正式 `match_reports` schema 尚未迁移时返回 `409 match_report_persistence_not_ready`。Web 仅通过 same-origin `/api/match-ranking` Route Handler 转发该查询，不在前端复制排序规则。
 
-Phase 5 还提供纯 application 层的 `PlanBatchMatchUseCase`，用于真正批量执行之前把请求岗位稳定去重并分类为 `ready / input_blocked / persistence_blocked`。它复用单岗 Match Input Readiness，输入事实未通过时保留原 blocker codes；输入已可信但 `match_reports` schema 未就绪时只标记 persistence blocker。Planner 不运行 Eligibility/Semantic Match，不调用 Provider/Trace，也不写数据库；实际批量执行队列仍未实现。
+Phase 5 还提供纯 application 层的 `PlanBatchMatchUseCase`，用于真正批量执行之前把请求岗位稳定去重并分类为 `ready / input_blocked / persistence_blocked`。它复用单岗 Match Input Readiness，输入事实未通过时保留原 blocker codes；输入已可信但 `match_reports` schema 未就绪时只标记 persistence blocker。Planner 不运行 Eligibility/Semantic Match，不调用 Provider/Trace，也不写数据库。
+
+在 Planner 之上新增 `ExecuteBatchMatchUseCase` 作为首个受限批量执行编排器：只执行 Planner 标记为 `ready` 的岗位，复用现有单岗 `BuildJobMatchReportUseCase`，不复制 Eligibility/Semantic Match 规则。单次调用最多执行 10 个 ready job，超过部分标记为 `deferred_limit`；输入或 persistence blocker 原样保留。单岗失败会隔离为 `failed` 并继续后续岗位，但因为异常路径无法可靠知道 Provider/Trace 是否已发生，此时 `sideEffectCountsComplete=false`，不会猜测失败任务的副作用数量。当前该能力仍只有 application 层，没有 HTTP/Web 批量执行入口，也没有在真实业务 DB 上运行。
 
 `match_reports` 持久化使用不可变 JSON snapshot，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。runtime 在任何 Semantic/Provider 工作前先检查 `match_reports` 表是否存在；schema 未准备好时稳定返回 `409 match_report_persistence_not_ready`，不会偷偷建表、写 Trace 或产生 Provider 成本。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库。
 
