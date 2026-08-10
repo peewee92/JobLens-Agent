@@ -17,6 +17,11 @@ from app.application.career_context import (
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
 from app.application.match_report import MatchReportPersistenceNotReadyError
+from app.application.user_feedback import (
+    FeedbackMatchReportMismatchError,
+    FeedbackMatchReportNotFoundError,
+    UserFeedbackPersistenceNotReadyError,
+)
 from app.application.semantic_match.errors import (
     InvalidSemanticMatcherOutputError,
     SemanticMatcherFailedError,
@@ -144,6 +149,39 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "match_report_persistence_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(UserFeedbackPersistenceNotReadyError)
+    async def handle_user_feedback_persistence_not_ready(
+        _request: Request,
+        error: UserFeedbackPersistenceNotReadyError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "user_feedback_persistence_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(FeedbackMatchReportNotFoundError)
+    async def handle_feedback_match_report_not_found(
+        _request: Request,
+        error: FeedbackMatchReportNotFoundError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_404_NOT_FOUND,
+            "feedback_match_report_not_found",
+            str(error),
+        )
+
+    @app.exception_handler(FeedbackMatchReportMismatchError)
+    async def handle_feedback_match_report_mismatch(
+        _request: Request,
+        error: FeedbackMatchReportMismatchError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "feedback_match_report_mismatch",
             str(error),
         )
 

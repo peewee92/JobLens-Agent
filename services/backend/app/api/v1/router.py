@@ -19,6 +19,7 @@ from app.api.v1.requirement_acceptance_runs import (
 )
 from app.api.v1.requirement_evals import router as requirement_evals_router
 from app.api.v1.requirement_reviews import router as requirement_reviews_router
+from app.api.v1.user_feedback import router as user_feedback_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -28,6 +29,7 @@ api_router.include_router(jobs_router, tags=["jobs"])
 api_router.include_router(job_requirements_router, tags=["job-requirements"])
 api_router.include_router(match_ranking_router, tags=["match-ranking"])
 api_router.include_router(match_review_router, tags=["match-review"])
+api_router.include_router(user_feedback_router, tags=["user-feedback"])
 api_router.include_router(profile_proposals_router, tags=["profile-proposals"])
 api_router.include_router(profile_evals_router, tags=["profile-evals"])
 api_router.include_router(requirement_evals_router, tags=["requirement-evals"])
