@@ -1,9 +1,16 @@
 """Deterministic UserFeedback-derived Match Eval baseline tests."""
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from app.application.eligibility import EligibilityDecision
 from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
-from app.application.user_feedback_eval import build_user_feedback_match_eval
+from app.application.user_feedback_eval import (
+    UserFeedbackMatchEvalQueryUseCase,
+    build_user_feedback_match_eval,
+)
+from app.application.user_feedback import UserFeedbackPersistenceNotReadyError
+from app.application.user_feedback_persistence import UserFeedbackPersistenceReadiness
 from app.domain.user_feedback import FeedbackDecision, FeedbackReason, StoredUserFeedback, UserFeedbackDraft
 
 
@@ -94,6 +101,81 @@ def test_feedback_eval_uses_latest_feedback_per_match_report_and_reports_distrib
     assert result.recommendation_decision_counts["low"]["rejected"] == 1
     assert result.rejection_reason_counts == {"skill_gap": 1, "compensation": 1}
     assert result.quality_gate_applied is False
+
+
+class _FeedbackQueries:
+    def __init__(self, items: tuple[StoredUserFeedback, ...]) -> None:
+        self.items = items
+        self.job_calls: list[str] = []
+
+    def get(self, feedback_id: str):
+        return None
+
+    def list_for_match_report(self, match_report_id: str):
+        return ()
+
+    def list_for_job(self, job_id: str):
+        self.job_calls.append(job_id)
+        return self.items
+
+
+class _ReportQueries:
+    def __init__(self, items: tuple[StoredMatchReport, ...]) -> None:
+        self.items = items
+        self.job_calls: list[str] = []
+
+    def get(self, report_id: str):
+        return None
+
+    def list_for_job(self, job_id: str):
+        self.job_calls.append(job_id)
+        return self.items
+
+    def list_latest_for_jobs(self, job_ids: tuple[str, ...]):
+        return ()
+
+
+def _ready() -> UserFeedbackPersistenceReadiness:
+    return UserFeedbackPersistenceReadiness(ready=True, blocker_codes=())
+
+
+def test_feedback_eval_query_use_case_reads_one_job_without_side_effects() -> None:
+    report = _report("good", MatchRecommendation.GOOD)
+    feedback = _feedback("f1", "good", FeedbackDecision.INTERESTED)
+    feedback_queries = _FeedbackQueries((feedback,))
+    report_queries = _ReportQueries((report,))
+
+    result = UserFeedbackMatchEvalQueryUseCase(
+        feedback_repository=feedback_queries,
+        report_repository=report_queries,
+        persistence_readiness=_ready,
+    ).execute(job_id=" job_good ")
+
+    assert result.eval.evaluated_match_reports == 1
+    assert result.eval.decision_counts["interested"] == 1
+    assert result.db_writes == 0
+    assert result.provider_calls == 0
+    assert result.trace_runs_created == 0
+    assert feedback_queries.job_calls == ["job_good"]
+    assert report_queries.job_calls == ["job_good"]
+
+
+def test_feedback_eval_query_use_case_fails_closed_before_reads_when_schema_missing() -> None:
+    feedback_queries = _FeedbackQueries(())
+    report_queries = _ReportQueries(())
+
+    with pytest.raises(UserFeedbackPersistenceNotReadyError):
+        UserFeedbackMatchEvalQueryUseCase(
+            feedback_repository=feedback_queries,
+            report_repository=report_queries,
+            persistence_readiness=lambda: UserFeedbackPersistenceReadiness(
+                ready=False,
+                blocker_codes=("user_feedback_persistence_not_ready",),
+            ),
+        ).execute(job_id="job_1")
+
+    assert feedback_queries.job_calls == []
+    assert report_queries.job_calls == []
 
 
 def test_feedback_eval_does_not_invent_ground_truth_for_missing_match_reports() -> None:
