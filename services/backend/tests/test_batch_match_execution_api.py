@@ -41,6 +41,8 @@ class _UseCase:
                     blocker_codes=("requirement_release_not_ready",),
                 ),
             ),
+            resume_job_ids=(),
+            execution_complete=True,
             db_writes=1,
             provider_calls=1,
             trace_runs_created=1,
@@ -69,6 +71,8 @@ def test_batch_match_execution_api_runs_bounded_ready_jobs() -> None:
     assert body["providerCalls"] == 1
     assert body["traceRunsCreated"] == 1
     assert body["sideEffectCountsComplete"] is True
+    assert body["resumeJobIds"] == []
+    assert body["executionComplete"] is True
     assert use_case.calls == [(("job_1", "job_2"), 2)]
 
 
@@ -80,6 +84,22 @@ def test_batch_match_execution_api_rejects_more_than_ten_ready_jobs_per_run() ->
             response = client.post(
                 "/api/v1/match-batch",
                 json={"jobIds": ["job_1"], "maxReadyJobs": 11},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    assert use_case.calls == []
+
+
+def test_batch_match_execution_api_rejects_more_than_fifty_jobs() -> None:
+    use_case = _UseCase()
+    app.dependency_overrides[get_batch_match_execution_use_case] = lambda: use_case
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/match-batch",
+                json={"jobIds": [f"job_{index}" for index in range(51)], "maxReadyJobs": 10},
             )
     finally:
         app.dependency_overrides.clear()

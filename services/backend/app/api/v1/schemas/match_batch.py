@@ -8,7 +8,7 @@ from app.application.match_batch_execution import BatchMatchExecutionResult
 
 
 class BatchMatchExecutionRequest(CamelCaseModel):
-    job_ids: list[str] = Field(min_length=1)
+    job_ids: list[str] = Field(min_length=1, max_length=50)
     max_ready_jobs: int = Field(default=10, ge=1, le=10)
 
 
@@ -27,6 +27,8 @@ class BatchMatchExecutionResponse(CamelCaseModel):
     input_blocked_count: int
     persistence_blocked_count: int
     items: list[BatchMatchExecutionItemResponse]
+    resume_job_ids: list[str]
+    execution_complete: bool
     db_writes: int
     provider_calls: int
     trace_runs_created: int
@@ -50,6 +52,8 @@ class BatchMatchExecutionResponse(CamelCaseModel):
                 )
                 for item in result.items
             ],
+            resume_job_ids=list(result.resume_job_ids),
+            execution_complete=result.execution_complete,
             db_writes=result.db_writes,
             provider_calls=result.provider_calls,
             trace_runs_created=result.trace_runs_created,

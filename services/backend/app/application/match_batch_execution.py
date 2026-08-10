@@ -40,6 +40,8 @@ class BatchMatchExecutionResult:
     input_blocked_count: int
     persistence_blocked_count: int
     items: tuple[BatchMatchExecutionItem, ...]
+    resume_job_ids: tuple[str, ...]
+    execution_complete: bool
     db_writes: int
     provider_calls: int
     trace_runs_created: int
@@ -50,6 +52,7 @@ class ExecuteBatchMatchUseCase:
     """Execute only planner-approved jobs, with a hard per-run ready-job bound."""
 
     MAX_READY_JOBS = 10
+    MAX_BATCH_JOBS = 50
 
     def __init__(
         self,
@@ -68,6 +71,8 @@ class ExecuteBatchMatchUseCase:
     ) -> BatchMatchExecutionResult:
         if not 1 <= max_ready_jobs <= self.MAX_READY_JOBS:
             raise ValueError("max_ready_jobs must be between 1 and 10")
+        if len(job_ids) > self.MAX_BATCH_JOBS:
+            raise ValueError("batch must contain at most 50 jobs")
 
         plan = self._planner.execute(job_ids)
         ready_executed = 0
@@ -131,6 +136,11 @@ class ExecuteBatchMatchUseCase:
             )
 
         result_items = tuple(items)
+        resume_job_ids = tuple(
+            item.job_id
+            for item in result_items
+            if item.status is BatchMatchExecutionStatus.DEFERRED_LIMIT
+        )
         return BatchMatchExecutionResult(
             total=len(result_items),
             succeeded_count=sum(item.status is BatchMatchExecutionStatus.SUCCEEDED for item in result_items),
@@ -139,6 +149,8 @@ class ExecuteBatchMatchUseCase:
             input_blocked_count=sum(item.status is BatchMatchExecutionStatus.INPUT_BLOCKED for item in result_items),
             persistence_blocked_count=sum(item.status is BatchMatchExecutionStatus.PERSISTENCE_BLOCKED for item in result_items),
             items=result_items,
+            resume_job_ids=resume_job_ids,
+            execution_complete=not resume_job_ids,
             db_writes=db_writes,
             provider_calls=provider_calls,
             trace_runs_created=trace_runs_created,

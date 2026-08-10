@@ -84,6 +84,69 @@ def test_batch_execute_isolates_one_job_failure_and_continues_within_bound() -> 
     assert result.side_effect_counts_complete is False
 
 
+def test_batch_execute_exposes_exact_resume_set_for_fifty_job_batch() -> None:
+    planner = Mock()
+    planner.execute.return_value = _plan(
+        *(BatchMatchPlanItem(f"job_{index}", BatchMatchPlanStatus.READY, ()) for index in range(50))
+    )
+    runner = Mock()
+    runner.execute.return_value = SimpleNamespace(db_writes=1, provider_calls=1, trace_runs_created=1)
+
+    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(
+        tuple(f"job_{index}" for index in range(50)),
+        max_ready_jobs=10,
+    )
+
+    assert runner.execute.call_count == 10
+    assert result.total == 50
+    assert result.execution_complete is False
+    assert result.resume_job_ids == tuple(f"job_{index}" for index in range(10, 50))
+
+
+def test_batch_execute_can_finish_fifty_jobs_over_explicit_safe_resume_rounds() -> None:
+    planner = Mock()
+
+    def plan_requested(job_ids: tuple[str, ...]) -> BatchMatchPlan:
+        return _plan(
+            *(BatchMatchPlanItem(job_id, BatchMatchPlanStatus.READY, ()) for job_id in job_ids)
+        )
+
+    planner.execute.side_effect = plan_requested
+    runner = Mock()
+    runner.execute.return_value = SimpleNamespace(db_writes=1, provider_calls=1, trace_runs_created=1)
+    use_case = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner)
+
+    pending = tuple(f"job_{index}" for index in range(50))
+    rounds = 0
+    while pending:
+        result = use_case.execute(pending, max_ready_jobs=10)
+        rounds += 1
+        pending = result.resume_job_ids
+
+    assert rounds == 5
+    assert runner.execute.call_count == 50
+    assert result.execution_complete is True
+    assert result.resume_job_ids == ()
+
+
+def test_batch_execute_rejects_more_than_fifty_jobs_before_planning() -> None:
+    planner = Mock()
+    runner = Mock()
+
+    try:
+        ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(
+            tuple(f"job_{index}" for index in range(51)),
+            max_ready_jobs=10,
+        )
+    except ValueError as error:
+        assert "at most 50" in str(error)
+    else:
+        raise AssertionError("expected ValueError")
+
+    planner.execute.assert_not_called()
+    runner.execute.assert_not_called()
+
+
 def test_batch_execute_rejects_bounds_above_ten_before_planning() -> None:
     planner = Mock()
     runner = Mock()
