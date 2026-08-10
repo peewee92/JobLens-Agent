@@ -1,15 +1,66 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://joblens.local/schemas/job-target.schema.json",
-  "title": "JobTarget",
+  "title": "TargetCohort",
   "type": "object",
-  "required": ["id", "name", "jobIds"],
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "selectionSource",
+    "jobIds",
+    "sampleSize",
+    "createdFromFeedback"
+  ],
   "properties": {
-    "id": {"type": "string"},
-    "name": {"type": "string"},
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
     "description": {"type": ["string", "null"]},
-    "jobIds": {"type": "array", "items": {"type": "string"}},
-    "targetRoles": {"type": "array", "items": {"type": "string"}},
+    "selectionSource": {
+      "type": "string",
+      "enum": ["manual", "user_feedback"]
+    },
+    "jobIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "sampleSize": {"type": "integer", "minimum": 1},
+    "filters": {"type": "object"},
+    "createdFromFeedback": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feedbackId", "matchReportId", "jobId"],
+        "properties": {
+          "feedbackId": {"type": "string", "minLength": 1},
+          "matchReportId": {"type": "string", "minLength": 1},
+          "jobId": {"type": "string", "minLength": 1}
+        }
+      }
+    },
     "createdAt": {"type": "string"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"selectionSource": {"const": "manual"}},
+        "required": ["selectionSource"]
+      },
+      "then": {
+        "properties": {"createdFromFeedback": {"maxItems": 0}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"selectionSource": {"const": "user_feedback"}},
+        "required": ["selectionSource"]
+      },
+      "then": {
+        "properties": {"createdFromFeedback": {"minItems": 1}}
+      }
+    }
+  ]
 }
