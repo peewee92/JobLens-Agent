@@ -26,6 +26,7 @@ export default function RootLayout({children}: {children: ReactNode}) {
               <Link href="/">首页</Link>
               <Link href="/profile">我的背景</Link>
               <Link href="/jobs">我的岗位</Link>
+              <Link href="/gaps">能力差距</Link>
               <Link href="/import">添加岗位</Link>
             </nav>
           </div>
