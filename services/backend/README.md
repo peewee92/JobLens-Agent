@@ -176,6 +176,14 @@ MatchReport 在一次 guarded Semantic Match 后，由 Backend 的确定性 Reco
 
 MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementIds / partialRequirementIds / missingRequirementIds / evidenceLinks`，不产生独立 Trace；Provider/Trace 计数来自它内部的 Semantic Match。成功 runtime 会追加一个不可变 `match_reports` snapshot，并返回 `dbWrites=1`。Web 端只在用户明确点击“生成完整匹配建议”时 POST，不在 SSR/刷新页面时自动触发 Provider。
 
+Phase 5 提供只读批量排序查询：
+
+```bash
+curl 'http://127.0.0.1:8000/api/v1/match-ranking?jobId=job_a&jobId=job_b&includeBlocked=false'
+```
+
+该接口只读取每岗最新 MatchReport snapshot，复用 Backend Ranking Policy 与当前 `SearchIntent.softPreferences`，不会生成新 Match、调用 Provider、创建 Trace 或写数据库。为避免旧结论污染当前排序，返回前会校验 MatchReport 的 `profileId/profileVersion` 与当前 Profile 一致，并要求 `extractionId` 等于该岗位当前最新 Requirement Extraction；stale snapshot 会被过滤。正式 `match_reports` schema 尚未迁移时返回 `409 match_report_persistence_not_ready`。Web 仅通过 same-origin `/api/match-ranking` Route Handler 转发该查询，不在前端复制排序规则。
+
 `match_reports` 持久化使用不可变 JSON snapshot，同时单独保存 Job/Profile/Extraction、Eligibility/Recommendation、Matcher/Prompt/Model 与 Trace 身份；写入走显式 Unit of Work，未 commit 会 rollback，同一岗位的多次报告会追加历史而不是覆盖。runtime 在任何 Semantic/Provider 工作前先检查 `match_reports` 表是否存在；schema 未准备好时稳定返回 `409 match_report_persistence_not_ready`，不会偷偷建表、写 Trace 或产生 Provider 成本。`20260810_0016` migration 已在临时 SQLite 完成 upgrade/downgrade 验证，但尚未应用到真实业务数据库。
 
 20 岗位人工 Match 评审还有一个只读 readiness 入口：
