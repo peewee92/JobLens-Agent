@@ -14,6 +14,7 @@ from app.application.career_context.use_cases import (
     SaveProfileUseCase,
     SaveSearchIntentUseCase,
 )
+from app.application.create_target_cohort import CreateFeedbackTargetCohortUseCase
 from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
@@ -34,8 +35,17 @@ from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.match_review import GetMatchReviewReadinessUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
+from app.application.target_cohort_gap_query import (
+    BuildSelectedFeedbackTargetCohortGapDetailsUseCase,
+)
+from app.application.target_cohort_requirement_aggregation import (
+    AggregateTargetCohortRequirementsUseCase,
+)
 from app.application.user_feedback import CreateUserFeedbackUseCase, ListUserFeedbackUseCase
 from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryUseCase
+from app.application.user_feedback_target_cohort import (
+    UserFeedbackTargetCohortSourceUseCase,
+)
 from app.application.profile_evals.use_cases import (
     GetAcceptedProfileEvalBaselineUseCase,
     GetProfileEvalRunUseCase,
@@ -650,6 +660,33 @@ def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:
     return ListUserFeedbackUseCase(
         repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
         persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+    )
+
+
+def get_target_cohort_gap_query_use_case(
+    release_gate: GetJobRequirementReleaseReadinessUseCase = Depends(
+        get_job_requirement_release_readiness_use_case
+    ),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+    profiles: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+) -> BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
+    source = UserFeedbackTargetCohortSourceUseCase(
+        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+    )
+    creator = CreateFeedbackTargetCohortUseCase(source=source)
+    aggregator = AggregateTargetCohortRequirementsUseCase(
+        release_gate=release_gate,
+        requirements=requirements,
+    )
+    return BuildSelectedFeedbackTargetCohortGapDetailsUseCase(
+        cohort_creator=creator,
+        requirement_aggregator=aggregator,
+        profiles=profiles,
     )
 
 

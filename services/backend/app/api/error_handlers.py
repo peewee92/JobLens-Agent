@@ -16,6 +16,7 @@ from app.application.career_context import (
 )
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
+from app.application.create_target_cohort import TargetCohortSelectionError
 from app.application.match_report import MatchReportPersistenceNotReadyError
 from app.application.user_feedback import (
     FeedbackMatchReportMismatchError,
@@ -149,6 +150,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "match_report_persistence_not_ready",
+            str(error),
+        )
+
+    @app.exception_handler(TargetCohortSelectionError)
+    async def handle_target_cohort_selection_error(
+        _request: Request,
+        error: TargetCohortSelectionError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "target_cohort_selection_invalid",
             str(error),
         )
 
