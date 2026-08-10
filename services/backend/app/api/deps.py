@@ -28,6 +28,7 @@ from app.application.job_requirements.use_cases import (
     GetLatestJobRequirementsUseCase,
 )
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
+from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.match_review import GetMatchReviewReadinessUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
@@ -72,6 +73,7 @@ from app.application.ports import (
     AbstractJobRequirementExtractor,
     AbstractJobRequirementQueryRepository,
     AbstractJobRequirementUnitOfWork,
+    AbstractMatchReportQueryRepository,
     AbstractProfileEvalQueryRepository,
     AbstractProfileEvalReviewUnitOfWork,
     AbstractProfileExtractor,
@@ -103,6 +105,7 @@ from app.repositories import (
     SqlAlchemyJobQueryRepository,
     SqlAlchemyJobRequirementQueryRepository,
     SqlAlchemyJobRequirementUnitOfWork,
+    SqlAlchemyMatchReportQueryRepository,
     SqlAlchemyMatchReportUnitOfWork,
     SqlAlchemyProfileEvalQueryRepository,
     SqlAlchemyProfileEvalReviewUnitOfWork,
@@ -623,6 +626,31 @@ def get_match_report_use_case(
         semantic_match,
         persistence_ready=lambda: inspect(engine).has_table("match_reports"),
         uow_factory=lambda: SqlAlchemyMatchReportUnitOfWork(SessionLocal),
+    )
+
+
+def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
+    return SqlAlchemyMatchReportQueryRepository(SessionLocal)
+
+
+def get_batch_match_ranking_use_case(
+    reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> BatchRankMatchReportsUseCase:
+    return BatchRankMatchReportsUseCase(
+        report_repository=reports,
+        career_context_repository=career_context,
+        job_repository=jobs,
+        requirement_repository=requirements,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
     )
 
 

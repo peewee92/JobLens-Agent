@@ -1,12 +1,17 @@
 """Deterministic base ranking for persisted MatchReport snapshots."""
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from app.application.job_queries.models import JobDetail, JobListItem
-from app.application.match_report import MatchRecommendation, StoredMatchReport
+from app.application.match_report import (
+    MatchRecommendation,
+    MatchReportPersistenceNotReadyError,
+    StoredMatchReport,
+)
 from app.application.ports.career_context_repository import AbstractCareerContextQueryRepository
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
+from app.application.ports.job_requirement_repository import AbstractJobRequirementQueryRepository
 from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
 
 def _contains_term(text: str, term: str) -> bool:
@@ -80,10 +85,14 @@ class BatchRankMatchReportsUseCase:
         report_repository: AbstractMatchReportQueryRepository,
         career_context_repository: AbstractCareerContextQueryRepository,
         job_repository: AbstractJobQueryRepository,
+        requirement_repository: AbstractJobRequirementQueryRepository,
+        persistence_ready: Callable[[], bool],
     ) -> None:
         self._report_repository = report_repository
         self._career_context_repository = career_context_repository
         self._job_repository = job_repository
+        self._requirement_repository = requirement_repository
+        self._persistence_ready = persistence_ready
 
     def execute(
         self,
@@ -93,8 +102,30 @@ class BatchRankMatchReportsUseCase:
     ) -> tuple[StoredMatchReport, ...]:
         if not job_ids:
             return ()
+        if not self._persistence_ready():
+            raise MatchReportPersistenceNotReadyError(
+                "MatchReport persistence schema is not ready"
+            )
 
         reports = self._report_repository.list_latest_for_jobs(job_ids)
+        if not reports:
+            return ()
+
+        current_profile = self._career_context_repository.get_current_profile()
+        if current_profile is None:
+            return ()
+        reports = tuple(
+            item
+            for item in reports
+            if item.report.profile_id == current_profile.id
+            and item.report.profile_version == current_profile.version
+            and (
+                latest_extraction := self._requirement_repository.get_latest(
+                    item.report.job_id
+                )
+            ) is not None
+            and item.report.extraction_id == latest_extraction.id
+        )
         if not reports:
             return ()
 

@@ -1,12 +1,21 @@
 """Read-only Phase 5 Batch Ranking application use case tests."""
+from dataclasses import replace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import Mock
+
+import pytest
 
 from app.application.career_context.models import SearchIntentDetail
 from app.application.eligibility import EligibilityDecision
 from app.application.job_queries.models import JobListItem
 from app.application.match_ranking import BatchRankMatchReportsUseCase
-from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
+from app.application.match_report import (
+    MatchRecommendation,
+    MatchReport,
+    MatchReportPersistenceNotReadyError,
+    StoredMatchReport,
+)
 from app.domain.career_context import Seniority
 from app.domain.jobs import RemoteConfidence, RemoteStatus
 
@@ -76,6 +85,20 @@ def _intent(*soft_preferences: str) -> SearchIntentDetail:
     )
 
 
+def _current_context() -> Mock:
+    repo = Mock()
+    repo.get_current_profile.return_value = SimpleNamespace(id="profile_1", version=1)
+    return repo
+
+
+def _current_requirements() -> Mock:
+    repo = Mock()
+    repo.get_latest.side_effect = lambda job_id: SimpleNamespace(
+        id=job_id.replace("job_", "reqrun_", 1)
+    )
+    return repo
+
+
 def test_batch_ranking_composes_latest_reports_current_preferences_and_job_metadata() -> None:
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = (
@@ -83,8 +106,9 @@ def test_batch_ranking_composes_latest_reports_current_preferences_and_job_metad
         _stored("agent-strong", MatchRecommendation.STRONG),
         _stored("blocked", MatchRecommendation.BLOCKED),
     )
-    context_repo = Mock()
+    context_repo = _current_context()
     context_repo.get_current_search_intent.return_value = _intent("AI Agent")
+    requirement_repo = _current_requirements()
     job_repo = Mock()
     job_repo.get_job.side_effect = lambda job_id: {
         "job_plain-strong": _job("job_plain-strong", "Frontend Engineer"),
@@ -96,6 +120,8 @@ def test_batch_ranking_composes_latest_reports_current_preferences_and_job_metad
         report_repository=report_repo,
         career_context_repository=context_repo,
         job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
     ).execute(("job_plain-strong", "job_agent-strong", "job_blocked"))
 
     assert tuple(item.id for item in result) == ("agent-strong", "plain-strong")
@@ -113,8 +139,9 @@ def test_batch_ranking_is_fail_soft_when_search_intent_or_job_metadata_is_missin
     )
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = reports
-    context_repo = Mock()
+    context_repo = _current_context()
     context_repo.get_current_search_intent.return_value = None
+    requirement_repo = _current_requirements()
     job_repo = Mock()
     job_repo.get_job.return_value = None
 
@@ -122,26 +149,91 @@ def test_batch_ranking_is_fail_soft_when_search_intent_or_job_metadata_is_missin
         report_repository=report_repo,
         career_context_repository=context_repo,
         job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
     ).execute(("job_first", "job_second"), include_blocked=True)
 
     assert result == reports
     assert job_repo.get_job.call_count == 2
 
 
+def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None:
+    current = _stored("current", MatchRecommendation.STRONG)
+    stale_profile = _stored("stale-profile", MatchRecommendation.STRONG)
+    stale_profile = replace(
+        stale_profile,
+        report=replace(stale_profile.report, profile_version=0),
+    )
+    stale_requirement = _stored("stale-requirement", MatchRecommendation.STRONG)
+
+    report_repo = Mock()
+    report_repo.list_latest_for_jobs.return_value = (
+        current,
+        stale_profile,
+        stale_requirement,
+    )
+    context_repo = _current_context()
+    context_repo.get_current_search_intent.return_value = None
+    requirement_repo = _current_requirements()
+    requirement_repo.get_latest.side_effect = lambda job_id: SimpleNamespace(
+        id=(
+            "reqrun_new"
+            if job_id == "job_stale-requirement"
+            else job_id.replace("job_", "reqrun_", 1)
+        )
+    )
+    job_repo = Mock()
+    job_repo.get_job.return_value = None
+
+    result = BatchRankMatchReportsUseCase(
+        report_repository=report_repo,
+        career_context_repository=context_repo,
+        job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
+    ).execute(("job_current", "job_stale-profile", "job_stale-requirement"))
+
+    assert result == (current,)
+
+
 def test_batch_ranking_stops_when_no_reports_exist() -> None:
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = ()
     context_repo = Mock()
+    requirement_repo = Mock()
     job_repo = Mock()
 
     result = BatchRankMatchReportsUseCase(
         report_repository=report_repo,
         career_context_repository=context_repo,
         job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
     ).execute(("job_missing",))
 
     assert result == ()
     report_repo.list_latest_for_jobs.assert_called_once_with(("job_missing",))
+    context_repo.get_current_profile.assert_not_called()
+    context_repo.get_current_search_intent.assert_not_called()
+    job_repo.get_job.assert_not_called()
+
+
+def test_batch_ranking_fails_closed_before_query_when_persistence_is_not_ready() -> None:
+    report_repo = Mock()
+    context_repo = Mock()
+    requirement_repo = Mock()
+    job_repo = Mock()
+
+    with pytest.raises(MatchReportPersistenceNotReadyError):
+        BatchRankMatchReportsUseCase(
+            report_repository=report_repo,
+            career_context_repository=context_repo,
+            job_repository=job_repo,
+            requirement_repository=requirement_repo,
+            persistence_ready=lambda: False,
+        ).execute(("job_1",))
+
+    report_repo.list_latest_for_jobs.assert_not_called()
     context_repo.get_current_search_intent.assert_not_called()
     job_repo.get_job.assert_not_called()
 
@@ -149,12 +241,15 @@ def test_batch_ranking_stops_when_no_reports_exist() -> None:
 def test_batch_ranking_empty_input_does_not_query_other_read_models() -> None:
     report_repo = Mock()
     context_repo = Mock()
+    requirement_repo = Mock()
     job_repo = Mock()
 
     result = BatchRankMatchReportsUseCase(
         report_repository=report_repo,
         career_context_repository=context_repo,
         job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
     ).execute(())
 
     assert result == ()

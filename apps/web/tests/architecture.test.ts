@@ -116,6 +116,20 @@ test("the Match Report Client runs only after explicit user action through same-
   assert.doesNotMatch(page, /fetchJobMatchReport|\/match-report/);
 });
 
+test("the Batch Match Ranking Route Handler only proxies the read-only Backend query", async () => {
+  const route = await readFile(
+    join(webRoot, "app/api/match-ranking/route.ts"),
+    "utf8",
+  );
+
+  assert.match(route, /backendResponse/);
+  assert.match(route, /\/api\/v1\/match-ranking/);
+  assert.match(route, /jobId/);
+  assert.match(route, /includeBlocked/);
+  assert.doesNotMatch(route, /recommendation\s*=|strong|good|stretch|blocked/);
+  assert.doesNotMatch(route, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER/);
+});
+
 test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {
   const source = await readFile(
     join(webRoot, "app/jobs/[id]/page.tsx"),
