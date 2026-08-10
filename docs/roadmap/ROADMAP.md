@@ -250,6 +250,7 @@ Profile 页面可以明确区分：
 - 已完成 UserFeedback → Match Eval 的首个确定性统计基线：按 immutable `matchReportId` 精确关联 MatchReport，同一报告存在多次反馈时只取最新一次作为当前观察，同时保留完整反馈记录数；输出 decision 分布、recommendation × decision 矩阵、rejected reason 计数、缺失 MatchReport IDs 与覆盖数。该统计明确把反馈视为用户偏好观察而非客观 Match ground truth，`qualityGateApplied=false`，不生成准确率/概率或自动 release 结论；缺失报告不按 Job 猜测回填。
 - 已完成按 Job 构建 UserFeedback Match Eval 观察的只读 application query：`UserFeedbackMatchEvalQueryUseCase` 在 persistence readiness 通过后读取该 Job 的 immutable Feedback 与 MatchReport 历史并复用同一确定性统计器；schema 未就绪时在任何 repository read 前 fail-closed。结果显式 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`，不把反馈升级为质量放行证据。
 - 已完成 UserFeedback Match Eval 只读 HTTP query：`GET /api/v1/user-feedback/eval?jobId=...` 仅暴露按 Job 聚合的真实反馈观察、MatchReport 覆盖、rejection reason 与 recommendation × decision 分布，并固定 `qualityGateApplied=false`；空 jobId 在 HTTP contract 层返回 422，真实 `match_reports/user_feedback` schema 未准备时继续在 repository read 前返回 `409 user_feedback_persistence_not_ready`。该 API 不产生 DB 写入、Provider 调用或 Trace，也不输出准确率、概率或自动 release 结论。
+- 已完成 v0.2 Target Cohort 的 UserFeedback 只读来源切片：跨 Job 读取 immutable Feedback 历史，每个 Job 只采用 `(createdAt, feedbackId)` 最新一条真实决策；`interested` / `maybe` 输出为带 `feedbackId + matchReportId + jobId` provenance 的候选，`rejected` 默认排除并单独记录。该切片只提供未来 TargetCohort 的可追溯输入，不创建 Cohort、不推断用户意图、不运行 Match/Provider/Trace；persistence schema 未准备时在任何 feedback read 前继续 fail-closed。
 
 ### 任务
 
