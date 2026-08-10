@@ -241,6 +241,7 @@ Profile 页面可以明确区分：
 - 已完成 Batch Ranking 只读 API/Web query wiring：Backend `GET /api/v1/match-ranking` 接受重复 `jobId` 与 `includeBlocked`，Web `/api/match-ranking` 仅做 same-origin 参数/响应代理，不复制 Ranking 策略。Application 层在排序前过滤与当前 Profile `id/version` 或岗位最新 Requirement Extraction 不一致的 stale MatchReport；真实 `match_reports` schema 未准备时在 SQL 查询前 fail-closed 返回 `409 match_report_persistence_not_ready`。
 - 已完成批量 Match 队列的首个只读 Planning 切片：`PlanBatchMatchUseCase` 对输入 jobId 稳定去重，复用单岗 Match Input Readiness 分类 `ready / input_blocked / persistence_blocked`；输入事实 blocker 优先保留，只有输入已可信但 `match_reports` schema 未就绪时才标记 persistence blocker。Planner 明确 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`，不运行 Eligibility/Semantic Match。实际批量执行队列仍未实现。
 - 已完成 UserFeedback 领域契约与确定性校验首切片：decision 固定为 `interested / maybe / rejected`，反馈必须绑定具体 immutable `matchReportId + jobId`；reasons 使用稳定枚举并去重，`rejected` 至少一个结构化 reason，`other` 必须附 note。同步收紧跨组件 JSON Schema 与 example；本切片不落库、不新增 API、不触发 migration。
+- 已完成 UserFeedback persistence foundation：新增 immutable `user_feedback` ORM、Repository/Query Repository、显式 Unit of Work 与 `20260810_0017` migration 定义；Feedback 以外键绑定 `match_reports.id + jobs.id`，支持按 Feedback ID、MatchReport、Job 回查历史，追加写不覆盖旧反馈，未 commit 自动 rollback。新增只读 persistence readiness gate 与 SQLAlchemy schema inspector，同时要求 `match_reports` 和 `user_feedback` 表存在，缺失时返回结构化 blocker 且 `dbWrites/providerCalls/traceRunsCreated` 均为 0。migration 仅在临时 SQLite 验证 upgrade/downgrade，真实业务 DB 仍停在 `20260805_0015`，未执行 0016/0017 migration，也尚未新增 Feedback 写 API。
 
 ### 任务
 
