@@ -281,6 +281,7 @@ Profile 页面可以明确区分：
 ### 当前进度（2026-08-10）
 
 - 已完成 TargetCohort 最小领域契约：`job-target.schema.json` 正式演进为 `TargetCohort`，新增 `selectionSource / sampleSize / createdFromFeedback`；Backend 提供 immutable `TargetCohortSnapshot`，稳定去重 `jobIds` 并冻结 `sampleSize`。`user_feedback` 来源必须对 cohort 内每个 Job 提供且只提供一条 `feedbackId + matchReportId + jobId` provenance；manual 来源不得伪造 Feedback provenance。该切片仅冻结领域/跨组件契约，不创建正式 DB 表、不新增 API、不运行 Provider/Trace，也不自动把 `maybe` 推断为正式 Target Cohort 成员。
+- 已完成显式 Feedback selection → transient TargetCohort application use case：只接受当前 UserFeedback source 暴露的 immutable `feedbackId`，稳定去重并按用户选择顺序构建 `jobIds + feedbackId + matchReportId` provenance；过期/被拒绝/非当前候选的 Feedback 均 fail-closed，不按 Job 猜测回填。`maybe` 只有在用户显式选中时才可进入 Cohort，不会自动加入；结果固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`，本切片不持久化 Cohort、不新增 API。
 
 ### 任务
 
