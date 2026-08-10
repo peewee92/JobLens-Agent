@@ -2,7 +2,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 
+from app.api.deps import get_user_feedback_match_eval_query_use_case
 from app.application.eligibility import EligibilityDecision
 from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
 from app.application.user_feedback_eval import (
@@ -12,6 +14,7 @@ from app.application.user_feedback_eval import (
 from app.application.user_feedback import UserFeedbackPersistenceNotReadyError
 from app.application.user_feedback_persistence import UserFeedbackPersistenceReadiness
 from app.domain.user_feedback import FeedbackDecision, FeedbackReason, StoredUserFeedback, UserFeedbackDraft
+from app.main import app
 
 
 NOW = datetime(2026, 8, 10, tzinfo=UTC)
@@ -176,6 +179,70 @@ def test_feedback_eval_query_use_case_fails_closed_before_reads_when_schema_miss
 
     assert feedback_queries.job_calls == []
     assert report_queries.job_calls == []
+
+
+class _EvalApiUseCase:
+    def __init__(self, result):
+        self.result = result
+        self.calls: list[str] = []
+
+    def execute(self, *, job_id: str):
+        self.calls.append(job_id)
+        return self.result
+
+
+def test_feedback_eval_api_exposes_read_only_observations_without_quality_claim() -> None:
+    result = UserFeedbackMatchEvalQueryUseCase(
+        feedback_repository=_FeedbackQueries(
+            (_feedback("f1", "good", FeedbackDecision.INTERESTED),)
+        ),
+        report_repository=_ReportQueries((_report("good", MatchRecommendation.GOOD),)),
+        persistence_readiness=_ready,
+    ).execute(job_id="job_good")
+    use_case = _EvalApiUseCase(result)
+    app.dependency_overrides[get_user_feedback_match_eval_query_use_case] = lambda: use_case
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/v1/user-feedback/eval",
+                params={"jobId": "job_good"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["totalFeedbackRecords"] == 1
+    assert body["latestFeedbackCount"] == 1
+    assert body["evaluatedMatchReports"] == 1
+    assert body["decisionCounts"] == {"interested": 1, "maybe": 0, "rejected": 0}
+    assert body["recommendationDecisionCounts"]["good"]["interested"] == 1
+    assert body["qualityGateApplied"] is False
+    assert body["dbWrites"] == 0
+    assert body["providerCalls"] == 0
+    assert body["traceRunsCreated"] == 0
+    assert use_case.calls == ["job_good"]
+
+
+def test_feedback_eval_api_requires_non_empty_job_id() -> None:
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/user-feedback/eval",
+            params={"jobId": ""},
+        )
+
+    assert response.status_code == 422
+
+
+def test_feedback_eval_api_real_schema_fails_closed_before_reads() -> None:
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/user-feedback/eval",
+            params={"jobId": "job_1"},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "user_feedback_persistence_not_ready"
 
 
 def test_feedback_eval_does_not_invent_ground_truth_for_missing_match_reports() -> None:

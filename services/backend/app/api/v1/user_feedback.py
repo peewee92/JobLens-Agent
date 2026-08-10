@@ -5,16 +5,38 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.deps import get_create_user_feedback_use_case, get_list_user_feedback_use_case
+from app.api.deps import (
+    get_create_user_feedback_use_case,
+    get_list_user_feedback_use_case,
+    get_user_feedback_match_eval_query_use_case,
+)
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.user_feedback import (
     CreateUserFeedbackRequest,
     UserFeedbackHistoryResponse,
+    UserFeedbackMatchEvalResponse,
     UserFeedbackResponse,
 )
 from app.application.user_feedback import CreateUserFeedbackUseCase, ListUserFeedbackUseCase
+from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryUseCase
 
 router = APIRouter(prefix="/user-feedback")
+
+
+@router.get(
+    "/eval",
+    response_model=UserFeedbackMatchEvalResponse,
+    responses={status.HTTP_409_CONFLICT: {"model": ApiErrorResponse}},
+)
+def get_user_feedback_match_eval(
+    use_case: Annotated[
+        UserFeedbackMatchEvalQueryUseCase,
+        Depends(get_user_feedback_match_eval_query_use_case),
+    ],
+    job_id: Annotated[str, Query(alias="jobId", min_length=1)],
+) -> UserFeedbackMatchEvalResponse:
+    result = use_case.execute(job_id=job_id)
+    return UserFeedbackMatchEvalResponse.from_result(result)
 
 
 @router.get(

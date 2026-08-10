@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.application.user_feedback import CreateUserFeedbackResult, ListUserFeedbackResult
+from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryResult
 from app.domain.user_feedback import (
     FeedbackDecision,
     FeedbackReason,
@@ -66,6 +67,40 @@ class UserFeedbackHistoryResponse(CamelCaseModel):
     def from_result(cls, result: ListUserFeedbackResult) -> "UserFeedbackHistoryResponse":
         return cls(
             feedback=[UserFeedbackRecordResponse.from_stored(item) for item in result.feedback],
+            db_writes=result.db_writes,
+            provider_calls=result.provider_calls,
+            trace_runs_created=result.trace_runs_created,
+        )
+
+
+class UserFeedbackMatchEvalResponse(CamelCaseModel):
+    total_feedback_records: int
+    latest_feedback_count: int
+    evaluated_match_reports: int
+    missing_match_report_ids: list[str]
+    decision_counts: dict[str, int]
+    recommendation_decision_counts: dict[str, dict[str, int]]
+    rejection_reason_counts: dict[str, int]
+    quality_gate_applied: bool
+    db_writes: int
+    provider_calls: int
+    trace_runs_created: int
+
+    @classmethod
+    def from_result(
+        cls,
+        result: UserFeedbackMatchEvalQueryResult,
+    ) -> "UserFeedbackMatchEvalResponse":
+        observed = result.eval
+        return cls(
+            total_feedback_records=observed.total_feedback_records,
+            latest_feedback_count=observed.latest_feedback_count,
+            evaluated_match_reports=observed.evaluated_match_reports,
+            missing_match_report_ids=list(observed.missing_match_report_ids),
+            decision_counts=observed.decision_counts,
+            recommendation_decision_counts=observed.recommendation_decision_counts,
+            rejection_reason_counts=observed.rejection_reason_counts,
+            quality_gate_applied=observed.quality_gate_applied,
             db_writes=result.db_writes,
             provider_calls=result.provider_calls,
             trace_runs_created=result.trace_runs_created,
