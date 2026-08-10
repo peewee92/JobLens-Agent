@@ -88,7 +88,7 @@ class NormalizeTargetCohortCapabilitiesUseCase:
             source_capability = fact.normalized_capability.strip()
             if not source_capability:
                 continue
-            capability = _canonical_capability(source_capability)
+            capability = canonicalize_target_cohort_capability(source_capability)
             accumulator = accumulators.get(capability)
             if accumulator is None:
                 accumulator = _CapabilityAccumulator(
@@ -135,12 +135,14 @@ class NormalizeTargetCohortCapabilitiesUseCase:
         )
 
 
-def _canonical_capability(value: str) -> str:
-    return _EXPLICIT_CAPABILITY_ALIASES.get(value.casefold(), value)
+def canonicalize_target_cohort_capability(value: str) -> str:
+    """Return the stable canonical label for an explicitly approved alias."""
+    return _EXPLICIT_CAPABILITY_ALIASES.get(value.strip().casefold(), value.strip())
 
 
 __all__ = [
     "NormalizeTargetCohortCapabilitiesUseCase",
+    "canonicalize_target_cohort_capability",
     "TargetCohortCapability",
     "TargetCohortCapabilityNormalizationResult",
 ]
