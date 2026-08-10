@@ -184,6 +184,16 @@ curl 'http://127.0.0.1:8000/api/v1/match-ranking?jobId=job_a&jobId=job_b&include
 
 该接口只读取每岗最新 MatchReport snapshot，复用 Backend Ranking Policy 与当前 `SearchIntent.softPreferences`，不会生成新 Match、调用 Provider、创建 Trace 或写数据库。为避免旧结论污染当前排序，返回前会校验 MatchReport 的 `profileId/profileVersion` 与当前 Profile 一致，并要求 `extractionId` 等于该岗位当前最新 Requirement Extraction；stale snapshot 会被过滤。正式 `match_reports` schema 尚未迁移时返回 `409 match_report_persistence_not_ready`。Web 仅通过 same-origin `/api/match-ranking` Route Handler 转发该查询，不在前端复制排序规则。
 
+Phase 6 已提供 transient Target Cohort 的 Gap Detail Backend API：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/target-cohort/gaps \
+  -H 'content-type: application/json' \
+  -d '{"cohortId":"cohort_demo","name":"目标岗位","selectedFeedbackIds":["feedback_xxx"]}'
+```
+
+该接口不会持久化 TargetCohort，而是只消费用户显式选中的**当前** UserFeedback candidate，并复用既有确定性链路：Feedback → transient Cohort → Requirement release gate → capability normalization → confirmed Profile comparison → SkillGap metrics → P0/P1 → Action Plan → Gap Detail。响应可直接展示 `targetCoverage / mustHaveRatio / gapSeverity`、`supportingRequirementIds / supportingJobIds`、`profileSkillIds / evidenceIds`、当前缺口状态和 completion criteria。过期或不再是当前 candidate 的 Feedback 返回 `409 target_cohort_selection_invalid`；正式 `match_reports/user_feedback` schema 未准备时返回 `409 user_feedback_persistence_not_ready`。接口固定不调用 Provider、不创建 Trace、不写数据库。
+
 Phase 5 还提供纯 application 层的 `PlanBatchMatchUseCase`，用于真正批量执行之前把请求岗位稳定去重并分类为 `ready / input_blocked / persistence_blocked`。它复用单岗 Match Input Readiness，输入事实未通过时保留原 blocker codes；输入已可信但 `match_reports` schema 未就绪时只标记 persistence blocker。Planner 不运行 Eligibility/Semantic Match，不调用 Provider/Trace，也不写数据库。
 
 在 Planner 之上新增 `ExecuteBatchMatchUseCase` 作为首个受限批量执行编排器：只执行 Planner 标记为 `ready` 的岗位，复用现有单岗 `BuildJobMatchReportUseCase`，不复制 Eligibility/Semantic Match 规则。单次调用最多执行 10 个 ready job，超过部分标记为 `deferred_limit`；输入或 persistence blocker 原样保留。单岗失败会隔离为 `failed` 并继续后续岗位，但因为异常路径无法可靠知道 Provider/Trace 是否已发生，此时 `sideEffectCountsComplete=false`，不会猜测失败任务的副作用数量。`POST /api/v1/match-batch` 已作为受控 HTTP contract 暴露该编排器：`jobIds` 至少 1 个且最多 50 个，`maxReadyJobs` 被请求模型硬限制为 1–10。响应的 `resumeJobIds` 只包含本轮因执行上限而确定未运行的 `deferred_limit` 岗位，`executionComplete` 表示是否还存在这类安全续跑项；失败任务不会自动加入恢复集合，避免副作用状态不明时被无意重放。测试已验证 50 个全部 ready 的岗位可按 `resumeJobIds` 经过 5 轮显式续跑完成，且每轮最多只运行 10 个。真实未通过 Match Input Readiness 的岗位仍只返回 blocker，不触发 Match/Provider/Trace/DB 写入；真实业务 DB 仍未应用 `0016/0017` migration。
