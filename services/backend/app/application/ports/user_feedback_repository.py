@@ -26,3 +26,7 @@ class AbstractUserFeedbackQueryRepository(ABC):
     @abstractmethod
     def list_for_job(self, job_id: str) -> "tuple[StoredUserFeedback, ...]":
         raise NotImplementedError
+
+    @abstractmethod
+    def list_all(self) -> "tuple[StoredUserFeedback, ...]":
+        raise NotImplementedError

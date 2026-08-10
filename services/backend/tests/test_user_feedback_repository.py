@@ -94,6 +94,21 @@ def test_user_feedback_query_lists_feedback_for_job_only(tmp_path: Path) -> None
     assert all(item.feedback.job_id == "job_1" for item in history)
 
 
+def test_user_feedback_query_lists_all_feedback_for_cross_job_sources(tmp_path: Path) -> None:
+    factory = _factory(tmp_path)
+    with SqlAlchemyUserFeedbackUnitOfWork(factory) as uow:
+        first = uow.feedback.add(_draft(job_id="job_1"))
+        uow.commit()
+    with SqlAlchemyUserFeedbackUnitOfWork(factory) as uow:
+        second = uow.feedback.add(_draft(match_report_id="match_2", job_id="job_2"))
+        uow.commit()
+
+    history = SqlAlchemyUserFeedbackQueryRepository(factory).list_all()
+
+    assert {item.id for item in history} == {first.id, second.id}
+    assert {item.feedback.job_id for item in history} == {"job_1", "job_2"}
+
+
 def test_user_feedback_unit_of_work_rolls_back_uncommitted_feedback(tmp_path: Path) -> None:
     factory = _factory(tmp_path)
     with SqlAlchemyUserFeedbackUnitOfWork(factory) as uow:

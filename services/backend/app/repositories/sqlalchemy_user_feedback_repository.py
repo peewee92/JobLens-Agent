@@ -67,6 +67,16 @@ class SqlAlchemyUserFeedbackQueryRepository(AbstractUserFeedbackQueryRepository)
             ).all()
             return tuple(_stored(record) for record in records)
 
+    def list_all(self) -> tuple[StoredUserFeedback, ...]:
+        with self._session_factory() as session:
+            records = session.scalars(
+                select(UserFeedbackORM).order_by(
+                    UserFeedbackORM.created_at.desc(),
+                    UserFeedbackORM.id.desc(),
+                )
+            ).all()
+            return tuple(_stored(record) for record in records)
+
 
 def _stored(record: UserFeedbackORM) -> StoredUserFeedback:
     created_at = (
