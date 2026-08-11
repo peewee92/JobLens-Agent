@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.user_feedback_target_cohort import UserFeedbackTargetCohortSourceResult
 from app.domain.target_cohort import (
     TargetCohortFeedbackSource,
@@ -24,6 +25,13 @@ class CreateFeedbackTargetCohortCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class CreateManualTargetCohortCommand:
+    cohort_id: str
+    name: str
+    selected_job_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class CreateFeedbackTargetCohortResult:
     cohort: TargetCohortSnapshot
     db_writes: int = 0
@@ -33,6 +41,35 @@ class CreateFeedbackTargetCohortResult:
 
 class FeedbackTargetCohortSource(Protocol):
     def execute(self) -> UserFeedbackTargetCohortSourceResult: ...
+
+
+class CreateManualTargetCohortUseCase:
+    """Create a transient cohort from Jobs explicitly selected on the planning screen."""
+
+    def __init__(self, *, jobs: AbstractJobQueryRepository) -> None:
+        self._jobs = jobs
+
+    def execute(
+        self,
+        command: CreateManualTargetCohortCommand,
+    ) -> CreateFeedbackTargetCohortResult:
+        selected_job_ids = _stable_unique_ids(command.selected_job_ids)
+        if not selected_job_ids:
+            raise TargetCohortSelectionError("at least one Job must be selected")
+
+        for job_id in selected_job_ids:
+            if self._jobs.get_job(job_id) is None:
+                raise TargetCohortSelectionError(
+                    f"job {job_id!r} is not available for manual cohort selection"
+                )
+
+        cohort = TargetCohortSnapshot.create(
+            cohort_id=command.cohort_id,
+            name=command.name,
+            selection_source=TargetCohortSelectionSource.MANUAL,
+            job_ids=selected_job_ids,
+        )
+        return CreateFeedbackTargetCohortResult(cohort=cohort)
 
 
 class CreateFeedbackTargetCohortUseCase:
@@ -85,6 +122,39 @@ class CreateFeedbackTargetCohortUseCase:
         return CreateFeedbackTargetCohortResult(cohort=cohort)
 
 
+class CreateTargetCohortUseCase:
+    """Dispatch explicit cohort creation without inferring the user's selection source."""
+
+    def __init__(
+        self,
+        *,
+        feedback: CreateFeedbackTargetCohortUseCase,
+        manual: CreateManualTargetCohortUseCase,
+    ) -> None:
+        self._feedback = feedback
+        self._manual = manual
+
+    def execute(
+        self,
+        command: CreateFeedbackTargetCohortCommand | CreateManualTargetCohortCommand,
+    ) -> CreateFeedbackTargetCohortResult:
+        if isinstance(command, CreateManualTargetCohortCommand):
+            return self._manual.execute(command)
+        return self._feedback.execute(command)
+
+
+def _stable_unique_ids(values: tuple[str, ...]) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        value = raw_value.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return tuple(normalized)
+
+
 def _stable_unique_feedback_ids(feedback_ids: tuple[str, ...]) -> tuple[str, ...]:
     normalized: list[str] = []
     seen: set[str] = set()
@@ -101,5 +171,8 @@ __all__ = [
     "CreateFeedbackTargetCohortCommand",
     "CreateFeedbackTargetCohortResult",
     "CreateFeedbackTargetCohortUseCase",
+    "CreateManualTargetCohortCommand",
+    "CreateManualTargetCohortUseCase",
+    "CreateTargetCohortUseCase",
     "TargetCohortSelectionError",
 ]

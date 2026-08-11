@@ -6,6 +6,8 @@ import pytest
 from app.application.create_target_cohort import (
     CreateFeedbackTargetCohortCommand,
     CreateFeedbackTargetCohortUseCase,
+    CreateManualTargetCohortCommand,
+    CreateManualTargetCohortUseCase,
     TargetCohortSelectionError,
 )
 from app.application.user_feedback_target_cohort import (
@@ -46,6 +48,37 @@ def _source_result() -> UserFeedbackTargetCohortSourceResult:
         latest_job_feedback_count=3,
         excluded_rejected_job_ids=("job_3",),
     )
+
+
+class _Jobs:
+    def get_job(self, job_id: str):
+        return object() if job_id in {"job_1", "job_2"} else None
+
+
+def test_creates_manual_cohort_from_explicit_job_selection_without_feedback() -> None:
+    result = CreateManualTargetCohortUseCase(jobs=_Jobs()).execute(
+        CreateManualTargetCohortCommand(
+            cohort_id="cohort_manual",
+            name="My planning targets",
+            selected_job_ids=("job_2", "job_1", "job_2"),
+        )
+    )
+
+    assert result.cohort.selection_source is TargetCohortSelectionSource.MANUAL
+    assert result.cohort.job_ids == ("job_2", "job_1")
+    assert result.cohort.created_from_feedback == ()
+    assert result.db_writes == 0
+
+
+def test_manual_cohort_rejects_unknown_job_instead_of_silently_accepting_it() -> None:
+    with pytest.raises(TargetCohortSelectionError, match="not available"):
+        CreateManualTargetCohortUseCase(jobs=_Jobs()).execute(
+            CreateManualTargetCohortCommand(
+                cohort_id="cohort_manual",
+                name="My planning targets",
+                selected_job_ids=("job_missing",),
+            )
+        )
 
 
 def test_creates_feedback_cohort_only_from_explicit_selected_feedback_ids() -> None:

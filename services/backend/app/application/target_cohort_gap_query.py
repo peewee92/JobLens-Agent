@@ -6,6 +6,7 @@ from typing import Protocol
 from app.application.create_target_cohort import (
     CreateFeedbackTargetCohortCommand,
     CreateFeedbackTargetCohortResult,
+    CreateManualTargetCohortCommand,
 )
 from app.application.ports.career_context_repository import AbstractCareerContextQueryRepository
 from app.application.target_cohort_action_plan import BuildTargetCohortActionPlanUseCase
@@ -23,10 +24,10 @@ from app.application.target_cohort_skill_gap_priority import PrioritizeTargetCoh
 from app.domain.target_cohort import TargetCohortSnapshot
 
 
-class FeedbackTargetCohortCreator(Protocol):
+class TargetCohortCreator(Protocol):
     def execute(
         self,
-        command: CreateFeedbackTargetCohortCommand,
+        command: CreateFeedbackTargetCohortCommand | CreateManualTargetCohortCommand,
     ) -> CreateFeedbackTargetCohortResult: ...
 
 
@@ -50,7 +51,7 @@ class BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
     def __init__(
         self,
         *,
-        cohort_creator: FeedbackTargetCohortCreator,
+        cohort_creator: TargetCohortCreator,
         requirement_aggregator: TargetCohortRequirementAggregator,
         profiles: AbstractCareerContextQueryRepository,
     ) -> None:
@@ -66,7 +67,7 @@ class BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
 
     def execute(
         self,
-        command: CreateFeedbackTargetCohortCommand,
+        command: CreateFeedbackTargetCohortCommand | CreateManualTargetCohortCommand,
     ) -> BuildTargetCohortGapDetailsResult:
         cohort_result = self._cohort_creator.execute(command)
         cohort = cohort_result.cohort

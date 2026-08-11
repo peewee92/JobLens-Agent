@@ -136,7 +136,7 @@ test("the Batch Match Ranking Route Handler only proxies the read-only Backend q
   assert.doesNotMatch(route, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER/);
 });
 
-test("Target Cohort Gap UI uses only the same-origin proxy and renders Backend facts", async () => {
+test("Target Cohort Gap UI hides feedback IDs behind a human-readable Job selector", async () => {
   const client = await readFile(
     join(webRoot, "components/target-cohort-gap-panel.tsx"),
     "utf8",
@@ -146,14 +146,21 @@ test("Target Cohort Gap UI uses only the same-origin proxy and renders Backend f
     "utf8",
   );
 
-  assert.match(client, /fetch\("\/api\/target-cohort\/gaps"/);
+  assert.match(client, /fetch\("\/api\/target-cohort\/gaps", \{method: "GET"\}\)/);
   assert.match(client, /method:\s*"POST"/);
+  assert.match(client, /item\.title/);
+  assert.match(client, /item\.company/);
+  assert.match(client, /item\.jobId/);
+  assert.match(client, /selectedJobIds/);
+  assert.match(client, /选择全部“感兴趣”/);
+  assert.doesNotMatch(client, /selectedFeedbackIds|已选择岗位的反馈 ID|feedback-ids|parseFeedbackIds|textarea/);
   assert.match(client, /supportingJobIds/);
   assert.match(client, /supportingRequirementIds/);
   assert.match(client, /profileSkillIds/);
   assert.match(client, /evidenceIds/);
   assert.match(client, /completionCriteria/);
   assert.match(route, /backendResponse/);
+  assert.match(route, /\/api\/v1\/target-cohort\/gaps\/candidates/);
   assert.match(route, /\/api\/v1\/target-cohort\/gaps/);
   assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
   assert.doesNotMatch(route, /gapSeverity\s*=|targetCoverage\s*=|mustHaveRatio\s*=/);

@@ -7,12 +7,13 @@ build an explicit cohort without losing the evidence trail.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 
 from app.application.ports.user_feedback_repository import AbstractUserFeedbackQueryRepository
 from app.application.user_feedback import UserFeedbackPersistenceNotReadyError
 from app.application.user_feedback_persistence import UserFeedbackPersistenceReadiness
-from app.domain.user_feedback import FeedbackDecision, StoredUserFeedback
+from app.domain.user_feedback import FeedbackDecision, FeedbackReason, StoredUserFeedback
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +22,9 @@ class UserFeedbackTargetCohortCandidate:
     feedback_id: str
     match_report_id: str
     decision: FeedbackDecision
+    feedback_created_at: datetime | None = None
+    reasons: tuple[FeedbackReason, ...] = ()
+    note: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +80,9 @@ class UserFeedbackTargetCohortSourceUseCase:
                 feedback_id=item.id,
                 match_report_id=item.feedback.match_report_id,
                 decision=decision,
+                feedback_created_at=item.created_at,
+                reasons=item.feedback.reasons,
+                note=item.feedback.note,
             )
             if decision is FeedbackDecision.INTERESTED:
                 interested.append(candidate)

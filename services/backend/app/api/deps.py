@@ -14,7 +14,11 @@ from app.application.career_context.use_cases import (
     SaveProfileUseCase,
     SaveSearchIntentUseCase,
 )
-from app.application.create_target_cohort import CreateFeedbackTargetCohortUseCase
+from app.application.create_target_cohort import (
+    CreateFeedbackTargetCohortUseCase,
+    CreateManualTargetCohortUseCase,
+    CreateTargetCohortUseCase,
+)
 from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
@@ -37,6 +41,7 @@ from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.match_review import GetMatchReviewReadinessUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
+from app.application.target_cohort_candidates import ListTargetCohortCandidatesUseCase
 from app.application.target_cohort_gap_query import (
     BuildSelectedFeedbackTargetCohortGapDetailsUseCase,
 )
@@ -681,6 +686,23 @@ def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:
     )
 
 
+def get_target_cohort_candidates_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+) -> ListTargetCohortCandidatesUseCase:
+    source = UserFeedbackTargetCohortSourceUseCase(
+        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+    )
+    return ListTargetCohortCandidatesUseCase(
+        source=source,
+        jobs=jobs,
+        reports=reports,
+    )
+
+
 def get_target_cohort_gap_query_use_case(
     release_gate: GetJobRequirementReleaseReadinessUseCase = Depends(
         get_job_requirement_release_readiness_use_case
@@ -691,12 +713,16 @@ def get_target_cohort_gap_query_use_case(
     profiles: AbstractCareerContextQueryRepository = Depends(
         get_career_context_query_repository
     ),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
     source = UserFeedbackTargetCohortSourceUseCase(
         feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
         persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
     )
-    creator = CreateFeedbackTargetCohortUseCase(source=source)
+    creator = CreateTargetCohortUseCase(
+        feedback=CreateFeedbackTargetCohortUseCase(source=source),
+        manual=CreateManualTargetCohortUseCase(jobs=jobs),
+    )
     aggregator = AggregateTargetCohortRequirementsUseCase(
         release_gate=release_gate,
         requirements=requirements,

@@ -114,6 +114,22 @@ test("match report card leads with a recommendation and keeps AI execution expli
   assert.doesNotMatch(panel, /score/);
 });
 
+test("Target Cohort Gap page is phrased around choosing Jobs instead of internal IDs", async () => {
+  const page = await source("app/gaps/page.tsx");
+  const panel = await source("components/target-cohort-gap-panel.tsx");
+
+  assert.match(page, /别按感觉补技能/);
+  assert.match(panel, /选择目标岗位/);
+  assert.match(panel, /不需要再找任何 ID/);
+  assert.match(panel, /感兴趣/);
+  assert.match(panel, /再看看/);
+  assert.match(panel, /分析这些岗位的共同能力差距/);
+  assert.match(panel, /做到什么算补齐/);
+  assert.match(panel, /查看技术依据/);
+  assert.doesNotMatch(panel, /已选择岗位的反馈 ID|可用逗号、空格或换行分隔/);
+});
+
+
 test("home page explains the product as a simple job-search workflow", async () => {
   const page = await source("app/page.tsx");
   assert.match(page, /先把自己和岗位看清楚/);
