@@ -49,6 +49,40 @@ test("job detail keeps internal requirement metadata out of the ordinary user ex
   assert.match(css, /\.requirement-action-button[\s\S]*white-space:\s*nowrap/);
 });
 
+test("requirement extraction gives a clear live processing state for long requests", async () => {
+  const button = await source("components/job-requirement-extract-button.tsx");
+  const css = await source("app/globals.css");
+
+  assert.match(button, /Analyzing job requirements…/);
+  assert.match(button, /This can take a moment\./);
+  assert.match(button, /role="status"/);
+  assert.match(button, /aria-live="polite"/);
+  assert.match(button, /requirement-processing-indicator/);
+  assert.match(css, /\.requirement-processing-indicator/);
+  assert.match(css, /\.loading-spinner/);
+});
+
+test("requirement readiness page leads with user decisions and hides technical evidence by default", async () => {
+  const page = await source("app/evals/requirements/canary/readiness/page.tsx");
+  const css = await source("app/globals.css");
+
+  assert.match(page, /岗位要求分析准备情况/);
+  assert.match(page, /现在能不能继续/);
+  assert.match(page, /下一步做什么/);
+  assert.match(page, /\{next\.label\}/);
+  assert.doesNotMatch(page, /requirementAcceptanceNextActionLabels/);
+  assert.match(page, /readiness-overview/);
+  assert.match(page, /需要处理的事项/);
+  assert.match(page, /确认本轮测试信息/);
+  assert.match(page, /readiness-user-input-form/);
+  assert.match(page, /<details className="readiness-advanced-details">/);
+  assert.match(page, /技术详情与运行参数/);
+  assert.match(css, /\.readiness-overview/);
+  assert.match(css, /\.readiness-progress-grid/);
+  assert.doesNotMatch(page, /<h2>人工参数<\/h2>/);
+  assert.doesNotMatch(page, /<h2>证据身份<\/h2>/);
+});
+
 test("job detail explains deterministic eligibility without fake match scores", async () => {
   const page = await source("app/jobs/[id]/page.tsx");
   const eligibility = await source("lib/eligibility.ts");

@@ -58,12 +58,25 @@ export function JobRequirementExtractButton({
           type="submit"
         >
           {status === "submitting"
-            ? "正在分析…"
+            ? "Analyzing…"
             : hasExisting
               ? "重新分析岗位要求"
               : "分析岗位要求"}
         </button>
       </form>
+      {status === "submitting" ? (
+        <div
+          aria-live="polite"
+          className="requirement-processing-indicator"
+          role="status"
+        >
+          <span aria-hidden="true" className="loading-spinner" />
+          <div>
+            <strong>Analyzing job requirements…</strong>
+            <p>This can take a moment. Please keep this page open.</p>
+          </div>
+        </div>
+      ) : null}
       {disabled ? (
         <p className="notice">当前岗位缺少足够的 JD 文本，暂时无法分析岗位要求。</p>
       ) : null}
