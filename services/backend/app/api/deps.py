@@ -18,6 +18,8 @@ from app.application.create_target_cohort import CreateFeedbackTargetCohortUseCa
 from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
+from app.application.job_preparation.bundle import BuildJobPreparationBundleUseCase
+from app.application.job_preparation.readiness import GetJobPreparationReadinessUseCase
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_queries.use_cases import GetJobUseCase, ListJobsUseCase
 from app.application.job_requirements.release import (
@@ -605,6 +607,22 @@ def get_job_eligibility_use_case(
 ) -> EvaluateJobEligibilityUseCase:
     return EvaluateJobEligibilityUseCase(
         readiness=readiness,
+        profiles=profiles,
+        requirements=requirements,
+    )
+
+
+def get_job_preparation_bundle_use_case(
+    match_inputs: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
+    profiles: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> BuildJobPreparationBundleUseCase:
+    return BuildJobPreparationBundleUseCase(
+        readiness=GetJobPreparationReadinessUseCase(match_inputs=match_inputs),
         profiles=profiles,
         requirements=requirements,
     )
