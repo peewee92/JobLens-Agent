@@ -312,6 +312,84 @@ export interface JobMatchReport {
   traceRunsCreated: number;
 }
 
+export interface ResumeDeltaHighlight {
+  requirementId: string;
+  capability: string;
+  profileSkillIds: string[];
+  evidenceIds: string[];
+}
+
+export interface ResumeDeltaGap {
+  requirementId: string;
+  capability: string;
+  status: "unevidenced" | "missing";
+  profileSkillIds: string[];
+}
+
+export interface JobPreparationBundle {
+  jobId: string;
+  factsUsable: boolean;
+  profileId: string | null;
+  profileVersion: number | null;
+  extractionId: string | null;
+  resumeDelta: {
+    highlights: ResumeDeltaHighlight[];
+    evidenceGaps: ResumeDeltaGap[];
+  } | null;
+  experiencePriority: {
+    items: Array<{
+      evidenceId: string;
+      evidenceType: string;
+      supportingRequirementIds: string[];
+      matchedCapabilities: string[];
+      mustHaveCount: number;
+      requirementCount: number;
+    }>;
+  } | null;
+  storyFacts: {
+    items: Array<{
+      evidenceId: string;
+      evidenceType: string;
+      evidenceSummary: string;
+      supportingRequirementIds: string[];
+      supportingRequirementTexts: string[];
+      matchedCapabilities: string[];
+      mustHaveCount: number;
+      requirementCount: number;
+    }>;
+  } | null;
+  interviewFacts: {
+    items: Array<{
+      requirementId: string;
+      requirementType: string;
+      requirementText: string;
+      importance: string;
+      normalizedCapability: string | null;
+      preparationPriority: string;
+      evidenceStatus: string;
+      profileSkillIds: string[];
+      evidenceIds: string[];
+      evidenceSummaries: string[];
+    }>;
+  } | null;
+  studyChecklist: {
+    items: Array<{
+      requirementId: string;
+      requirementText: string;
+      capability: string;
+      importance: string;
+      evidenceStatus: string;
+      need: string;
+      profileSkillIds: string[];
+      completionCriteria: string[];
+    }>;
+  } | null;
+  blockers: string[];
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export interface JobRequirementExtraction {
   extractionId: string;
   jobId: string;

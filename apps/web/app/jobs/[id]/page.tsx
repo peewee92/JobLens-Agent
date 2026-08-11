@@ -104,6 +104,9 @@ export default async function JobDetailPage({
     <>
       <div className="actions" style={{marginBottom: 18}}>
         <Link className="button-ghost" href="/jobs">← 返回我的岗位</Link>
+        <Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>
+          查看投递与面试准备
+        </Link>
       </div>
       <section className="detail-grid">
         <article className="detail-card">

@@ -6,6 +6,7 @@ import type {
   JobDetail,
   JobEligibilityResult,
   JobImportDetail,
+  JobPreparationBundle,
   AcceptedProfileEvalBaseline,
   JobPage,
   JobRequirementExtraction,
@@ -104,6 +105,12 @@ export function fetchJobDetail(jobId: string): Promise<JobDetail> {
 export function fetchJobEligibility(jobId: string): Promise<JobEligibilityResult> {
   return backendJson<JobEligibilityResult>(
     `/api/v1/jobs/${encodeURIComponent(jobId)}/eligibility`,
+  );
+}
+
+export function fetchJobPreparation(jobId: string): Promise<JobPreparationBundle> {
+  return backendJson<JobPreparationBundle>(
+    `/api/v1/job-preparation/${encodeURIComponent(jobId)}`,
   );
 }
 

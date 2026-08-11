@@ -153,6 +153,24 @@ test("Target Cohort Gap UI uses only the same-origin proxy and renders Backend f
   assert.doesNotMatch(route, /gapSeverity\s*=|targetCoverage\s*=|mustHaveRatio\s*=/);
 });
 
+test("Job Preparation page consumes only the Backend fact bundle without reimplementing policy", async () => {
+  const page = await readFile(
+    join(webRoot, "app/jobs/[id]/prepare/page.tsx"),
+    "utf8",
+  );
+  const backend = await readFile(join(webRoot, "lib/backend.ts"), "utf8");
+
+  assert.match(page, /fetchJobPreparation/);
+  assert.match(page, /resumeDelta/);
+  assert.match(page, /experiencePriority/);
+  assert.match(page, /storyFacts/);
+  assert.match(page, /interviewFacts/);
+  assert.match(page, /studyChecklist/);
+  assert.match(backend, /\/api\/v1\/job-preparation\/\$\{encodeURIComponent\(jobId\)\}/);
+  assert.doesNotMatch(page, /fetch\(/);
+  assert.doesNotMatch(page, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER|gapSeverity\s*=|mustHaveRatio\s*=/);
+});
+
 test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {
   const source = await readFile(
     join(webRoot, "app/jobs/[id]/page.tsx"),
