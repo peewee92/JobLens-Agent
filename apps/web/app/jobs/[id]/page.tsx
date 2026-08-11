@@ -85,6 +85,20 @@ export default async function JobDetailPage({
   const groupedEligibility = eligibility
     ? groupEligibilityRequirements(eligibility.requirements)
     : null;
+  const requirementBlockerCodes = new Set(
+    releaseReadiness?.blockers.map((item) => item.code) ?? [],
+  );
+  const requirementExtractionMissing = requirementBlockerCodes.has(
+    "requirement_extraction_missing",
+  );
+  const acceptedBaselineMissing = requirementBlockerCodes.has(
+    "accepted_baseline_missing",
+  );
+  const matchDisabledReason = requirementExtractionMissing
+    ? "先点击下方“分析岗位要求”。当前职业背景已经确认，真正缺少的是这份岗位的结构化要求。"
+    : acceptedBaselineMissing
+      ? "这份岗位可以先完成要求分析，但项目级 Requirement AI 质量验收尚未形成 accepted baseline，所以正式匹配暂时锁定。"
+      : "当前职业背景或岗位要求仍未通过匹配输入检查，请先处理下方准备项。";
 
   return (
     <>
@@ -133,7 +147,11 @@ export default async function JobDetailPage({
               </div>
             </div>
 
-            <JobMatchReportPanel enabled={eligibility !== null} jobId={job.id} />
+            <JobMatchReportPanel
+              disabledReason={matchDisabledReason}
+              enabled={eligibility !== null}
+              jobId={job.id}
+            />
 
             {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
             {eligibility && groupedEligibility ? (
@@ -194,9 +212,7 @@ export default async function JobDetailPage({
             ) : !eligibilityError ? (
               <div className="review-result review-pending">
                 <strong>匹配判断还没有开始</strong>
-                <p>
-                  需要先确认你的职业背景，并让这份岗位要求通过质量检查。准备完成后，这里会显示“已匹配 / 待确认 / 明显缺失”。
-                </p>
+                <p>{matchDisabledReason}</p>
               </div>
             ) : null}
           </section>
@@ -217,6 +233,16 @@ export default async function JobDetailPage({
             </div>
 
             {requirementError ? <p className="inline-error">{requirementError}</p> : null}
+            {!extraction && !requirementError ? (
+              <p className="notice">
+                <strong>你现在可以做第 1 步：</strong> 点击右上角蓝色“分析岗位要求”。这一步只生成当前岗位的结构化 Requirement；项目级 AI 质量验收是另一层门禁，不会阻止你先完成当前岗位分析。
+              </p>
+            ) : null}
+            {acceptedBaselineMissing ? (
+              <p className="muted-copy">
+                项目级质量验收入口：<Link href="/evals/requirements/canary/readiness">查看 Requirement Acceptance Readiness →</Link>
+              </p>
+            ) : null}
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}

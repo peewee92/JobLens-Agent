@@ -13,9 +13,11 @@ import {userFacingApiError} from "@/lib/user-facing-errors";
 export function JobMatchReportPanel({
   jobId,
   enabled,
+  disabledReason,
 }: {
   jobId: string;
   enabled: boolean;
+  disabledReason?: string;
 }) {
   const [report, setReport] = useState<JobMatchReport | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
@@ -69,7 +71,9 @@ export function JobMatchReportPanel({
       </div>
 
       {!enabled ? (
-        <p className="notice">先完成职业背景确认和岗位要求质量检查，之后才能生成完整匹配建议。</p>
+        <p className="notice">
+          {disabledReason ?? "先完成职业背景确认和岗位要求质量检查，之后才能生成完整匹配建议。"}
+        </p>
       ) : null}
       {enabled && !report ? (
         <p className="muted-copy match-report-disclaimer">

@@ -33,9 +33,9 @@ export type RequirementReleaseBlockerCopy = {
 
 const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerCopy> = {
   accepted_baseline_missing: {
-    title: "系统还在确认 AI 分析是否足够可靠",
+    title: "项目级 AI 质量验收还未完成",
     description:
-      "在用于岗位匹配前，我们会先人工抽查 AI 对岗位要求的理解，避免错误分析影响推荐结果。",
+      "这不是当前岗位漏做了某一步。系统还没有形成经过人工接受的 Requirement 分析基线；你仍然可以先分析这个岗位，但正式匹配会继续保持锁定。",
   },
   requirement_extraction_missing: {
     title: "这个岗位还没有完成要求分析",
