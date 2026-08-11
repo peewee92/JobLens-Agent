@@ -1,6 +1,8 @@
 """Deterministic grounding and business validation for Requirement output."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 from app.application.job_requirements.errors import (
     InvalidRequirementExtractorOutputError,
 )
@@ -8,6 +10,27 @@ from app.application.job_requirements.models import JobRequirementExtractionOutp
 from app.domain.job_requirements import RequirementType
 
 MAX_REQUIREMENTS_PER_RUN = 50
+
+
+def repair_job_requirement_grounding(
+    description: str,
+    output: JobRequirementExtractionOutput,
+) -> JobRequirementExtractionOutput:
+    """Repair one invalid quote only from the other already-grounded verbatim quote."""
+    repaired = []
+    for item in output.requirements:
+        original_text = item.original_text.strip()
+        evidence_span = item.evidence_span.strip()
+        original_grounded = bool(original_text) and original_text in description
+        evidence_grounded = bool(evidence_span) and evidence_span in description
+        if not original_grounded and evidence_grounded:
+            repaired.append(replace(item, original_text=evidence_span))
+            continue
+        if original_grounded and not evidence_grounded:
+            repaired.append(replace(item, evidence_span=original_text))
+            continue
+        repaired.append(item)
+    return JobRequirementExtractionOutput(requirements=tuple(repaired))
 
 
 def validate_job_requirement_output(

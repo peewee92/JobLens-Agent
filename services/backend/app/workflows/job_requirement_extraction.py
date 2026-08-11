@@ -14,7 +14,10 @@ from app.application.job_requirements import (
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
 )
-from app.application.job_requirements.validation import validate_job_requirement_output
+from app.application.job_requirements.validation import (
+    repair_job_requirement_grounding,
+    validate_job_requirement_output,
+)
 from app.application.ports.job_requirement_extractor import (
     AbstractJobRequirementExtractor,
 )
@@ -23,7 +26,7 @@ from app.application.tracing import TraceWrite
 
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
-EXTRACTOR_VERSION = "requirement-extractor-v4"
+EXTRACTOR_VERSION = "requirement-extractor-v5"
 PROMPT_VERSION = "requirement-extraction-v1"
 MIN_DESCRIPTION_CHARS = 40
 MAX_DESCRIPTION_CHARS = 50_000
@@ -63,7 +66,7 @@ class ExtractJobRequirementsWorkflow:
             model = result.model
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
-            output = result.output
+            output = repair_job_requirement_grounding(normalized, result.output)
             validate_job_requirement_output(normalized, output)
         except (
             RequirementExtractorUnavailableError,

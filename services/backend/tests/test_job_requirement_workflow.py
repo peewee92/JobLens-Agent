@@ -37,6 +37,30 @@ def session_factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
     engine.dispose()
 
 
+class PartiallyUngroundedExtractor(AbstractJobRequirementExtractor):
+    @property
+    def model_name(self) -> str:
+        return "partially-ungrounded-requirement-extractor"
+
+    def extract(self, description: str) -> JobRequirementExtractorResult:
+        evidence = "具备大型模型训练或推理平台的开发经验"
+        return JobRequirementExtractorResult(
+            output=JobRequirementExtractionOutput(
+                requirements=(
+                    ProposedJobRequirement(
+                        type=RequirementType.EXPERIENCE,
+                        original_text="拥有大模型平台研发经验",
+                        normalized_capability=None,
+                        importance=RequirementImportance.PREFERRED,
+                        evidence_span=evidence,
+                        confidence=0.88,
+                    ),
+                )
+            ),
+            model=self.model_name,
+        )
+
+
 class HallucinatingExtractor(AbstractJobRequirementExtractor):
     @property
     def model_name(self) -> str:
@@ -86,7 +110,7 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
     ).execute(job_id="job_fixture", description=description)
 
     assert proposal.trace_run_id.startswith("run_")
-    assert proposal.extractor_version == "requirement-extractor-v4"
+    assert proposal.extractor_version == "requirement-extractor-v5"
     assert proposal.prompt_version == "requirement-extraction-v1"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
@@ -102,6 +126,29 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
         assert "descriptionSha256" in trace.input_refs
         assert description not in str(trace.input_refs)
         assert trace.error is None
+
+
+def test_workflow_repairs_invalid_original_text_from_valid_verbatim_evidence_span(
+    session_factory: sessionmaker[Session],
+) -> None:
+    evidence = "具备大型模型训练或推理平台的开发经验"
+    description = (
+        f"岗位要求：{evidence}，并熟悉工程化交付流程、代码评审、测试和持续集成。"
+    )
+
+    proposal = _workflow(session_factory, PartiallyUngroundedExtractor()).execute(
+        job_id="job_repairable",
+        description=description,
+    )
+
+    assert proposal.extractor_version == "requirement-extractor-v5"
+    assert proposal.requirements[0].original_text == evidence
+    assert proposal.requirements[0].evidence_span == evidence
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert trace.error is None
+        assert trace.output["requirements"][0]["originalText"] == evidence
 
 
 def test_hallucinated_evidence_is_rejected_and_failure_trace_is_saved(
