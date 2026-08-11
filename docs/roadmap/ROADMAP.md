@@ -322,6 +322,10 @@ Profile 页面可以明确区分：
 
 目标：让分析直接服务于投递和面试。
 
+### 当前进度（2026-08-11）
+
+- 已完成 Phase 7 首个只读 Job Preparation Readiness Gate：复用既有 Match Input Readiness，只在当前已确认 Profile/SearchIntent 与当前 JobRequirement Fact Release Gate 同时通过时冻结 `profileId/profileVersion/extractionId/requirementCount` 作为后续 Resume / Interview 准备输入身份；任一事实门禁未通过时保持 blockers 并 fail-closed。该切片不生成 Resume Delta、面试题或学习建议，不读取 raw JD、不写数据库、不调用 Provider、不创建 Trace。
+
 ### MVP 交付
 
 - Resume Delta（简历调整建议，非整份重写）；
