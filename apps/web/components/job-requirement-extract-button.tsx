@@ -1,7 +1,7 @@
 "use client";
 
 import {useRouter} from "next/navigation";
-import {useState} from "react";
+import {useState, type FormEvent} from "react";
 
 import type {ApiErrorBody, JobRequirementExtraction} from "@/lib/contracts";
 import {userFacingApiError} from "@/lib/user-facing-errors";
@@ -19,7 +19,8 @@ export function JobRequirementExtractButton({
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
 
-  async function extract() {
+  async function extract(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     setStatus("submitting");
     setMessage("");
     try {
@@ -46,20 +47,23 @@ export function JobRequirementExtractButton({
     }
   }
 
+  const fallbackAction = `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions?returnTo=${encodeURIComponent(`/jobs/${jobId}`)}`;
+
   return (
     <div>
-      <button
-        className="button requirement-action-button"
-        disabled={disabled || status === "submitting"}
-        onClick={extract}
-        type="button"
-      >
-        {status === "submitting"
-          ? "正在分析…"
-          : hasExisting
-            ? "重新分析岗位要求"
-            : "分析岗位要求"}
-      </button>
+      <form action={fallbackAction} method="post" onSubmit={extract}>
+        <button
+          className="button requirement-action-button"
+          disabled={disabled || status === "submitting"}
+          type="submit"
+        >
+          {status === "submitting"
+            ? "正在分析…"
+            : hasExisting
+              ? "重新分析岗位要求"
+              : "分析岗位要求"}
+        </button>
+      </form>
       {disabled ? (
         <p className="notice">当前岗位缺少足够的 JD 文本，暂时无法分析岗位要求。</p>
       ) : null}

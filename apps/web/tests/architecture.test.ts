@@ -78,22 +78,28 @@ test("the Resume Proposal file field keeps drag-and-drop wired to the same file 
   assert.match(source, /function selectResumeFile[\s\S]*setProposal\(null\)/);
 });
 
-test("the Job Requirement Client calls only its same-origin command proxy", async () => {
+test("the Job Requirement action keeps a native POST fallback when hydration is unavailable", async () => {
   const source = await readFile(
     join(webRoot, "components/job-requirement-extract-button.tsx"),
     "utf8",
   );
   assert.match(source, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/requirement-extractions`/);
+  assert.match(source, /<form action=\{fallbackAction\} method="post" onSubmit=\{extract\}>/);
+  assert.match(source, /type="submit"/);
+  assert.match(source, /returnTo=/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
   assert.doesNotMatch(source, /openai|requirement_extractor_provider/i);
 });
 
-test("the Job Requirement Route Handler delegates to Backend without extraction logic", async () => {
+test("the Job Requirement Route Handler delegates to Backend and safely redirects native form submissions", async () => {
   const source = await readFile(
     join(webRoot, "app/api/jobs/[id]/requirement-extractions/route.ts"),
     "utf8",
   );
   assert.match(source, /backendResponse/);
+  assert.match(source, /returnTo === safeReturnTo/);
+  assert.match(source, /NextResponse\.redirect\(target, 303\)/);
+  assert.match(source, /requirementExtractionError/);
   assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
 });
 

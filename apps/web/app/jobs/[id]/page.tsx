@@ -32,10 +32,13 @@ export const dynamic = "force-dynamic";
 
 export default async function JobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{id: string}>;
+  searchParams: Promise<{requirementExtractionError?: string}>;
 }) {
   const {id} = await params;
+  const {requirementExtractionError} = await searchParams;
   let job;
   try {
     job = await fetchJobDetail(id);
@@ -236,6 +239,14 @@ export default async function JobDetailPage({
             </div>
 
             {requirementError ? <p className="inline-error">{requirementError}</p> : null}
+            {requirementExtractionError ? (
+              <p className="inline-error">
+                {userFacingErrorCode(
+                  requirementExtractionError,
+                  "岗位要求分析失败，请稍后重试。",
+                )}
+              </p>
+            ) : null}
             {!extraction && !requirementError ? (
               <p className="notice">
                 <strong>你现在可以做第 1 步：</strong> 点击右上角蓝色“分析岗位要求”。这一步只生成当前岗位的结构化 Requirement；项目级 AI 质量验收是另一层门禁，不会阻止你先完成当前岗位分析。

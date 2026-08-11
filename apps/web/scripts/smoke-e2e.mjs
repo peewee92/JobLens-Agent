@@ -243,6 +243,16 @@ try {
   assert.equal(secondRequirementRun.status, 201);
   const secondRequirements = await secondRequirementRun.json();
   assert.notEqual(secondRequirements.extractionId, firstRequirements.extractionId);
+
+  console.log("[smoke] submitting Requirement extraction through native-form fallback");
+  const returnTo = `/jobs/${jobMatch[1]}`;
+  const nativeRequirementRun = await fetch(
+    `${webUrl}/api/jobs/${jobMatch[1]}/requirement-extractions?returnTo=${encodeURIComponent(returnTo)}`,
+    {method: "POST", redirect: "manual"},
+  );
+  assert.equal(nativeRequirementRun.status, 303);
+  assert.equal(new URL(nativeRequirementRun.headers.get("location")).pathname, returnTo);
+
   const detailHtml = await html(`/jobs/${jobMatch[1]}`);
   assert.match(detailHtml, /岗位要求分析/);
   assert.match(detailHtml, /演示分析结果/);
