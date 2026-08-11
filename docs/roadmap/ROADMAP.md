@@ -326,6 +326,7 @@ Profile 页面可以明确区分：
 
 - 已完成 Phase 7 首个只读 Job Preparation Readiness Gate：复用既有 Match Input Readiness，只在当前已确认 Profile/SearchIntent 与当前 JobRequirement Fact Release Gate 同时通过时冻结 `profileId/profileVersion/extractionId/requirementCount` 作为后续 Resume / Interview 准备输入身份；任一事实门禁未通过时保持 blockers 并 fail-closed。该切片不生成 Resume Delta、面试题或学习建议，不读取 raw JD、不写数据库、不调用 Provider、不创建 Trace。
 - 已完成 Resume Delta 的最小确定性事实契约：只消费上述 frozen readiness、当前 confirmed Profile 与同一 immutable Requirement Extraction；仅对 `skill` Requirement 使用显式 capability alias 做 exact canonical 对齐。只有已匹配 Profile Skill 且链接 confirmed Evidence 的 Requirement 才进入 `highlights`；Skill 名存在但无 Evidence 明确标记 `unevidenced`，Profile 不存在该 Skill 则标记 `missing`。Profile/Extraction 身份变化或 readiness 未通过时 fail-closed；本切片不生成简历文案、不把缺失能力改写成用户经历，也不写 DB、不调用 Provider、不创建 Trace。
+- 已完成项目/经历排序的最小确定性事实层：只对 Profile 中 `project/work` 类型的 confirmed Evidence 建议前置顺序，并且只有当 Evidence 通过显式 Profile Skill 链接命中当前 released `skill` Requirement 时才进入候选；不读取 Evidence summary 做关键词或语义猜测。排序先看覆盖的 `must_have` Requirement 数，再看总 Requirement 覆盖数，同分时保持 Profile Evidence 原始顺序；每项保留 `evidenceId/evidenceType/supportingRequirementIds/matchedCapabilities` provenance。Readiness、Profile version 或 Extraction identity 变化时 fail-closed；本切片不生成项目文案、不调用 Provider、不创建 Trace、不写 DB。
 
 ### MVP 交付
 
