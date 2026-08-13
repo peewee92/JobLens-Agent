@@ -50,8 +50,23 @@ type GapResponse = {
   cohortId: string;
   jobIds: string[];
   factsUsable: boolean;
+  profileId: string | null;
+  profileVersion: number | null;
   items: GapItem[];
   blockers: string[];
+};
+
+type ParsedGapBlocker = {
+  raw: string;
+  jobId: string | null;
+  code: string;
+};
+
+type GapBlockerCopy = {
+  title: string;
+  description: string;
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 const decisionLabels: Record<FeedbackDecision, string> = {
@@ -86,6 +101,79 @@ function currentStateLabel(value: string): string {
 
 function completionCriterionLabel(value: string): string {
   return completionCriteriaLabels[value] ?? value;
+}
+
+function parseGapBlocker(value: string): ParsedGapBlocker {
+  const separatorIndex = value.indexOf(":");
+  if (separatorIndex <= 0) {
+    return {raw: value, jobId: null, code: value};
+  }
+  return {
+    raw: value,
+    jobId: value.slice(0, separatorIndex),
+    code: value.slice(separatorIndex + 1),
+  };
+}
+
+function gapBlockerCopy(code: string): GapBlockerCopy {
+  if (code === "profile_missing") {
+    return {
+      title: "你的职业背景还没有准备好",
+      description: "先补充并确认你的技能、项目和工作证据。确认后的真实经历才会参与能力差距判断。",
+      actionHref: "/profile",
+      actionLabel: "完善我的职业背景",
+    };
+  }
+  if (code === "accepted_baseline_missing") {
+    return {
+      title: "岗位要求还没有完成质量确认",
+      description: "这些岗位已经有要求分析结果，但当前版本还没有完成正式质量确认，所以暂时不能把它们当作可靠事实与你的经历比较。",
+      actionHref: "/evals/requirements/canary/readiness",
+      actionLabel: "查看岗位要求准备状态",
+    };
+  }
+  if (code === "requirement_extraction_missing") {
+    return {
+      title: "有些岗位还没有完成要求分析",
+      description: "先打开下面的岗位完成“分析岗位要求”，再回来做共同能力差距分析。",
+    };
+  }
+  if (code === "extraction_input_stale") {
+    return {
+      title: "岗位描述更新了，需要重新分析",
+      description: "当前保存的岗位要求对应旧版 JD。重新分析后，JobLens 才能确保比较的是最新岗位要求。",
+    };
+  }
+  if (code === "extraction_cohort_mismatch") {
+    return {
+      title: "岗位要求来自旧的分析版本",
+      description: "当前要求分析与已经确认的质量版本不一致，需要重新完成要求分析或质量确认。",
+      actionHref: "/evals/requirements/canary/readiness",
+      actionLabel: "查看岗位要求准备状态",
+    };
+  }
+  if (
+    code === "requirements_empty" ||
+    code === "requirement_count_mismatch" ||
+    code === "trace_missing" ||
+    code === "trace_failed" ||
+    code === "trace_capability_mismatch" ||
+    code === "trace_cohort_mismatch" ||
+    code === "trace_input_mismatch" ||
+    code === "trace_output_mismatch" ||
+    code === "release_identity_changed"
+  ) {
+    return {
+      title: "岗位要求分析还没有通过完整性检查",
+      description: "系统发现岗位要求的分析记录、来源或追踪证据还不完整。为避免给你错误的学习建议，当前先不生成技能差距。",
+      actionHref: "/evals/requirements/canary/readiness",
+      actionLabel: "查看岗位要求准备状态",
+    };
+  }
+  return {
+    title: "能力差距的分析依据还没有准备完整",
+    description: "JobLens 暂时无法安全使用其中一部分事实。技术原因已保留在下方，普通使用时不需要理解错误码。",
+  };
 }
 
 export function TargetCohortGapPanel() {
@@ -146,6 +234,21 @@ export function TargetCohortGapPanel() {
     () => new Map((candidates?.items ?? []).map((item) => [item.jobId, item])),
     [candidates],
   );
+
+  const blockerGroups = useMemo(() => {
+    const groups = new Map<string, ParsedGapBlocker[]>();
+    for (const raw of result?.blockers ?? []) {
+      const blocker = parseGapBlocker(raw);
+      const current = groups.get(blocker.code) ?? [];
+      current.push(blocker);
+      groups.set(blocker.code, current);
+    }
+    return [...groups.entries()].map(([code, blockers]) => ({
+      code,
+      blockers,
+      copy: gapBlockerCopy(code),
+    }));
+  }, [result]);
 
   function toggleCandidate(jobId: string) {
     setSelectedJobIds((current) => {
@@ -228,16 +331,16 @@ export function TargetCohortGapPanel() {
         </div>
 
         {loadingCandidates ? (
-          <div className="gap-empty-state">正在整理你已经表态过的岗位…</div>
+          <div className="gap-empty-state">正在整理你的岗位池…</div>
         ) : candidateError ? (
           <div className="inline-error" role="alert">{candidateError}</div>
         ) : candidates && candidates.items.length === 0 ? (
           <div className="gap-empty-state gap-empty-action">
             <div>
-              <strong>还没有可用于能力规划的岗位</strong>
-              <p>这里会显示你已经留下“感兴趣 / 再看看”反馈的岗位。先去岗位列表查看真实岗位并完成匹配与反馈。</p>
+              <strong>岗位池里还没有可以选择的真实岗位</strong>
+              <p>先添加或导入你真正考虑的岗位。是否已经留下“感兴趣 / 再看看”反馈，不影响你手动把岗位选进目标集合。</p>
             </div>
-            <Link className="button" href="/jobs">去查看岗位</Link>
+            <Link className="button" href="/import">添加岗位</Link>
           </div>
         ) : (
           <form onSubmit={submit}>
@@ -362,9 +465,79 @@ export function TargetCohortGapPanel() {
 
           {!result.factsUsable ? (
             <div className="gap-blocked-card">
-              <strong>当前还不能给出可靠的能力差距结论</strong>
-              <p>至少有一部分岗位要求或职业事实尚未通过使用门槛。先处理下面的准备项，再回来分析。</p>
-              {result.blockers.length > 0 ? <ul>{result.blockers.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+              <div className="gap-blocked-intro">
+                <span className="gap-blocked-kicker">还差一步准备</span>
+                <strong>现在卡住的不是你的技能，而是分析依据还没准备完整</strong>
+                <p>
+                  这不是你的技能缺口。JobLens 不会在岗位要求尚未确认时先猜“你缺什么”，否则很容易把模型误差变成你的学习任务。
+                </p>
+              </div>
+
+              <div className="gap-readiness-grid">
+                <article className={result.profileId ? "gap-readiness-state is-ready" : "gap-readiness-state is-blocked"}>
+                  <span>你的职业背景</span>
+                  <strong>{result.profileId ? "已准备" : "还需补充"}</strong>
+                  <p>
+                    {result.profileId
+                      ? "你的职业背景已确认，可以用于对比。当前不用为了这个错误去随意补技能或项目。"
+                      : "需要先确认你的技能、项目和工作证据，系统才知道你现在已经具备什么。"}
+                  </p>
+                </article>
+                <article className="gap-readiness-state is-blocked">
+                  <span>目标岗位要求</span>
+                  <strong>暂未全部准备好</strong>
+                  <p>至少一个目标岗位的要求分析还没有达到可用于能力规划的可信状态。</p>
+                </article>
+              </div>
+
+              {blockerGroups.length > 0 ? (
+                <div className="gap-blocker-list">
+                  {blockerGroups.map(({code, blockers, copy}) => {
+                    const affectedJobs = blockers
+                      .map((blocker) => blocker.jobId ? candidateByJobId.get(blocker.jobId) : null)
+                      .filter((candidate): candidate is CohortCandidate => Boolean(candidate));
+                    return (
+                      <article className="gap-blocker-item" key={code}>
+                        <div>
+                          <strong>{copy.title}</strong>
+                          <p>{copy.description}</p>
+                        </div>
+                        {affectedJobs.length > 0 ? (
+                          <div className="gap-blocker-jobs">
+                            <span>受影响的岗位</span>
+                            {affectedJobs.map((job) => (
+                              <Link href={`/jobs/${job.jobId}`} key={job.jobId}>
+                                {job.title} · {job.company}
+                              </Link>
+                            ))}
+                          </div>
+                        ) : null}
+                        {copy.actionHref && copy.actionLabel ? (
+                          <div className="actions">
+                            <Link className="button-ghost" href={copy.actionHref}>{copy.actionLabel}</Link>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="gap-next-preview">
+                <strong>准备完成后，你会在这里直接看到</strong>
+                <ul>
+                  <li>哪些技能是真正缺失，哪些只是“会但缺项目证据”；</li>
+                  <li>每项技能是 P0 还是 P1，以及它影响多少个目标岗位；</li>
+                  <li>你当前已有的真实证据，以及做到什么才算补齐。</li>
+                </ul>
+              </div>
+
+              {result.blockers.length > 0 ? (
+                <details className="gap-technical-blockers">
+                  <summary>查看技术原因</summary>
+                  <ul>{result.blockers.map((item) => <li key={item}>{item}</li>)}</ul>
+                </details>
+              ) : null}
             </div>
           ) : result.items.length === 0 ? (
             <div className="gap-empty-state">

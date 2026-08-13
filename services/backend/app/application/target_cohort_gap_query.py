@@ -72,23 +72,25 @@ class BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
         cohort_result = self._cohort_creator.execute(command)
         cohort = cohort_result.cohort
         aggregation = self._requirement_aggregator.execute(cohort)
+        profile = self._profiles.get_current_profile()
         if not aggregation.facts_usable:
             blockers = tuple(
                 f"{blocker.job_id}:{code}"
                 for blocker in aggregation.blockers
                 for code in blocker.codes
             )
+            if profile is None:
+                blockers = (*blockers, "profile_missing")
             return BuildTargetCohortGapDetailsResult(
                 cohort_id=cohort.id,
                 job_ids=cohort.job_ids,
                 facts_usable=False,
-                profile_id=None,
-                profile_version=None,
+                profile_id=profile.id if profile is not None else None,
+                profile_version=profile.version if profile is not None else None,
                 items=(),
                 blockers=blockers,
             )
 
-        profile = self._profiles.get_current_profile()
         if profile is None:
             return BuildTargetCohortGapDetailsResult(
                 cohort_id=cohort.id,

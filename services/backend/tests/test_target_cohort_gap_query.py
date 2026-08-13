@@ -116,8 +116,31 @@ def test_gap_query_fails_closed_when_requirement_facts_are_not_released() -> Non
     )
 
     assert result.facts_usable is False
+    assert result.profile_id == "profile_1"
+    assert result.profile_version == 3
     assert result.items == ()
     assert result.blockers == ("job_1:human_baseline_missing",)
+
+
+def test_gap_query_reports_profile_blocker_alongside_requirement_blockers() -> None:
+    use_case = BuildSelectedFeedbackTargetCohortGapDetailsUseCase(
+        cohort_creator=_Creator(),
+        requirement_aggregator=_Aggregator(usable=False),
+        profiles=_Profiles(None),
+    )
+    result = use_case.execute(
+        CreateFeedbackTargetCohortCommand(
+            cohort_id="cohort_1",
+            name="AI frontend targets",
+            selected_feedback_ids=("feedback_1",),
+        )
+    )
+
+    assert result.facts_usable is False
+    assert result.profile_id is None
+    assert result.profile_version is None
+    assert result.items == ()
+    assert result.blockers == ("job_1:human_baseline_missing", "profile_missing")
 
 
 def test_gap_query_fails_closed_without_confirmed_profile() -> None:

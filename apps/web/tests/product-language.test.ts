@@ -130,6 +130,20 @@ test("Target Cohort Gap page is phrased around choosing Jobs instead of internal
 });
 
 
+test("Target Cohort Gap blockers explain readiness instead of exposing internal codes", async () => {
+  const panel = await source("components/target-cohort-gap-panel.tsx");
+
+  assert.match(panel, /这不是你的技能缺口/);
+  assert.match(panel, /你的职业背景已确认，可以用于对比/);
+  assert.match(panel, /岗位要求还没有完成质量确认/);
+  assert.match(panel, /查看岗位要求准备状态/);
+  assert.match(panel, /准备完成后，你会在这里直接看到/);
+  assert.match(panel, /查看技术原因/);
+  assert.match(panel, /gapBlockerCopy/);
+  assert.match(panel, /<details className="gap-technical-blockers">/);
+});
+
+
 test("home page explains the product as a simple job-search workflow", async () => {
   const page = await source("app/page.tsx");
   assert.match(page, /先把自己和岗位看清楚/);
