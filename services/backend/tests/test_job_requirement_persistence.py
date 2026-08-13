@@ -8,11 +8,17 @@ import pytest
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.application.job_requirements import (
+    JobRequirementExtractionOutput,
+    JobRequirementExtractorResult,
+    ProposedJobRequirement,
+)
 from app.application.job_requirements.use_cases import (
     ExtractJobRequirementsUseCase,
     GetJobRequirementExtractionUseCase,
     GetLatestJobRequirementsUseCase,
 )
+from app.application.ports.job_requirement_extractor import AbstractJobRequirementExtractor
 from app.db.base import Base
 from app.db.models import (
     JobORM,
@@ -21,6 +27,7 @@ from app.db.models import (
     JobSourceORM,
     TraceSpanORM,
 )
+from app.domain.job_requirements import RequirementImportance, RequirementType
 from app.domain.jobs import RemoteConfidence, RemoteStatus
 from app.llm import FixtureJobRequirementExtractor
 from app.repositories import (
@@ -80,6 +87,30 @@ def _seed_job(
         session.add(job)
         session.commit()
     return job.id
+
+
+class _WidthDriftExtractor(AbstractJobRequirementExtractor):
+    @property
+    def model_name(self) -> str:
+        return "width-drift-extractor"
+
+    def extract(self, description: str) -> JobRequirementExtractorResult:
+        quote = "对大语言模型（LLM）有深入理解"
+        return JobRequirementExtractorResult(
+            output=JobRequirementExtractionOutput(
+                requirements=(
+                    ProposedJobRequirement(
+                        type=RequirementType.SKILL,
+                        original_text=quote,
+                        normalized_capability="LLM",
+                        importance=RequirementImportance.MUST_HAVE,
+                        evidence_span=quote,
+                        confidence=0.95,
+                    ),
+                )
+            ),
+            model=self.model_name,
+        )
 
 
 def _use_case(factory: sessionmaker[Session]) -> ExtractJobRequirementsUseCase:
@@ -145,6 +176,52 @@ def test_repeated_extraction_creates_new_run_and_preserves_history(
         assert int(
             session.scalar(select(func.count()).select_from(JobRequirementORM)) or 0
         ) == first.requirement_count + second.requirement_count
+
+
+def test_recovered_grounding_persists_only_raw_job_slice(
+    session_factory: sessionmaker[Session],
+) -> None:
+    raw_quote = "对大语言模型(LLM)有深入理解"
+    description = (
+        f"任职要求：{raw_quote}，熟悉主流模型特点和工程落地方式，"
+        "并具备 Agent 应用设计、开发、测试和线上问题排查经验。"
+    )
+    job_id = _seed_job(
+        session_factory,
+        suffix="grounding-raw",
+        description=description,
+    )
+    jobs = SqlAlchemyJobQueryRepository(session_factory)
+    query = SqlAlchemyJobRequirementQueryRepository(session_factory)
+    use_case = ExtractJobRequirementsUseCase(
+        jobs=jobs,
+        workflow=ExtractJobRequirementsWorkflow(
+            _WidthDriftExtractor(),
+            lambda: SqlAlchemyTraceUnitOfWork(session_factory),
+        ),
+        uow_factory=lambda: SqlAlchemyJobRequirementUnitOfWork(session_factory),
+        query_repository=query,
+        provider="fixture",
+    )
+
+    result = use_case.execute(job_id)
+
+    assert result.requirements[0].original_text == raw_quote
+    assert result.requirements[0].evidence_span == raw_quote
+    with session_factory() as session:
+        persisted = session.scalar(
+            select(JobRequirementORM).where(
+                JobRequirementORM.extraction_id == result.extraction_id
+            )
+        )
+        trace = session.get(TraceSpanORM, result.trace_run_id)
+        assert persisted is not None
+        assert persisted.original_text == raw_quote
+        assert persisted.evidence_span == raw_quote
+        assert trace is not None
+        assert trace.output["requirements"][0]["originalText"] == raw_quote
+        assert trace.output["requirements"][0]["evidenceSpan"] == raw_quote
+        assert trace.output["groundingRepairs"][0]["strategy"] == "punctuation_width"
 
 
 def test_job_delete_cascades_extractions_and_requirements(

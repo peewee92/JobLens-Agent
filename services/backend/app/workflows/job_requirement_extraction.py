@@ -15,6 +15,8 @@ from app.application.job_requirements import (
     RequirementExtractorUnavailableError,
 )
 from app.application.job_requirements.validation import (
+    GROUNDING_POLICY_VERSION,
+    GroundingRepairEvent,
     repair_job_requirement_grounding,
     validate_job_requirement_output,
 )
@@ -58,6 +60,7 @@ class ExtractJobRequirementsWorkflow:
         started = perf_counter()
         model = self._extractor.model_name
         output: JobRequirementExtractionOutput | None = None
+        grounding_repairs: tuple[GroundingRepairEvent, ...] = ()
         input_tokens: int | None = None
         output_tokens: int | None = None
 
@@ -66,7 +69,9 @@ class ExtractJobRequirementsWorkflow:
             model = result.model
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
-            output = repair_job_requirement_grounding(normalized, result.output)
+            grounding_result = repair_job_requirement_grounding(normalized, result.output)
+            output = grounding_result.output
+            grounding_repairs = grounding_result.repairs
             validate_job_requirement_output(normalized, output)
         except (
             RequirementExtractorUnavailableError,
@@ -80,6 +85,7 @@ class ExtractJobRequirementsWorkflow:
                 description=normalized,
                 model=model,
                 output=output,
+                grounding_repairs=grounding_repairs,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -97,6 +103,7 @@ class ExtractJobRequirementsWorkflow:
                 description=normalized,
                 model=model,
                 output=output,
+                grounding_repairs=grounding_repairs,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -111,6 +118,7 @@ class ExtractJobRequirementsWorkflow:
             description=normalized,
             model=model,
             output=output,
+            grounding_repairs=grounding_repairs,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -132,6 +140,7 @@ class ExtractJobRequirementsWorkflow:
         description: str,
         model: str,
         output: JobRequirementExtractionOutput | None,
+        grounding_repairs: tuple[GroundingRepairEvent, ...],
         latency_ms: int,
         input_tokens: int | None,
         output_tokens: int | None,
@@ -153,7 +162,7 @@ class ExtractJobRequirementsWorkflow:
                         "characterCount": len(description),
                     },
                     output=(
-                        _requirement_output_dict(output)
+                        _requirement_output_dict(output, grounding_repairs)
                         if output is not None
                         else None
                     ),
@@ -170,8 +179,20 @@ class ExtractJobRequirementsWorkflow:
         return max(0, round((perf_counter() - started) * 1000))
 
 
-def _requirement_output_dict(output: JobRequirementExtractionOutput) -> dict:
+def _requirement_output_dict(
+    output: JobRequirementExtractionOutput,
+    grounding_repairs: tuple[GroundingRepairEvent, ...],
+) -> dict:
     return {
+        "groundingPolicyVersion": GROUNDING_POLICY_VERSION,
+        "groundingRepairs": [
+            {
+                "requirementIndex": item.requirement_index,
+                "field": item.field,
+                "strategy": item.strategy.value,
+            }
+            for item in grounding_repairs
+        ],
         "requirements": [
             {
                 "type": item.type.value,

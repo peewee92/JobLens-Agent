@@ -97,6 +97,23 @@ Trace input refs contain:
 
 Trace does not duplicate the full JD. Trace output may contain the structured Requirement proposal and therefore remains sensitive product data.
 
+For deterministic quote recovery, Trace output also records audit-only grounding metadata:
+
+```json
+{
+  "groundingPolicyVersion": "grounding-v1",
+  "groundingRepairs": [
+    {
+      "requirementIndex": 0,
+      "field": "originalText",
+      "strategy": "punctuation_width"
+    }
+  ]
+}
+```
+
+`grounding-v1` is deliberately narrow. Exact JD substrings remain preferred. Recovery may only ignore Unicode whitespace and normalize the width of ASCII punctuation, and only when the normalized quote maps to exactly one location in the JD. The value written to Trace and persistence is always the corresponding raw JD slice. Ambiguous matches, case changes, number/word rewrites, fuzzy matching and semantic rewrites remain invalid. `groundingRepairs` is diagnostic metadata only and does not relax the final verbatim validation gate.
+
 ## Scope exclusions
 
 This slice does not implement:
