@@ -43,12 +43,7 @@ export function canSelectRequirementCandidate(
 export function sortRequirementReviewCases(
   cases: RequirementReviewBatchCase[],
 ): RequirementReviewBatchCase[] {
-  return [...cases].sort((left, right) => {
-    if (left.review === null && right.review !== null) return -1;
-    if (left.review !== null && right.review === null) return 1;
-    if (left.isCurrent !== right.isCurrent) return left.isCurrent ? 1 : -1;
-    return left.caseIndex - right.caseIndex;
-  });
+  return [...cases].sort((left, right) => left.caseIndex - right.caseIndex);
 }
 
 export function requirementReviewFinalDecisionLabel(

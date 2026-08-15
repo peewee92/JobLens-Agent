@@ -72,7 +72,7 @@ export default async function RequirementManualReviewDetailPage({
           <div className="section-heading-row">
             <div>
               <h2>逐岗位验收</h2>
-              <p className="muted">未审查和已过期 Case 优先显示。</p>
+              <p className="muted">Case 按 #1～#20 固定顺序显示；提交判断后会留在原位置并显示已保存结果。</p>
             </div>
             <span className={`status-chip ${detail.summary.formalEvidenceEligible ? "status-live" : detail.summary.staleCaseCount > 0 ? "status-fail" : "status-fixture"}`}>
               {evidenceLabel}
@@ -137,14 +137,16 @@ export default async function RequirementManualReviewDetailPage({
                   <h3>人工判断</h3>
                   {item.review ? (
                     <div className={`review-result review-${item.review.decision}`}>
-                      <strong>{item.review.decision}</strong>
+                      <strong>
+                        {item.review.decision === "rejected" ? "Reject 已保存" : "Accept 已保存"}
+                      </strong>
                       {item.review.issueCodes.length > 0 ? (
                         <p>
                           问题：{item.review.issueCodes.map((issue) => requirementReviewIssueLabels[issue]).join("、")}
                         </p>
                       ) : null}
                       <p>{item.review.notes}</p>
-                      <small>{formatDateTime(item.review.reviewedAt)}</small>
+                      <small>记录时间：{formatDateTime(item.review.reviewedAt)}</small>
                     </div>
                   ) : (
                     <RequirementCaseReviewForm batchId={detail.summary.id} caseId={item.id} />

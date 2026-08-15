@@ -104,7 +104,7 @@ test("selection allows only one cohort and at most twenty", () => {
   assert.equal(canSelectRequirementCandidate(twenty[0], twenty), true);
 });
 
-test("pending and stale cases sort before completed current cases", () => {
+test("manual review cases keep stable case order after a judgment is saved", () => {
   const reviewedCurrent = reviewCase(0, {
     review: {
       id: "review_0",
@@ -117,10 +117,10 @@ test("pending and stale cases sort before completed current cases", () => {
   });
   const pendingCurrent = reviewCase(1);
   const pendingStale = reviewCase(2, {isCurrent: false});
-  const input = [reviewedCurrent, pendingCurrent, pendingStale];
+  const input = [pendingCurrent, pendingStale, reviewedCurrent];
   const sorted = sortRequirementReviewCases(input);
-  assert.deepEqual(sorted.map((item) => item.id), ["case_2", "case_1", "case_0"]);
-  assert.deepEqual(input.map((item) => item.id), ["case_0", "case_1", "case_2"]);
+  assert.deepEqual(sorted.map((item) => item.id), ["case_0", "case_1", "case_2"]);
+  assert.deepEqual(input.map((item) => item.id), ["case_1", "case_2", "case_0"]);
 });
 
 test("final decision and Match gate labels keep evidence and approval separate", () => {
