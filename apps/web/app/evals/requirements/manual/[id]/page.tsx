@@ -81,6 +81,9 @@ export default async function RequirementManualReviewDetailPage({
 
           {cases.map((item) => {
             const requirements = sortJobRequirements(item.requirements);
+            const mustHaveCount = requirements.filter((item) => item.importance === "must_have").length;
+            const preferredCount = requirements.filter((item) => item.importance === "preferred").length;
+            const bonusCount = requirements.filter((item) => item.importance === "bonus").length;
             return (
               <section
                 className={`eval-case ${item.review?.decision === "rejected" ? "eval-case-fail" : item.review ? "eval-case-pass" : ""}`}
@@ -109,28 +112,38 @@ export default async function RequirementManualReviewDetailPage({
                 </section>
 
                 <section className="detail-section">
-                  <h3>抽取出的 Requirements（{requirements.length}）</h3>
-                  <div className="eval-run-list">
-                    {requirements.map((requirement) => (
-                      <article className="eval-run-card" key={requirement.id}>
-                        <div className="eval-run-card-heading">
-                          <div>
-                            <span className={`status-chip status-${requirement.importance === "must_have" ? "fail" : requirement.importance === "preferred" ? "live" : "fixture"}`}>
-                              {requirementImportanceLabel(requirement.importance)}
-                            </span>
-                            <span className="status-chip status-fixture">
-                              {requirementTypeLabel(requirement.type)}
-                            </span>
+                  <details className="requirement-review-requirements">
+                    <summary>
+                      <span>
+                        <strong>查看抽取出的 Requirements（{requirements.length}）</strong>
+                        <small>点击展开逐条核对，核对完成后可再次收起。</small>
+                      </span>
+                      <span className="requirement-review-counts" aria-label="Requirement 重要性分布">
+                        必须 {mustHaveCount} · 优先 {preferredCount} · 加分 {bonusCount}
+                      </span>
+                    </summary>
+                    <div className="eval-run-list requirement-review-requirement-list">
+                      {requirements.map((requirement) => (
+                        <article className="eval-run-card" key={requirement.id}>
+                          <div className="eval-run-card-heading">
+                            <div>
+                              <span className={`status-chip status-${requirement.importance === "must_have" ? "fail" : requirement.importance === "preferred" ? "live" : "fixture"}`}>
+                                {requirementImportanceLabel(requirement.importance)}
+                              </span>
+                              <span className="status-chip status-fixture">
+                                {requirementTypeLabel(requirement.type)}
+                              </span>
+                            </div>
+                            <span>{Math.round(requirement.confidence * 100)}%</span>
                           </div>
-                          <span>{Math.round(requirement.confidence * 100)}%</span>
-                        </div>
-                        <strong>{requirement.originalText}</strong>
-                        <p>归一化能力：{requirement.normalizedCapability ?? "—"}</p>
-                        <p className="notice">Evidence：{requirement.evidenceSpan}</p>
-                        <p className="code">{requirement.id}</p>
-                      </article>
-                    ))}
-                  </div>
+                          <strong>{requirement.originalText}</strong>
+                          <p>归一化能力：{requirement.normalizedCapability ?? "—"}</p>
+                          <p className="notice">Evidence：{requirement.evidenceSpan}</p>
+                          <p className="code">{requirement.id}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </details>
                 </section>
 
                 <section className="detail-section">

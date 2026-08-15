@@ -22,6 +22,7 @@ import {
 } from "@/lib/job-requirements";
 import {
   attemptedCanaryCases,
+  requirementAcceptanceCaseIsProviderOutage,
   requirementAcceptanceCaseStatusClass,
   requirementAcceptanceCaseStatusLabels,
   requirementAcceptanceRunStatusClass,
@@ -160,6 +161,7 @@ export default async function RequirementCanaryRunDetailPage({
               const requirements = extraction
                 ? sortJobRequirements(extraction.requirements)
                 : [];
+              const providerOutage = requirementAcceptanceCaseIsProviderOutage(runCase);
               const exactDescription =
                 runCase.descriptionSnapshot ??
                 (runCase.descriptionIsCurrent ? job?.description ?? null : null);
@@ -173,9 +175,11 @@ export default async function RequirementCanaryRunDetailPage({
                   <div className="eval-case-heading">
                     <div>
                       <span
-                        className={`status-chip ${requirementAcceptanceCaseStatusClass(runCase.status)}`}
+                        className={`status-chip ${providerOutage ? "status-fixture" : requirementAcceptanceCaseStatusClass(runCase.status)}`}
                       >
-                        {requirementAcceptanceCaseStatusLabels[runCase.status]}
+                        {providerOutage
+                          ? "Provider 暂不可用"
+                          : requirementAcceptanceCaseStatusLabels[runCase.status]}
                       </span>
                       <strong>
                         #{runCase.caseIndex + 1} {runCase.title} · {runCase.company}
@@ -249,7 +253,9 @@ export default async function RequirementCanaryRunDetailPage({
                     <h3>抽取出的 Requirements（{requirements.length}）</h3>
                     {requirements.length === 0 ? (
                       <p className="notice">
-                        没有成功 Extraction。请重点检查 Trace 错误，并倾向 Stop，而不是把失败样本忽略掉。
+                        {providerOutage
+                          ? "没有成功 Extraction：本次调用被上游 Provider outage 中断，不构成 v6 Requirement 质量失败。"
+                          : "没有成功 Extraction。请重点检查 Trace 错误，并倾向 Stop，而不是把失败样本忽略掉。"}
                       </p>
                     ) : (
                       <div className="eval-run-list">
@@ -318,16 +324,28 @@ export default async function RequirementCanaryRunDetailPage({
                         </strong>
                       </div>
                     </div>
-                    {runCase.traceError ? (
-                      <p className="inline-error">Trace error：{runCase.traceError}</p>
+                    {providerOutage ? (
+                      <div className="notice">
+                        <strong>Provider outage 证据（不计入 v6 质量判断）</strong>
+                        <p className="code">Trace：{runCase.traceError ?? "—"}</p>
+                        <p className="code">
+                          Case：{runCase.errorCode ?? "unknown"} · {runCase.errorMessage ?? "—"}
+                        </p>
+                      </div>
                     ) : (
-                      <p className="notice">Trace 未记录错误。</p>
+                      <>
+                        {runCase.traceError ? (
+                          <p className="inline-error">Trace error：{runCase.traceError}</p>
+                        ) : (
+                          <p className="notice">Trace 未记录错误。</p>
+                        )}
+                        {runCase.errorCode || runCase.errorMessage ? (
+                          <p className="inline-error">
+                            Case error：{runCase.errorCode ?? "unknown"} · {runCase.errorMessage ?? "—"}
+                          </p>
+                        ) : null}
+                      </>
                     )}
-                    {runCase.errorCode || runCase.errorMessage ? (
-                      <p className="inline-error">
-                        Case error：{runCase.errorCode ?? "unknown"} · {runCase.errorMessage ?? "—"}
-                      </p>
-                    ) : null}
                   </section>
                 </section>
               );

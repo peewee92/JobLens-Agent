@@ -243,6 +243,7 @@ When the limit is reached, remaining non-reusable Cases are `deferred`. Rerun th
 
 Provider-wide unavailable behavior:
 
+- OpenAI-compatible HTTP 429/503/504 responses are classified as provider unavailable, not as case-specific quality failures;
 - the first attempted unavailable call records a failed Trace;
 - later non-reusable Cases are deferred without calls;
 - any later Case already safely reusable may still be recognized.

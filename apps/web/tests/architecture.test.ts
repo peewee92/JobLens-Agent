@@ -289,6 +289,26 @@ test("Requirement manual review pages use server read models and no direct write
   assert.match(detailPage, /evidenceFingerprint/);
 });
 
+test("Requirement manual review keeps issue choices aligned and long requirement lists collapsible", async () => {
+  const detailPage = await readFile(
+    join(webRoot, "app/evals/requirements/manual/[id]/page.tsx"),
+    "utf8",
+  );
+  const caseForm = await readFile(
+    join(webRoot, "components/requirement-case-review-form.tsx"),
+    "utf8",
+  );
+  const styles = await readFile(join(webRoot, "app/globals.css"), "utf8");
+
+  assert.match(detailPage, /<details className="requirement-review-requirements">/);
+  assert.match(detailPage, /查看抽取出的 Requirements/);
+  assert.match(detailPage, /必须.*优先.*加分/);
+  assert.match(caseForm, /className="review-issue-grid"/);
+  assert.match(caseForm, /className="review-issue-option"/);
+  assert.match(styles, /\.review-issue-option\s*\{[^}]*align-items:\s*center/s);
+  assert.match(styles, /\.review-issue-option input\s*\{[^}]*width:\s*18px/s);
+});
+
 test("Requirement Canary Client submits only an immutable human decision through same-origin", async () => {
   const source = await readFile(
     join(webRoot, "components/requirement-canary-review-form.tsx"),

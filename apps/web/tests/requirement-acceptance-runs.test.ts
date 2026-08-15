@@ -7,6 +7,7 @@ import type {
 } from "../lib/contracts";
 import {
   attemptedCanaryCases,
+  requirementAcceptanceCaseIsProviderOutage,
   requirementAcceptanceCaseStatusLabels,
   requirementAcceptanceDatasetStateLabels,
   requirementAcceptanceNextActionClass,
@@ -125,6 +126,34 @@ test("Canary evidence includes only actually attempted cases in source order", (
       (item) => item.caseIndex,
     ),
     [1, 2],
+  );
+});
+
+test("provider outage detection covers new unavailable errors and historical 503 traces", () => {
+  assert.equal(
+    requirementAcceptanceCaseIsProviderOutage(
+      runCase(0, {errorCode: "RequirementExtractorUnavailableError"}),
+    ),
+    true,
+  );
+  assert.equal(
+    requirementAcceptanceCaseIsProviderOutage(
+      runCase(1, {
+        errorCode: "RequirementExtractorFailedError",
+        errorMessage:
+          "OpenAI Requirement extractor failed: HTTPStatusError(status=503, traceId=trace_gateway_123)",
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    requirementAcceptanceCaseIsProviderOutage(
+      runCase(2, {
+        errorCode: "RequirementExtractorFailedError",
+        errorMessage: "OpenAI Requirement extractor failed: HTTPStatusError(status=500)",
+      }),
+    ),
+    false,
   );
 });
 

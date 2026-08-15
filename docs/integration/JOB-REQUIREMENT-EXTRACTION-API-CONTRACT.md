@@ -49,7 +49,7 @@ Returns one immutable historical Extraction Run. `extractionId` must belong to `
 | 422 | `job_description_not_extractable` | Job description missing/outside boundaries, or Collector v1.4.x marked it `card_only / partial_jd / unavailable` |
 | 502 | `requirement_extractor_failed` | Provider invocation or response parsing failed |
 | 502 | `invalid_requirement_extractor_output` | Structured output violated deterministic grounding/business rules |
-| 503 | `requirement_extractor_unavailable` | Provider is disabled or not configured |
+| 503 | `requirement_extractor_unavailable` | Provider is disabled/not configured, or a transient upstream outage returned 429/503/504 |
 
 ## Deterministic validation
 

@@ -63,6 +63,55 @@ def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
     assert result.output_tokens == 40
 
 
+def test_openai_requirement_adapter_prompt_preserves_requirement_importance_scope() -> None:
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.update(json.loads(request.content))
+        output = {
+            "requirements": [
+                {
+                    "type": "education",
+                    "originalText": "本科及以上学历",
+                    "normalizedCapability": None,
+                    "importance": "must_have",
+                    "evidenceSpan": "本科及以上学历",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(output),
+                        }
+                    }
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            client=client,
+        ).extract("任职要求：本科及以上学历，计算机相关专业优先。")
+
+    prompt = captured["messages"][0]["content"]
+    assert "requirements/qualifications section" in prompt
+    assert "default to must_have" in prompt
+    assert "applies only to the clause it modifies" in prompt
+    assert "split them into separate requirements" in prompt
+    assert "at least N" in prompt
+    assert "must not make every child independently must_have" in prompt
+
+
 def test_openai_requirement_adapter_schema_requires_normalized_capability_for_skills() -> None:
     captured: dict = {}
 
@@ -215,12 +264,15 @@ def test_openai_requirement_adapter_supports_chat_completions_strict_schema() ->
     assert result.output_tokens == 40
 
 
-def test_openai_requirement_adapter_reports_gateway_trace_id() -> None:
+@pytest.mark.parametrize("status_code", [429, 503, 504])
+def test_openai_requirement_adapter_classifies_transient_provider_outage_as_unavailable(
+    status_code: int,
+) -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(
-            504,
+            status_code,
             headers={"x-trace-id": "trace_gateway_123"},
-            json={"error": {"message": "gateway timeout"}},
+            json={"error": {"message": "temporary upstream outage"}},
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
@@ -231,8 +283,28 @@ def test_openai_requirement_adapter_reports_gateway_trace_id() -> None:
             client=client,
         )
         with pytest.raises(
+            RequirementExtractorUnavailableError,
+            match=rf"HTTPStatusError\(status={status_code}, traceId=trace_gateway_123\)",
+        ):
+            extractor.extract(
+                "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"
+            )
+
+
+def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json={"error": {"message": "internal error"}})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+        )
+        with pytest.raises(
             RequirementExtractorFailedError,
-            match=r"HTTPStatusError\(status=504, traceId=trace_gateway_123\)",
+            match=r"HTTPStatusError\(status=500\)",
         ):
             extractor.extract(
                 "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"

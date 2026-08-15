@@ -248,11 +248,17 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         except RequirementExtractorFailedError:
             raise
         except httpx.HTTPStatusError as error:
+            status_code = error.response.status_code
             trace_id = _response_trace_id(error.response)
             trace_suffix = f", traceId={trace_id}" if trace_id else ""
-            raise RequirementExtractorFailedError(
+            error_type = (
+                RequirementExtractorUnavailableError
+                if status_code in {429, 503, 504}
+                else RequirementExtractorFailedError
+            )
+            raise error_type(
                 "OpenAI Requirement extractor failed: "
-                f"HTTPStatusError(status={error.response.status_code}{trace_suffix})"
+                f"HTTPStatusError(status={status_code}{trace_suffix})"
             ) from error
         except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError) as error:
             raise RequirementExtractorFailedError(
@@ -490,7 +496,10 @@ Rules:
 - Never infer requirements from the job title, company, industry stereotypes, or general knowledge.
 - Each originalText and evidenceSpan must be copied verbatim as one contiguous substring from the input.
 - Classify type as skill, experience, education, responsibility, domain, or constraint.
-- Classify importance conservatively: must_have only when mandatory wording is explicit; bonus for optional/plus/preferred wording; otherwise preferred.
+- Classify importance by the requirement's actual scope. In an explicit requirements/qualifications section, default to must_have unless that exact requirement is softened by optional/preferred/bonus wording.
+- A softening modifier such as 优先/加分/preferred/optional applies only to the clause it modifies; do not downgrade adjacent hard constraints in the same sentence. If one sentence mixes hard and soft clauses, split them into separate requirements when the input provides separable verbatim spans.
+- For alternative or cardinality groups such as "at least N of the following", "one of", "any one", or "任意一种", preserve the group constraint as must_have but must not make every child independently must_have unless the Job description explicitly requires every child. Child capabilities may be preferred when they are alternatives under the mandatory group constraint.
+- Use bonus only for explicitly optional, plus, preferred, or bonus requirements. Use preferred only for explicitly desirable-but-not-mandatory requirements or alternative child capabilities governed by a separate mandatory group constraint.
 - Normalize capability aliases when supported by the text, for example React.js/ReactJS → React.
 - Skill requirements must include normalizedCapability.
 - Omit unsupported requirements instead of guessing.

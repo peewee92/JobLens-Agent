@@ -73,16 +73,16 @@ export function RequirementCaseReviewForm({
     <div className="review-form">
       <fieldset>
         <legend>发现的问题（仅 Reject 时提交）</legend>
-        <div className="form-grid">
+        <div className="review-issue-grid">
           {issueCodes.map((issue) => (
-            <label key={issue}>
+            <label className="review-issue-option" key={issue}>
+              <span>{requirementReviewIssueLabels[issue]}</span>
               <input
                 type="checkbox"
                 checked={selectedIssues.includes(issue)}
                 disabled={pending !== null}
                 onChange={() => toggleIssue(issue)}
-              />{" "}
-              {requirementReviewIssueLabels[issue]}
+              />
             </label>
           ))}
         </div>

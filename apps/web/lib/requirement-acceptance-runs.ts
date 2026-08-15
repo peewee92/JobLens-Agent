@@ -98,6 +98,15 @@ export function sortRequirementAcceptanceRuns(
   });
 }
 
+export function requirementAcceptanceCaseIsProviderOutage(
+  runCase: RequirementAcceptanceRunCase,
+): boolean {
+  if (runCase.errorCode === "RequirementExtractorUnavailableError") return true;
+  return /HTTPStatusError\(status=(429|503|504)(?:,|\))/.test(
+    runCase.errorMessage ?? runCase.traceError ?? "",
+  );
+}
+
 export function attemptedCanaryCases(
   cases: readonly RequirementAcceptanceRunCase[],
 ): RequirementAcceptanceRunCase[] {

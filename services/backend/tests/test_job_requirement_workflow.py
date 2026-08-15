@@ -173,8 +173,8 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
     ).execute(job_id="job_fixture", description=description)
 
     assert proposal.trace_run_id.startswith("run_")
-    assert proposal.extractor_version == "requirement-extractor-v5"
-    assert proposal.prompt_version == "requirement-extraction-v1"
+    assert proposal.extractor_version == "requirement-extractor-v6"
+    assert proposal.prompt_version == "requirement-extraction-v2"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
         "FastAPI",
@@ -206,7 +206,7 @@ def test_workflow_repairs_invalid_original_text_from_valid_verbatim_evidence_spa
         description=description,
     )
 
-    assert proposal.extractor_version == "requirement-extractor-v5"
+    assert proposal.extractor_version == "requirement-extractor-v6"
     assert proposal.requirements[0].original_text == evidence
     assert proposal.requirements[0].evidence_span == evidence
     with session_factory() as session:
