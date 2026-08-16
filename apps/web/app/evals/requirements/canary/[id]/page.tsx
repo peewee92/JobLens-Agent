@@ -95,22 +95,21 @@ export default async function RequirementCanaryRunDetailPage({
   return (
     <>
       <section className="page-heading">
-        <p className="eyebrow">Requirement Canary Evidence Workbench</p>
-        <h1>{run.title}</h1>
+        <p className="eyebrow">质量验收</p>
+        <h1>Requirement 抽取结果人工抽查</h1>
         <p className="lede">
-          这里展示后端冻结的 Run、Case、Extraction 和 Trace 事实。请亲自比较完整 JD 与抽取结果，再提交一次性 Continue 或 Stop；页面不会启动或续跑 Provider。
+          请逐个对照岗位原文与抽取结果，重点判断是否有遗漏、误提取或重要程度判断错误。技术运行信息默认收起，只有排查问题时才需要查看。
         </p>
-        <p className="code">{run.id}</p>
         <div className="actions">
           <Link className="button-ghost" href="/evals/requirements/canary">
-            返回 Canary Run 列表
+            返回抽查列表
           </Link>
           {run.batchId ? (
             <Link
               className="button"
               href={`/evals/requirements/manual/${run.batchId}`}
             >
-              打开 20 条人工验收批次
+              打开完整 20 条验收
             </Link>
           ) : null}
         </div>
@@ -118,20 +117,20 @@ export default async function RequirementCanaryRunDetailPage({
 
       <div className="summary-grid">
         <div className="summary-card">
-          <span>Run 状态</span>
+          <span>审核状态</span>
           <strong>{requirementAcceptanceRunStatusLabels[run.status]}</strong>
         </div>
         <div className="summary-card">
-          <span>累计 Provider 调用</span>
-          <strong>{run.attemptedCalls}</strong>
+          <span>本次抽查</span>
+          <strong>{attemptedCases.length} 个岗位</strong>
         </div>
         <div className="summary-card">
-          <span>完成 Case</span>
-          <strong>{run.completedCaseCount}/20</strong>
+          <span>成功抽取</span>
+          <strong>{run.completedCaseCount} 个</strong>
         </div>
         <div className="summary-card">
-          <span>失败 / Deferred</span>
-          <strong>{run.failedCount} / {run.deferredCount}</strong>
+          <span>需要关注</span>
+          <strong>{run.failedCount} 个</strong>
         </div>
       </div>
 
@@ -139,9 +138,9 @@ export default async function RequirementCanaryRunDetailPage({
         <article className="detail-card">
           <div className="section-heading-row">
             <div>
-              <h2>Canary 证据</h2>
+              <h2>抽查结果</h2>
               <p className="muted">
-                决策前展示当前已尝试的 Canary 候选；决策后只展示不可变 Review 冻结的 Case。安全复用、未调用和 Continue 后的后续调用不会混入原始放行证据。
+                只需要判断两件事：岗位原文表达了什么，以及系统抽取出来的要求是否准确。内部运行记录不会影响你的质量判断。
               </p>
             </div>
             <span
@@ -153,7 +152,7 @@ export default async function RequirementCanaryRunDetailPage({
 
           {evidence.length === 0 ? (
             <p className="notice">
-              当前没有已尝试的 Canary Case。先通过 CLI 对正式数据集执行 1～3 次真实调用。
+              当前还没有可供人工抽查的岗位结果。
             </p>
           ) : (
             evidence.map(
@@ -178,61 +177,37 @@ export default async function RequirementCanaryRunDetailPage({
                         className={`status-chip ${providerOutage ? "status-fixture" : requirementAcceptanceCaseStatusClass(runCase.status)}`}
                       >
                         {providerOutage
-                          ? "Provider 暂不可用"
-                          : requirementAcceptanceCaseStatusLabels[runCase.status]}
+                          ? "服务暂不可用"
+                          : runCase.status === "extracted" || runCase.status === "reused"
+                            ? "抽取完成"
+                            : requirementAcceptanceCaseStatusLabels[runCase.status]}
                       </span>
                       <strong>
                         #{runCase.caseIndex + 1} {runCase.title} · {runCase.company}
                       </strong>
                     </div>
-                    <span className="code">attempts={runCase.attemptCount}</span>
-                  </div>
-
-                  <div className="meta-list compact-meta">
-                    <div>
-                      <span className="meta-label">Job</span>
-                      <strong className="code">{runCase.jobId}</strong>
-                    </div>
-                    <div>
-                      <span className="meta-label">Extraction</span>
-                      <strong className="code">{runCase.extractionId ?? "—"}</strong>
-                    </div>
-                    <div>
-                      <span className="meta-label">Trace</span>
-                      <strong className="code">{runCase.traceRunId ?? "—"}</strong>
-                    </div>
-                    <div>
-                      <span className="meta-label">Run JD SHA-256</span>
-                      <strong className="code">{runCase.descriptionHash}</strong>
-                    </div>
-                    <div>
-                      <span className="meta-label">当前 JD SHA-256</span>
-                      <strong className="code">
-                        {runCase.currentDescriptionHash}
-                      </strong>
-                    </div>
                   </div>
 
                   {jobReadError ? (
-                    <div className="inline-error">Job read：{jobReadError}</div>
+                    <div className="inline-error">岗位原文读取失败：{jobReadError}</div>
                   ) : null}
                   {extractionReadError ? (
                     <div className="inline-error">
-                      Extraction read：{extractionReadError}
+                      抽取结果读取失败：{extractionReadError}
                     </div>
                   ) : null}
 
                   <section className="detail-section">
-                    <h3>Canary 当时的完整 JD</h3>
-                    <p className="notice">证据来源：{descriptionEvidenceLabel}</p>
+                    <h3>岗位原文</h3>
+                    <p className="muted">本次抽取实际使用的岗位描述。</p>
                     {!runCase.descriptionIsCurrent ? (
                       <p className="inline-error">
-                        当前 Job.description 的 SHA-256 已与 Run 不同。人工判断必须使用冻结快照，不能把当前 JD 当作原始输入。
+                        岗位原文在本次抽取后发生过变化。为避免把新内容误当成当时输入，本次审核必须以这里冻结的原文为准。
                       </p>
                     ) : null}
                     <p style={{whiteSpace: "pre-wrap"}}>
                       {exactDescription ??
-                        "该旧 Run 没有可信 JD 快照，且当前 JD 哈希不匹配。请停止该 Run 或重新创建正式数据集。"}
+                        "无法恢复本次抽取实际使用的岗位原文。请停止这次验收并重新开始。"}
                     </p>
                     <div className="actions">
                       <Link className="button-ghost" href={`/jobs/${runCase.jobId}`}>
@@ -250,12 +225,15 @@ export default async function RequirementCanaryRunDetailPage({
                   </section>
 
                   <section className="detail-section">
-                    <h3>抽取出的 Requirements（{requirements.length}）</h3>
+                    <h3>抽取结果（{requirements.length}）</h3>
+                    <p className="muted">
+                      重点检查是否漏掉关键要求、把非要求误当要求，或把“必须 / 优先 / 加分”判断错。
+                    </p>
                     {requirements.length === 0 ? (
                       <p className="notice">
                         {providerOutage
-                          ? "没有成功 Extraction：本次调用被上游 Provider outage 中断，不构成 v6 Requirement 质量失败。"
-                          : "没有成功 Extraction。请重点检查 Trace 错误，并倾向 Stop，而不是把失败样本忽略掉。"}
+                          ? "本岗位没有生成抽取结果，因为模型服务当时暂不可用。这不代表抽取质量不合格。"
+                          : "本岗位没有生成可审核的抽取结果，请查看下方技术详情确认原因。"}
                       </p>
                     ) : (
                       <div className="eval-run-list">
@@ -272,25 +250,52 @@ export default async function RequirementCanaryRunDetailPage({
                                   {requirementTypeLabel(requirement.type)}
                                 </span>
                               </div>
-                              <span>{Math.round(requirement.confidence * 100)}%</span>
                             </div>
                             <strong>{requirement.originalText}</strong>
-                            <p>
-                              归一化能力：{requirement.normalizedCapability ?? "—"}
+                            <p className="requirement-evidence">
+                              <span>JD 原文依据</span>
+                              {requirement.evidenceSpan}
                             </p>
-                            <p className="notice">
-                              Evidence：{requirement.evidenceSpan}
-                            </p>
-                            <p className="code">{requirement.id}</p>
                           </article>
                         ))}
                       </div>
                     )}
                   </section>
 
-                  <section className="detail-section">
-                    <h3>Trace 摘要</h3>
+                  <details className="canary-technical-details">
+                    <summary>技术详情（开发调试）</summary>
+                    <p className="muted">
+                      这里保留模型调用、内部 ID、哈希和追踪信息，普通质量审核无需阅读。
+                    </p>
                     <div className="meta-list compact-meta">
+                      <div>
+                        <span className="meta-label">Attempt</span>
+                        <strong>{runCase.attemptCount}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">Job ID</span>
+                        <strong className="code">{runCase.jobId}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">Extraction ID</span>
+                        <strong className="code">{runCase.extractionId ?? "—"}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">Trace ID</span>
+                        <strong className="code">{runCase.traceRunId ?? "—"}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">JD 来源</span>
+                        <strong>{descriptionEvidenceLabel}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">Run JD SHA-256</span>
+                        <strong className="code">{runCase.descriptionHash}</strong>
+                      </div>
+                      <div>
+                        <span className="meta-label">当前 JD SHA-256</span>
+                        <strong className="code">{runCase.currentDescriptionHash}</strong>
+                      </div>
                       <div>
                         <span className="meta-label">Capability</span>
                         <strong>{runCase.traceCapability ?? "—"}</strong>
@@ -324,6 +329,16 @@ export default async function RequirementCanaryRunDetailPage({
                         </strong>
                       </div>
                     </div>
+                    {requirements.length > 0 ? (
+                      <div className="canary-requirement-debug-list">
+                        <strong>Requirement 内部字段</strong>
+                        {requirements.map((requirement) => (
+                          <p className="code" key={requirement.id}>
+                            {requirement.id} · normalized={requirement.normalizedCapability ?? "—"} · confidence={Math.round(requirement.confidence * 100)}%
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                     {providerOutage ? (
                       <div className="notice">
                         <strong>Provider outage 证据（不计入 v6 质量判断）</strong>
@@ -337,7 +352,7 @@ export default async function RequirementCanaryRunDetailPage({
                         {runCase.traceError ? (
                           <p className="inline-error">Trace error：{runCase.traceError}</p>
                         ) : (
-                          <p className="notice">Trace 未记录错误。</p>
+                          <p className="notice">本次调用未记录技术错误。</p>
                         )}
                         {runCase.errorCode || runCase.errorMessage ? (
                           <p className="inline-error">
@@ -346,7 +361,7 @@ export default async function RequirementCanaryRunDetailPage({
                         ) : null}
                       </>
                     )}
-                  </section>
+                  </details>
                 </section>
               );
             },
@@ -355,28 +370,17 @@ export default async function RequirementCanaryRunDetailPage({
         </article>
 
         <aside className="detail-card">
-          <h2>人工门禁</h2>
+          <h2>人工判断</h2>
+          <p className="muted">
+            看完左侧抽查结果后，再决定是否允许继续扩大到剩余岗位。这里的决定只控制下一步，不代表最终质量验收已经通过。
+          </p>
           <div className="meta-list">
             <div>
-              <span className="meta-label">Reviewer</span>
+              <span className="meta-label">审核人</span>
               <strong>{run.reviewer}</strong>
             </div>
             <div>
-              <span className="meta-label">Provider / Model</span>
-              <strong>{run.provider} / {run.model}</strong>
-            </div>
-            <div>
-              <span className="meta-label">Extractor / Prompt</span>
-              <strong>{run.extractorVersion} / {run.promptVersion}</strong>
-            </div>
-            <div>
-              <span className="meta-label">首次 / 最近 Import</span>
-              <strong className="code">
-                {run.firstImportId} / {run.lastImportId}
-              </strong>
-            </div>
-            <div>
-              <span className="meta-label">更新时间</span>
+              <span className="meta-label">最近更新</span>
               <strong>{formatDateTime(run.updatedAt)}</strong>
             </div>
           </div>
@@ -387,18 +391,23 @@ export default async function RequirementCanaryRunDetailPage({
               <div
                 className={`review-result review-${run.canaryReview.decision === "continue" ? "accepted" : "rejected"}`}
               >
-                <strong>{run.canaryReview.decision}</strong>
+                <strong>
+                  {run.canaryReview.decision === "continue" ? "已允许继续" : "已停止这次验收"}
+                </strong>
                 <p>{run.canaryReview.notes}</p>
-                <p className="code">
-                  Cases：{run.canaryReview.reviewedCaseIds.join(", ")}
-                </p>
-                <p className="code">
-                  Extractions：{run.canaryReview.reviewedExtractionIds.join(", ") || "—"}
-                </p>
-                <p className="code">
-                  Traces：{run.canaryReview.reviewedTraceRunIds.join(", ")}
-                </p>
                 <small>{formatDateTime(run.canaryReview.reviewedAt)}</small>
+                <details className="canary-technical-details compact-technical-details">
+                  <summary>查看审核记录 ID</summary>
+                  <p className="code">
+                    Cases：{run.canaryReview.reviewedCaseIds.join(", ")}
+                  </p>
+                  <p className="code">
+                    Extractions：{run.canaryReview.reviewedExtractionIds.join(", ") || "—"}
+                  </p>
+                  <p className="code">
+                    Traces：{run.canaryReview.reviewedTraceRunIds.join(", ")}
+                  </p>
+                </details>
               </div>
             ) : (
               <RequirementCanaryReviewForm
@@ -412,11 +421,47 @@ export default async function RequirementCanaryRunDetailPage({
           </section>
 
           <section className="detail-section">
-            <h3>范围边界</h3>
+            <h3>这一步代表什么</h3>
             <p className="notice">
-              Continue 只解除该 Run 的 Canary 门禁。后续 Provider 调用仍由 CLI 显式预算控制；20 条完成后还必须进入逐岗位人工验收，不能直接进入 Match。
+              选择“允许继续”只表示这 1～3 个抽查样本没有发现需要立即停止的问题。剩余岗位完成后仍要进行完整人工验收，不能直接进入匹配流程。
             </p>
           </section>
+
+          <details className="canary-technical-details">
+            <summary>技术详情（开发调试）</summary>
+            <div className="meta-list compact-meta">
+              <div>
+                <span className="meta-label">Run title</span>
+                <strong>{run.title}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Run ID</span>
+                <strong className="code">{run.id}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Provider / Model</span>
+                <strong>{run.provider} / {run.model}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Extractor / Prompt</span>
+                <strong>{run.extractorVersion} / {run.promptVersion}</strong>
+              </div>
+              <div>
+                <span className="meta-label">首次 / 最近 Import</span>
+                <strong className="code">
+                  {run.firstImportId} / {run.lastImportId}
+                </strong>
+              </div>
+              <div>
+                <span className="meta-label">Provider 调用数</span>
+                <strong>{run.attemptedCalls}</strong>
+              </div>
+              <div>
+                <span className="meta-label">Deferred</span>
+                <strong>{run.deferredCount}</strong>
+              </div>
+            </div>
+          </details>
         </aside>
       </section>
     </>

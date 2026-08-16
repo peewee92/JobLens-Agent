@@ -346,6 +346,29 @@ test("Requirement Canary pages consume Backend facts and never start Provider wo
   assert.match(detailPage, /canaryStopAllowed/);
 });
 
+test("Requirement Canary keeps implementation metadata behind developer details", async () => {
+  const detailPage = await readFile(
+    join(webRoot, "app/evals/requirements/canary/[id]/page.tsx"),
+    "utf8",
+  );
+  const reviewForm = await readFile(
+    join(webRoot, "components/requirement-canary-review-form.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    detailPage,
+    /<details className="canary-technical-details">[\s\S]*?<summary>技术详情（开发调试）<\/summary>/,
+  );
+  assert.match(detailPage, /JD 原文依据/);
+  assert.match(detailPage, /岗位原文/);
+  assert.match(detailPage, /抽取结果（\{requirements\.length\}）/);
+  assert.doesNotMatch(detailPage, /<h3>Trace 摘要<\/h3>/);
+  assert.doesNotMatch(detailPage, /Evidence：/);
+  assert.match(reviewForm, /我已确认本次调用没有技术错误/);
+  assert.doesNotMatch(reviewForm, /我已检查 Trace 状态、耗时、Token 与错误/);
+});
+
 test("Requirement readiness page is read-only and cannot launch operational work", async () => {
   const source = await readFile(
     join(

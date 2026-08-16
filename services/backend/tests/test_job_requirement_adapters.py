@@ -110,6 +110,10 @@ def test_openai_requirement_adapter_prompt_preserves_requirement_importance_scop
     assert "split them into separate requirements" in prompt
     assert "at least N" in prompt
     assert "must not make every child independently must_have" in prompt
+    assert "waiver or exception" in prompt
+    assert "可放宽" in prompt
+    assert "examples such as" in prompt
+    assert "must not become independent must_have requirements" in prompt
 
 
 def test_openai_requirement_adapter_schema_requires_normalized_capability_for_skills() -> None:

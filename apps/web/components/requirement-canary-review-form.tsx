@@ -35,7 +35,7 @@ export function RequirementCanaryReviewForm({
   async function submit(decision: RequirementAcceptanceCanaryDecision) {
     setError(null);
     if (!evidenceChecked) {
-      setError("请先确认已亲自检查完整 JD、Requirements 和 Trace。" );
+      setError("请先确认已亲自核对岗位原文、抽取结果和本次调用状态。" );
       return;
     }
     if (notes.trim().length < 20) {
@@ -77,7 +77,7 @@ export function RequirementCanaryReviewForm({
   return (
     <div className="review-form">
       <fieldset>
-        <legend>提交前的个人检查</legend>
+        <legend>提交前确认</legend>
         <div className="form-grid">
           <label>
             <input
@@ -86,7 +86,7 @@ export function RequirementCanaryReviewForm({
               disabled={pending !== null}
               onChange={(event) => setCheckedJd(event.target.checked)}
             />{" "}
-            我已逐条阅读完整 JD，不只看模型摘要
+            我已阅读岗位原文，并与抽取结果逐条对照
           </label>
           <label>
             <input
@@ -95,7 +95,7 @@ export function RequirementCanaryReviewForm({
               disabled={pending !== null}
               onChange={(event) => setCheckedRequirements(event.target.checked)}
             />{" "}
-            我已核对 Requirement、importance 与 evidenceSpan
+            我已核对抽取内容、重要程度和 JD 原文依据
           </label>
           <label>
             <input
@@ -104,25 +104,25 @@ export function RequirementCanaryReviewForm({
               disabled={pending !== null}
               onChange={(event) => setCheckedTrace(event.target.checked)}
             />{" "}
-            我已检查 Trace 状态、耗时、Token 与错误
+            我已确认本次调用没有技术错误（如服务失败）
           </label>
         </div>
       </fieldset>
 
       <label>
-        人工判断依据
+        判断依据
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           minLength={20}
           rows={6}
           required
-          placeholder="写明检查了哪些 Case、发现了什么、为什么允许继续或为什么必须停止。不要让 Agent 代写判断。"
+          placeholder="简要写明检查了哪些岗位、发现了什么，以及为什么允许继续或为什么需要停止。"
         />
       </label>
 
       <p className="notice">
-        该决策不可修改。Continue 只表示允许继续受控抽取，不表示模型已经通过质量验收。
+        提交后不可修改。“允许继续”只表示当前抽查没有发现必须停止的问题，不代表最终质量验收已经通过。
       </p>
       {blockReason ? <p className="muted">后端状态：{blockReason}</p> : null}
       {error ? <div className="inline-error">{error}</div> : null}
@@ -136,7 +136,7 @@ export function RequirementCanaryReviewForm({
           }
           onClick={() => void submit("continue")}
         >
-          {pending === "continue" ? "提交中…" : "Continue：允许继续受控执行"}
+          {pending === "continue" ? "提交中…" : "允许继续"}
         </button>
         <button
           className="button-ghost"
@@ -144,7 +144,7 @@ export function RequirementCanaryReviewForm({
           disabled={pending !== null || !evidenceChecked || !stopAllowed}
           onClick={() => void submit("stop")}
         >
-          {pending === "stop" ? "提交中…" : "Stop：永久停止该 Run"}
+          {pending === "stop" ? "提交中…" : "停止这次验收"}
         </button>
       </div>
     </div>

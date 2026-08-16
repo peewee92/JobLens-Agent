@@ -1819,6 +1819,57 @@ h3 {
   margin-top: 10px;
 }
 
+.canary-technical-details {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+}
+
+.canary-technical-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.canary-technical-details[open] summary {
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+
+.canary-technical-details .meta-list {
+  margin-top: 12px;
+}
+
+.canary-requirement-debug-list {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.canary-requirement-debug-list .code {
+  margin: 8px 0 0;
+}
+
+.requirement-evidence {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--muted);
+}
+
+.requirement-evidence span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .requirement-lede {
   margin: 6px 0 0;
   font-size: 14px;
