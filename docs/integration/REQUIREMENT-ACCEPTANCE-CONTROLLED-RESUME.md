@@ -130,6 +130,8 @@ Completed means `reused + extracted`. Failed or deferred Cases remain eligible f
 
 The budget is an upper limit on new Provider attempts. Reused Extractions do not consume it.
 
+A Provider HTTP `504` is treated as a gateway timeout, not as a reason to increase the local HTTP timeout. Within one invocation, Acceptance may retry the same Case exactly once **only when at least one explicit attempt remains in the requested budget**. The first 504 and the retry are separate Provider attempts with separate Trace evidence and both consume budget. If the retry also returns 504, the invocation fails fast and all later Cases are deferred. HTTP `429` and `503` still fail fast immediately without an automatic retry.
+
 ### 5.5 Execution lease
 
 ADR-0033 execution leases protect the stable Dataset/Title/Reviewer/Cohort identity.

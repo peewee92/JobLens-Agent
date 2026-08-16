@@ -367,6 +367,14 @@ test("Requirement Canary keeps implementation metadata behind developer details"
   assert.doesNotMatch(detailPage, /Evidence：/);
   assert.match(reviewForm, /我已确认本次调用没有技术错误/);
   assert.doesNotMatch(reviewForm, /我已检查 Trace 状态、耗时、Token 与错误/);
+  assert.doesNotMatch(
+    reviewForm,
+    /disabled=\{pending !== null \|\| !evidenceChecked \|\| !stopAllowed\}/,
+  );
+  assert.match(
+    reviewForm,
+    /disabled=\{pending !== null \|\| !stopAllowed\}/,
+  );
 });
 
 test("Requirement readiness page is read-only and cannot launch operational work", async () => {

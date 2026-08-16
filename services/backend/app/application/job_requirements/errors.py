@@ -17,6 +17,16 @@ class JobRequirementExtractionExecutionError(RuntimeError):
 class RequirementExtractorUnavailableError(JobRequirementExtractionExecutionError):
     """No configured Requirement Extractor can serve the request."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        run_id: str | None = None,
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(message, run_id=run_id)
+        self.status_code = status_code
+
 
 class RequirementExtractorFailedError(JobRequirementExtractionExecutionError):
     """The provider failed before producing usable structured output."""

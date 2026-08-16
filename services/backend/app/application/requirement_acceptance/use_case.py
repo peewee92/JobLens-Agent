@@ -350,44 +350,62 @@ class PrepareRequirementAcceptanceBatchUseCase:
                 self._record_run_case(run_id, case, attempt_increment=0)
                 continue
 
-            self._renew_execution_lease(
-                identity_key=execution_lease_identity_key,
-                lease_token=execution_lease_token,
-            )
-            new_call_count += 1
-            try:
-                extraction = self._extract_requirements.execute(job_id)
-            except RequirementExtractorUnavailableError as error:
-                provider_unavailable = True
-                case = _failed_case(
-                    input_index=input_index,
-                    job_id=job_id,
-                    title=title_value,
-                    company=company_value,
-                    error_code=type(error).__name__,
-                    error_message=str(error),
-                    trace_run_id=error.run_id,
+            extraction = None
+            gateway_timeout_retry_used = False
+            while True:
+                self._renew_execution_lease(
+                    identity_key=execution_lease_identity_key,
+                    lease_token=execution_lease_token,
                 )
-                cases.append(case)
-                self._record_run_case(run_id, case, attempt_increment=1)
-                continue
-            except (
-                JobNotFoundError,
-                JobDescriptionNotExtractableError,
-                RequirementExtractorFailedError,
-                InvalidRequirementExtractorOutputError,
-            ) as error:  # one expected case failure must not erase prior cases
-                case = _failed_case(
-                    input_index=input_index,
-                    job_id=job_id,
-                    title=title_value,
-                    company=company_value,
-                    error_code=type(error).__name__,
-                    error_message=str(error),
-                    trace_run_id=getattr(error, "run_id", None),
-                )
-                cases.append(case)
-                self._record_run_case(run_id, case, attempt_increment=1)
+                new_call_count += 1
+                try:
+                    extraction = self._extract_requirements.execute(job_id)
+                except RequirementExtractorUnavailableError as error:
+                    failed_case = _failed_case(
+                        input_index=input_index,
+                        job_id=job_id,
+                        title=title_value,
+                        company=company_value,
+                        error_code=type(error).__name__,
+                        error_message=str(error),
+                        trace_run_id=error.run_id,
+                    )
+                    self._record_run_case(run_id, failed_case, attempt_increment=1)
+                    retry_budget_available = (
+                        max_new_extractions is None
+                        or new_call_count < max_new_extractions
+                    )
+                    if (
+                        error.status_code == 504
+                        and not gateway_timeout_retry_used
+                        and retry_budget_available
+                    ):
+                        gateway_timeout_retry_used = True
+                        continue
+                    provider_unavailable = True
+                    cases.append(failed_case)
+                    break
+                except (
+                    JobNotFoundError,
+                    JobDescriptionNotExtractableError,
+                    RequirementExtractorFailedError,
+                    InvalidRequirementExtractorOutputError,
+                ) as error:  # one expected case failure must not erase prior cases
+                    case = _failed_case(
+                        input_index=input_index,
+                        job_id=job_id,
+                        title=title_value,
+                        company=company_value,
+                        error_code=type(error).__name__,
+                        error_message=str(error),
+                        trace_run_id=getattr(error, "run_id", None),
+                    )
+                    cases.append(case)
+                    self._record_run_case(run_id, case, attempt_increment=1)
+                    break
+                break
+
+            if extraction is None:
                 continue
 
             if not self._matches_target_cohort(extraction):

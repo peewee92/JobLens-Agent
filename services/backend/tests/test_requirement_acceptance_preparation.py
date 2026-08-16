@@ -102,6 +102,32 @@ class UnavailableFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
         raise RequirementExtractorUnavailableError("simulated unavailable provider")
 
 
+class GatewayTimeoutOnceFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def extract(self, description: str):
+        self.call_count += 1
+        if self.call_count == 1:
+            raise RequirementExtractorUnavailableError(
+                "simulated gateway timeout",
+                status_code=504,
+            )
+        return super().extract(description)
+
+
+class GatewayTimeoutFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def extract(self, description: str):
+        self.call_count += 1
+        raise RequirementExtractorUnavailableError(
+            "simulated gateway timeout",
+            status_code=504,
+        )
+
+
 class FlakyFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
     def __init__(self, marker: str) -> None:
         self._marker = marker
@@ -1203,6 +1229,88 @@ def test_provider_unavailable_fails_fast_after_one_traced_attempt(
     assert _count(session_factory, RequirementReviewBatchORM) == 0
     assert _count(session_factory, RequirementAcceptanceRunORM) == 1
     assert _count(session_factory, RequirementAcceptanceRunCaseORM) == 20
+
+
+def test_gateway_timeout_retries_same_case_once_within_explicit_budget(
+    session_factory: sessionmaker[Session],
+) -> None:
+    extractor = GatewayTimeoutOnceFixtureJobRequirementExtractor()
+    result = _use_case(session_factory, extractor=extractor).execute(
+        payload=_payload(),
+        title="Gateway timeout recovery batch",
+        reviewer="will",
+        max_new_extractions=2,
+    )
+
+    assert extractor.call_count == 2
+    assert result.created_extractions == 1
+    assert result.failed_extractions == 0
+    assert result.deferred_extractions == 19
+    assert result.cases[0].status is RequirementAcceptanceCaseStatus.EXTRACTED
+    assert result.cases[0].extraction_id is not None
+    assert all(
+        case.status is RequirementAcceptanceCaseStatus.DEFERRED
+        and case.error_code == "new_extraction_limit_reached"
+        for case in result.cases[1:]
+    )
+    run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
+        result.run_id
+    )
+    assert run is not None
+    assert run.cases[0].attempt_count == 2
+    assert _count(session_factory, TraceSpanORM) == 2
+
+
+def test_repeated_gateway_timeout_retries_only_once_then_fails_fast(
+    session_factory: sessionmaker[Session],
+) -> None:
+    extractor = GatewayTimeoutFixtureJobRequirementExtractor()
+    result = _use_case(session_factory, extractor=extractor).execute(
+        payload=_payload(),
+        title="Repeated gateway timeout batch",
+        reviewer="will",
+        max_new_extractions=3,
+    )
+
+    assert extractor.call_count == 2
+    assert result.created_extractions == 0
+    assert result.failed_extractions == 1
+    assert result.deferred_extractions == 19
+    assert result.cases[0].error_code == "RequirementExtractorUnavailableError"
+    assert all(
+        case.status is RequirementAcceptanceCaseStatus.DEFERRED
+        and case.error_code == "provider_unavailable_not_attempted"
+        for case in result.cases[1:]
+    )
+    run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
+        result.run_id
+    )
+    assert run is not None
+    assert run.cases[0].attempt_count == 2
+    assert _count(session_factory, TraceSpanORM) == 2
+
+
+def test_gateway_timeout_never_retries_past_explicit_single_call_budget(
+    session_factory: sessionmaker[Session],
+) -> None:
+    extractor = GatewayTimeoutFixtureJobRequirementExtractor()
+    result = _use_case(session_factory, extractor=extractor).execute(
+        payload=_payload(),
+        title="Single-call gateway timeout batch",
+        reviewer="will",
+        max_new_extractions=1,
+    )
+
+    assert extractor.call_count == 1
+    assert result.created_extractions == 0
+    assert result.failed_extractions == 1
+    assert result.deferred_extractions == 19
+    run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
+        result.run_id
+    )
+    assert run is not None
+    assert run.cases[0].attempt_count == 1
+    assert _count(session_factory, TraceSpanORM) == 1
 
 
 def test_deferred_invocation_does_not_erase_a_prior_failure_trace(

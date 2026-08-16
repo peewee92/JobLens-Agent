@@ -16,8 +16,11 @@ from app.application.job_requirements import (
 )
 from app.application.job_requirements.validation import (
     GROUNDING_POLICY_VERSION,
+    SEMANTIC_POLICY_VERSION,
     GroundingRepairEvent,
+    SemanticRepairEvent,
     repair_job_requirement_grounding,
+    repair_job_requirement_semantics,
     validate_job_requirement_output,
 )
 from app.application.ports.job_requirement_extractor import (
@@ -28,7 +31,7 @@ from app.application.tracing import TraceWrite
 
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
-EXTRACTOR_VERSION = "requirement-extractor-v7"
+EXTRACTOR_VERSION = "requirement-extractor-v11"
 PROMPT_VERSION = "requirement-extraction-v3"
 MIN_DESCRIPTION_CHARS = 40
 MAX_DESCRIPTION_CHARS = 50_000
@@ -61,6 +64,7 @@ class ExtractJobRequirementsWorkflow:
         model = self._extractor.model_name
         output: JobRequirementExtractionOutput | None = None
         grounding_repairs: tuple[GroundingRepairEvent, ...] = ()
+        semantic_repairs: tuple[SemanticRepairEvent, ...] = ()
         input_tokens: int | None = None
         output_tokens: int | None = None
 
@@ -70,8 +74,13 @@ class ExtractJobRequirementsWorkflow:
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
             grounding_result = repair_job_requirement_grounding(normalized, result.output)
-            output = grounding_result.output
             grounding_repairs = grounding_result.repairs
+            semantic_result = repair_job_requirement_semantics(
+                normalized,
+                grounding_result.output,
+            )
+            output = semantic_result.output
+            semantic_repairs = semantic_result.repairs
             validate_job_requirement_output(normalized, output)
         except (
             RequirementExtractorUnavailableError,
@@ -86,6 +95,7 @@ class ExtractJobRequirementsWorkflow:
                 model=model,
                 output=output,
                 grounding_repairs=grounding_repairs,
+                semantic_repairs=semantic_repairs,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -104,6 +114,7 @@ class ExtractJobRequirementsWorkflow:
                 model=model,
                 output=output,
                 grounding_repairs=grounding_repairs,
+                semantic_repairs=semantic_repairs,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -119,6 +130,7 @@ class ExtractJobRequirementsWorkflow:
             model=model,
             output=output,
             grounding_repairs=grounding_repairs,
+            semantic_repairs=semantic_repairs,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -141,6 +153,7 @@ class ExtractJobRequirementsWorkflow:
         model: str,
         output: JobRequirementExtractionOutput | None,
         grounding_repairs: tuple[GroundingRepairEvent, ...],
+        semantic_repairs: tuple[SemanticRepairEvent, ...],
         latency_ms: int,
         input_tokens: int | None,
         output_tokens: int | None,
@@ -162,7 +175,11 @@ class ExtractJobRequirementsWorkflow:
                         "characterCount": len(description),
                     },
                     output=(
-                        _requirement_output_dict(output, grounding_repairs)
+                        _requirement_output_dict(
+                            output,
+                            grounding_repairs,
+                            semantic_repairs,
+                        )
                         if output is not None
                         else None
                     ),
@@ -182,6 +199,7 @@ class ExtractJobRequirementsWorkflow:
 def _requirement_output_dict(
     output: JobRequirementExtractionOutput,
     grounding_repairs: tuple[GroundingRepairEvent, ...],
+    semantic_repairs: tuple[SemanticRepairEvent, ...],
 ) -> dict:
     return {
         "groundingPolicyVersion": GROUNDING_POLICY_VERSION,
@@ -192,6 +210,14 @@ def _requirement_output_dict(
                 "strategy": item.strategy.value,
             }
             for item in grounding_repairs
+        ],
+        "semanticPolicyVersion": SEMANTIC_POLICY_VERSION,
+        "semanticRepairs": [
+            {
+                "requirementIndex": item.requirement_index,
+                "strategy": item.strategy.value,
+            }
+            for item in semantic_repairs
         ],
         "requirements": [
             {

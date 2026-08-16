@@ -251,15 +251,16 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             status_code = error.response.status_code
             trace_id = _response_trace_id(error.response)
             trace_suffix = f", traceId={trace_id}" if trace_id else ""
-            error_type = (
-                RequirementExtractorUnavailableError
-                if status_code in {429, 503, 504}
-                else RequirementExtractorFailedError
-            )
-            raise error_type(
+            message = (
                 "OpenAI Requirement extractor failed: "
                 f"HTTPStatusError(status={status_code}{trace_suffix})"
-            ) from error
+            )
+            if status_code in {429, 503, 504}:
+                raise RequirementExtractorUnavailableError(
+                    message,
+                    status_code=status_code,
+                ) from error
+            raise RequirementExtractorFailedError(message) from error
         except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError) as error:
             raise RequirementExtractorFailedError(
                 f"OpenAI Requirement extractor failed: {type(error).__name__}"

@@ -289,10 +289,12 @@ def test_openai_requirement_adapter_classifies_transient_provider_outage_as_unav
         with pytest.raises(
             RequirementExtractorUnavailableError,
             match=rf"HTTPStatusError\(status={status_code}, traceId=trace_gateway_123\)",
-        ):
+        ) as captured:
             extractor.extract(
                 "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"
             )
+
+    assert captured.value.status_code == status_code
 
 
 def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() -> None:

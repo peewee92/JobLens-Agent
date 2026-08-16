@@ -131,9 +131,7 @@ export function RequirementCanaryReviewForm({
         <button
           className="button"
           type="button"
-          disabled={
-            pending !== null || !evidenceChecked || !continueAllowed
-          }
+          disabled={pending !== null || !continueAllowed}
           onClick={() => void submit("continue")}
         >
           {pending === "continue" ? "提交中…" : "允许继续"}
@@ -141,7 +139,7 @@ export function RequirementCanaryReviewForm({
         <button
           className="button-ghost"
           type="button"
-          disabled={pending !== null || !evidenceChecked || !stopAllowed}
+          disabled={pending !== null || !stopAllowed}
           onClick={() => void submit("stop")}
         >
           {pending === "stop" ? "提交中…" : "停止这次验收"}
