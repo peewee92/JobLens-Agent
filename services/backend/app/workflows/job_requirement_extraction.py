@@ -15,12 +15,17 @@ from app.application.job_requirements import (
     RequirementExtractorUnavailableError,
 )
 from app.application.job_requirements.validation import (
+    COVERAGE_POLICY_VERSION,
     GROUNDING_POLICY_VERSION,
     SEMANTIC_POLICY_VERSION,
     GroundingRepairEvent,
+    JobRequirementCoverageAudit,
     SemanticRepairEvent,
+    audit_job_requirement_coverage,
     repair_job_requirement_grounding,
     repair_job_requirement_semantics,
+    validate_explicit_bonus_section_coverage,
+    validate_job_requirement_coverage,
     validate_job_requirement_output,
 )
 from app.application.ports.job_requirement_extractor import (
@@ -31,8 +36,8 @@ from app.application.tracing import TraceWrite
 
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
-EXTRACTOR_VERSION = "requirement-extractor-v11"
-PROMPT_VERSION = "requirement-extraction-v3"
+EXTRACTOR_VERSION = "requirement-extractor-v42.95"
+PROMPT_VERSION = "requirement-extraction-v7"
 MIN_DESCRIPTION_CHARS = 40
 MAX_DESCRIPTION_CHARS = 50_000
 
@@ -65,6 +70,7 @@ class ExtractJobRequirementsWorkflow:
         output: JobRequirementExtractionOutput | None = None
         grounding_repairs: tuple[GroundingRepairEvent, ...] = ()
         semantic_repairs: tuple[SemanticRepairEvent, ...] = ()
+        coverage_audit: JobRequirementCoverageAudit | None = None
         input_tokens: int | None = None
         output_tokens: int | None = None
 
@@ -82,12 +88,20 @@ class ExtractJobRequirementsWorkflow:
             output = semantic_result.output
             semantic_repairs = semantic_result.repairs
             validate_job_requirement_output(normalized, output)
+            coverage_audit = audit_job_requirement_coverage(normalized, output)
+            validate_job_requirement_coverage(coverage_audit)
+            validate_explicit_bonus_section_coverage(normalized, output)
         except (
             RequirementExtractorUnavailableError,
             RequirementExtractorFailedError,
             InvalidRequirementExtractorOutputError,
         ) as error:
             error.run_id = run_id
+            if isinstance(error, RequirementExtractorFailedError):
+                if error.input_tokens is not None:
+                    input_tokens = error.input_tokens
+                if error.output_tokens is not None:
+                    output_tokens = error.output_tokens
             self._record_trace(
                 run_id=run_id,
                 job_id=job_id,
@@ -96,6 +110,7 @@ class ExtractJobRequirementsWorkflow:
                 output=output,
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
+                coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -115,6 +130,7 @@ class ExtractJobRequirementsWorkflow:
                 output=output,
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
+                coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -131,6 +147,7 @@ class ExtractJobRequirementsWorkflow:
             output=output,
             grounding_repairs=grounding_repairs,
             semantic_repairs=semantic_repairs,
+            coverage_audit=coverage_audit,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -154,6 +171,7 @@ class ExtractJobRequirementsWorkflow:
         output: JobRequirementExtractionOutput | None,
         grounding_repairs: tuple[GroundingRepairEvent, ...],
         semantic_repairs: tuple[SemanticRepairEvent, ...],
+        coverage_audit: JobRequirementCoverageAudit | None,
         latency_ms: int,
         input_tokens: int | None,
         output_tokens: int | None,
@@ -179,6 +197,7 @@ class ExtractJobRequirementsWorkflow:
                             output,
                             grounding_repairs,
                             semantic_repairs,
+                            coverage_audit,
                         )
                         if output is not None
                         else None
@@ -200,6 +219,7 @@ def _requirement_output_dict(
     output: JobRequirementExtractionOutput,
     grounding_repairs: tuple[GroundingRepairEvent, ...],
     semantic_repairs: tuple[SemanticRepairEvent, ...],
+    coverage_audit: JobRequirementCoverageAudit | None,
 ) -> dict:
     return {
         "groundingPolicyVersion": GROUNDING_POLICY_VERSION,
@@ -219,6 +239,17 @@ def _requirement_output_dict(
             }
             for item in semantic_repairs
         ],
+        "coveragePolicyVersion": COVERAGE_POLICY_VERSION,
+        "coverageAudit": (
+            {
+                "dutyCandidateCount": coverage_audit.duty_candidate_count,
+                "coveredDutyCount": coverage_audit.covered_duty_count,
+                "minimumCoveredDutyCount": coverage_audit.minimum_covered_duty_count,
+                "enforced": coverage_audit.enforced,
+            }
+            if coverage_audit is not None
+            else None
+        ),
         "requirements": [
             {
                 "type": item.type.value,

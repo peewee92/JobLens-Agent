@@ -28,8 +28,8 @@ class _StrictModel(BaseModel):
 
 class _RequirementOutputBase(_StrictModel):
     original_text: str = Field(alias="originalText", min_length=1, max_length=4000)
+    source_candidate_id: str = Field(alias="sourceCandidateId", min_length=5, max_length=16)
     importance: RequirementImportance
-    evidence_span: str = Field(alias="evidenceSpan", min_length=1, max_length=4000)
     confidence: float = Field(ge=0, le=1)
 
 
@@ -62,8 +62,14 @@ _RequirementOutput = Annotated[
 ]
 
 
+PROVIDER_RAW_REQUIREMENTS_LIMIT = 64
+
+
 class _RequirementsOutput(_StrictModel):
-    requirements: list[_RequirementOutput] = Field(min_length=1, max_length=50)
+    requirements: list[_RequirementOutput] = Field(
+        min_length=1,
+        max_length=PROVIDER_RAW_REQUIREMENTS_LIMIT,
+    )
 
 
 class DisabledJobRequirementExtractor(AbstractJobRequirementExtractor):
@@ -157,6 +163,8 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             raise RequirementExtractorUnavailableError(
                 "OpenAI Requirement extractor requires OPENAI_API_KEY and REQUIREMENT_EXTRACTOR_MODEL."
             )
+        source_candidates = _source_candidates(description)
+        source_candidate_text = _render_extraction_input(description, source_candidates)
         schema = _RequirementsOutput.model_json_schema(by_alias=True)
         if self._api_style == "responses":
             request_url = f"{self._base_url}/responses"
@@ -170,7 +178,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     },
                     {
                         "role": "user",
-                        "content": [{"type": "input_text", "text": description}],
+                        "content": [{"type": "input_text", "text": source_candidate_text}],
                     },
                 ],
                 "text": {
@@ -194,7 +202,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 "model": self._model,
                 "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": description},
+                    {"role": "user", "content": source_candidate_text},
                 ],
                 "stream": False,
                 "response_format": {
@@ -222,6 +230,12 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 "chat_completions."
             )
 
+        payload: Any = None
+        provider_text: str | None = None
+        failure_input_tokens: int | None = None
+        failure_output_tokens: int | None = None
+        provider_finish_reason: str | None = None
+
         try:
             if self._client is not None:
                 response = self._client.post(
@@ -244,7 +258,13 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     )
             response.raise_for_status()
             payload = response.json()
-            parsed = _RequirementsOutput.model_validate_json(output_text(payload))
+            usage = payload.get("usage") if isinstance(payload, dict) else None
+            failure_input_tokens = _optional_int(usage, input_tokens_key)
+            failure_output_tokens = _optional_int(usage, output_tokens_key)
+            provider_finish_reason = _provider_finish_reason(payload, api_style=self._api_style)
+            provider_text = output_text(payload)
+            parsed = _RequirementsOutput.model_validate_json(provider_text)
+            _validate_source_candidate_ids(parsed, source_candidates)
         except RequirementExtractorFailedError:
             raise
         except httpx.HTTPStatusError as error:
@@ -261,9 +281,40 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     status_code=status_code,
                 ) from error
             raise RequirementExtractorFailedError(message) from error
-        except (httpx.HTTPError, json.JSONDecodeError, ValidationError, KeyError) as error:
+        except ValidationError as error:
+            message, failure_stage = _structured_output_validation_error_message(
+                error,
+                provider_finish_reason=provider_finish_reason,
+                input_tokens=failure_input_tokens,
+                output_tokens=failure_output_tokens,
+                output_chars=len(provider_text) if provider_text is not None else None,
+                requested_max_completion_tokens=self._max_completion_tokens,
+            )
             raise RequirementExtractorFailedError(
-                f"OpenAI Requirement extractor failed: {type(error).__name__}"
+                message,
+                failure_stage=failure_stage,
+                input_tokens=failure_input_tokens,
+                output_tokens=failure_output_tokens,
+                provider_finish_reason=provider_finish_reason,
+                output_chars=len(provider_text) if provider_text is not None else None,
+                requested_max_completion_tokens=self._max_completion_tokens,
+            ) from error
+        except json.JSONDecodeError as error:
+            raise RequirementExtractorFailedError(
+                "OpenAI Requirement extractor failed: "
+                "ProviderOutputError(failureStage=provider_response_json, "
+                "reason=invalid_json)"
+            ) from error
+        except KeyError as error:
+            raise RequirementExtractorFailedError(
+                "OpenAI Requirement extractor failed: "
+                "ProviderOutputError(failureStage=provider_response_shape, "
+                f"reason=missing_key, key={str(error)[:128]})"
+            ) from error
+        except httpx.HTTPError as error:
+            raise RequirementExtractorFailedError(
+                "OpenAI Requirement extractor failed: "
+                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})"
             ) from error
 
         usage = payload.get("usage") if isinstance(payload, dict) else None
@@ -273,9 +324,17 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     ProposedJobRequirement(
                         type=item.type,
                         original_text=item.original_text,
-                        normalized_capability=item.normalized_capability,
+                        normalized_capability=(
+                            item.normalized_capability
+                            if item.type is RequirementType.SKILL
+                            else (
+                                item.normalized_capability.strip() or None
+                                if item.normalized_capability is not None
+                                else None
+                            )
+                        ),
                         importance=item.importance,
-                        evidence_span=item.evidence_span,
+                        evidence_span=source_candidates[item.source_candidate_id],
                         confidence=item.confidence,
                     )
                     for item in parsed.requirements
@@ -284,6 +343,52 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             model=self._model,
             input_tokens=_optional_int(usage, input_tokens_key),
             output_tokens=_optional_int(usage, output_tokens_key),
+        )
+
+
+def _source_candidates(description: str) -> dict[str, str]:
+    candidates: dict[str, str] = {}
+    for line in description.splitlines():
+        raw = line.strip()
+        if not raw:
+            continue
+        candidate_id = f"S{len(candidates) + 1:04d}"
+        candidates[candidate_id] = raw
+    if not candidates:
+        raise RequirementExtractorFailedError(
+            "Requirement extractor input contains no non-empty source candidates"
+        )
+    return candidates
+
+
+def _render_extraction_input(description: str, candidates: dict[str, str]) -> str:
+    candidate_text = "\n".join(
+        f"[{candidate_id}] {text}" for candidate_id, text in candidates.items()
+    )
+    return (
+        "JOB DESCRIPTION (use this full raw text to understand section, scope, and "
+        "cross-line semantics):\n"
+        f"{description}\n\n"
+        "SOURCE CANDIDATES (use only these IDs to anchor persisted evidence):\n"
+        f"{candidate_text}"
+    )
+
+
+def _validate_source_candidate_ids(
+    output: _RequirementsOutput,
+    candidates: dict[str, str],
+) -> None:
+    invalid = sorted(
+        {
+            item.source_candidate_id
+            for item in output.requirements
+            if item.source_candidate_id not in candidates
+        }
+    )
+    if invalid:
+        raise RequirementExtractorFailedError(
+            "OpenAI Requirement extractor returned unknown sourceCandidateId: "
+            + ", ".join(invalid)
         )
 
 
@@ -412,54 +517,115 @@ def _fallback_capability(
 
 def _response_output_text(payload: Any) -> str:
     if not isinstance(payload, dict):
-        raise RequirementExtractorFailedError("OpenAI response must be a JSON object")
+        raise _provider_output_error("provider_response_shape", "response_not_object")
     for item in _iter_dicts(payload.get("output")):
         if item.get("type") != "message":
             continue
         for content in _iter_dicts(item.get("content")):
             if content.get("type") == "refusal":
-                raise RequirementExtractorFailedError("OpenAI refused Requirement extraction")
+                raise _provider_output_error("provider_refusal", "refused")
             if content.get("type") == "output_text" and isinstance(content.get("text"), str):
                 return content["text"]
-    raise RequirementExtractorFailedError("OpenAI response contained no output_text")
+    raise _provider_output_error("provider_response_shape", "missing_output_text")
 
 
 def _chat_completion_output_text(payload: Any) -> str:
     if not isinstance(payload, dict):
-        raise RequirementExtractorFailedError(
-            "OpenAI Chat Completions response must be a JSON object"
-        )
+        raise _provider_output_error("provider_response_shape", "response_not_object")
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
-        raise RequirementExtractorFailedError(
-            "OpenAI Chat Completions response contained no choices"
-        )
+        raise _provider_output_error("provider_response_shape", "missing_choices")
     choice = choices[0]
     if not isinstance(choice, dict):
-        raise RequirementExtractorFailedError(
-            "OpenAI Chat Completions choice must be a JSON object"
-        )
+        raise _provider_output_error("provider_response_shape", "choice_not_object")
     message = choice.get("message")
     if not isinstance(message, dict):
-        raise RequirementExtractorFailedError(
-            "OpenAI Chat Completions response contained no message"
-        )
+        raise _provider_output_error("provider_response_shape", "missing_message")
     refusal = message.get("refusal")
     if isinstance(refusal, str) and refusal:
-        raise RequirementExtractorFailedError("OpenAI refused Requirement extraction")
+        raise _provider_output_error("provider_refusal", "refused")
     content = message.get("content")
     if isinstance(content, str) and content:
         return content
     for item in _iter_dicts(content):
         if item.get("type") == "refusal":
-            raise RequirementExtractorFailedError("OpenAI refused Requirement extraction")
+            raise _provider_output_error("provider_refusal", "refused")
         if item.get("type") in {"text", "output_text"} and isinstance(
             item.get("text"), str
         ):
             return item["text"]
-    raise RequirementExtractorFailedError(
-        "OpenAI Chat Completions response contained no text content"
+    raise _provider_output_error("provider_response_shape", "missing_text_content")
+
+
+def _provider_output_error(failure_stage: str, reason: str) -> RequirementExtractorFailedError:
+    return RequirementExtractorFailedError(
+        "OpenAI Requirement extractor failed: "
+        f"ProviderOutputError(failureStage={failure_stage}, reason={reason})",
+        failure_stage=failure_stage,
     )
+
+
+def _structured_output_validation_error_message(
+    error: ValidationError,
+    *,
+    provider_finish_reason: str | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    output_chars: int | None = None,
+    requested_max_completion_tokens: int | None = None,
+) -> tuple[str, str]:
+    issues = error.errors(include_url=False, include_context=False, include_input=False)
+    failure_stage = (
+        "structured_output_json"
+        if any(issue.get("type") == "json_invalid" for issue in issues)
+        else "structured_output_validation"
+    )
+    summaries: list[str] = []
+    for issue in issues[:5]:
+        location = ".".join(str(part) for part in issue.get("loc", ())) or "root"
+        issue_type = str(issue.get("type") or "unknown")
+        summaries.append(f"{location}:{issue_type}")
+    issue_summary = ",".join(summaries) or "unknown"
+    diagnostic_parts = [
+        f"finishReason={_safe_diagnostic_value(provider_finish_reason) if provider_finish_reason else 'unknown'}",
+        f"inputTokens={input_tokens if input_tokens is not None else 'unknown'}",
+        f"outputTokens={output_tokens if output_tokens is not None else 'unknown'}",
+        f"outputChars={output_chars if output_chars is not None else 'unknown'}",
+        (
+            "requestedMaxCompletionTokens="
+            f"{requested_max_completion_tokens if requested_max_completion_tokens is not None else 'provider_default'}"
+        ),
+    ]
+    return (
+        (
+            "OpenAI Requirement extractor failed: "
+            f"ValidationError(failureStage={failure_stage}, issueCount={len(issues)}, "
+            f"issues={issue_summary}, {', '.join(diagnostic_parts)})"
+        ),
+        failure_stage,
+    )
+
+
+def _provider_finish_reason(payload: Any, *, api_style: str) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    if api_style == "chat_completions":
+        choices = payload.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            return None
+        value = choices[0].get("finish_reason")
+        return value.strip()[:64] if isinstance(value, str) and value.strip() else None
+    incomplete_details = payload.get("incomplete_details")
+    if isinstance(incomplete_details, dict):
+        reason = incomplete_details.get("reason")
+        if isinstance(reason, str) and reason.strip():
+            return reason.strip()[:64]
+    status = payload.get("status")
+    return status.strip()[:64] if isinstance(status, str) and status.strip() else None
+
+
+def _safe_diagnostic_value(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "_", value)[:64] or "unknown"
 
 
 def _iter_dicts(value: Any) -> Iterable[dict[str, Any]]:
@@ -495,8 +661,11 @@ _SYSTEM_PROMPT = """Extract structured JobRequirements from one Job description.
 Rules:
 - Extract only requirements explicitly present in the Job description.
 - Never infer requirements from the job title, company, industry stereotypes, or general knowledge.
-- Each originalText and evidenceSpan must be copied verbatim as one contiguous substring from the input.
+- The user input contains two parts: the full raw Job description for understanding section/scope/cross-line semantics, followed by source candidates in the form `[S0001] exact JD text` for evidence anchoring. Use the full Job description to interpret requirement meaning and scope; use sourceCandidateId only to select persisted evidence. For every requirement, sourceCandidateId must be one of those candidate IDs. The backend, not the model, will persist evidenceSpan from that candidate's raw JD text.
+- originalText must be copied verbatim as one contiguous substring from the selected source candidate. Do not delete, insert, reorder, paraphrase, or normalize words. If an exact originalText cannot be copied from one candidate, omit that requirement rather than inventing text or combining candidates.
 - Classify type as skill, experience, education, responsibility, domain, or constraint.
+- Extract both explicit job responsibilities/duties/work content and qualifications/requirements. Responsibilities are first-class JobRequirements used by downstream matching and preparation; do not return only qualifications when explicit duties are present.
+- When the Job description presents distinct responsibility/action lines, preserve each materially distinct explicit duty as a separate `responsibility` Requirement when it can be anchored to one source candidate. Do not omit a duty merely because it is not an eligibility qualification, and do not relabel a duty as `skill` only because it mentions a technical capability.
 - Classify importance by the requirement's actual scope. In an explicit requirements/qualifications section, default to must_have unless that exact requirement is softened by optional/preferred/bonus wording.
 - A softening modifier such as 优先/加分/preferred/optional applies only to the clause it modifies; do not downgrade adjacent hard constraints in the same sentence. If one sentence mixes hard and soft clauses, split them into separate requirements when the input provides separable verbatim spans.
 - A waiver or exception such as 可放宽/可豁免/waived/exception weakens only the threshold or condition it modifies. Do not emit the strict threshold as an independent must_have and do not emit the waiver itself as a separate preferred requirement. When the waiver-bearing wording is contiguous, preserve that affected condition as one non-blocking preferred requirement unless another clause remains explicitly unconditional. For example, a years-of-experience threshold followed by an exceptional-candidate waiver is not an unconditional hard gate.

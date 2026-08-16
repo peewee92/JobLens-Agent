@@ -1,4 +1,4 @@
-# Job Requirement Extraction Eval v1
+# Job Requirement Extraction Eval
 
 This dataset validates the first Requirement Intelligence pipeline:
 
@@ -12,17 +12,19 @@ Job description
 
 ## Cases
 
-`requirement-extraction-v1.jsonl` contains 10 anonymized Job descriptions covering:
+`requirement-extraction-v1.jsonl` is the immutable historical 10-case baseline. `requirement-extraction-v2.jsonl` keeps the same source JDs but updates the two standalone `者优先` cases to the current business vocabulary: explicit preferred wording maps to `preferred`, while `bonus` is reserved for explicit bonus/additional-credit semantics.
+
+The current v2 dataset contains 10 anonymized Job descriptions covering:
 
 - Python / FastAPI;
 - React alias normalization / TypeScript;
-- Docker bonus wording;
+- Docker preferred wording;
 - experience and education;
 - responsibility, domain and constraint;
 - Agent / RAG;
-- Next.js / Electron bonus wording.
+- Next.js / Electron preferred wording.
 
-Each case freezes expected type, normalized capability and importance, plus capabilities that must not be invented.
+Each version freezes expected type, normalized capability and importance, plus capabilities that must not be invented. Do not rewrite v1 expectations in place; vocabulary corrections require a new dataset version.
 
 ## Gate v1
 

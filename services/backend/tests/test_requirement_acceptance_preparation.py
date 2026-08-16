@@ -128,6 +128,32 @@ class GatewayTimeoutFixtureJobRequirementExtractor(FixtureJobRequirementExtracto
         )
 
 
+class InvalidStructuredJsonOnceFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def extract(self, description: str):
+        self.call_count += 1
+        if self.call_count == 1:
+            raise RequirementExtractorFailedError(
+                "simulated invalid structured output json",
+                failure_stage="structured_output_json",
+            )
+        return super().extract(description)
+
+
+class InvalidStructuredJsonFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def extract(self, description: str):
+        self.call_count += 1
+        raise RequirementExtractorFailedError(
+            "simulated invalid structured output json",
+            failure_stage="structured_output_json",
+        )
+
+
 class FlakyFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
     def __init__(self, marker: str) -> None:
         self._marker = marker
@@ -1253,6 +1279,54 @@ def test_gateway_timeout_retries_same_case_once_within_explicit_budget(
         and case.error_code == "new_extraction_limit_reached"
         for case in result.cases[1:]
     )
+    run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
+        result.run_id
+    )
+    assert run is not None
+    assert run.cases[0].attempt_count == 2
+    assert _count(session_factory, TraceSpanORM) == 2
+
+
+def test_invalid_structured_json_retries_same_case_once_within_explicit_budget(
+    session_factory: sessionmaker[Session],
+) -> None:
+    extractor = InvalidStructuredJsonOnceFixtureJobRequirementExtractor()
+    result = _use_case(session_factory, extractor=extractor).execute(
+        payload=_payload(),
+        title="Invalid structured JSON recovery batch",
+        reviewer="will",
+        max_new_extractions=2,
+    )
+
+    assert extractor.call_count == 2
+    assert result.created_extractions == 1
+    assert result.failed_extractions == 0
+    assert result.deferred_extractions == 19
+    assert result.cases[0].status is RequirementAcceptanceCaseStatus.EXTRACTED
+    run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
+        result.run_id
+    )
+    assert run is not None
+    assert run.cases[0].attempt_count == 2
+    assert _count(session_factory, TraceSpanORM) == 2
+
+
+def test_repeated_invalid_structured_json_retries_only_once_then_fails(
+    session_factory: sessionmaker[Session],
+) -> None:
+    extractor = InvalidStructuredJsonFixtureJobRequirementExtractor()
+    result = _use_case(session_factory, extractor=extractor).execute(
+        payload=_payload(),
+        title="Repeated invalid structured JSON batch",
+        reviewer="will",
+        max_new_extractions=2,
+    )
+
+    assert extractor.call_count == 2
+    assert result.created_extractions == 0
+    assert result.failed_extractions == 1
+    assert result.deferred_extractions == 19
+    assert result.cases[0].error_code == "RequirementExtractorFailedError"
     run = SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory).get_run(
         result.run_id
     )

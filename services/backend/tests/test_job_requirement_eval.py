@@ -27,7 +27,7 @@ DATASET = (
     / "data"
     / "evals"
     / "requirement-extraction"
-    / "requirement-extraction-v1.jsonl"
+    / "requirement-extraction-v2.jsonl"
 )
 
 
@@ -78,7 +78,7 @@ def test_fixture_requirement_eval_passes_pipeline_gate_with_one_trace_per_case(
     report = run_job_requirement_eval(
         workflow=_workflow(session_factory, FixtureJobRequirementExtractor()),
         cases=cases,
-        dataset_version="requirement-extraction-v1",
+        dataset_version="requirement-extraction-v2",
     )
 
     assert len(cases) == 10
@@ -100,7 +100,7 @@ def test_degraded_requirement_extractor_fails_gate_with_explainable_cases(
     report = run_job_requirement_eval(
         workflow=_workflow(session_factory, DegradedRequirementExtractor()),
         cases=load_job_requirement_eval_cases(DATASET),
-        dataset_version="requirement-extraction-v1",
+        dataset_version="requirement-extraction-v2",
     )
 
     assert report.gate_passed is False

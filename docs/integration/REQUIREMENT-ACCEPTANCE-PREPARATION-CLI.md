@@ -41,6 +41,45 @@ Preflight validates the complete formal input and returns:
 
 The fingerprint excludes `generatedAt`. A timestamp-only re-export of the same ordered evidence keeps the same fingerprint and resumes the same Run.
 
+## 1.5 Provider health gate — zero-call plan, explicit live probe
+
+Before a new live Canary or a post-Continue Resume, check the exact Requirement Provider path instead of treating `/models` or a plain chat response as sufficient evidence.
+
+Plan mode performs zero Provider calls:
+
+```bash
+cd services/backend
+.venv/bin/python -m scripts.check_requirement_provider_health --json
+```
+
+Live mode requires two explicit acknowledgements and performs at most two tiny billed calls:
+
+```bash
+.venv/bin/python -m scripts.check_requirement_provider_health \
+  --execute-health-probe \
+  --confirm-live-cost \
+  --json
+```
+
+The gate probes in order:
+
+```text
+plain generation
+→ only if HTTP 200 + valid output
+json_schema structured generation using the configured Requirement API style
+```
+
+If the plain probe fails, the structured probe is skipped. A live Requirement Run should start or resume only when the result contains:
+
+```json
+{
+  "state": "healthy",
+  "readyForRequirementLiveRun": true
+}
+```
+
+The result records status, latency, trace ID and safe upstream error code/message, but never the API key or full Provider response body. This health check is operational evidence only; it does not approve model quality and it does not write Requirement Acceptance state.
+
 ## 2. Low-level live canary primitive
 
 The dedicated Live Canary Operator is the recommended entry point. Direct use below remains documented for application-layer testing and recovery only.

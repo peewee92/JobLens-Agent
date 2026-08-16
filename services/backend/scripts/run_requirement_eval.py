@@ -20,7 +20,7 @@ from app.repositories import (
 )
 from app.workflows import ExtractJobRequirementsWorkflow
 
-DATASET_VERSION = "requirement-extraction-v1"
+DATASET_VERSION = "requirement-extraction-v2"
 DATASET = (
     Path(__file__).resolve().parents[3]
     / "data"

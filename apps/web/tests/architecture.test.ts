@@ -17,6 +17,13 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return nested.flat();
 }
 
+test("the local dev server stays on the documented port even when PORT is inherited", async () => {
+  const packageJson = JSON.parse(await readFile(join(webRoot, "package.json"), "utf8")) as {
+    scripts?: {dev?: string};
+  };
+  assert.match(packageJson.scripts?.dev ?? "", /next dev --port 3000/);
+});
+
 test("browser-facing source never exposes the backend URL as NEXT_PUBLIC", async () => {
   const files = [
     ...(await sourceFiles(join(webRoot, "app"))),

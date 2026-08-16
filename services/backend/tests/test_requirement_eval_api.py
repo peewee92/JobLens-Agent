@@ -30,7 +30,7 @@ DATASET = (
     / "data"
     / "evals"
     / "requirement-extraction"
-    / "requirement-extraction-v1.jsonl"
+    / "requirement-extraction-v2.jsonl"
 )
 
 
@@ -69,7 +69,7 @@ def _seed_run(factory: sessionmaker[Session], baseline_run_id: str | None = None
         workflow=workflow,
         eval_uow_factory=lambda: SqlAlchemyRequirementEvalUnitOfWork(factory),
         query_repository=repository,
-        dataset_version="requirement-extraction-v1",
+        dataset_version="requirement-extraction-v2",
         mode=RequirementEvalMode.FIXTURE,
         provider="fixture",
         model=extractor.model_name,

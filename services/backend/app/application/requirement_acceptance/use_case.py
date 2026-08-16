@@ -351,7 +351,7 @@ class PrepareRequirementAcceptanceBatchUseCase:
                 continue
 
             extraction = None
-            gateway_timeout_retry_used = False
+            transient_retry_used = False
             while True:
                 self._renew_execution_lease(
                     identity_key=execution_lease_identity_key,
@@ -377,18 +377,41 @@ class PrepareRequirementAcceptanceBatchUseCase:
                     )
                     if (
                         error.status_code == 504
-                        and not gateway_timeout_retry_used
+                        and not transient_retry_used
                         and retry_budget_available
                     ):
-                        gateway_timeout_retry_used = True
+                        transient_retry_used = True
                         continue
                     provider_unavailable = True
                     cases.append(failed_case)
                     break
+                except RequirementExtractorFailedError as error:
+                    case = _failed_case(
+                        input_index=input_index,
+                        job_id=job_id,
+                        title=title_value,
+                        company=company_value,
+                        error_code=type(error).__name__,
+                        error_message=str(error),
+                        trace_run_id=error.run_id,
+                    )
+                    self._record_run_case(run_id, case, attempt_increment=1)
+                    retry_budget_available = (
+                        max_new_extractions is None
+                        or new_call_count < max_new_extractions
+                    )
+                    if (
+                        error.failure_stage == "structured_output_json"
+                        and not transient_retry_used
+                        and retry_budget_available
+                    ):
+                        transient_retry_used = True
+                        continue
+                    cases.append(case)
+                    break
                 except (
                     JobNotFoundError,
                     JobDescriptionNotExtractableError,
-                    RequirementExtractorFailedError,
                     InvalidRequirementExtractorOutputError,
                 ) as error:  # one expected case failure must not erase prior cases
                     case = _failed_case(
