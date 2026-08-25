@@ -687,6 +687,123 @@ def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() 
     assert sleeps == []
 
 
+def test_openai_requirement_adapter_opens_circuit_after_repeated_transient_failures() -> None:
+    attempts = 0
+    now = 100.0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503, json={"error": {"message": "busy"}})
+
+    def monotonic() -> float:
+        return now
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+            circuit_failure_threshold=2,
+            circuit_cooldown_seconds=30.0,
+            monotonic_fn=monotonic,
+        )
+
+        for _ in range(2):
+            with pytest.raises(RequirementExtractorUnavailableError):
+                extractor.extract("熟练掌握 Python")
+
+        with pytest.raises(
+            RequirementExtractorUnavailableError,
+            match="circuit is open",
+        ):
+            extractor.extract("熟练掌握 Python")
+
+    assert attempts == 2
+
+
+def test_openai_requirement_adapter_half_open_probe_resets_circuit_after_success() -> None:
+    attempts = 0
+    now = 100.0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            return httpx.Response(503, json={"error": {"message": "busy"}})
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(output)}}
+                ]
+            },
+        )
+
+    def monotonic() -> float:
+        return now
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+            circuit_failure_threshold=2,
+            circuit_cooldown_seconds=30.0,
+            monotonic_fn=monotonic,
+        )
+
+        for _ in range(2):
+            with pytest.raises(RequirementExtractorUnavailableError):
+                extractor.extract("熟练掌握 Python")
+
+        now = 131.0
+        result = extractor.extract("熟练掌握 Python")
+        result_again = extractor.extract("熟练掌握 Python")
+
+    assert attempts == 4
+    assert result.output.requirements[0].normalized_capability == "Python"
+    assert result_again.output.requirements[0].normalized_capability == "Python"
+
+
+def test_openai_requirement_adapter_non_transient_failure_does_not_trip_circuit() -> None:
+    attempts = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(500, json={"error": {"message": "internal error"}})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        extractor = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+            circuit_failure_threshold=1,
+            circuit_cooldown_seconds=30.0,
+        )
+        for _ in range(2):
+            with pytest.raises(RequirementExtractorFailedError):
+                extractor.extract("熟练掌握 Python")
+
+    assert attempts == 2
+
+
 def test_openai_requirement_adapter_requires_configuration() -> None:
     extractor = OpenAIJobRequirementExtractor(api_key=None, model="")
 

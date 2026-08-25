@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     requirement_extractor_enable_thinking: bool | None = None
     requirement_extractor_max_completion_tokens: int | None = None
     requirement_extractor_timeout_seconds: float = 60.0
+    requirement_extractor_circuit_failure_threshold: int = 0
+    requirement_extractor_circuit_cooldown_seconds: float = 30.0
     semantic_match_provider: str = "disabled"
     semantic_match_model: str = ""
     semantic_match_api_style: Literal["responses", "chat_completions"] = "responses"

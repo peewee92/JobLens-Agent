@@ -28,7 +28,8 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 
 - [ ] 阶段 1：切断 Provider 人质状态
   - [x] OpenAI-compatible Requirement adapter 支持显式 opt-in 的 bounded retry + exponential backoff；仅重试 `429/503/504` 与 timeout，非重试型 HTTP/structured-output 错误保持立即失败；默认单次调用，避免绕过现有 Provider 成本预算。
-  - [ ] 可测试 circuit breaker + 可配置 fallback provider/model，并与真实调用预算对齐。
+  - [x] Requirement adapter 支持显式 opt-in 的 circuit breaker：按一次 extraction 在 bounded retry 后仍为 transient outage 才累计失败；达到阈值后在 cooldown 内零 Provider 调用 fail-fast，冷却后允许 half-open probe，成功即复位；默认阈值 `0` 保持关闭，并由 Settings/Factory 显式配置。
+  - [ ] 可配置 fallback provider/model，并与真实调用预算对齐。
   - [ ] Offline replay acceptance 可在无 Provider 情况下作为 MVP gate；live Provider 降为非阻塞 smoke。
   - [ ] Provider outage 聚合记录，不再为每次 503/504 单独生成 blocker commit。
 - [ ] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。

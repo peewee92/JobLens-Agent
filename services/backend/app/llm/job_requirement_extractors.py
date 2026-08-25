@@ -148,6 +148,9 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         retry_max_attempts: int = 1,
         retry_backoff_seconds: float = 0.25,
         sleep_fn: Callable[[float], None] = time.sleep,
+        circuit_failure_threshold: int = 0,
+        circuit_cooldown_seconds: float = 30.0,
+        monotonic_fn: Callable[[], float] = time.monotonic,
     ) -> None:
         self._api_key = api_key
         self._model = model.strip()
@@ -159,11 +162,20 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             raise ValueError("retry_max_attempts must be at least 1")
         if retry_backoff_seconds < 0:
             raise ValueError("retry_backoff_seconds must be non-negative")
+        if circuit_failure_threshold < 0:
+            raise ValueError("circuit_failure_threshold must be non-negative")
+        if circuit_cooldown_seconds < 0:
+            raise ValueError("circuit_cooldown_seconds must be non-negative")
         self._timeout_seconds = timeout_seconds
         self._client = client
         self._retry_max_attempts = retry_max_attempts
         self._retry_backoff_seconds = retry_backoff_seconds
         self._sleep_fn = sleep_fn
+        self._circuit_failure_threshold = circuit_failure_threshold
+        self._circuit_cooldown_seconds = circuit_cooldown_seconds
+        self._monotonic_fn = monotonic_fn
+        self._circuit_failure_count = 0
+        self._circuit_open_until: float | None = None
 
     @property
     def model_name(self) -> str:
@@ -343,6 +355,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         )
 
     def _post_with_retry(self, request_url: str, request_body: dict[str, Any]) -> httpx.Response:
+        self._ensure_circuit_allows_request()
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
@@ -363,17 +376,41 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                             json=request_body,
                         )
                 response.raise_for_status()
+                self._reset_circuit()
                 return response
             except httpx.HTTPStatusError as error:
                 if error.response.status_code not in {429, 503, 504}:
                     raise
                 if attempt >= self._retry_max_attempts:
+                    self._record_circuit_failure()
                     raise
             except httpx.TimeoutException:
                 if attempt >= self._retry_max_attempts:
+                    self._record_circuit_failure()
                     raise
             self._sleep_fn(self._retry_backoff_seconds * (2 ** (attempt - 1)))
         raise AssertionError("retry loop exhausted without returning or raising")
+
+    def _ensure_circuit_allows_request(self) -> None:
+        if self._circuit_failure_threshold <= 0 or self._circuit_open_until is None:
+            return
+        if self._monotonic_fn() >= self._circuit_open_until:
+            self._circuit_open_until = None
+            return
+        raise RequirementExtractorUnavailableError(
+            "OpenAI Requirement extractor circuit is open after repeated transient provider failures."
+        )
+
+    def _record_circuit_failure(self) -> None:
+        if self._circuit_failure_threshold <= 0:
+            return
+        self._circuit_failure_count += 1
+        if self._circuit_failure_count >= self._circuit_failure_threshold:
+            self._circuit_open_until = self._monotonic_fn() + self._circuit_cooldown_seconds
+
+    def _reset_circuit(self) -> None:
+        self._circuit_failure_count = 0
+        self._circuit_open_until = None
 
 
 def _source_candidates(description: str) -> dict[str, str]:

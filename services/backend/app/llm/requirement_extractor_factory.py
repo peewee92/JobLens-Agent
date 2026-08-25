@@ -27,5 +27,7 @@ def build_job_requirement_extractor(
             enable_thinking=settings.requirement_extractor_enable_thinking,
             max_completion_tokens=settings.requirement_extractor_max_completion_tokens,
             timeout_seconds=settings.requirement_extractor_timeout_seconds,
+            circuit_failure_threshold=settings.requirement_extractor_circuit_failure_threshold,
+            circuit_cooldown_seconds=settings.requirement_extractor_circuit_cooldown_seconds,
         )
     return DisabledJobRequirementExtractor()
