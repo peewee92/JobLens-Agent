@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from typing import Annotated, Any, Literal
 
 import httpx
@@ -144,6 +145,9 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         max_completion_tokens: int | None = None,
         timeout_seconds: float = 60.0,
         client: httpx.Client | None = None,
+        retry_max_attempts: int = 1,
+        retry_backoff_seconds: float = 0.25,
+        sleep_fn: Callable[[float], None] = time.sleep,
     ) -> None:
         self._api_key = api_key
         self._model = model.strip()
@@ -151,8 +155,15 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         self._api_style = api_style.strip().casefold()
         self._enable_thinking = enable_thinking
         self._max_completion_tokens = max_completion_tokens
+        if retry_max_attempts < 1:
+            raise ValueError("retry_max_attempts must be at least 1")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds must be non-negative")
         self._timeout_seconds = timeout_seconds
         self._client = client
+        self._retry_max_attempts = retry_max_attempts
+        self._retry_backoff_seconds = retry_backoff_seconds
+        self._sleep_fn = sleep_fn
 
     @property
     def model_name(self) -> str:
@@ -237,26 +248,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         provider_finish_reason: str | None = None
 
         try:
-            if self._client is not None:
-                response = self._client.post(
-                    request_url,
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=request_body,
-                )
-            else:
-                with httpx.Client(timeout=self._timeout_seconds) as client:
-                    response = client.post(
-                        request_url,
-                        headers={
-                            "Authorization": f"Bearer {self._api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json=request_body,
-                    )
-            response.raise_for_status()
+            response = self._post_with_retry(request_url, request_body)
             payload = response.json()
             usage = payload.get("usage") if isinstance(payload, dict) else None
             failure_input_tokens = _optional_int(usage, input_tokens_key)
@@ -311,6 +303,11 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 "ProviderOutputError(failureStage=provider_response_shape, "
                 f"reason=missing_key, key={str(error)[:128]})"
             ) from error
+        except httpx.TimeoutException as error:
+            raise RequirementExtractorUnavailableError(
+                "OpenAI Requirement extractor failed: "
+                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})"
+            ) from error
         except httpx.HTTPError as error:
             raise RequirementExtractorFailedError(
                 "OpenAI Requirement extractor failed: "
@@ -344,6 +341,39 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             input_tokens=_optional_int(usage, input_tokens_key),
             output_tokens=_optional_int(usage, output_tokens_key),
         )
+
+    def _post_with_retry(self, request_url: str, request_body: dict[str, Any]) -> httpx.Response:
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        for attempt in range(1, self._retry_max_attempts + 1):
+            try:
+                if self._client is not None:
+                    response = self._client.post(
+                        request_url,
+                        headers=headers,
+                        json=request_body,
+                    )
+                else:
+                    with httpx.Client(timeout=self._timeout_seconds) as client:
+                        response = client.post(
+                            request_url,
+                            headers=headers,
+                            json=request_body,
+                        )
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as error:
+                if error.response.status_code not in {429, 503, 504}:
+                    raise
+                if attempt >= self._retry_max_attempts:
+                    raise
+            except httpx.TimeoutException:
+                if attempt >= self._retry_max_attempts:
+                    raise
+            self._sleep_fn(self._retry_backoff_seconds * (2 ** (attempt - 1)))
+        raise AssertionError("retry loop exhausted without returning or raising")
 
 
 def _source_candidates(description: str) -> dict[str, str]:

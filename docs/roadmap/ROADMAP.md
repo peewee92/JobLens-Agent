@@ -22,6 +22,24 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 
 ---
 
+## MVP 破局五阶段（2026-08-25）
+
+以“先解除外部 Provider 阻塞，再打通用户价值主循环”为当前最高优先级。Requirement Extractor 冻结在 `requirement-extractor-v42.95 / requirement-semantics-v42.95`，除非出现用户可见且 deterministic replay 可复现的 P0 缺陷，不再继续语义版本微调。
+
+- [ ] 阶段 1：切断 Provider 人质状态
+  - [x] OpenAI-compatible Requirement adapter 支持显式 opt-in 的 bounded retry + exponential backoff；仅重试 `429/503/504` 与 timeout，非重试型 HTTP/structured-output 错误保持立即失败；默认单次调用，避免绕过现有 Provider 成本预算。
+  - [ ] 可测试 circuit breaker + 可配置 fallback provider/model，并与真实调用预算对齐。
+  - [ ] Offline replay acceptance 可在无 Provider 情况下作为 MVP gate；live Provider 降为非阻塞 smoke。
+  - [ ] Provider outage 聚合记录，不再为每次 503/504 单独生成 blocker commit。
+- [ ] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。
+- [ ] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
+- [ ] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。
+- [ ] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
+
+每项只有在有自动测试、可运行命令/API 或工程文档证据后才勾选；Provider outage 本身不再触发语义版本 bump。
+
+---
+
 # Phase 0.5｜产品与领域模型冻结（P0，概念基线）
 
 目标：在写第一行业务逻辑前，先把**产品定义、领域模型、阶段边界、架构边界**冻结。

@@ -564,8 +564,105 @@ def test_openai_requirement_adapter_classifies_transient_provider_outage_as_unav
     assert captured.value.status_code == status_code
 
 
-def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() -> None:
+def test_openai_requirement_adapter_retries_transient_outage_with_exponential_backoff() -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
     def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            return httpx.Response(503, json={"error": {"message": "busy"}})
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(output)}}
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+            retry_max_attempts=3,
+            retry_backoff_seconds=0.25,
+            sleep_fn=sleeps.append,
+        ).extract("熟练掌握 Python")
+
+    assert attempts == 3
+    assert sleeps == [0.25, 0.5]
+    assert result.output.requirements[0].normalized_capability == "Python"
+
+
+def test_openai_requirement_adapter_retries_transport_timeout_as_unavailable() -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx.ReadTimeout("upstream timeout")
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": "熟练掌握 Python",
+                    "normalizedCapability": "Python",
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.95,
+                }
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(output)}}
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            api_style="chat_completions",
+            client=client,
+            retry_max_attempts=2,
+            retry_backoff_seconds=0.1,
+            sleep_fn=sleeps.append,
+        ).extract("熟练掌握 Python")
+
+    assert attempts == 2
+    assert sleeps == [0.1]
+    assert result.output.requirements[0].normalized_capability == "Python"
+
+
+def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
         return httpx.Response(500, json={"error": {"message": "internal error"}})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
@@ -574,6 +671,9 @@ def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() 
             model="test-model",
             api_style="chat_completions",
             client=client,
+            retry_max_attempts=3,
+            retry_backoff_seconds=0.25,
+            sleep_fn=sleeps.append,
         )
         with pytest.raises(
             RequirementExtractorFailedError,
@@ -582,6 +682,9 @@ def test_openai_requirement_adapter_keeps_non_transient_http_error_as_failure() 
             extractor.extract(
                 "岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。"
             )
+
+    assert attempts == 1
+    assert sleeps == []
 
 
 def test_openai_requirement_adapter_requires_configuration() -> None:
