@@ -10,7 +10,13 @@ from app.application.job_requirements import (
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
 )
-from app.llm import OpenAIJobRequirementExtractor
+from app.core.config import Settings
+from app.llm import (
+    FallbackJobRequirementExtractor,
+    FixtureJobRequirementExtractor,
+    OpenAIJobRequirementExtractor,
+    build_job_requirement_extractor,
+)
 
 
 def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
@@ -809,6 +815,97 @@ def test_openai_requirement_adapter_requires_configuration() -> None:
 
     with pytest.raises(RequirementExtractorUnavailableError):
         extractor.extract("岗位要求熟练掌握 Python 和 FastAPI，并具备后端开发经验。")
+
+
+def test_fallback_requirement_adapter_routes_only_after_primary_unavailable() -> None:
+    class UnavailablePrimary:
+        model_name = "primary-model"
+
+        def extract(self, _description: str):
+            raise RequirementExtractorUnavailableError("primary unavailable", status_code=503)
+
+    fallback = FixtureJobRequirementExtractor()
+    extractor = FallbackJobRequirementExtractor(
+        primary=UnavailablePrimary(),  # type: ignore[arg-type]
+        fallback=fallback,
+    )
+
+    result = extractor.extract("熟练掌握 Python")
+
+    assert extractor.model_name == "primary-model"
+    assert result.model == "fixture-requirement-extractor"
+    assert result.output.requirements[0].normalized_capability == "Python"
+
+
+def test_fallback_requirement_adapter_does_not_mask_non_transient_failure() -> None:
+    fallback_calls = 0
+
+    class FailedPrimary:
+        model_name = "primary-model"
+
+        def extract(self, _description: str):
+            raise RequirementExtractorFailedError("invalid structured output")
+
+    class CountingFallback:
+        model_name = "fallback-model"
+
+        def extract(self, _description: str):
+            nonlocal fallback_calls
+            fallback_calls += 1
+            return FixtureJobRequirementExtractor().extract("熟练掌握 Python")
+
+    extractor = FallbackJobRequirementExtractor(
+        primary=FailedPrimary(),  # type: ignore[arg-type]
+        fallback=CountingFallback(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RequirementExtractorFailedError, match="invalid structured output"):
+        extractor.extract("熟练掌握 Python")
+
+    assert fallback_calls == 0
+
+
+def test_requirement_extractor_factory_wraps_explicit_fallback_model() -> None:
+    extractor = build_job_requirement_extractor(
+        Settings(
+            requirement_extractor_provider="openai",
+            requirement_extractor_model="primary-model",
+            requirement_extractor_fallback_provider="openai",
+            requirement_extractor_fallback_model="fallback-model",
+            openai_api_key="test-key",
+        )
+    )
+
+    assert isinstance(extractor, FallbackJobRequirementExtractor)
+    assert extractor.model_name == "primary-model"
+
+
+def test_requirement_extractor_factory_ignores_incomplete_fallback_configuration() -> None:
+    extractor = build_job_requirement_extractor(
+        Settings(
+            requirement_extractor_provider="openai",
+            requirement_extractor_model="primary-model",
+            requirement_extractor_fallback_provider="openai",
+            requirement_extractor_fallback_model="",
+            openai_api_key="test-key",
+        )
+    )
+
+    assert isinstance(extractor, OpenAIJobRequirementExtractor)
+
+
+def test_requirement_extractor_factory_never_uses_fixture_as_runtime_fallback() -> None:
+    extractor = build_job_requirement_extractor(
+        Settings(
+            requirement_extractor_provider="openai",
+            requirement_extractor_model="primary-model",
+            requirement_extractor_fallback_provider="fixture",
+            requirement_extractor_fallback_model="fixture-model",
+            openai_api_key="test-key",
+        )
+    )
+
+    assert isinstance(extractor, OpenAIJobRequirementExtractor)
 
 
 def test_openai_requirement_adapter_maps_refusal() -> None:

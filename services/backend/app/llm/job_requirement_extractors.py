@@ -131,6 +131,29 @@ class FixtureJobRequirementExtractor(AbstractJobRequirementExtractor):
         )
 
 
+class FallbackJobRequirementExtractor(AbstractJobRequirementExtractor):
+    """Route transient primary unavailability to one explicitly configured fallback."""
+
+    def __init__(
+        self,
+        *,
+        primary: AbstractJobRequirementExtractor,
+        fallback: AbstractJobRequirementExtractor,
+    ) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    @property
+    def model_name(self) -> str:
+        return self._primary.model_name
+
+    def extract(self, description: str) -> JobRequirementExtractorResult:
+        try:
+            return self._primary.extract(description)
+        except RequirementExtractorUnavailableError:
+            return self._fallback.extract(description)
+
+
 class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
     """OpenAI-compatible adapter using strict JSON Schema output."""
 

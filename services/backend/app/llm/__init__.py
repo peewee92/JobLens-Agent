@@ -3,6 +3,7 @@
 from app.llm.factory import build_profile_extractor
 from app.llm.job_requirement_extractors import (
     DisabledJobRequirementExtractor,
+    FallbackJobRequirementExtractor,
     FixtureJobRequirementExtractor,
     OpenAIJobRequirementExtractor,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "DisabledJobRequirementExtractor",
     "DisabledProfileExtractor",
     "DisabledSemanticMatcher",
+    "FallbackJobRequirementExtractor",
     "FixtureJobRequirementExtractor",
     "FixtureProfileExtractor",
     "FixtureSemanticMatcher",
