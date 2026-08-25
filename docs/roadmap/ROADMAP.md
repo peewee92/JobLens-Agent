@@ -36,7 +36,9 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
     - [x] 新增 `python -m scripts.run_requirement_replay_gate`：固定 `requirement-extraction-v2`，直接使用 Fixture adapter，不读取 live Provider 配置；即使运行环境声明 `REQUIREMENT_EXTRACTOR_PROVIDER=openai` 且无 API key，也能以零 Provider 调用执行 deterministic 10-case gate，并通过 exit code 暴露 pass/fail。
     - [x] 新增默认 `python -m scripts.check_mvp_requirement_gate`：只以 offline replay 决定 MVP pass/fail；默认不调用 Provider。可显式 `--provider-smoke --confirm-live-cost` 附带 live health，但 `providerSmokeBlocking=false`，503/504 只作为诊断状态，不改变 MVP gate 结果。原 live acceptance/canary 工具保留供诊断。
   - [x] Provider outage 聚合记录：Requirement Canary Run 将新式 `RequirementExtractorUnavailableError` 与历史 `429/503/504` Trace 统一汇总为 Run 级受影响 Case 数、Case index 与 HTTP 状态分布，并明确标记为“不阻塞 MVP gate”；单次 outage 不再作为语义版本 bump 或独立 blocker commit 的理由。
-- [ ] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。
+- [x] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。
+  - [x] **Extraction frozen for MVP; semantic tuning deferred to P1.** `requirement-extractor-v42.95 / requirement-semantics-v42.95` 是 MVP 冻结基线；普通 MVP 开发不得继续语义版本微调，只有用户可见且 deterministic replay 可复现的 P0 缺陷才允许解冻，并必须记录解冻原因。
+  - [x] 自动 freeze guard 通过 `test_requirement_extraction_versions_remain_frozen_for_mvp` 钉死 Extractor / Semantic Policy 版本常量；任何意外 bump 都会让默认 Backend 测试红灯，而不是静默演进。mixed fanout/cardinality 等低价值边缘语义调优进入 P1 backlog。
 - [ ] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
 - [ ] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。
 - [ ] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
