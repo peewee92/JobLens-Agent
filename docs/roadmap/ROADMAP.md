@@ -26,7 +26,7 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 
 以“先解除外部 Provider 阻塞，再打通用户价值主循环”为当前最高优先级。Requirement Extractor 冻结在 `requirement-extractor-v42.95 / requirement-semantics-v42.95`，除非出现用户可见且 deterministic replay 可复现的 P0 缺陷，不再继续语义版本微调。
 
-- [ ] 阶段 1：切断 Provider 人质状态
+- [x] 阶段 1：切断 Provider 人质状态
   - [x] OpenAI-compatible Requirement adapter 支持显式 opt-in 的 bounded retry + exponential backoff；仅重试 `429/503/504` 与 timeout，非重试型 HTTP/structured-output 错误保持立即失败；默认单次调用，避免绕过现有 Provider 成本预算。
   - [x] Requirement adapter 支持显式 opt-in 的 circuit breaker：按一次 extraction 在 bounded retry 后仍为 transient outage 才累计失败；达到阈值后在 cooldown 内零 Provider 调用 fail-fast，冷却后允许 half-open probe，成功即复位；默认阈值 `0` 保持关闭，并由 Settings/Factory 显式配置。
   - [x] 可配置 fallback provider/model，并与真实调用预算对齐。
@@ -35,7 +35,7 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
   - [x] Offline replay acceptance 可在无 Provider 情况下作为 MVP gate；live Provider 降为非阻塞 smoke。
     - [x] 新增 `python -m scripts.run_requirement_replay_gate`：固定 `requirement-extraction-v2`，直接使用 Fixture adapter，不读取 live Provider 配置；即使运行环境声明 `REQUIREMENT_EXTRACTOR_PROVIDER=openai` 且无 API key，也能以零 Provider 调用执行 deterministic 10-case gate，并通过 exit code 暴露 pass/fail。
     - [x] 新增默认 `python -m scripts.check_mvp_requirement_gate`：只以 offline replay 决定 MVP pass/fail；默认不调用 Provider。可显式 `--provider-smoke --confirm-live-cost` 附带 live health，但 `providerSmokeBlocking=false`，503/504 只作为诊断状态，不改变 MVP gate 结果。原 live acceptance/canary 工具保留供诊断。
-  - [ ] Provider outage 聚合记录，不再为每次 503/504 单独生成 blocker commit。
+  - [x] Provider outage 聚合记录：Requirement Canary Run 将新式 `RequirementExtractorUnavailableError` 与历史 `429/503/504` Trace 统一汇总为 Run 级受影响 Case 数、Case index 与 HTTP 状态分布，并明确标记为“不阻塞 MVP gate”；单次 outage 不再作为语义版本 bump 或独立 blocker commit 的理由。
 - [ ] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。
 - [ ] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
 - [ ] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。

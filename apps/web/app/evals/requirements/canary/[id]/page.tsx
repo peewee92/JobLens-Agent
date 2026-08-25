@@ -22,6 +22,7 @@ import {
 } from "@/lib/job-requirements";
 import {
   attemptedCanaryCases,
+  summarizeRequirementProviderOutages,
   requirementAcceptanceCaseIsProviderOutage,
   requirementAcceptanceCaseStatusClass,
   requirementAcceptanceCaseStatusLabels,
@@ -90,6 +91,11 @@ export default async function RequirementCanaryRunDetailPage({
   }
 
   const attemptedCases = attemptedCanaryCases(run.cases);
+  const providerOutageSummary = summarizeRequirementProviderOutages(run.cases);
+  const providerOutageStatusText = Object.entries(providerOutageSummary.statusCounts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([status, count]) => `${status}×${count}`)
+    .join("，");
   const evidence = await Promise.all(attemptedCases.map(loadCanaryEvidence));
 
   return (
@@ -133,6 +139,17 @@ export default async function RequirementCanaryRunDetailPage({
           <strong>{run.failedCount} 个</strong>
         </div>
       </div>
+
+      {providerOutageSummary.outageCaseCount > 0 ? (
+        <div className="notice">
+          <strong>Provider outage 聚合状态（不阻塞 MVP gate）</strong>
+          <p>
+            本 Run 共 {providerOutageSummary.outageCaseCount} 个 Case 受 Provider outage 影响；
+            状态分布：{providerOutageStatusText || "unknown"}；Case：
+            {providerOutageSummary.caseIndexes.join(", ")}。
+          </p>
+        </div>
+      ) : null}
 
       <section className="detail-grid">
         <article className="detail-card">

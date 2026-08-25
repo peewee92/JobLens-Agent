@@ -7,6 +7,7 @@ import type {
 } from "../lib/contracts";
 import {
   attemptedCanaryCases,
+  summarizeRequirementProviderOutages,
   requirementAcceptanceCaseIsProviderOutage,
   requirementAcceptanceCaseStatusLabels,
   requirementAcceptanceDatasetStateLabels,
@@ -127,6 +128,29 @@ test("Canary evidence includes only actually attempted cases in source order", (
     ),
     [1, 2],
   );
+});
+
+test("provider outage summary aggregates affected cases and status codes", () => {
+  const summary = summarizeRequirementProviderOutages([
+    runCase(0, {errorCode: "RequirementExtractorUnavailableError"}),
+    runCase(1, {
+      errorCode: "RequirementExtractorFailedError",
+      errorMessage:
+        "OpenAI Requirement extractor failed: HTTPStatusError(status=503, traceId=trace_gateway_123)",
+    }),
+    runCase(2, {
+      errorCode: "RequirementExtractorFailedError",
+      traceError: "OpenAI Requirement extractor failed: HTTPStatusError(status=504)",
+    }),
+    runCase(3, {
+      errorCode: "RequirementExtractorFailedError",
+      errorMessage: "OpenAI Requirement extractor failed: HTTPStatusError(status=500)",
+    }),
+  ]);
+
+  assert.equal(summary.outageCaseCount, 3);
+  assert.deepEqual(summary.caseIndexes, [0, 1, 2]);
+  assert.deepEqual(summary.statusCounts, {503: 1, 504: 1, unknown: 1});
 });
 
 test("provider outage detection covers new unavailable errors and historical 503 traces", () => {

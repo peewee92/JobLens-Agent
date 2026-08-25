@@ -107,6 +107,30 @@ export function requirementAcceptanceCaseIsProviderOutage(
   );
 }
 
+export type RequirementProviderOutageSummary = {
+  outageCaseCount: number;
+  caseIndexes: number[];
+  statusCounts: Record<string, number>;
+};
+
+export function summarizeRequirementProviderOutages(
+  cases: readonly RequirementAcceptanceRunCase[],
+): RequirementProviderOutageSummary {
+  const outageCases = cases.filter(requirementAcceptanceCaseIsProviderOutage);
+  const statusCounts: Record<string, number> = {};
+  for (const runCase of outageCases) {
+    const message = `${runCase.errorMessage ?? ""} ${runCase.traceError ?? ""}`;
+    const match = /HTTPStatusError\(status=(429|503|504)(?:,|\))/.exec(message);
+    const status = match?.[1] ?? "unknown";
+    statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+  }
+  return {
+    outageCaseCount: outageCases.length,
+    caseIndexes: outageCases.map((runCase) => runCase.caseIndex).sort((a, b) => a - b),
+    statusCounts,
+  };
+}
+
 export function attemptedCanaryCases(
   cases: readonly RequirementAcceptanceRunCase[],
 ): RequirementAcceptanceRunCase[] {
