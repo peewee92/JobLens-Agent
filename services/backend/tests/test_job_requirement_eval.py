@@ -21,6 +21,7 @@ from app.evals import load_job_requirement_eval_cases, run_job_requirement_eval
 from app.llm import FixtureJobRequirementExtractor
 from app.repositories import SqlAlchemyTraceUnitOfWork
 from app.workflows import ExtractJobRequirementsWorkflow
+from scripts.run_requirement_replay_gate import run_offline_requirement_replay_gate
 
 DATASET = (
     Path(__file__).resolve().parents[3]
@@ -92,6 +93,16 @@ def test_fixture_requirement_eval_passes_pipeline_gate_with_one_trace_per_case(
     assert all(item.trace_run_id for item in report.cases)
     with session_factory() as session:
         assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 10
+
+
+def test_offline_requirement_replay_gate_uses_fixture_without_provider_configuration(
+    session_factory: sessionmaker[Session],
+) -> None:
+    report = run_offline_requirement_replay_gate(session_factory=session_factory)
+
+    assert report.total_cases == 10
+    assert report.passed_cases == 10
+    assert report.gate_passed is True
 
 
 def test_degraded_requirement_extractor_fails_gate_with_explainable_cases(

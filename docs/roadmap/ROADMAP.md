@@ -33,6 +33,8 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
     - [x] Factory 支持显式 opt-in 的 fallback provider/model 路由；仅当 primary 最终为 `RequirementExtractorUnavailableError` 时切换，非 transient/structured-output failure 不 fallback；缺少 fallback model 时保持 primary-only。
     - [ ] Acceptance/Trace 将 primary + fallback 的真实 Provider 调用数精确计入显式调用预算，完成后才关闭本项。
   - [ ] Offline replay acceptance 可在无 Provider 情况下作为 MVP gate；live Provider 降为非阻塞 smoke。
+    - [x] 新增 `python -m scripts.run_requirement_replay_gate`：固定 `requirement-extraction-v2`，直接使用 Fixture adapter，不读取 live Provider 配置；即使运行环境声明 `REQUIREMENT_EXTRACTOR_PROVIDER=openai` 且无 API key，也能以零 Provider 调用执行 deterministic 10-case gate，并通过 exit code 暴露 pass/fail。
+    - [ ] 将该 offline replay gate 接入默认 MVP merge/readiness，并把 live Provider health/canary 明确降为非阻塞 smoke 后，才关闭本项。
   - [ ] Provider outage 聚合记录，不再为每次 503/504 单独生成 blocker commit。
 - [ ] 阶段 2：冻结抽取器 v42.95，并增加版本 guard / P1 调优声明。
 - [ ] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
