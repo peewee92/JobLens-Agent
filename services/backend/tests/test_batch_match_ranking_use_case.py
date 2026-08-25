@@ -196,6 +196,33 @@ def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None
     assert result == (current,)
 
 
+def test_batch_ranking_returns_only_requested_top_n_after_ranking() -> None:
+    report_repo = Mock()
+    report_repo.list_latest_for_jobs.return_value = (
+        _stored("good", MatchRecommendation.GOOD),
+        _stored("strong", MatchRecommendation.STRONG),
+        _stored("stretch", MatchRecommendation.STRETCH),
+    )
+    context_repo = _current_context()
+    context_repo.get_current_search_intent.return_value = None
+    requirement_repo = _current_requirements()
+    job_repo = Mock()
+    job_repo.get_job.return_value = None
+
+    result = BatchRankMatchReportsUseCase(
+        report_repository=report_repo,
+        career_context_repository=context_repo,
+        job_repository=job_repo,
+        requirement_repository=requirement_repo,
+        persistence_ready=lambda: True,
+    ).execute(
+        ("job_good", "job_strong", "job_stretch"),
+        top_n=2,
+    )
+
+    assert tuple(item.id for item in result) == ("strong", "good")
+
+
 def test_batch_ranking_stops_when_no_reports_exist() -> None:
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = ()

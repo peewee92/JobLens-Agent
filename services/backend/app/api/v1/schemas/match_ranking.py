@@ -20,6 +20,7 @@ class RankedMatchReportItemResponse(CamelCaseModel):
     matched_requirement_ids: list[str]
     partial_requirement_ids: list[str]
     missing_requirement_ids: list[str]
+    evidence_links: list[dict[str, object]]
 
     @classmethod
     def from_detail(cls, detail: StoredMatchReport) -> "RankedMatchReportItemResponse":
@@ -37,6 +38,13 @@ class RankedMatchReportItemResponse(CamelCaseModel):
             matched_requirement_ids=list(report.matched_requirement_ids),
             partial_requirement_ids=list(report.partial_requirement_ids),
             missing_requirement_ids=list(report.missing_requirement_ids),
+            evidence_links=[
+                {
+                    "requirementId": item.requirement_id,
+                    "evidenceIds": list(item.evidence_ids),
+                }
+                for item in report.evidence_links
+            ],
         )
 
 

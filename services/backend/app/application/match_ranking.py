@@ -99,6 +99,7 @@ class BatchRankMatchReportsUseCase:
         job_ids: tuple[str, ...],
         *,
         include_blocked: bool = False,
+        top_n: int | None = None,
     ) -> tuple[StoredMatchReport, ...]:
         if not job_ids:
             return ()
@@ -136,9 +137,10 @@ class BatchRankMatchReportsUseCase:
             for job_id in report_job_ids
             if (job := self._job_repository.get_job(job_id)) is not None
         }
-        return rank_match_reports(
+        ranked = rank_match_reports(
             reports,
             include_blocked=include_blocked,
             soft_preferences=(search_intent.soft_preferences if search_intent is not None else ()),
             jobs_by_id=jobs_by_id,
         )
+        return ranked if top_n is None else ranked[:top_n]

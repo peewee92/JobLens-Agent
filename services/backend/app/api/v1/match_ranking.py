@@ -25,9 +25,11 @@ def get_batch_match_ranking(
         Depends(get_batch_match_ranking_use_case),
     ],
     include_blocked: Annotated[bool, Query(alias="includeBlocked")] = False,
+    top_n: Annotated[int | None, Query(alias="topN", ge=1, le=50)] = None,
 ) -> BatchMatchRankingResponse:
     details = use_case.execute(
         tuple(job_ids),
         include_blocked=include_blocked,
+        top_n=top_n,
     )
     return BatchMatchRankingResponse.from_details(details)

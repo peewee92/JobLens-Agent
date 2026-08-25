@@ -179,10 +179,10 @@ MatchReport 返回 `strengths / risks / requirementResults / matchedRequirementI
 Phase 5 提供只读批量排序查询：
 
 ```bash
-curl 'http://127.0.0.1:8000/api/v1/match-ranking?jobId=job_a&jobId=job_b&includeBlocked=false'
+curl 'http://127.0.0.1:8000/api/v1/match-ranking?jobId=job_a&jobId=job_b&includeBlocked=false&topN=5'
 ```
 
-该接口只读取每岗最新 MatchReport snapshot，复用 Backend Ranking Policy 与当前 `SearchIntent.softPreferences`，不会生成新 Match、调用 Provider、创建 Trace 或写数据库。为避免旧结论污染当前排序，返回前会校验 MatchReport 的 `profileId/profileVersion` 与当前 Profile 一致，并要求 `extractionId` 等于该岗位当前最新 Requirement Extraction；stale snapshot 会被过滤。正式 `match_reports` schema 尚未迁移时返回 `409 match_report_persistence_not_ready`。Web 仅通过 same-origin `/api/match-ranking` Route Handler 转发该查询，不在前端复制排序规则。
+该接口只读取每岗最新 MatchReport snapshot，复用 Backend Ranking Policy 与当前 `SearchIntent.softPreferences`，不会生成新 Match、调用 Provider、创建 Trace 或写数据库。`topN=1..50` 可在排序完成后稳定截取前 N 个结果；每个结果直接返回既有 MatchReport `summary` 作为推荐理由，并透传 `evidenceLinks`（Requirement → Profile Evidence）作为可追溯引用，不在 Ranking 层重新生成解释。为避免旧结论污染当前排序，返回前会校验 MatchReport 的 `profileId/profileVersion` 与当前 Profile 一致，并要求 `extractionId` 等于该岗位当前最新 Requirement Extraction；stale snapshot 会被过滤。正式 `match_reports` schema 尚未迁移时返回 `409 match_report_persistence_not_ready`。Web 仅通过 same-origin `/api/match-ranking` Route Handler 转发该查询，不在前端复制排序规则。
 
 Phase 6 已提供 transient Target Cohort 的 Gap Detail Backend API：
 
