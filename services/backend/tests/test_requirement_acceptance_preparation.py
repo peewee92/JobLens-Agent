@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -171,6 +172,19 @@ class CountingFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
     def extract(self, description: str):
         self.call_count += 1
         return super().extract(description)
+
+
+class TwoProviderCallFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        return 2
+
+    def extract(self, description: str):
+        self.call_count += 1
+        return replace(super().extract(description), provider_calls=2)
 
 
 class MultiFlakyFixtureJobRequirementExtractor(FixtureJobRequirementExtractor):
@@ -548,6 +562,52 @@ def test_execution_lease_blocks_duplicate_provider_attempt_before_import(
             lease_token=lease_token,
         ) is True
         uow.commit()
+
+
+def test_provider_budget_accounts_for_primary_plus_fallback_capacity(
+    session_factory: sessionmaker[Session],
+) -> None:
+    payload = _payload()
+
+    blocked_extractor = TwoProviderCallFixtureJobRequirementExtractor()
+    blocked = _use_case(
+        session_factory,
+        extractor=blocked_extractor,
+        provider="openai",
+    ).execute(
+        payload=payload,
+        title="Fallback provider budget blocked",
+        reviewer="will",
+        max_new_extractions=1,
+    )
+
+    assert blocked_extractor.call_count == 0
+    assert blocked.created_extractions == 0
+    blocked_run = SqlAlchemyRequirementAcceptanceRunQueryRepository(
+        session_factory
+    ).get_run(blocked.run_id)
+    assert blocked_run is not None
+    assert blocked_run.attempted_calls == 0
+
+    allowed_extractor = TwoProviderCallFixtureJobRequirementExtractor()
+    allowed = _use_case(
+        session_factory,
+        extractor=allowed_extractor,
+        provider="openai",
+    ).execute(
+        payload=payload,
+        title="Fallback provider budget allowed",
+        reviewer="will",
+        max_new_extractions=2,
+    )
+
+    assert allowed_extractor.call_count == 1
+    assert allowed.created_extractions == 1
+    allowed_run = SqlAlchemyRequirementAcceptanceRunQueryRepository(
+        session_factory
+    ).get_run(allowed.run_id)
+    assert allowed_run is not None
+    assert allowed_run.attempted_calls == 2
 
 
 def test_expired_execution_lease_stops_before_provider_call(

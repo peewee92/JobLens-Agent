@@ -12,6 +12,11 @@ class AbstractJobRequirementExtractor(ABC):
     def model_name(self) -> str:
         raise NotImplementedError
 
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        """Upper bound for real Provider HTTP calls made by one extraction."""
+        return 0
+
     @abstractmethod
     def extract(self, description: str) -> JobRequirementExtractorResult:
         raise NotImplementedError

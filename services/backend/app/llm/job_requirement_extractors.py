@@ -147,11 +147,33 @@ class FallbackJobRequirementExtractor(AbstractJobRequirementExtractor):
     def model_name(self) -> str:
         return self._primary.model_name
 
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        return (
+            self._primary.max_provider_calls_per_execution
+            + self._fallback.max_provider_calls_per_execution
+        )
+
     def extract(self, description: str) -> JobRequirementExtractorResult:
         try:
             return self._primary.extract(description)
-        except RequirementExtractorUnavailableError:
-            return self._fallback.extract(description)
+        except RequirementExtractorUnavailableError as primary_error:
+            primary_calls = primary_error.provider_calls
+            try:
+                fallback_result = self._fallback.extract(description)
+            except RequirementExtractorUnavailableError as fallback_error:
+                fallback_error.provider_calls += primary_calls
+                raise
+            except RequirementExtractorFailedError as fallback_error:
+                fallback_error.provider_calls += primary_calls
+                raise
+            return JobRequirementExtractorResult(
+                output=fallback_result.output,
+                model=fallback_result.model,
+                input_tokens=fallback_result.input_tokens,
+                output_tokens=fallback_result.output_tokens,
+                provider_calls=primary_calls + fallback_result.provider_calls,
+            )
 
 
 class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
@@ -203,6 +225,10 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
     @property
     def model_name(self) -> str:
         return self._model or "openai-unconfigured"
+
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        return self._retry_max_attempts
 
     def extract(self, description: str) -> JobRequirementExtractorResult:
         if not self._api_key or not self._model:
@@ -281,9 +307,14 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         failure_input_tokens: int | None = None
         failure_output_tokens: int | None = None
         provider_finish_reason: str | None = None
+        provider_call_counter = [0]
 
         try:
-            response = self._post_with_retry(request_url, request_body)
+            response = self._post_with_retry(
+                request_url,
+                request_body,
+                provider_call_counter=provider_call_counter,
+            )
             payload = response.json()
             usage = payload.get("usage") if isinstance(payload, dict) else None
             failure_input_tokens = _optional_int(usage, input_tokens_key)
@@ -306,8 +337,12 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 raise RequirementExtractorUnavailableError(
                     message,
                     status_code=status_code,
+                    provider_calls=provider_call_counter[0],
                 ) from error
-            raise RequirementExtractorFailedError(message) from error
+            raise RequirementExtractorFailedError(
+                message,
+                provider_calls=provider_call_counter[0],
+            ) from error
         except ValidationError as error:
             message, failure_stage = _structured_output_validation_error_message(
                 error,
@@ -325,28 +360,33 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                 provider_finish_reason=provider_finish_reason,
                 output_chars=len(provider_text) if provider_text is not None else None,
                 requested_max_completion_tokens=self._max_completion_tokens,
+                provider_calls=provider_call_counter[0],
             ) from error
         except json.JSONDecodeError as error:
             raise RequirementExtractorFailedError(
                 "OpenAI Requirement extractor failed: "
                 "ProviderOutputError(failureStage=provider_response_json, "
-                "reason=invalid_json)"
+                "reason=invalid_json)",
+                provider_calls=provider_call_counter[0],
             ) from error
         except KeyError as error:
             raise RequirementExtractorFailedError(
                 "OpenAI Requirement extractor failed: "
                 "ProviderOutputError(failureStage=provider_response_shape, "
-                f"reason=missing_key, key={str(error)[:128]})"
+                f"reason=missing_key, key={str(error)[:128]})",
+                provider_calls=provider_call_counter[0],
             ) from error
         except httpx.TimeoutException as error:
             raise RequirementExtractorUnavailableError(
                 "OpenAI Requirement extractor failed: "
-                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})"
+                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})",
+                provider_calls=provider_call_counter[0],
             ) from error
         except httpx.HTTPError as error:
             raise RequirementExtractorFailedError(
                 "OpenAI Requirement extractor failed: "
-                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})"
+                f"ProviderTransportError(failureStage=transport, errorType={type(error).__name__})",
+                provider_calls=provider_call_counter[0],
             ) from error
 
         usage = payload.get("usage") if isinstance(payload, dict) else None
@@ -375,9 +415,16 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             model=self._model,
             input_tokens=_optional_int(usage, input_tokens_key),
             output_tokens=_optional_int(usage, output_tokens_key),
+            provider_calls=provider_call_counter[0],
         )
 
-    def _post_with_retry(self, request_url: str, request_body: dict[str, Any]) -> httpx.Response:
+    def _post_with_retry(
+        self,
+        request_url: str,
+        request_body: dict[str, Any],
+        *,
+        provider_call_counter: list[int],
+    ) -> httpx.Response:
         self._ensure_circuit_allows_request()
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -385,6 +432,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
         }
         for attempt in range(1, self._retry_max_attempts + 1):
             try:
+                provider_call_counter[0] += 1
                 if self._client is not None:
                     response = self._client.post(
                         request_url,

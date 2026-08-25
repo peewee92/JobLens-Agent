@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from hashlib import sha256
 from uuid import uuid4
 
@@ -40,6 +41,10 @@ class ExtractJobRequirementsUseCase:
         self._uow_factory = uow_factory
         self._query_repository = query_repository
         self._provider = provider.strip().casefold() or "disabled"
+
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        return self._workflow.max_provider_calls_per_execution
 
     def execute(self, job_id: str) -> JobRequirementExtractionDetail:
         job = self._jobs.get_job(job_id)
@@ -100,7 +105,7 @@ class ExtractJobRequirementsUseCase:
         )
         if result is None:
             raise RuntimeError("Persisted Job Requirement Extraction could not be read")
-        return result
+        return replace(result, provider_calls=proposal.provider_calls)
 
 
 class GetLatestJobRequirementsUseCase:

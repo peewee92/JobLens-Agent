@@ -331,9 +331,21 @@ class PrepareRequirementAcceptanceBatchUseCase:
                 self._record_run_case(run_id, case, attempt_increment=0)
                 continue
 
+            provider_call_capacity = max(
+                1,
+                self._extract_requirements.max_provider_calls_per_execution,
+            )
+            remaining_provider_budget = (
+                None
+                if max_new_extractions is None
+                else max_new_extractions - new_call_count
+            )
             if (
                 max_new_extractions is not None
-                and new_call_count >= max_new_extractions
+                and (
+                    new_call_count >= max_new_extractions
+                    or provider_call_capacity > remaining_provider_budget
+                )
             ):
                 case = _deferred_case(
                     input_index=input_index,
@@ -357,10 +369,19 @@ class PrepareRequirementAcceptanceBatchUseCase:
                     identity_key=execution_lease_identity_key,
                     lease_token=execution_lease_token,
                 )
-                new_call_count += 1
                 try:
                     extraction = self._extract_requirements.execute(job_id)
+                    provider_calls = max(
+                        1,
+                        int(getattr(extraction, "provider_calls", 0)),
+                    )
+                    new_call_count += provider_calls
                 except RequirementExtractorUnavailableError as error:
+                    provider_calls = max(
+                        1,
+                        int(getattr(error, "provider_calls", 0)),
+                    )
+                    new_call_count += provider_calls
                     failed_case = _failed_case(
                         input_index=input_index,
                         job_id=job_id,
@@ -370,7 +391,11 @@ class PrepareRequirementAcceptanceBatchUseCase:
                         error_message=str(error),
                         trace_run_id=error.run_id,
                     )
-                    self._record_run_case(run_id, failed_case, attempt_increment=1)
+                    self._record_run_case(
+                        run_id,
+                        failed_case,
+                        attempt_increment=provider_calls,
+                    )
                     retry_budget_available = (
                         max_new_extractions is None
                         or new_call_count < max_new_extractions
@@ -386,6 +411,11 @@ class PrepareRequirementAcceptanceBatchUseCase:
                     cases.append(failed_case)
                     break
                 except RequirementExtractorFailedError as error:
+                    provider_calls = max(
+                        1,
+                        int(getattr(error, "provider_calls", 0)),
+                    )
+                    new_call_count += provider_calls
                     case = _failed_case(
                         input_index=input_index,
                         job_id=job_id,
@@ -395,7 +425,11 @@ class PrepareRequirementAcceptanceBatchUseCase:
                         error_message=str(error),
                         trace_run_id=error.run_id,
                     )
-                    self._record_run_case(run_id, case, attempt_increment=1)
+                    self._record_run_case(
+                        run_id,
+                        case,
+                        attempt_increment=provider_calls,
+                    )
                     retry_budget_available = (
                         max_new_extractions is None
                         or new_call_count < max_new_extractions
@@ -423,8 +457,17 @@ class PrepareRequirementAcceptanceBatchUseCase:
                         error_message=str(error),
                         trace_run_id=getattr(error, "run_id", None),
                     )
+                    provider_calls = max(
+                        1,
+                        int(getattr(error, "provider_calls", 0)),
+                    )
+                    new_call_count += provider_calls
                     cases.append(case)
-                    self._record_run_case(run_id, case, attempt_increment=1)
+                    self._record_run_case(
+                        run_id,
+                        case,
+                        attempt_increment=provider_calls,
+                    )
                     break
                 break
 
@@ -446,7 +489,11 @@ class PrepareRequirementAcceptanceBatchUseCase:
                     trace_run_id=extraction.trace_run_id,
                 )
                 cases.append(case)
-                self._record_run_case(run_id, case, attempt_increment=1)
+                self._record_run_case(
+                    run_id,
+                    case,
+                    attempt_increment=provider_calls,
+                )
                 continue
 
             successful_extractions.append(extraction)
@@ -462,7 +509,11 @@ class PrepareRequirementAcceptanceBatchUseCase:
                 error_message=None,
             )
             cases.append(case)
-            self._record_run_case(run_id, case, attempt_increment=1)
+            self._record_run_case(
+                run_id,
+                case,
+                attempt_increment=provider_calls,
+            )
 
         failed_count = sum(
             case.status is RequirementAcceptanceCaseStatus.FAILED for case in cases

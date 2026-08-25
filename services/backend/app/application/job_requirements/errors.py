@@ -23,9 +23,11 @@ class RequirementExtractorUnavailableError(JobRequirementExtractionExecutionErro
         *,
         run_id: str | None = None,
         status_code: int | None = None,
+        provider_calls: int = 0,
     ) -> None:
         super().__init__(message, run_id=run_id)
         self.status_code = status_code
+        self.provider_calls = provider_calls
 
 
 class RequirementExtractorFailedError(JobRequirementExtractionExecutionError):
@@ -42,6 +44,7 @@ class RequirementExtractorFailedError(JobRequirementExtractionExecutionError):
         provider_finish_reason: str | None = None,
         output_chars: int | None = None,
         requested_max_completion_tokens: int | None = None,
+        provider_calls: int = 0,
     ) -> None:
         super().__init__(message, run_id=run_id)
         self.failure_stage = failure_stage
@@ -50,6 +53,7 @@ class RequirementExtractorFailedError(JobRequirementExtractionExecutionError):
         self.provider_finish_reason = provider_finish_reason
         self.output_chars = output_chars
         self.requested_max_completion_tokens = requested_max_completion_tokens
+        self.provider_calls = provider_calls
 
 
 class InvalidRequirementExtractorOutputError(JobRequirementExtractionExecutionError):

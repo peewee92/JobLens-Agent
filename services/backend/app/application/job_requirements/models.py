@@ -28,6 +28,7 @@ class JobRequirementExtractorResult:
     model: str
     input_tokens: int | None = None
     output_tokens: int | None = None
+    provider_calls: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,7 @@ class JobRequirementExtractionProposal:
     model: str
     prompt_version: str
     requirements: tuple[ProposedJobRequirement, ...]
+    provider_calls: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,3 +97,4 @@ class JobRequirementExtractionDetail:
     requirement_count: int
     created_at: datetime
     requirements: tuple[JobRequirementDetail, ...]
+    provider_calls: int = 0

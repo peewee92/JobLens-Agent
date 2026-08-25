@@ -29,9 +29,9 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - [ ] 阶段 1：切断 Provider 人质状态
   - [x] OpenAI-compatible Requirement adapter 支持显式 opt-in 的 bounded retry + exponential backoff；仅重试 `429/503/504` 与 timeout，非重试型 HTTP/structured-output 错误保持立即失败；默认单次调用，避免绕过现有 Provider 成本预算。
   - [x] Requirement adapter 支持显式 opt-in 的 circuit breaker：按一次 extraction 在 bounded retry 后仍为 transient outage 才累计失败；达到阈值后在 cooldown 内零 Provider 调用 fail-fast，冷却后允许 half-open probe，成功即复位；默认阈值 `0` 保持关闭，并由 Settings/Factory 显式配置。
-  - [ ] 可配置 fallback provider/model，并与真实调用预算对齐。
+  - [x] 可配置 fallback provider/model，并与真实调用预算对齐。
     - [x] Factory 支持显式 opt-in 的 fallback provider/model 路由；仅当 primary 最终为 `RequirementExtractorUnavailableError` 时切换，非 transient/structured-output failure 不 fallback；缺少 fallback model 时保持 primary-only。
-    - [ ] Acceptance/Trace 将 primary + fallback 的真实 Provider 调用数精确计入显式调用预算，完成后才关闭本项。
+    - [x] Adapter/Workflow/Trace/Acceptance 贯通 `providerCalls`：primary + fallback（以及 adapter 内 bounded retry）的真实 HTTP 请求数会聚合计入 Run `attemptedCalls`；Acceptance 在执行前按 adapter 最大请求容量检查剩余显式预算，预算不足时零 Provider 调用 defer，防止一次 extraction 内部透支 `maxNewExtractions`。Fixture/测试适配器保持 `providerCalls=0`，Acceptance 兼容性上仍按 1 个逻辑 attempt 计数。
   - [x] Offline replay acceptance 可在无 Provider 情况下作为 MVP gate；live Provider 降为非阻塞 smoke。
     - [x] 新增 `python -m scripts.run_requirement_replay_gate`：固定 `requirement-extraction-v2`，直接使用 Fixture adapter，不读取 live Provider 配置；即使运行环境声明 `REQUIREMENT_EXTRACTOR_PROVIDER=openai` 且无 API key，也能以零 Provider 调用执行 deterministic 10-case gate，并通过 exit code 暴露 pass/fail。
     - [x] 新增默认 `python -m scripts.check_mvp_requirement_gate`：只以 offline replay 决定 MVP pass/fail；默认不调用 Provider。可显式 `--provider-smoke --confirm-live-cost` 附带 live health，但 `providerSmokeBlocking=false`，503/504 只作为诊断状态，不改变 MVP gate 结果。原 live acceptance/canary 工具保留供诊断。

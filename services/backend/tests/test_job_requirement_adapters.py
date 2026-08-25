@@ -820,11 +820,29 @@ def test_openai_requirement_adapter_requires_configuration() -> None:
 def test_fallback_requirement_adapter_routes_only_after_primary_unavailable() -> None:
     class UnavailablePrimary:
         model_name = "primary-model"
+        max_provider_calls_per_execution = 1
 
         def extract(self, _description: str):
-            raise RequirementExtractorUnavailableError("primary unavailable", status_code=503)
+            raise RequirementExtractorUnavailableError(
+                "primary unavailable",
+                status_code=503,
+                provider_calls=1,
+            )
 
-    fallback = FixtureJobRequirementExtractor()
+    class CountingFallback(FixtureJobRequirementExtractor):
+        max_provider_calls_per_execution = 1
+
+        def extract(self, description: str):
+            result = super().extract(description)
+            return type(result)(
+                output=result.output,
+                model=result.model,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                provider_calls=1,
+            )
+
+    fallback = CountingFallback()
     extractor = FallbackJobRequirementExtractor(
         primary=UnavailablePrimary(),  # type: ignore[arg-type]
         fallback=fallback,
@@ -833,7 +851,9 @@ def test_fallback_requirement_adapter_routes_only_after_primary_unavailable() ->
     result = extractor.extract("熟练掌握 Python")
 
     assert extractor.model_name == "primary-model"
+    assert extractor.max_provider_calls_per_execution == 2
     assert result.model == "fixture-requirement-extractor"
+    assert result.provider_calls == 2
     assert result.output.requirements[0].normalized_capability == "Python"
 
 

@@ -53,6 +53,10 @@ class ExtractJobRequirementsWorkflow:
         self._extractor = extractor
         self._trace_uow_factory = trace_uow_factory
 
+    @property
+    def max_provider_calls_per_execution(self) -> int:
+        return self._extractor.max_provider_calls_per_execution
+
     def execute(self, *, job_id: str, description: str) -> JobRequirementExtractionProposal:
         normalized = description.strip()
         if len(normalized) < MIN_DESCRIPTION_CHARS:
@@ -73,12 +77,14 @@ class ExtractJobRequirementsWorkflow:
         coverage_audit: JobRequirementCoverageAudit | None = None
         input_tokens: int | None = None
         output_tokens: int | None = None
+        provider_calls = 0
 
         try:
             result = self._extractor.extract(normalized)
             model = result.model
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
+            provider_calls = result.provider_calls
             grounding_result = repair_job_requirement_grounding(normalized, result.output)
             grounding_repairs = grounding_result.repairs
             semantic_result = repair_job_requirement_semantics(
@@ -97,6 +103,10 @@ class ExtractJobRequirementsWorkflow:
             InvalidRequirementExtractorOutputError,
         ) as error:
             error.run_id = run_id
+            reported_provider_calls = getattr(error, "provider_calls", 0)
+            if reported_provider_calls:
+                provider_calls = reported_provider_calls
+            error.provider_calls = provider_calls
             if isinstance(error, RequirementExtractorFailedError):
                 if error.input_tokens is not None:
                     input_tokens = error.input_tokens
@@ -114,6 +124,7 @@ class ExtractJobRequirementsWorkflow:
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                provider_calls=provider_calls,
                 error=str(error),
             )
             raise
@@ -134,6 +145,7 @@ class ExtractJobRequirementsWorkflow:
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                provider_calls=provider_calls,
                 error=f"{type(error).__name__}: unexpected extractor error",
             )
             raise wrapped from error
@@ -151,6 +163,7 @@ class ExtractJobRequirementsWorkflow:
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            provider_calls=provider_calls,
             error=None,
         )
         return JobRequirementExtractionProposal(
@@ -159,6 +172,7 @@ class ExtractJobRequirementsWorkflow:
             model=model,
             prompt_version=PROMPT_VERSION,
             requirements=output.requirements,
+            provider_calls=provider_calls,
         )
 
     def _record_trace(
@@ -175,6 +189,7 @@ class ExtractJobRequirementsWorkflow:
         latency_ms: int,
         input_tokens: int | None,
         output_tokens: int | None,
+        provider_calls: int,
         error: str | None,
     ) -> None:
         with self._trace_uow_factory() as uow:
@@ -191,6 +206,7 @@ class ExtractJobRequirementsWorkflow:
                             description.encode("utf-8")
                         ).hexdigest(),
                         "characterCount": len(description),
+                        "providerCalls": provider_calls,
                     },
                     output=(
                         _requirement_output_dict(
