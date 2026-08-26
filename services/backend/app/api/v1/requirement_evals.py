@@ -16,9 +16,11 @@ from app.api.v1.schemas.requirement_evals import (
     AcceptedRequirementEvalBaselineResponse,
     RequirementEvalReviewRequest,
     RequirementEvalReviewResponse,
+    MvpQualityStatusResponse,
     RequirementEvalRunDetailResponse,
     RequirementEvalRunPageResponse,
 )
+from app.evals.mvp_quality import evaluate_mvp_quality_status
 from app.application.requirement_evals.use_cases import (
     GetAcceptedRequirementEvalBaselineUseCase,
     GetRequirementEvalRunUseCase,
@@ -41,6 +43,14 @@ def list_requirement_eval_runs(
     return RequirementEvalRunPageResponse.from_page(
         use_case.execute(limit=limit, offset=offset)
     )
+
+
+@router.get(
+    "/mvp-quality-status",
+    response_model=MvpQualityStatusResponse,
+)
+def get_mvp_quality_status() -> MvpQualityStatusResponse:
+    return MvpQualityStatusResponse.from_status(evaluate_mvp_quality_status())
 
 
 @router.get(

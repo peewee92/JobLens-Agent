@@ -62,6 +62,19 @@ test("requirement extraction gives a clear live processing state for long reques
   assert.match(css, /\.loading-spinner/);
 });
 
+test("requirement eval overview exposes the lightweight offline MVP quality gate", async () => {
+  const page = await source("app/evals/requirements/page.tsx");
+  const backend = await source("lib/backend.ts");
+
+  assert.match(page, /MVP 离线质量门/);
+  assert.match(page, /离线要求回放/);
+  assert.match(page, /离线 Top 5/);
+  assert.match(page, /Provider 冒烟/);
+  assert.match(page, /不阻塞 MVP/);
+  assert.match(page, /fetchMvpQualityStatus/);
+  assert.match(backend, /\/api\/v1\/requirement-evals\/mvp-quality-status/);
+});
+
 test("requirement readiness page leads with user decisions and hides technical evidence by default", async () => {
   const page = await source("app/evals/requirements/canary/readiness/page.tsx");
   const css = await source("app/globals.css");

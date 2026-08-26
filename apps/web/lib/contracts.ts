@@ -542,6 +542,22 @@ export interface ProfileEvalReviewPayload {
 export type RequirementEvalMode = "fixture" | "live";
 export type RequirementEvalReviewDecision = "accepted" | "rejected";
 
+export interface MvpQualityStatus {
+  gatePassed: boolean;
+  replayPassed: boolean;
+  replayPassedCases: number;
+  replayTotalCases: number;
+  matchDemoPassed: boolean;
+  matchDemoPersistedReports: number;
+  matchDemoTopJobs: number;
+  matchDemoEvidenceComplete: boolean;
+  providerSmokeState: string;
+  providerSmokeReady: boolean | null;
+  providerSmokeBlocking: boolean;
+  providerSmokeBlocker: string | null;
+  providerCalls: number;
+}
+
 export interface RequirementEvalRunSummary {
   id: string;
   datasetVersion: string;

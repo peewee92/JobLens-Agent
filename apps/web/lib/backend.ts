@@ -15,6 +15,7 @@ import type {
   ProfileEvalRunPage,
   AcceptedRequirementEvalBaseline,
   AcceptedRequirementReviewBaseline,
+  MvpQualityStatus,
   RequirementEvalRunDetail,
   RequirementEvalRunPage,
   RequirementAcceptanceReadiness,
@@ -193,6 +194,10 @@ export function fetchAcceptedProfileEvalBaseline(): Promise<AcceptedProfileEvalB
   return optionalJson<AcceptedProfileEvalBaseline>(
     "/api/v1/profile-evals/baseline/accepted",
   );
+}
+
+export function fetchMvpQualityStatus(): Promise<MvpQualityStatus> {
+  return backendJson<MvpQualityStatus>("/api/v1/requirement-evals/mvp-quality-status");
 }
 
 export function fetchRequirementEvalRuns(

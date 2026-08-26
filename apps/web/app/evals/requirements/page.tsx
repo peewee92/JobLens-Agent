@@ -4,6 +4,7 @@ import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchAcceptedRequirementEvalBaseline,
+  fetchMvpQualityStatus,
   fetchRequirementEvalRuns,
 } from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
@@ -14,10 +15,12 @@ export const dynamic = "force-dynamic";
 export default async function RequirementEvalRunsPage() {
   let page;
   let baseline;
+  let mvpQuality;
   try {
-    [page, baseline] = await Promise.all([
+    [page, baseline, mvpQuality] = await Promise.all([
       fetchRequirementEvalRuns(),
       fetchAcceptedRequirementEvalBaseline(),
+      fetchMvpQualityStatus(),
     ]);
   } catch (caught) {
     const message =
@@ -42,6 +45,35 @@ export default async function RequirementEvalRunsPage() {
           <Link className="button-ghost" href="/evals/requirements/manual">
             打开 20 条人工验收
           </Link>
+        </div>
+      </section>
+
+      <section className="detail-card">
+        <div className="section-heading-row">
+          <div>
+            <h2>MVP 离线质量门</h2>
+            <p className="muted">默认验收只依赖确定性的离线回放和 Top 5 E2E；Provider 冒烟仅用于诊断，不阻塞 MVP。</p>
+          </div>
+          <span className={`status-chip ${mvpQuality.gatePassed ? "status-pass" : "status-fail"}`}>
+            {mvpQuality.gatePassed ? "MVP Gate 通过" : "MVP Gate 失败"}
+          </span>
+        </div>
+        <div className="summary-grid eval-summary-grid">
+          <div className="summary-card">
+            <span>离线要求回放</span>
+            <strong>{mvpQuality.replayPassedCases}/{mvpQuality.replayTotalCases}</strong>
+            <small>{mvpQuality.replayPassed ? "通过" : "失败"}</small>
+          </div>
+          <div className="summary-card">
+            <span>离线 Top 5</span>
+            <strong>{mvpQuality.matchDemoTopJobs}/5</strong>
+            <small>{mvpQuality.matchDemoEvidenceComplete ? "证据完整" : "证据不完整"}</small>
+          </div>
+          <div className="summary-card">
+            <span>Provider 冒烟</span>
+            <strong>{mvpQuality.providerSmokeState === "not_requested" ? "未运行" : mvpQuality.providerSmokeState}</strong>
+            <small>{mvpQuality.providerSmokeBlocking ? "会阻塞" : "不阻塞 MVP"}</small>
+          </div>
         </div>
       </section>
 

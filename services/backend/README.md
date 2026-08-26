@@ -255,7 +255,10 @@ uv run python -m scripts.run_requirement_eval --accepted-baseline
 curl http://127.0.0.1:8000/api/v1/requirement-evals
 curl http://127.0.0.1:8000/api/v1/requirement-evals/reqeval_xxx
 curl http://127.0.0.1:8000/api/v1/requirement-evals/baseline/accepted
+curl http://127.0.0.1:8000/api/v1/requirement-evals/mvp-quality-status
 ```
+
+`mvp-quality-status` 在隔离 SQLite 中运行冻结的 Requirement replay 与 20-job offline Match/Ranking Top-5 验收，不读取 live Provider key，也不会发起 Provider 调用；它用于 Requirement Eval 首页的轻量 MVP 状态展示。Provider smoke 仍是独立、非阻塞诊断信号，不会因为打开页面而自动产生付费调用。
 
 提交一次不可变人工 Review：
 

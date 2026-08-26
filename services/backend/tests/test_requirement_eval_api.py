@@ -112,6 +112,28 @@ def test_list_and_detail_requirement_eval_runs(
     assert "originalText" not in serialized
 
 
+def test_mvp_quality_status_is_offline_and_provider_independent(
+    api_environment: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _factory = api_environment
+
+    response = client.get("/api/v1/requirement-evals/mvp-quality-status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["gatePassed"] is True
+    assert body["replayPassed"] is True
+    assert body["replayPassedCases"] == 10
+    assert body["replayTotalCases"] == 10
+    assert body["matchDemoPassed"] is True
+    assert body["matchDemoPersistedReports"] == 20
+    assert body["matchDemoTopJobs"] == 5
+    assert body["matchDemoEvidenceComplete"] is True
+    assert body["providerSmokeState"] == "not_requested"
+    assert body["providerSmokeBlocking"] is False
+    assert body["providerCalls"] == 0
+
+
 def test_missing_requirement_eval_run_returns_structured_404(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

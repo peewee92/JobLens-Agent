@@ -1,35 +1,17 @@
 """Run the deterministic MVP Requirement replay gate without any live Provider."""
 from __future__ import annotations
 
-from pathlib import Path
-
 from app.db.session import SessionLocal
-from app.evals import load_job_requirement_eval_cases, run_job_requirement_eval
-from app.llm import FixtureJobRequirementExtractor
-from app.repositories import SqlAlchemyTraceUnitOfWork
-from app.workflows import ExtractJobRequirementsWorkflow
-
-DATASET_VERSION = "requirement-extraction-v2"
-DATASET = (
-    Path(__file__).resolve().parents[3]
-    / "data"
-    / "evals"
-    / "requirement-extraction"
-    / f"{DATASET_VERSION}.jsonl"
+from app.evals.mvp_quality import (
+    REQUIREMENT_REPLAY_DATASET as DATASET,
+    REQUIREMENT_REPLAY_DATASET_VERSION as DATASET_VERSION,
+    run_offline_requirement_replay_gate as _run_offline_requirement_replay_gate,
 )
 
 
 def run_offline_requirement_replay_gate(*, session_factory=SessionLocal):
     """Evaluate the frozen replay fixture with zero live Provider dependencies."""
-    workflow = ExtractJobRequirementsWorkflow(
-        FixtureJobRequirementExtractor(),
-        lambda: SqlAlchemyTraceUnitOfWork(session_factory),
-    )
-    return run_job_requirement_eval(
-        workflow=workflow,
-        cases=load_job_requirement_eval_cases(DATASET),
-        dataset_version=DATASET_VERSION,
-    )
+    return _run_offline_requirement_replay_gate(session_factory=session_factory)
 
 
 def main() -> int:

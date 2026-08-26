@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import datetime
 
 from app.api.v1.schemas.common import CamelCaseModel
+from app.evals.mvp_quality import MvpQualityStatus
 from app.application.requirement_evals import (
     AcceptedRequirementEvalBaseline,
     RequirementEvalCaseDetail,
@@ -15,6 +16,26 @@ from app.application.requirement_evals import (
     RequirementEvalRunPage,
     RequirementEvalRunSummary,
 )
+
+
+class MvpQualityStatusResponse(CamelCaseModel):
+    gate_passed: bool
+    replay_passed: bool
+    replay_passed_cases: int
+    replay_total_cases: int
+    match_demo_passed: bool
+    match_demo_persisted_reports: int
+    match_demo_top_jobs: int
+    match_demo_evidence_complete: bool
+    provider_smoke_state: str
+    provider_smoke_ready: bool | None
+    provider_smoke_blocking: bool
+    provider_smoke_blocker: str | None
+    provider_calls: int
+
+    @classmethod
+    def from_status(cls, status: MvpQualityStatus) -> "MvpQualityStatusResponse":
+        return cls(**asdict(status))
 
 
 class RequirementEvalRunSummaryResponse(CamelCaseModel):
