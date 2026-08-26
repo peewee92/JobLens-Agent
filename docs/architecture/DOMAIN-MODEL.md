@@ -57,6 +57,7 @@ JobLens 内部统一、稳定的岗位实体，保存用于查询、匹配和排
 
 - 字段见 `job-requirement.schema.json`：`type`（`skill` / `experience` / `education` / `responsibility` / `domain` / `constraint`）、`normalizedCapability`、`importance`（`must_have` / `preferred` / `bonus`）、`evidenceSpan`、`confidence`、`extractorVersion`。
 - 被 `MatchReport.matchedRequirementIds` / `missingRequirementIds` 引用；被 v0.2 `SkillGap.supportingRequirementIds` 引用。
+- Release 分两种用途：正式 `requirement-release-readiness` 继续要求人工 accepted Requirement baseline；默认 MVP Match 路径允许冻结的 `requirement-extractor-v42.95` Extraction 在没有人工 baseline 时进入 Match，但仍必须通过 current JD input hash、Trace capability/cohort/input/output、一致 requirement count 等确定性完整性检查。旧 Extraction 版本不得借此绕过治理。
 
 ### MatchReport
 

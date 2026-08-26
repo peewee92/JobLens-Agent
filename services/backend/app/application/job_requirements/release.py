@@ -58,6 +58,9 @@ class JobRequirementReleaseReadiness:
     blockers: tuple[JobRequirementReleaseBlocker, ...]
 
 
+MVP_FROZEN_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
+
+
 class GetJobRequirementReleaseReadinessUseCase:
     """Derive whether the latest Requirement facts may be consumed by Match."""
 
@@ -68,11 +71,13 @@ class GetJobRequirementReleaseReadinessUseCase:
         requirements: AbstractJobRequirementQueryRepository,
         reviews: AbstractRequirementReviewQueryRepository,
         traces: AbstractJobRequirementReleaseQueryRepository,
+        allow_frozen_mvp_without_baseline: bool = False,
     ) -> None:
         self._jobs = jobs
         self._requirements = requirements
         self._reviews = reviews
         self._traces = traces
+        self._allow_frozen_mvp_without_baseline = allow_frozen_mvp_without_baseline
 
     def execute(self, job_id: str) -> JobRequirementReleaseReadiness:
         job = self._jobs.get_job(job_id)
@@ -88,12 +93,12 @@ class GetJobRequirementReleaseReadinessUseCase:
         def block(code: JobRequirementReleaseBlockerCode, message: str) -> None:
             blockers.append(JobRequirementReleaseBlocker(code=code, message=message))
 
-        if baseline is None:
-            block(
-                JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
-                "No current human-accepted Requirement Review baseline exists.",
-            )
         if extraction is None:
+            if baseline is None:
+                block(
+                    JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
+                    "No current human-accepted Requirement Review baseline exists.",
+                )
             block(
                 JobRequirementReleaseBlockerCode.EXTRACTION_MISSING,
                 "The Job has no Requirement Extraction.",
@@ -116,6 +121,20 @@ class GetJobRequirementReleaseReadinessUseCase:
                     baseline.decision.evidence_fingerprint if baseline else None
                 ),
                 blockers=tuple(blockers),
+            )
+
+        if baseline is None and not (
+            self._allow_frozen_mvp_without_baseline
+            and extraction.extractor_version == MVP_FROZEN_EXTRACTOR_VERSION
+        ):
+            block(
+                JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
+                (
+                    "No current human-accepted Requirement Review baseline exists, "
+                    f"and the latest Extraction is not the frozen MVP cohort {MVP_FROZEN_EXTRACTOR_VERSION}."
+                    if self._allow_frozen_mvp_without_baseline
+                    else "No current human-accepted Requirement Review baseline exists."
+                ),
             )
 
         if extraction.input_hash != description_sha256:

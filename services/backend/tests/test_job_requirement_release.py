@@ -242,6 +242,41 @@ def test_complete_current_accepted_cohort_is_released() -> None:
     assert result.accepted_baseline_evidence_fingerprint == "a" * 64
 
 
+def test_frozen_mvp_extraction_can_release_for_match_without_human_baseline() -> None:
+    extraction = _extraction(extractor_version="requirement-extractor-v42.95")
+    trace = _trace(version="requirement-extractor-v42.95")
+    use_case = GetJobRequirementReleaseReadinessUseCase(
+        jobs=FakeJobs(_job()),
+        requirements=FakeRequirements(extraction),
+        reviews=FakeReviews(None),
+        traces=FakeTraces(trace),
+        allow_frozen_mvp_without_baseline=True,
+    )
+
+    result = use_case.execute("job_release_1")
+
+    assert result.release_eligible is True
+    assert result.blockers == ()
+    assert result.accepted_baseline_batch_id is None
+
+
+def test_old_extraction_stays_blocked_without_human_baseline_in_mvp_mode() -> None:
+    use_case = GetJobRequirementReleaseReadinessUseCase(
+        jobs=FakeJobs(_job()),
+        requirements=FakeRequirements(_extraction(extractor_version="requirement-extractor-v42.94")),
+        reviews=FakeReviews(None),
+        traces=FakeTraces(_trace(version="requirement-extractor-v42.94")),
+        allow_frozen_mvp_without_baseline=True,
+    )
+
+    result = use_case.execute("job_release_1")
+
+    assert result.release_eligible is False
+    assert _codes(result) == {
+        JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
+    }
+
+
 def test_missing_baseline_and_extraction_are_explicit_fail_closed_blockers() -> None:
     use_case = GetJobRequirementReleaseReadinessUseCase(
         jobs=FakeJobs(_job()),

@@ -585,12 +585,33 @@ def get_job_requirement_release_readiness_use_case(
     )
 
 
+def get_mvp_job_requirement_release_readiness_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+    reviews: AbstractRequirementReviewQueryRepository = Depends(
+        get_requirement_review_query_repository
+    ),
+    traces: AbstractJobRequirementReleaseQueryRepository = Depends(
+        get_job_requirement_release_query_repository
+    ),
+) -> GetJobRequirementReleaseReadinessUseCase:
+    return GetJobRequirementReleaseReadinessUseCase(
+        jobs=jobs,
+        requirements=requirements,
+        reviews=reviews,
+        traces=traces,
+        allow_frozen_mvp_without_baseline=True,
+    )
+
+
 def get_match_input_readiness_use_case(
     career_context: GetCareerContextReleaseReadinessUseCase = Depends(
         get_career_context_release_readiness_use_case
     ),
     job_requirements: GetJobRequirementReleaseReadinessUseCase = Depends(
-        get_job_requirement_release_readiness_use_case
+        get_mvp_job_requirement_release_readiness_use_case
     ),
 ) -> GetMatchInputReadinessUseCase:
     return GetMatchInputReadinessUseCase(
