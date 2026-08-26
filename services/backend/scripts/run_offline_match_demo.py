@@ -12,11 +12,13 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.application.eligibility import EligibilityDecision, RequirementFitStatus
 from app.application.evidence_retrieval import EvidenceRelevanceTier, EvidenceRetrievalBasis
 from app.application.match_ranking import rank_match_reports
+from app.application.match_report import MatchRecommendation
 from app.application.match_report.builder import build_match_report
 from app.application.semantic_match import (
     JobSemanticMatchResult,
     SemanticAssessmentSource,
     SemanticCandidateInput,
+    SemanticMatchVerdict,
     SemanticRequirementAssessment,
     SemanticRequirementInput,
 )
@@ -28,7 +30,12 @@ from app.repositories.sqlalchemy_match_report_repository import SqlAlchemyMatchR
 from app.repositories.sqlalchemy_match_report_unit_of_work import SqlAlchemyMatchReportUnitOfWork
 
 
-def _build_fixture_report(job_index: int):
+def _build_fixture_report(
+    job_index: int,
+    *,
+    eligibility: EligibilityDecision = EligibilityDecision.ELIGIBLE,
+    has_evidence: bool = True,
+):
     job_id = f"fixture_job_{job_index:02d}"
     requirement_id = f"fixture_req_{job_index:02d}"
     evidence_id = f"fixture_evidence_{job_index:02d}"
@@ -46,34 +53,54 @@ def _build_fixture_report(job_index: int):
         importance=RequirementImportance.MUST_HAVE,
         original_text=f"Must demonstrate fixture capability {job_index}",
         normalized_capability=f"FixtureCapability{job_index}",
-        candidates=(candidate,),
+        candidates=(candidate,) if has_evidence else (),
     )
     matcher = FixtureSemanticMatcher()
-    matched = matcher.match((requirement,)).output.assessments[0]
-    assessment = SemanticRequirementAssessment(
-        requirement_id=requirement.requirement_id,
-        requirement_index=0,
-        type=requirement.type,
-        importance=requirement.importance,
-        original_text=requirement.original_text,
-        normalized_capability=requirement.normalized_capability,
-        eligibility_status=RequirementFitStatus.MATCHED,
-        verdict=matched.verdict,
-        evidence_ids=matched.evidence_ids,
-        profile_fact_refs=(f"profile.skill.fixture_{job_index}",),
-        reason=matched.reason,
-        source=SemanticAssessmentSource.PROVIDER,
-    )
+    if has_evidence:
+        matched = matcher.match((requirement,)).output.assessments[0]
+        assessment = SemanticRequirementAssessment(
+            requirement_id=requirement.requirement_id,
+            requirement_index=0,
+            type=requirement.type,
+            importance=requirement.importance,
+            original_text=requirement.original_text,
+            normalized_capability=requirement.normalized_capability,
+            eligibility_status=RequirementFitStatus.MATCHED,
+            verdict=matched.verdict,
+            evidence_ids=matched.evidence_ids,
+            profile_fact_refs=(f"profile.skill.fixture_{job_index}",),
+            reason=matched.reason,
+            source=SemanticAssessmentSource.PROVIDER,
+        )
+        matched_count = 1
+        not_matched_count = 0
+    else:
+        assessment = SemanticRequirementAssessment(
+            requirement_id=requirement.requirement_id,
+            requirement_index=0,
+            type=requirement.type,
+            importance=requirement.importance,
+            original_text=requirement.original_text,
+            normalized_capability=requirement.normalized_capability,
+            eligibility_status=RequirementFitStatus.CONDITIONAL,
+            verdict=SemanticMatchVerdict.NOT_MATCHED,
+            evidence_ids=(),
+            profile_fact_refs=(),
+            reason="No confirmed profile evidence is available for this fixture requirement.",
+            source=SemanticAssessmentSource.DETERMINISTIC,
+        )
+        matched_count = 0
+        not_matched_count = 1
     semantic_result = JobSemanticMatchResult(
         job_id=job_id,
         profile_id="fixture_profile",
         profile_version=1,
         extraction_id=f"fixture_extraction_{job_index:02d}",
-        eligibility=EligibilityDecision.ELIGIBLE,
+        eligibility=eligibility,
         assessments=(assessment,),
-        matched_count=1,
+        matched_count=matched_count,
         partial_count=0,
-        not_matched_count=0,
+        not_matched_count=not_matched_count,
         matcher_version="semantic-match-v1",
         prompt_version="semantic-match-v3",
         model=matcher.model_name,
@@ -91,7 +118,20 @@ def run_demo(*, database_path: Path, top_n: int = 5) -> dict[str, object]:
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
 
-    reports = tuple(_build_fixture_report(index) for index in range(1, 7))
+    reports = tuple(
+        _build_fixture_report(index)
+        if index <= 18
+        else (
+            _build_fixture_report(index, eligibility=EligibilityDecision.BLOCKED)
+            if index == 19
+            else _build_fixture_report(
+                index,
+                eligibility=EligibilityDecision.CONDITIONAL,
+                has_evidence=False,
+            )
+        )
+        for index in range(1, 21)
+    )
     with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
         for report in reports:
             uow.reports.add(report)
@@ -104,6 +144,12 @@ def run_demo(*, database_path: Path, top_n: int = 5) -> dict[str, object]:
         "mode": "offline_fixture",
         "externalProviderCalls": 0,
         "persistedMatchReports": len(stored),
+        "fixtureScenarios": {
+            "blocked": sum(
+                report.recommendation is MatchRecommendation.BLOCKED for report in reports
+            ),
+            "withoutEvidence": sum(not report.evidence_links for report in reports),
+        },
         "topJobs": [
             {
                 "rank": rank,
