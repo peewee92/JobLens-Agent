@@ -262,6 +262,8 @@ curl http://127.0.0.1:8000/api/v1/requirement-evals/mvp-quality-status
 
 显式执行 `python -m scripts.check_requirement_provider_health --execute-health-probe --confirm-live-cost --json`（或 MVP gate 的显式 `--provider-smoke --confirm-live-cost`）后，会把最新 smoke 的非敏感摘要写入 Git 忽略的 `data/local/requirement-provider-smoke.json`。该 snapshot 只包含检查时间、provider/model、ready/blocker、plain/json_schema HTTP 状态与调用次数，不保存 API key、base URL、Trace ID、原始响应或错误正文。`mvp-quality-status` 只读取该 snapshot；不存在时返回 `providerSmokeState=never_run`，snapshot 损坏时 fail-soft，且无论 smoke 结果如何都不改变离线 MVP gate 的 pass/fail。
 
+MVP 工程进度统一用 `python -m scripts.check_mvp_progress --json` 汇总：离线 gate、可演示 E2E slice、Top-N 与 evidence 完整性、v42.95 冻结状态和 Provider smoke 是否阻塞。该命令同样不发起 live Provider 调用。Requirement Extraction 在 MVP 期间默认冻结为 `0 bump/week`；只有用户可见且 deterministic replay 可复现的 P0 缺陷才允许显式解冻，其他语义调优进入 P1 backlog。
+
 提交一次不可变人工 Review：
 
 ```bash

@@ -46,7 +46,9 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
   - [x] 默认 `check_mvp_requirement_gate` 已升级为 offline replay + 20-job Top-5 E2E 双阻塞 gate；要求 `replay=10/10`、`persistedMatchReports>=20`、Top 5 evidenceLinks 完整且 `externalProviderCalls=0`。Provider smoke 继续非阻塞，默认运行完全离线；自动测试覆盖 replay failure、Top-N evidence failure 与 Provider 503 non-blocking。
   - [x] Requirement Eval 首页已接入只读 `GET /api/v1/requirement-evals/mvp-quality-status`，展示 offline replay、20-job offline E2E 与 Provider smoke 是否阻塞三项轻量状态。状态接口在隔离 SQLite 中运行并固定 `providerCalls=0`，打开页面不会触发 live Provider；Web 测试、typecheck 与 production build 已覆盖。
   - [x] 最近一次显式 Provider smoke 会写入 gitignored 的本地非敏感 snapshot；零调用检查不会覆盖历史结果。`mvp-quality-status` 只读取该 snapshot，展示 smoke 时间与 plain / json_schema HTTP 状态；snapshot 缺失或损坏按 `never_run` fail-soft，页面读取固定不触发 Provider，且 unhealthy smoke 始终保持 non-blocking，不恢复 per-case 人工闸门为默认 MVP 路径。
-- [ ] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
+- [x] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
+  - [x] 新增 `python -m scripts.check_mvp_progress --json`：默认 0 Provider 调用，汇总 `MVP Gate`、offline E2E slice `completed/total`、Top-N 可用性与 evidence 完整性、当前 Extractor/Semantic Policy 版本、冻结状态和 Provider smoke 是否阻塞；当前可演示切片为 `1/1`、Top 5 可用。项目进度从此优先看这些价值指标，而不是 v42.x 数量或 Provider health 次数。
+  - [x] 抽取节奏时间盒采用比“每周最多一次”更严格的 MVP freeze：普通 MVP 开发为 `0 bump/week`，`requirement-extractor-v42.95 / requirement-semantics-v42.95` 由 `test_requirement_extraction_versions_remain_frozen_for_mvp` 自动钉死。只有用户可见且 deterministic replay 可复现的 P0 缺陷才允许显式解冻并记录证据；非 P0 语义调优进入 P1 backlog。
 
 每项只有在有自动测试、可运行命令/API 或工程文档证据后才勾选；Provider outage 本身不再触发语义版本 bump。
 
