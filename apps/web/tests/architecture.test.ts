@@ -177,6 +177,9 @@ test("Requirement Analysis batch stays explicit and proxies only the bounded Bac
   assert.match(client, /method:\s*"POST"/);
   assert.match(client, /maxReadyJobs:\s*5/);
   assert.match(client, /Provider/);
+  assert.match(client, /providerBlocked/);
+  assert.match(client, /setProviderBlocked\(true\)/);
+  assert.match(client, /disabled=\{state\.kind === "running" \|\| providerBlocked\}/);
   assert.match(route, /backendResponse/);
   assert.match(route, /\/api\/v1\/requirement-batch/);
   assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);

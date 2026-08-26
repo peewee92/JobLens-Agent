@@ -24,9 +24,10 @@ async function responseMessage(response: Response): Promise<string> {
 export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) {
   const router = useRouter();
   const [state, setState] = useState<State>({kind: "idle", message: ""});
+  const [providerBlocked, setProviderBlocked] = useState(false);
 
   async function run() {
-    if (jobIds.length === 0 || state.kind === "running") return;
+    if (jobIds.length === 0 || state.kind === "running" || providerBlocked) return;
     setState({
       kind: "running",
       message: `正在分析 ${jobIds.length} 个优先岗位的要求…`,
@@ -45,9 +46,10 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
 
       const result = (await response.json()) as RequirementBatchExecutionResponse;
       if (result.providerUnavailableCount > 0) {
+        setProviderBlocked(true);
         setState({
           kind: "error",
-          message: `Provider 当前不可用，本轮已立即停止。成功 ${result.succeededCount} 个，剩余 ${result.deferredCount} 个未继续调用。`,
+          message: `Provider 当前不可用，本轮已立即停止。成功 ${result.succeededCount} 个，剩余 ${result.deferredCount} 个未继续调用。为避免连续产生失败调用，本页将暂停再次分析；确认 Provider 恢复后再刷新页面重试。`,
         });
         router.refresh();
         return;
@@ -76,8 +78,12 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
         本轮最多分析 {jobIds.length} 个由 Backend Coverage Planner 选出的岗位。该操作可能调用模型；如果 Provider 出现 429/503/504 等不可用情况，Backend 会立即停止后续岗位，不会继续批量消耗调用。
       </p>
       <div className="actions">
-        <button className="button" type="button" onClick={run} disabled={state.kind === "running"}>
-          {state.kind === "running" ? "正在分析岗位要求…" : `分析下一批 ${jobIds.length} 个岗位`}
+        <button className="button" type="button" onClick={run} disabled={state.kind === "running" || providerBlocked}>
+          {state.kind === "running"
+            ? "正在分析岗位要求…"
+            : providerBlocked
+              ? "Provider 暂不可用"
+              : `分析下一批 ${jobIds.length} 个岗位`}
         </button>
       </div>
       {state.message ? (
