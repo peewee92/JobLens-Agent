@@ -1,5 +1,6 @@
 "use client";
 
+import {useRouter} from "next/navigation";
 import {useState} from "react";
 
 import type {FeedbackDecision, FeedbackReason} from "@/lib/contracts";
@@ -30,6 +31,7 @@ export function RecommendationFeedback({
   jobId: string;
   initialDecision: FeedbackDecision | null;
 }) {
+  const router = useRouter();
   const [savedDecision, setSavedDecision] = useState<FeedbackDecision | null>(initialDecision);
   const [pendingDecision, setPendingDecision] = useState<FeedbackDecision | null>(null);
   const [rejectionReason, setRejectionReason] = useState<FeedbackReason>("role_fit");
@@ -53,6 +55,7 @@ export function RecommendationFeedback({
         throw new Error("feedback_save_failed");
       }
       setSavedDecision(decision);
+      router.refresh();
     } catch {
       setError("反馈暂时保存失败，请稍后再试。");
     } finally {

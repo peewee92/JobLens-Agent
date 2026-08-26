@@ -186,6 +186,17 @@ test("Requirement Analysis batch stays explicit and proxies only the bounded Bac
   assert.doesNotMatch(route, /targetRoles|intentSignals|requirementAnalysisNeededCount/);
 });
 
+test("recommendation feedback refreshes server coverage after a successful save", async () => {
+  const client = await readFile(
+    join(webRoot, "components/recommendation-feedback.tsx"),
+    "utf8",
+  );
+
+  assert.match(client, /useRouter/);
+  assert.match(client, /setSavedDecision\(decision\);\s*router\.refresh\(\);/s);
+  assert.doesNotMatch(client, /window\.location\.reload/);
+});
+
 test("UserFeedback Route Handler only proxies the immutable Backend write", async () => {
   const route = await readFile(
     join(webRoot, "app/api/user-feedback/route.ts"),
