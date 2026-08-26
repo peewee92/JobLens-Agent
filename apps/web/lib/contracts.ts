@@ -555,6 +555,9 @@ export interface MvpQualityStatus {
   providerSmokeReady: boolean | null;
   providerSmokeBlocking: boolean;
   providerSmokeBlocker: string | null;
+  providerSmokeCheckedAt: string | null;
+  providerSmokePlainStatusCode: number | null;
+  providerSmokeStructuredStatusCode: number | null;
   providerCalls: number;
 }
 

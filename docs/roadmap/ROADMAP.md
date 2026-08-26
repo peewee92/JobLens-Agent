@@ -42,10 +42,10 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - [x] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
   - [x] 现有 persisted MatchReport Ranking API 支持 `topN` 截断并透传 MatchReport `summary + evidenceLinks`；排序仍复用 Backend Ranking Policy，stale Profile / stale Requirement snapshot 继续过滤，路径固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`。
   - [x] 用 fixture JobRequirements + Fixture Semantic Matcher + SQLite MatchReport 持久化打通可重复离线 Top 5 demo：`cd services/backend && .venv/bin/python -m scripts.run_offline_match_demo --json`。该命令不读取任何 Provider key，固定生成 20 个 deterministic fixture jobs（18 个有证据可投、1 个 hard-blocked、1 个 no-evidence conditional），输出 `externalProviderCalls=0`、20 个持久化 MatchReport、Top 5 `summary` 理由与 Requirement → Profile Evidence 的 `evidenceLinks`；同级推荐下 Top 5 顺序稳定。既有 Ranking 测试已覆盖 blocked hard fail、stale requirement 与 empty input，本 demo 回归补齐 no-evidence 与 tie-break，并以真实 CLI 验证 20-job → Top 5 全链路。
-- [ ] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。
+- [x] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。
   - [x] 默认 `check_mvp_requirement_gate` 已升级为 offline replay + 20-job Top-5 E2E 双阻塞 gate；要求 `replay=10/10`、`persistedMatchReports>=20`、Top 5 evidenceLinks 完整且 `externalProviderCalls=0`。Provider smoke 继续非阻塞，默认运行完全离线；自动测试覆盖 replay failure、Top-N evidence failure 与 Provider 503 non-blocking。
   - [x] Requirement Eval 首页已接入只读 `GET /api/v1/requirement-evals/mvp-quality-status`，展示 offline replay、20-job offline E2E 与 Provider smoke 是否阻塞三项轻量状态。状态接口在隔离 SQLite 中运行并固定 `providerCalls=0`，打开页面不会触发 live Provider；Web 测试、typecheck 与 production build 已覆盖。
-  - [ ] 持久化/复用最近一次显式 Provider smoke 结果，让页面展示“最近 smoke”真实状态，而不是主动在页面请求时调用 Provider；该状态仍必须保持 non-blocking，且不恢复 per-case 人工闸门为默认 MVP 路径。
+  - [x] 最近一次显式 Provider smoke 会写入 gitignored 的本地非敏感 snapshot；零调用检查不会覆盖历史结果。`mvp-quality-status` 只读取该 snapshot，展示 smoke 时间与 plain / json_schema HTTP 状态；snapshot 缺失或损坏按 `never_run` fail-soft，页面读取固定不触发 Provider，且 unhealthy smoke 始终保持 non-blocking，不恢复 per-case 人工闸门为默认 MVP 路径。
 - [ ] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
 
 每项只有在有自动测试、可运行命令/API 或工程文档证据后才勾选；Provider outage 本身不再触发语义版本 bump。

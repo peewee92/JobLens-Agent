@@ -70,8 +70,19 @@ export default async function RequirementEvalRunsPage() {
             <small>{mvpQuality.matchDemoEvidenceComplete ? "证据完整" : "证据不完整"}</small>
           </div>
           <div className="summary-card">
-            <span>Provider 冒烟</span>
-            <strong>{mvpQuality.providerSmokeState === "not_requested" ? "未运行" : mvpQuality.providerSmokeState}</strong>
+            <span>最近 Provider 冒烟</span>
+            <strong>
+              {mvpQuality.providerSmokeState === "never_run"
+                ? "未运行"
+                : mvpQuality.providerSmokeState === "healthy"
+                  ? "健康"
+                  : "异常"}
+            </strong>
+            <small>
+              {mvpQuality.providerSmokeCheckedAt
+                ? `${formatDateTime(mvpQuality.providerSmokeCheckedAt)} · plain ${mvpQuality.providerSmokePlainStatusCode ?? "—"} / schema ${mvpQuality.providerSmokeStructuredStatusCode ?? "—"}`
+                : "尚无显式 smoke 记录"}
+            </small>
             <small>{mvpQuality.providerSmokeBlocking ? "会阻塞" : "不阻塞 MVP"}</small>
           </div>
         </div>

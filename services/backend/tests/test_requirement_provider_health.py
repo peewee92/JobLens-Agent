@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 from collections import deque
+from pathlib import Path
 
 import httpx
 
 from app.core.config import Settings
-from scripts.check_requirement_provider_health import check_requirement_provider_health
+from app.evals.provider_smoke import load_provider_smoke_snapshot
+from scripts.check_requirement_provider_health import (
+    check_requirement_provider_health,
+    record_provider_smoke_snapshot,
+)
 
 
 class StubClient:
@@ -175,6 +180,44 @@ def test_double_success_opens_requirement_live_gate() -> None:
     assert result.plain_probe.healthy is True
     assert result.structured_probe.healthy is True
     assert result.ready_for_requirement_live_run is True
+
+
+def test_live_health_result_persists_non_secret_snapshot(tmp_path: Path) -> None:
+    client = StubClient(
+        [
+            _chat_response(200, content="OK"),
+            _chat_response(200, content='{"ok":true}'),
+        ]
+    )
+    result = check_requirement_provider_health(
+        settings=_settings(),
+        execute_health_probe=True,
+        confirm_live_cost=True,
+        client=client,  # type: ignore[arg-type]
+    )
+    path = tmp_path / "provider-smoke.json"
+
+    assert record_provider_smoke_snapshot(result, path=path) is True
+    snapshot = load_provider_smoke_snapshot(path=path)
+    assert snapshot is not None
+    assert snapshot.state == "healthy"
+    assert snapshot.ready is True
+    assert snapshot.provider_calls == 2
+    assert snapshot.plain_status_code == 200
+    assert snapshot.structured_status_code == 200
+
+
+def test_zero_call_health_result_does_not_overwrite_smoke_snapshot(tmp_path: Path) -> None:
+    result = check_requirement_provider_health(
+        settings=_settings(),
+        execute_health_probe=False,
+        confirm_live_cost=False,
+        client=StubClient([]),  # type: ignore[arg-type]
+    )
+    path = tmp_path / "provider-smoke.json"
+
+    assert record_provider_smoke_snapshot(result, path=path) is False
+    assert path.exists() is False
 
 
 def test_invalid_provider_configuration_is_blocked_without_calls() -> None:

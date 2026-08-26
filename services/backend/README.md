@@ -260,6 +260,8 @@ curl http://127.0.0.1:8000/api/v1/requirement-evals/mvp-quality-status
 
 `mvp-quality-status` 在隔离 SQLite 中运行冻结的 Requirement replay 与 20-job offline Match/Ranking Top-5 验收，不读取 live Provider key，也不会发起 Provider 调用；它用于 Requirement Eval 首页的轻量 MVP 状态展示。Provider smoke 仍是独立、非阻塞诊断信号，不会因为打开页面而自动产生付费调用。
 
+显式执行 `python -m scripts.check_requirement_provider_health --execute-health-probe --confirm-live-cost --json`（或 MVP gate 的显式 `--provider-smoke --confirm-live-cost`）后，会把最新 smoke 的非敏感摘要写入 Git 忽略的 `data/local/requirement-provider-smoke.json`。该 snapshot 只包含检查时间、provider/model、ready/blocker、plain/json_schema HTTP 状态与调用次数，不保存 API key、base URL、Trace ID、原始响应或错误正文。`mvp-quality-status` 只读取该 snapshot；不存在时返回 `providerSmokeState=never_run`，snapshot 损坏时 fail-soft，且无论 smoke 结果如何都不改变离线 MVP gate 的 pass/fail。
+
 提交一次不可变人工 Review：
 
 ```bash

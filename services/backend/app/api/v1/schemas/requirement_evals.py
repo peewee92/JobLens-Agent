@@ -31,6 +31,9 @@ class MvpQualityStatusResponse(CamelCaseModel):
     provider_smoke_ready: bool | None
     provider_smoke_blocking: bool
     provider_smoke_blocker: str | None
+    provider_smoke_checked_at: str | None
+    provider_smoke_plain_status_code: int | None
+    provider_smoke_structured_status_code: int | None
     provider_calls: int
 
     @classmethod

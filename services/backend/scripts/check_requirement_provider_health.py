@@ -9,13 +9,20 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 import json
+from pathlib import Path
 import time
 from typing import Any
 
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.evals.provider_smoke import (
+    DEFAULT_PROVIDER_SMOKE_SNAPSHOT,
+    ProviderSmokeSnapshot,
+    save_provider_smoke_snapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -420,6 +427,35 @@ def _latency_ms(started: float) -> int:
     return max(0, round((time.perf_counter() - started) * 1000))
 
 
+def record_provider_smoke_snapshot(
+    result: RequirementProviderHealthResult,
+    *,
+    path: Path = DEFAULT_PROVIDER_SMOKE_SNAPSHOT,
+) -> bool:
+    """Persist only an actually executed live smoke; zero-call checks never overwrite history."""
+    if not (
+        result.execution_requested
+        and result.live_cost_confirmed
+        and result.provider_calls > 0
+    ):
+        return False
+    save_provider_smoke_snapshot(
+        ProviderSmokeSnapshot(
+            checked_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            state=result.state,
+            provider=result.provider,
+            model=result.model,
+            ready=result.ready_for_requirement_live_run,
+            blocker=result.blocker,
+            provider_calls=result.provider_calls,
+            plain_status_code=result.plain_probe.status_code,
+            structured_status_code=result.structured_probe.status_code,
+        ),
+        path=path,
+    )
+    return True
+
+
 def _serialize(result: RequirementProviderHealthResult) -> dict[str, Any]:
     payload = asdict(result)
     payload["plainProbe"] = payload.pop("plain_probe")
@@ -443,6 +479,7 @@ def main() -> int:
         execute_health_probe=args.execute_health_probe,
         confirm_live_cost=args.confirm_live_cost,
     )
+    record_provider_smoke_snapshot(result)
     payload = _serialize(result)
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))

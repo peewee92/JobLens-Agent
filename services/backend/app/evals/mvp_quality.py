@@ -29,6 +29,10 @@ from app.evals.job_requirement_extraction import (
     load_job_requirement_eval_cases,
     run_job_requirement_eval,
 )
+from app.evals.provider_smoke import (
+    DEFAULT_PROVIDER_SMOKE_SNAPSHOT,
+    load_provider_smoke_snapshot,
+)
 from app.llm import FixtureJobRequirementExtractor
 from app.llm.semantic_matchers import FixtureSemanticMatcher
 from app.repositories import SqlAlchemyTraceUnitOfWork
@@ -60,6 +64,9 @@ class MvpQualityStatus:
     provider_smoke_ready: bool | None = None
     provider_smoke_blocking: bool = False
     provider_smoke_blocker: str | None = None
+    provider_smoke_checked_at: str | None = None
+    provider_smoke_plain_status_code: int | None = None
+    provider_smoke_structured_status_code: int | None = None
     provider_calls: int = 0
 
 
@@ -218,8 +225,11 @@ def run_offline_match_demo(*, database_path: Path, top_n: int = 5) -> dict[str, 
     return result
 
 
-def evaluate_mvp_quality_status() -> MvpQualityStatus:
-    """Run the blocking MVP checks in isolated SQLite with zero Provider calls."""
+def evaluate_mvp_quality_status(
+    *,
+    provider_smoke_snapshot_path: Path = DEFAULT_PROVIDER_SMOKE_SNAPSHOT,
+) -> MvpQualityStatus:
+    """Run blocking offline checks and attach the latest non-blocking smoke snapshot."""
     with tempfile.TemporaryDirectory(prefix="joblens-mvp-quality-") as directory:
         root = Path(directory)
         replay_engine = create_engine(f"sqlite+pysqlite:///{root / 'replay.db'}")
@@ -252,6 +262,7 @@ def evaluate_mvp_quality_status() -> MvpQualityStatus:
         and len(top_jobs) == 5
         and evidence_complete
     )
+    smoke = load_provider_smoke_snapshot(path=provider_smoke_snapshot_path)
     return MvpQualityStatus(
         gate_passed=replay_passed and match_demo_passed,
         replay_passed=replay_passed,
@@ -261,4 +272,16 @@ def evaluate_mvp_quality_status() -> MvpQualityStatus:
         match_demo_persisted_reports=persisted_reports,
         match_demo_top_jobs=len(top_jobs),
         match_demo_evidence_complete=evidence_complete,
+        provider_smoke_state=(smoke.state if smoke is not None else "never_run"),
+        provider_smoke_ready=(smoke.ready if smoke is not None else None),
+        provider_smoke_blocking=False,
+        provider_smoke_blocker=(smoke.blocker if smoke is not None else None),
+        provider_smoke_checked_at=(smoke.checked_at if smoke is not None else None),
+        provider_smoke_plain_status_code=(
+            smoke.plain_status_code if smoke is not None else None
+        ),
+        provider_smoke_structured_status_code=(
+            smoke.structured_status_code if smoke is not None else None
+        ),
+        provider_calls=0,
     )

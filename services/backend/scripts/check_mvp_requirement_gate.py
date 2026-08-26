@@ -15,7 +15,10 @@ import tempfile
 from typing import Any
 
 from app.core.config import get_settings
-from scripts.check_requirement_provider_health import check_requirement_provider_health
+from scripts.check_requirement_provider_health import (
+    check_requirement_provider_health,
+    record_provider_smoke_snapshot,
+)
 from scripts.run_offline_match_demo import run_demo
 from scripts.run_requirement_replay_gate import run_offline_requirement_replay_gate
 
@@ -149,11 +152,14 @@ def main() -> int:
     smoke_runner = None
     if args.provider_smoke:
         settings = get_settings()
-        smoke_runner = lambda: check_requirement_provider_health(
-            settings=settings,
-            execute_health_probe=True,
-            confirm_live_cost=True,
-        )
+        def smoke_runner():
+            health = check_requirement_provider_health(
+                settings=settings,
+                execute_health_probe=True,
+                confirm_live_cost=True,
+            )
+            record_provider_smoke_snapshot(health)
+            return health
 
     result = check_mvp_requirement_gate(
         include_provider_smoke=args.provider_smoke,

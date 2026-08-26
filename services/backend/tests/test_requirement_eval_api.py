@@ -129,8 +129,11 @@ def test_mvp_quality_status_is_offline_and_provider_independent(
     assert body["matchDemoPersistedReports"] == 20
     assert body["matchDemoTopJobs"] == 5
     assert body["matchDemoEvidenceComplete"] is True
-    assert body["providerSmokeState"] == "not_requested"
+    assert body["providerSmokeState"] in {"never_run", "healthy", "unhealthy", "blocked"}
     assert body["providerSmokeBlocking"] is False
+    assert "providerSmokeCheckedAt" in body
+    assert "providerSmokePlainStatusCode" in body
+    assert "providerSmokeStructuredStatusCode" in body
     assert body["providerCalls"] == 0
 
 
