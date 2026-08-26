@@ -105,6 +105,7 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   const backend = await source("lib/backend.ts");
   const profileEditor = await source("components/profile-editor.tsx");
   const requirementBatch = await source("components/recommendation-requirement-analysis.tsx");
+  const feedback = await source("components/recommendation-feedback.tsx");
 
   assert.match(page, /哪些岗位最值得我先投/);
   assert.match(page, /已有完整匹配/);
@@ -127,6 +128,11 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /RecommendationRequirementAnalysis/);
   assert.match(requirementBatch, /分析下一批/);
   assert.match(requirementBatch, /Provider 当前不可用/);
+  assert.match(page, /initialReasons=/);
+  assert.match(feedback, /initialReasons/);
+  assert.match(feedback, /你当前的选择：.*原因/);
+  assert.match(feedback, /aria-pressed/);
+  assert.match(feedback, /savedDecision === decision/);
   assert.match(page, /重新计算当前输入已准备好的岗位/);
   assert.match(page, /\/profile\?next=\/recommendations#profile-evidence/);
   assert.match(page, /没有完整 MatchReport 的岗位不会被偷偷猜一个名次/);

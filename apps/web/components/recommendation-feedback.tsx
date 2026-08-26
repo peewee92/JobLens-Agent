@@ -26,18 +26,30 @@ export function RecommendationFeedback({
   matchReportId,
   jobId,
   initialDecision,
+  initialReasons,
 }: {
   matchReportId: string;
   jobId: string;
   initialDecision: FeedbackDecision | null;
+  initialReasons: FeedbackReason[];
 }) {
   const router = useRouter();
   const [savedDecision, setSavedDecision] = useState<FeedbackDecision | null>(initialDecision);
+  const [savedReasons, setSavedReasons] = useState<FeedbackReason[]>(initialReasons);
   const [pendingDecision, setPendingDecision] = useState<FeedbackDecision | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<FeedbackReason>("role_fit");
+  const [rejectionReason, setRejectionReason] = useState<FeedbackReason>(
+    initialReasons[0] ?? "role_fit",
+  );
   const [error, setError] = useState<string | null>(null);
 
+  function isSameFeedback(decision: FeedbackDecision, reasons: FeedbackReason[] = []) {
+    return savedDecision === decision
+      && savedReasons.length === reasons.length
+      && savedReasons.every((reason, index) => reason === reasons[index]);
+  }
+
   async function submit(decision: FeedbackDecision, reasons: FeedbackReason[] = []) {
+    if (isSameFeedback(decision, reasons)) return;
     setPendingDecision(decision);
     setError(null);
     try {
@@ -55,6 +67,7 @@ export function RecommendationFeedback({
         throw new Error("feedback_save_failed");
       }
       setSavedDecision(decision);
+      setSavedReasons(reasons);
       router.refresh();
     } catch {
       setError("反馈暂时保存失败，请稍后再试。");
@@ -66,13 +79,16 @@ export function RecommendationFeedback({
   return (
     <div className="recommendation-feedback" aria-label="岗位反馈">
       <p className="muted">
-        {savedDecision ? `你当前的选择：${decisionLabels[savedDecision]}` : "这条推荐符合你的真实判断吗？"}
+        {savedDecision
+          ? `你当前的选择：${decisionLabels[savedDecision]}${savedReasons.length > 0 ? ` · 原因：${savedReasons.map((reason) => rejectionReasonLabels[reason]).join("、")}` : ""}`
+          : "这条推荐符合你的真实判断吗？"}
       </p>
       <div className="actions">
         <button
           className="button-secondary"
           type="button"
-          disabled={pendingDecision !== null}
+          aria-pressed={savedDecision === "interested"}
+          disabled={pendingDecision !== null || isSameFeedback("interested")}
           onClick={() => void submit("interested")}
         >
           {pendingDecision === "interested" ? "保存中…" : "感兴趣"}
@@ -80,7 +96,8 @@ export function RecommendationFeedback({
         <button
           className="button-ghost"
           type="button"
-          disabled={pendingDecision !== null}
+          aria-pressed={savedDecision === "maybe"}
+          disabled={pendingDecision !== null || isSameFeedback("maybe")}
           onClick={() => void submit("maybe")}
         >
           {pendingDecision === "maybe" ? "保存中…" : "再看看"}
@@ -100,7 +117,8 @@ export function RecommendationFeedback({
         <button
           className="button-ghost"
           type="button"
-          disabled={pendingDecision !== null}
+          aria-pressed={savedDecision === "rejected" && isSameFeedback("rejected", [rejectionReason])}
+          disabled={pendingDecision !== null || isSameFeedback("rejected", [rejectionReason])}
           onClick={() => void submit("rejected", [rejectionReason])}
         >
           {pendingDecision === "rejected" ? "保存中…" : "不考虑"}

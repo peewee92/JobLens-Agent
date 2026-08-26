@@ -193,7 +193,7 @@ test("recommendation feedback refreshes server coverage after a successful save"
   );
 
   assert.match(client, /useRouter/);
-  assert.match(client, /setSavedDecision\(decision\);\s*router\.refresh\(\);/s);
+  assert.match(client, /setSavedDecision\(decision\);\s*setSavedReasons\(reasons\);\s*router\.refresh\(\);/s);
   assert.doesNotMatch(client, /window\.location\.reload/);
 });
 

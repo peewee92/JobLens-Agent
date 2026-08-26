@@ -14,7 +14,7 @@ import {
   fetchMatchReviewReadiness,
   fetchRecommendationCoverage,
 } from "@/lib/backend";
-import type {FeedbackDecision} from "@/lib/contracts";
+import type {UserFeedbackRecord} from "@/lib/contracts";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -121,7 +121,7 @@ export default async function RecommendationsPage() {
     // Current recommendations remain usable when the read-only coverage planner is unavailable.
   }
 
-  let feedbackEntries: ReadonlyArray<readonly [string, FeedbackDecision | null]> = availableReports.map(
+  let feedbackEntries: ReadonlyArray<readonly [string, UserFeedbackRecord | null]> = availableReports.map(
     ({report}) => [report.reportId, null] as const,
   );
   let feedbackStateAvailable = availableReports.length === 0;
@@ -130,7 +130,7 @@ export default async function RecommendationsPage() {
       availableReports.map(({report}) => report.reportId),
     );
     const latestByReportId = new Map(
-      latestFeedback.feedback.map((item) => [item.matchReportId, item.decision] as const),
+      latestFeedback.feedback.map((item) => [item.matchReportId, item] as const),
     );
     feedbackEntries = availableReports.map(({report}) => [
       report.reportId,
@@ -142,7 +142,7 @@ export default async function RecommendationsPage() {
   }
   const feedbackByReportId = new Map(feedbackEntries);
   const feedbackCompletedCount = feedbackStateAvailable
-    ? feedbackEntries.filter(([, decision]) => decision !== null).length
+    ? feedbackEntries.filter(([, feedback]) => feedback !== null).length
     : null;
   const feedbackRemainingCount = feedbackCompletedCount === null
     ? null
@@ -230,7 +230,8 @@ export default async function RecommendationsPage() {
                 <RecommendationFeedback
                   matchReportId={report.reportId}
                   jobId={job.id}
-                  initialDecision={feedbackByReportId.get(report.reportId) ?? null}
+                  initialDecision={feedbackByReportId.get(report.reportId)?.decision ?? null}
+                  initialReasons={feedbackByReportId.get(report.reportId)?.reasons ?? []}
                 />
               </article>
             );
@@ -421,7 +422,8 @@ export default async function RecommendationsPage() {
                   <RecommendationFeedback
                     matchReportId={report.reportId}
                     jobId={job.id}
-                    initialDecision={feedbackByReportId.get(report.reportId) ?? null}
+                    initialDecision={feedbackByReportId.get(report.reportId)?.decision ?? null}
+                    initialReasons={feedbackByReportId.get(report.reportId)?.reasons ?? []}
                   />
                 </article>
               );
