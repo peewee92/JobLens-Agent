@@ -10,8 +10,9 @@ export default function HomePage() {
           JobLens 会把你确认过的经历、求职偏好和真实岗位描述整理到一起，先帮助你看清自己的背景和岗位真正要求什么。不会替你编经历，也不会自动投递。
         </p>
         <div className="actions">
-          <Link className="button" href="/profile">完善我的背景</Link>
-          <Link className="button-secondary" href="/jobs">查看岗位</Link>
+          <Link className="button" href="/recommendations">看优先投哪些岗位</Link>
+          <Link className="button-secondary" href="/profile">完善我的背景</Link>
+          <Link className="button-ghost" href="/jobs">查看岗位</Link>
         </div>
       </section>
 
@@ -30,15 +31,15 @@ export default function HomePage() {
         </article>
         <article className="product-step-card">
           <span className="step-number">3</span>
-          <h2>看懂岗位，再做选择</h2>
-          <p>先把 JD 整理成学历、经验、技能和职责；质量确认后，再用于后续匹配和排序。</p>
-          <Link href="/jobs">查看岗位 →</Link>
+          <h2>先投最值得投入的岗位</h2>
+          <p>基于硬条件、真实经历证据和求职偏好，把已有完整匹配结果排成优先级，并说明为什么。</p>
+          <Link href="/recommendations">查看优先级 →</Link>
         </article>
       </section>
 
       <section className="notice product-trust-note">
         <strong>当前能做什么？</strong>
-        <p>现在已经可以确认你的背景、收集真实岗位并分析岗位要求。岗位匹配和优先级排序仍在建设中，JobLens 不会提前展示一个没有可靠依据的“匹配度”。</p>
+        <p>现在已经可以确认你的背景、收集真实岗位、分析岗位要求，并对已有完整匹配结果给出 Top 优先级。没有证据的岗位不会被硬塞进排名，也不会展示一个看似精确但没有依据的“匹配概率”。</p>
       </section>
     </>
   );

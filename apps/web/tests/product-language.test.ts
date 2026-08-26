@@ -14,6 +14,7 @@ test("main navigation is organized around job seeker tasks instead of eval modul
   assert.match(layout, />首页</);
   assert.match(layout, />我的背景</);
   assert.match(layout, />我的岗位</);
+  assert.match(layout, />优先投递</);
   assert.match(layout, />添加岗位</);
   assert.match(layout, /质量检查（高级）/);
   const primaryNav = layout.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
@@ -97,6 +98,61 @@ test("requirement readiness page leads with user decisions and hides technical e
   assert.match(css, /\.readiness-progress-grid/);
   assert.doesNotMatch(page, /<h2>人工参数<\/h2>/);
   assert.doesNotMatch(page, /<h2>证据身份<\/h2>/);
+});
+
+test("recommendations page surfaces the MVP Top-N value without fake probability language", async () => {
+  const page = await source("app/recommendations/page.tsx");
+  const backend = await source("lib/backend.ts");
+  const profileEditor = await source("components/profile-editor.tsx");
+  const requirementBatch = await source("components/recommendation-requirement-analysis.tsx");
+
+  assert.match(page, /哪些岗位最值得我先投/);
+  assert.match(page, /已有完整匹配/);
+  assert.match(page, /查看为什么/);
+  assert.match(page, /当前没有值得优先投的已分析岗位/);
+  assert.match(page, /这些岗位当前有明确硬条件缺口/);
+  assert.match(page, /哪些资料最可能解锁更多岗位判断/);
+  assert.match(page, /当前 Profile 没有足够证据支撑这些硬条件/);
+  assert.match(page, /补充我的真实经历/);
+  assert.match(page, /补教育经历/);
+  assert.match(page, /focus=education/);
+  assert.match(page, /fetchMatchBlockerSummary/);
+  assert.match(page, /RecommendationFeedback/);
+  assert.match(page, /RecommendationRefresh/);
+  assert.match(page, /RecommendationRequirementAnalysis/);
+  assert.match(requirementBatch, /分析下一批/);
+  assert.match(requirementBatch, /Provider 当前不可用/);
+  assert.match(page, /重新计算当前输入已准备好的岗位/);
+  assert.match(page, /\/profile\?next=\/recommendations#profile-evidence/);
+  assert.match(page, /没有完整 MatchReport 的岗位不会被偷偷猜一个名次/);
+  assert.match(page, /fetchMatchRanking/);
+  assert.match(page, /fetchUserFeedbackHistory/);
+  assert.match(page, /fetchMatchReviewReadiness/);
+  assert.match(page, /下一批先分析哪些岗位/);
+  assert.match(page, /还需要岗位要求分析/);
+  assert.match(page, /查看并分析岗位要求/);
+  assert.match(page, /明确求职方向更接近/);
+  assert.match(page, /fetchRecommendationCoverage/);
+  assert.match(backend, /\/api\/v1\/recommendation-coverage/);
+  assert.match(backend, /topN/);
+  assert.match(backend, /\/api\/v1\/match-blockers/);
+  assert.match(profileEditor, /id="profile-evidence"/);
+  assert.doesNotMatch(page, /匹配度[:：]?\s*\d+%/);
+  assert.doesNotMatch(page, /成功概率[:：]?\s*\d+%/);
+});
+
+test("profile can return to recommendations only through the whitelisted save continuation", async () => {
+  const page = await source("app/profile/page.tsx");
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(page, /requestedNext === "\/recommendations"/);
+  assert.match(page, /afterProfileSaveHref/);
+  assert.match(editor, /router\.push\(afterProfileSaveHref\)/);
+  assert.match(editor, /正在返回岗位优先级/);
+  assert.match(page, /requestedFocus === "education"/);
+  assert.match(editor, /先补教育事实，再回到岗位优先级重算/);
+  assert.match(editor, /学历层级、专业和岗位明确要求的院校限定/);
+  assert.match(editor, /\+ 添加教育经历/);
 });
 
 test("job detail explains deterministic eligibility without fake match scores", async () => {

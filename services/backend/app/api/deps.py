@@ -36,10 +36,13 @@ from app.application.job_requirements.use_cases import (
 )
 from app.application.match_batch_execution import ExecuteBatchMatchUseCase
 from app.application.match_batch_planning import PlanBatchMatchUseCase
+from app.application.match_blocker_summary import BuildMatchBlockerSummaryUseCase
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
 from app.application.match_review import GetMatchReviewReadinessUseCase
+from app.application.recommendation_coverage import BuildRecommendationCoverageUseCase
+from app.application.requirement_batch_execution import ExecuteRequirementBatchUseCase
 from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
 from app.application.target_cohort_candidates import ListTargetCohortCandidatesUseCase
 from app.application.target_cohort_gap_query import (
@@ -814,6 +817,18 @@ def get_batch_match_ranking_use_case(
     )
 
 
+def get_match_blocker_summary_use_case(
+    ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    requirements: AbstractJobRequirementQueryRepository = Depends(
+        get_job_requirement_query_repository
+    ),
+) -> BuildMatchBlockerSummaryUseCase:
+    return BuildMatchBlockerSummaryUseCase(
+        ranking=ranking,
+        requirements=requirements,
+    )
+
+
 def get_latest_job_requirements_use_case(
     jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
     repository: AbstractJobRequirementQueryRepository = Depends(
@@ -836,6 +851,38 @@ def get_list_jobs_use_case(
     repository: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> ListJobsUseCase:
     return ListJobsUseCase(repository)
+
+
+def get_recommendation_coverage_use_case(
+    jobs: ListJobsUseCase = Depends(get_list_jobs_use_case),
+    match_inputs: GetMatchInputReadinessUseCase = Depends(
+        get_match_input_readiness_use_case
+    ),
+    ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+) -> BuildRecommendationCoverageUseCase:
+    return BuildRecommendationCoverageUseCase(
+        jobs=jobs,
+        match_inputs=match_inputs,
+        ranking=ranking,
+        career_context=career_context,
+    )
+
+
+def get_requirement_batch_execution_use_case(
+    coverage: BuildRecommendationCoverageUseCase = Depends(
+        get_recommendation_coverage_use_case
+    ),
+    extraction_runner: ExtractJobRequirementsUseCase = Depends(
+        get_extract_job_requirements_use_case
+    ),
+) -> ExecuteRequirementBatchUseCase:
+    return ExecuteRequirementBatchUseCase(
+        coverage=coverage,
+        extraction_runner=extraction_runner,
+    )
 
 
 def get_match_review_readiness_use_case(

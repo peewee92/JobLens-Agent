@@ -125,7 +125,7 @@ class BatchRankMatchReportsUseCase:
                     item.report.job_id
                 )
             ) is not None
-            and item.report.extraction_id == latest_extraction.id
+            and item.report.extraction_id == latest_extraction.extraction_id
         )
         if not reports:
             return ()

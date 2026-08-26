@@ -49,7 +49,7 @@ def build_mvp_progress_summary(status: MvpQualityStatus) -> MvpProgressSummary:
         extraction_frozen=extraction_frozen,
         provider_smoke_blocking=status.provider_smoke_blocking,
         next_priority=(
-            "stage_5_version_bump_timebox"
+            "collect_real_match_reports_and_feedback"
             if status.gate_passed and top_n_available and extraction_frozen
             else "restore_offline_mvp_gate"
         ),

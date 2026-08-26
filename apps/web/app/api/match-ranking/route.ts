@@ -13,6 +13,10 @@ export async function GET(request: Request) {
   if (includeBlocked !== null) {
     params.set("includeBlocked", includeBlocked);
   }
+  const topN = incoming.searchParams.get("topN");
+  if (topN !== null) {
+    params.set("topN", topN);
+  }
 
   const query = params.toString();
   const response = await backendResponse(

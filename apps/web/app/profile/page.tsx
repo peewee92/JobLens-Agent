@@ -10,11 +10,21 @@ import {
   careerContextReleaseBlockerCopy,
   careerContextReleaseLabel,
 } from "@/lib/career-context";
+import type {SearchParams} from "@/lib/contracts";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
+  const requestedFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
+  const afterProfileSaveHref = requestedNext === "/recommendations" ? "/recommendations" : null;
+  const focusEvidenceType = requestedFocus === "education" ? "education" : null;
   let profile;
   let intent;
   try {
@@ -133,7 +143,12 @@ export default async function ProfilePage() {
         ) : null}
       </section>
 
-      <ProfileEditor initialProfile={profile} initialIntent={intent} />
+      <ProfileEditor
+        initialProfile={profile}
+        initialIntent={intent}
+        afterProfileSaveHref={afterProfileSaveHref}
+        focusEvidenceType={focusEvidenceType}
+      />
     </>
   );
 }

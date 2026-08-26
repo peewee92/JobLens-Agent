@@ -99,9 +99,13 @@ function initialSkills(profile: UserProfile | null): SkillDraft[] {
 export function ProfileEditor({
   initialProfile,
   initialIntent,
+  afterProfileSaveHref = null,
+  focusEvidenceType = null,
 }: {
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
+  afterProfileSaveHref?: string | null;
+  focusEvidenceType?: EvidenceType | null;
 }) {
   const router = useRouter();
   const profileFormRef = useRef<HTMLFormElement>(null);
@@ -119,7 +123,7 @@ export function ProfileEditor({
     message: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
-  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(Boolean(focusEvidenceType));
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
   const [targetRoles, setTargetRoles] = useState(
@@ -166,6 +170,12 @@ export function ProfileEditor({
     () => skills.filter((item) => item.name.trim()),
     [skills],
   );
+  const focusedEvidenceCount = useMemo(
+    () => focusEvidenceType
+      ? evidence.filter((item) => item.type === focusEvidenceType && item.summary.trim()).length
+      : 0,
+    [evidence, focusEvidenceType],
+  );
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
   const profileStatusLabel = profileDraftBlank
     ? "尚未填写"
@@ -187,6 +197,23 @@ export function ProfileEditor({
         itemIndex === index ? {...item, ...patch} : item,
       ),
     );
+  }
+
+  function addFocusedEvidence() {
+    if (!focusEvidenceType) return;
+    markProfileDirty();
+    setEvidence((items) => {
+      const blankIndex = items.findIndex(
+        (item) => !item.key.trim() && !item.summary.trim(),
+      );
+      if (blankIndex >= 0) {
+        return items.map((item, index) =>
+          index === blankIndex ? {...item, type: focusEvidenceType} : item,
+        );
+      }
+      return [...items, {...EMPTY_EVIDENCE, type: focusEvidenceType}];
+    });
+    setIsProfileEditorOpen(true);
   }
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
@@ -234,9 +261,15 @@ export function ProfileEditor({
       setIsProfileEditorOpen(false);
       setProfileState({
         kind: "success",
-        message: "职业背景已保存。后续匹配会使用这份你确认过的信息。",
+        message: afterProfileSaveHref
+          ? "职业背景已保存，正在返回岗位优先级。"
+          : "职业背景已保存。后续匹配会使用这份你确认过的信息。",
       });
-      router.refresh();
+      if (afterProfileSaveHref) {
+        router.push(afterProfileSaveHref);
+      } else {
+        router.refresh();
+      }
     } catch {
       setProfileState({kind: "error", message: "保存失败，请稍后重试。"});
     }
@@ -352,6 +385,25 @@ export function ProfileEditor({
             {profileStatusLabel}
           </span>
         </div>
+
+        {focusEvidenceType === "education" ? (
+          <section className="notice" id="profile-evidence-focus">
+            <strong>先补教育事实，再回到岗位优先级重算</strong>
+            <p>
+              当前已有匹配结果里存在学历或专业硬条件，但你的已确认 Profile 还缺少足够直接的教育证据。只填写真实信息；学历层级、专业和岗位明确要求的院校限定会直接影响 Eligibility 判断。
+            </p>
+            <p className="muted">
+              {focusedEvidenceCount > 0
+                ? `当前草稿里已有 ${focusedEvidenceCount} 条教育经历，请检查关键信息是否写完整。`
+                : "当前草稿还没有完整的教育经历条目。"}
+            </p>
+            <div className="actions">
+              <button className="button-secondary" type="button" onClick={addFocusedEvidence}>
+                + 添加教育经历
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {profileDraftBlank ? (
           <section className="profile-review-empty">
@@ -520,7 +572,7 @@ export function ProfileEditor({
           </div>
         </div>
 
-        <div className="subsection-heading">
+        <div className="subsection-heading" id="profile-evidence">
           <div>
             <h3>经历与成果</h3>
             <p>记录真正做过的工作、项目、教育和成果，后面的技能需要从这些经历中找到依据。</p>

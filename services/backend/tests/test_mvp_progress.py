@@ -39,7 +39,7 @@ def test_mvp_progress_counts_only_demonstrable_offline_slice() -> None:
     assert summary.top_n_evidence_complete is True
     assert summary.extraction_frozen is True
     assert summary.provider_smoke_blocking is False
-    assert summary.next_priority == "stage_5_version_bump_timebox"
+    assert summary.next_priority == "collect_real_match_reports_and_feedback"
 
 
 def test_mvp_progress_does_not_count_broken_top_n_as_completed_slice() -> None:

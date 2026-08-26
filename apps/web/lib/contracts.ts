@@ -288,6 +288,182 @@ export interface MatchEvidenceLink {
   evidenceIds: string[];
 }
 
+export interface RankedMatchReportItem {
+  reportId: string;
+  createdAt: string;
+  jobId: string;
+  profileId: string;
+  profileVersion: number;
+  extractionId: string;
+  eligibility: EligibilityDecision;
+  recommendation: MatchRecommendation;
+  summary: string;
+  matchedRequirementIds: string[];
+  partialRequirementIds: string[];
+  missingRequirementIds: string[];
+  evidenceLinks: MatchEvidenceLink[];
+}
+
+export interface BatchMatchRanking {
+  items: RankedMatchReportItem[];
+  count: number;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
+export interface MatchReviewReadiness {
+  requiredJobCount: number;
+  availableJobCount: number;
+  inputReadyJobCount: number;
+  persistenceReady: boolean;
+  readyForHumanReview: boolean;
+  reviewableJobIds: string[];
+  blockers: Array<{code: string; message: string}>;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
+export type BatchMatchExecutionStatus =
+  | "succeeded"
+  | "failed"
+  | "input_blocked"
+  | "persistence_blocked"
+  | "deferred_limit";
+
+export interface BatchMatchExecutionResponse {
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  deferredCount: number;
+  inputBlockedCount: number;
+  persistenceBlockedCount: number;
+  items: Array<{
+    jobId: string;
+    status: BatchMatchExecutionStatus;
+    blockerCodes: string[];
+    errorCode: string | null;
+  }>;
+  resumeJobIds: string[];
+  executionComplete: boolean;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+  sideEffectCountsComplete: boolean;
+}
+
+export interface MatchBlockerCategory {
+  requirementType: RequirementType;
+  missingRequirementCount: number;
+  affectedJobCount: number;
+  affectedJobIds: string[];
+  examples: string[];
+}
+
+export interface MatchBlockerSummary {
+  analyzedReportCount: number;
+  blockedReportCount: number;
+  missingRequirementCount: number;
+  resolvedMissingRequirementCount: number;
+  unresolvedMissingRequirementIds: string[];
+  categories: MatchBlockerCategory[];
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
+export type RecommendationCoverageStatus =
+  | "current_report"
+  | "match_ready"
+  | "requirement_analysis_needed"
+  | "profile_blocked"
+  | "other_blocked";
+
+export interface RecommendationCoverageCandidate {
+  jobId: string;
+  title: string;
+  company: string;
+  area: string | null;
+  salaryMinK: number | null;
+  salaryMaxK: number | null;
+  status: RecommendationCoverageStatus;
+  blockerCodes: string[];
+  intentSignals: string[];
+}
+
+export interface RecommendationCoverage {
+  totalJobCount: number;
+  consideredJobCount: number;
+  currentReportCount: number;
+  matchReadyWithoutReportCount: number;
+  requirementAnalysisNeededCount: number;
+  profileBlockedCount: number;
+  otherBlockedCount: number;
+  nextAnalysisCandidates: RecommendationCoverageCandidate[];
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
+export type RequirementBatchExecutionStatus =
+  | "succeeded"
+  | "failed"
+  | "provider_unavailable"
+  | "deferred_provider_unavailable"
+  | "deferred_limit"
+  | "not_selected";
+
+export interface RequirementBatchExecutionResponse {
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  deferredCount: number;
+  providerUnavailableCount: number;
+  notSelectedCount: number;
+  items: Array<{
+    jobId: string;
+    status: RequirementBatchExecutionStatus;
+    errorCode: string | null;
+    providerCalls: number;
+    traceRunsCreated: number;
+  }>;
+  resumeJobIds: string[];
+  executionComplete: boolean;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+  sideEffectCountsComplete: boolean;
+}
+
+export type FeedbackDecision = "interested" | "maybe" | "rejected";
+export type FeedbackReason =
+  | "role_fit"
+  | "skill_gap"
+  | "compensation"
+  | "location"
+  | "seniority"
+  | "company"
+  | "work_mode"
+  | "other";
+
+export interface UserFeedbackRecord {
+  feedbackId: string;
+  matchReportId: string;
+  jobId: string;
+  decision: FeedbackDecision;
+  reasons: FeedbackReason[];
+  note: string | null;
+  createdAt: string;
+}
+
+export interface UserFeedbackHistory {
+  feedback: UserFeedbackRecord[];
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export interface JobMatchReport {
   jobId: string;
   profileId: string;

@@ -139,7 +139,60 @@ test("the Batch Match Ranking Route Handler only proxies the read-only Backend q
   assert.match(route, /\/api\/v1\/match-ranking/);
   assert.match(route, /jobId/);
   assert.match(route, /includeBlocked/);
+  assert.match(route, /topN/);
   assert.doesNotMatch(route, /recommendation\s*=|strong|good|stretch|blocked/);
+  assert.doesNotMatch(route, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER/);
+});
+
+test("Batch Match refresh stays explicit and proxies the bounded Backend command", async () => {
+  const client = await readFile(
+    join(webRoot, "components/recommendation-refresh.tsx"),
+    "utf8",
+  );
+  const route = await readFile(
+    join(webRoot, "app/api/match-batch/route.ts"),
+    "utf8",
+  );
+
+  assert.match(client, /fetch\("\/api\/match-batch"/);
+  assert.match(client, /method:\s*"POST"/);
+  assert.match(client, /maxReadyJobs:\s*10/);
+  assert.match(route, /backendResponse/);
+  assert.match(route, /\/api\/v1\/match-batch/);
+  assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
+  assert.doesNotMatch(route, /succeeded|blocked|recommendation\s*=/);
+});
+
+test("Requirement Analysis batch stays explicit and proxies only the bounded Backend command", async () => {
+  const client = await readFile(
+    join(webRoot, "components/recommendation-requirement-analysis.tsx"),
+    "utf8",
+  );
+  const route = await readFile(
+    join(webRoot, "app/api/requirement-batch/route.ts"),
+    "utf8",
+  );
+
+  assert.match(client, /fetch\("\/api\/requirement-batch"/);
+  assert.match(client, /method:\s*"POST"/);
+  assert.match(client, /maxReadyJobs:\s*5/);
+  assert.match(client, /Provider/);
+  assert.match(route, /backendResponse/);
+  assert.match(route, /\/api\/v1\/requirement-batch/);
+  assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
+  assert.doesNotMatch(route, /targetRoles|intentSignals|requirementAnalysisNeededCount/);
+});
+
+test("UserFeedback Route Handler only proxies the immutable Backend write", async () => {
+  const route = await readFile(
+    join(webRoot, "app/api/user-feedback/route.ts"),
+    "utf8",
+  );
+
+  assert.match(route, /backendResponse/);
+  assert.match(route, /\/api\/v1\/user-feedback/);
+  assert.match(route, /method:\s*"POST"/);
+  assert.doesNotMatch(route, /interested|maybe|rejected|role_fit|skill_gap/);
   assert.doesNotMatch(route, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER/);
 });
 

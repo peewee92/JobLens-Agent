@@ -94,7 +94,7 @@ def _current_context() -> Mock:
 def _current_requirements() -> Mock:
     repo = Mock()
     repo.get_latest.side_effect = lambda job_id: SimpleNamespace(
-        id=job_id.replace("job_", "reqrun_", 1)
+        extraction_id=job_id.replace("job_", "reqrun_", 1)
     )
     return repo
 
@@ -176,7 +176,7 @@ def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None
     context_repo.get_current_search_intent.return_value = None
     requirement_repo = _current_requirements()
     requirement_repo.get_latest.side_effect = lambda job_id: SimpleNamespace(
-        id=(
+        extraction_id=(
             "reqrun_new"
             if job_id == "job_stale-requirement"
             else job_id.replace("job_", "reqrun_", 1)

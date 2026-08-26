@@ -12,10 +12,13 @@ from app.api.v1.job_preparation import router as job_preparation_router
 from app.api.v1.job_requirements import router as job_requirements_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.match_batch import router as match_batch_router
+from app.api.v1.match_blockers import router as match_blockers_router
 from app.api.v1.match_ranking import router as match_ranking_router
 from app.api.v1.match_review import router as match_review_router
 from app.api.v1.profile_evals import router as profile_evals_router
 from app.api.v1.profile_proposals import router as profile_proposals_router
+from app.api.v1.recommendation_coverage import router as recommendation_coverage_router
+from app.api.v1.requirement_batch import router as requirement_batch_router
 from app.api.v1.requirement_acceptance_runs import (
     router as requirement_acceptance_runs_router,
 )
@@ -32,8 +35,11 @@ api_router.include_router(job_preparation_router, tags=["job-preparation"])
 api_router.include_router(jobs_router, tags=["jobs"])
 api_router.include_router(job_requirements_router, tags=["job-requirements"])
 api_router.include_router(match_batch_router, tags=["match-batch"])
+api_router.include_router(match_blockers_router, tags=["match-blockers"])
 api_router.include_router(match_ranking_router, tags=["match-ranking"])
 api_router.include_router(match_review_router, tags=["match-review"])
+api_router.include_router(recommendation_coverage_router, tags=["recommendation-coverage"])
+api_router.include_router(requirement_batch_router, tags=["requirement-batch"])
 api_router.include_router(user_feedback_router, tags=["user-feedback"])
 api_router.include_router(target_cohort_gaps_router, tags=["target-cohort-gaps"])
 api_router.include_router(profile_proposals_router, tags=["profile-proposals"])

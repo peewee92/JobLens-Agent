@@ -2,7 +2,11 @@ import "server-only";
 
 import type {
   ApiErrorBody,
+  BatchMatchRanking,
   CareerContextReleaseReadiness,
+  MatchBlockerSummary,
+  MatchReviewReadiness,
+  RecommendationCoverage,
   JobDetail,
   JobEligibilityResult,
   JobImportDetail,
@@ -25,6 +29,7 @@ import type {
   RequirementReviewBatchPage,
   RequirementReviewCandidatePage,
   SearchIntent,
+  UserFeedbackHistory,
   UserProfile,
 } from "@/lib/contracts";
 
@@ -103,10 +108,50 @@ export function fetchJobDetail(jobId: string): Promise<JobDetail> {
   return backendJson<JobDetail>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
 }
 
+export function fetchMatchRanking(
+  jobIds: readonly string[],
+  options: {includeBlocked?: boolean; topN?: number} = {},
+): Promise<BatchMatchRanking> {
+  const query = new URLSearchParams();
+  for (const jobId of jobIds) {
+    query.append("jobId", jobId);
+  }
+  if (options.includeBlocked !== undefined) {
+    query.set("includeBlocked", String(options.includeBlocked));
+  }
+  if (options.topN !== undefined) {
+    query.set("topN", String(options.topN));
+  }
+  return backendJson<BatchMatchRanking>(`/api/v1/match-ranking?${query.toString()}`);
+}
+
+export function fetchMatchBlockerSummary(
+  jobIds: readonly string[],
+): Promise<MatchBlockerSummary> {
+  const query = new URLSearchParams();
+  for (const jobId of jobIds) {
+    query.append("jobId", jobId);
+  }
+  return backendJson<MatchBlockerSummary>(`/api/v1/match-blockers?${query.toString()}`);
+}
+
+export function fetchMatchReviewReadiness(): Promise<MatchReviewReadiness> {
+  return backendJson<MatchReviewReadiness>("/api/v1/match-review/readiness");
+}
+
+export function fetchRecommendationCoverage(): Promise<RecommendationCoverage> {
+  return backendJson<RecommendationCoverage>("/api/v1/recommendation-coverage");
+}
+
 export function fetchJobEligibility(jobId: string): Promise<JobEligibilityResult> {
   return backendJson<JobEligibilityResult>(
     `/api/v1/jobs/${encodeURIComponent(jobId)}/eligibility`,
   );
+}
+
+export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFeedbackHistory> {
+  const query = new URLSearchParams({matchReportId});
+  return backendJson<UserFeedbackHistory>(`/api/v1/user-feedback?${query.toString()}`);
 }
 
 export function fetchJobPreparation(jobId: string): Promise<JobPreparationBundle> {
