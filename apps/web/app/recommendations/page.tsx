@@ -124,6 +124,7 @@ export default async function RecommendationsPage() {
   let feedbackEntries: ReadonlyArray<readonly [string, FeedbackDecision | null]> = availableReports.map(
     ({report}) => [report.reportId, null] as const,
   );
+  let feedbackStateAvailable = availableReports.length === 0;
   try {
     const latestFeedback = await fetchLatestUserFeedback(
       availableReports.map(({report}) => report.reportId),
@@ -135,12 +136,17 @@ export default async function RecommendationsPage() {
       report.reportId,
       latestByReportId.get(report.reportId) ?? null,
     ] as const);
+    feedbackStateAvailable = true;
   } catch {
-    // Recommendations remain usable when feedback persistence is unavailable.
+    // Recommendations remain usable, but unknown feedback state must not be reported as zero.
   }
   const feedbackByReportId = new Map(feedbackEntries);
-  const feedbackCompletedCount = feedbackEntries.filter(([, decision]) => decision !== null).length;
-  const feedbackRemainingCount = Math.max(availableReports.length - feedbackCompletedCount, 0);
+  const feedbackCompletedCount = feedbackStateAvailable
+    ? feedbackEntries.filter(([, decision]) => decision !== null).length
+    : null;
+  const feedbackRemainingCount = feedbackCompletedCount === null
+    ? null
+    : Math.max(availableReports.length - feedbackCompletedCount, 0);
 
   return (
     <>
@@ -155,13 +161,24 @@ export default async function RecommendationsPage() {
       <div className="result-bar">
         <span>岗位池 {jobs.total} 个 · 本轮比较前 {jobs.items.length} 个</span>
         <span>已有完整匹配 {availableReports.length} 个 · 当前优先候选 {rankedItems.length} 个</span>
-        <span>已反馈 {feedbackCompletedCount}/{availableReports.length}</span>
+        <span>
+          {feedbackCompletedCount === null
+            ? "反馈状态暂不可用"
+            : `已反馈 ${feedbackCompletedCount}/${availableReports.length}`}
+        </span>
       </div>
 
-      {availableReports.length > 0 && feedbackRemainingCount > 0 ? (
+      {availableReports.length > 0 && feedbackRemainingCount !== null && feedbackRemainingCount > 0 ? (
         <section className="notice">
           <strong>还差 {feedbackRemainingCount} 个岗位需要你的真实判断</strong>
           <p>你的反馈会帮助 JobLens 判断推荐是否符合真实求职选择。即使系统当前不建议优先投，也可以记录“感兴趣 / 再看看 / 不考虑”。</p>
+        </section>
+      ) : null}
+
+      {availableReports.length > 0 && feedbackRemainingCount === null ? (
+        <section className="notice">
+          <strong>暂时无法确认已保存的反馈进度</strong>
+          <p>岗位推荐仍可正常查看；JobLens 不会把读取失败误报成“0 个已反馈”。</p>
         </section>
       ) : null}
 

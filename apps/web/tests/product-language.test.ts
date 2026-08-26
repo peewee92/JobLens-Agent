@@ -120,6 +120,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /RecommendationFeedback/);
   assert.match(page, /已反馈/);
   assert.match(page, /还差.*个岗位需要你的真实判断/);
+  assert.match(page, /反馈状态暂不可用/);
+  assert.match(page, /不会把读取失败误报成“0 个已反馈”/);
   assert.match(page, /你的反馈会帮助 JobLens 判断推荐是否符合真实求职选择/);
   assert.match(page, /RecommendationRefresh/);
   assert.match(page, /RecommendationRequirementAnalysis/);
