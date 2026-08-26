@@ -129,7 +129,7 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /\/profile\?next=\/recommendations#profile-evidence/);
   assert.match(page, /没有完整 MatchReport 的岗位不会被偷偷猜一个名次/);
   assert.match(page, /fetchMatchRanking/);
-  assert.match(page, /fetchUserFeedbackHistory/);
+  assert.match(page, /fetchLatestUserFeedback/);
   assert.match(page, /fetchMatchReviewReadiness/);
   assert.match(page, /下一批先分析哪些岗位/);
   assert.match(page, /还需要岗位要求分析/);

@@ -51,7 +51,11 @@ from app.application.target_cohort_gap_query import (
 from app.application.target_cohort_requirement_aggregation import (
     AggregateTargetCohortRequirementsUseCase,
 )
-from app.application.user_feedback import CreateUserFeedbackUseCase, ListUserFeedbackUseCase
+from app.application.user_feedback import (
+    CreateUserFeedbackUseCase,
+    ListLatestUserFeedbackUseCase,
+    ListUserFeedbackUseCase,
+)
 from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryUseCase
 from app.application.user_feedback_target_cohort import (
     UserFeedbackTargetCohortSourceUseCase,
@@ -705,6 +709,13 @@ def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
 
 def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:
     return ListUserFeedbackUseCase(
+        repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+    )
+
+
+def get_list_latest_user_feedback_use_case() -> ListLatestUserFeedbackUseCase:
+    return ListLatestUserFeedbackUseCase(
         repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
         persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
     )

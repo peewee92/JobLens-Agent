@@ -149,6 +149,12 @@ export function fetchJobEligibility(jobId: string): Promise<JobEligibilityResult
   );
 }
 
+export function fetchLatestUserFeedback(matchReportIds: string[]): Promise<UserFeedbackHistory> {
+  const query = new URLSearchParams();
+  for (const matchReportId of matchReportIds) query.append("matchReportId", matchReportId);
+  return backendJson<UserFeedbackHistory>(`/api/v1/user-feedback/latest?${query.toString()}`);
+}
+
 export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFeedbackHistory> {
   const query = new URLSearchParams({matchReportId});
   return backendJson<UserFeedbackHistory>(`/api/v1/user-feedback?${query.toString()}`);

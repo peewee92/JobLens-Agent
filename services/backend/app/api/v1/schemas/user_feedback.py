@@ -6,7 +6,11 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from app.api.v1.schemas.common import CamelCaseModel
-from app.application.user_feedback import CreateUserFeedbackResult, ListUserFeedbackResult
+from app.application.user_feedback import (
+    CreateUserFeedbackResult,
+    LatestUserFeedbackResult,
+    ListUserFeedbackResult,
+)
 from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryResult
 from app.domain.user_feedback import (
     FeedbackDecision,
@@ -54,6 +58,22 @@ class UserFeedbackRecordResponse(CamelCaseModel):
             reasons=[reason.value for reason in stored.feedback.reasons],
             note=stored.feedback.note,
             created_at=stored.created_at,
+        )
+
+
+class LatestUserFeedbackResponse(CamelCaseModel):
+    feedback: list[UserFeedbackRecordResponse]
+    db_writes: int
+    provider_calls: int
+    trace_runs_created: int
+
+    @classmethod
+    def from_result(cls, result: LatestUserFeedbackResult) -> "LatestUserFeedbackResponse":
+        return cls(
+            feedback=[UserFeedbackRecordResponse.from_stored(item) for item in result.latest_by_match_report],
+            db_writes=result.db_writes,
+            provider_calls=result.provider_calls,
+            trace_runs_created=result.trace_runs_created,
         )
 
 

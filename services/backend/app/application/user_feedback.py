@@ -52,6 +52,56 @@ class ListUserFeedbackResult:
     trace_runs_created: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class LatestUserFeedbackResult:
+    latest_by_match_report: tuple[StoredUserFeedback, ...]
+    db_writes: int = 0
+    provider_calls: int = 0
+    trace_runs_created: int = 0
+
+
+class ListLatestUserFeedbackUseCase:
+    """Return at most one latest immutable feedback record per requested MatchReport."""
+
+    MAX_MATCH_REPORTS = 50
+
+    def __init__(
+        self,
+        *,
+        repository: AbstractUserFeedbackQueryRepository,
+        persistence_readiness: PersistenceReadinessCheck,
+    ) -> None:
+        self._repository = repository
+        self._persistence_readiness = persistence_readiness
+
+    def execute(self, *, match_report_ids: tuple[str, ...]) -> LatestUserFeedbackResult:
+        normalized = tuple(dict.fromkeys(item.strip() for item in match_report_ids if item.strip()))
+        if not normalized:
+            raise ValueError("at least one match_report_id is required")
+        if len(normalized) > self.MAX_MATCH_REPORTS:
+            raise ValueError("at most 50 match_report_ids are supported")
+
+        readiness = self._persistence_readiness()
+        if not readiness.ready:
+            blockers = ", ".join(readiness.blocker_codes)
+            raise UserFeedbackPersistenceNotReadyError(
+                f"UserFeedback persistence schema is not ready: {blockers}"
+            )
+
+        requested = set(normalized)
+        latest: dict[str, StoredUserFeedback] = {}
+        for item in self._repository.list_all():
+            report_id = item.feedback.match_report_id
+            if report_id not in requested:
+                continue
+            previous = latest.get(report_id)
+            if previous is None or (item.created_at, item.id) > (previous.created_at, previous.id):
+                latest[report_id] = item
+        return LatestUserFeedbackResult(
+            latest_by_match_report=tuple(latest[item] for item in normalized if item in latest)
+        )
+
+
 class ListUserFeedbackUseCase:
     """Read immutable feedback history for exactly one provenance scope."""
 
@@ -147,6 +197,8 @@ __all__ = [
     "CreateUserFeedbackUseCase",
     "FeedbackMatchReportMismatchError",
     "FeedbackMatchReportNotFoundError",
+    "LatestUserFeedbackResult",
+    "ListLatestUserFeedbackUseCase",
     "ListUserFeedbackResult",
     "ListUserFeedbackUseCase",
     "UserFeedbackPersistenceNotReadyError",

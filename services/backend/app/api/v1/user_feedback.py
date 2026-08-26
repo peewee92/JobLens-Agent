@@ -7,17 +7,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import (
     get_create_user_feedback_use_case,
+    get_list_latest_user_feedback_use_case,
     get_list_user_feedback_use_case,
     get_user_feedback_match_eval_query_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.user_feedback import (
     CreateUserFeedbackRequest,
+    LatestUserFeedbackResponse,
     UserFeedbackHistoryResponse,
     UserFeedbackMatchEvalResponse,
     UserFeedbackResponse,
 )
-from app.application.user_feedback import CreateUserFeedbackUseCase, ListUserFeedbackUseCase
+from app.application.user_feedback import (
+    CreateUserFeedbackUseCase,
+    ListLatestUserFeedbackUseCase,
+    ListUserFeedbackUseCase,
+)
 from app.application.user_feedback_eval import UserFeedbackMatchEvalQueryUseCase
 
 router = APIRouter(prefix="/user-feedback")
@@ -37,6 +43,22 @@ def get_user_feedback_match_eval(
 ) -> UserFeedbackMatchEvalResponse:
     result = use_case.execute(job_id=job_id)
     return UserFeedbackMatchEvalResponse.from_result(result)
+
+
+@router.get(
+    "/latest",
+    response_model=LatestUserFeedbackResponse,
+    responses={status.HTTP_409_CONFLICT: {"model": ApiErrorResponse}},
+)
+def list_latest_user_feedback(
+    use_case: Annotated[
+        ListLatestUserFeedbackUseCase,
+        Depends(get_list_latest_user_feedback_use_case),
+    ],
+    match_report_ids: Annotated[list[str], Query(alias="matchReportId")],
+) -> LatestUserFeedbackResponse:
+    result = use_case.execute(match_report_ids=tuple(match_report_ids))
+    return LatestUserFeedbackResponse.from_result(result)
 
 
 @router.get(

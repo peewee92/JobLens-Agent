@@ -10,10 +10,11 @@ import {
   fetchJobPage,
   fetchMatchBlockerSummary,
   fetchMatchRanking,
+  fetchLatestUserFeedback,
   fetchMatchReviewReadiness,
   fetchRecommendationCoverage,
-  fetchUserFeedbackHistory,
 } from "@/lib/backend";
+import type {FeedbackDecision} from "@/lib/contracts";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -120,17 +121,23 @@ export default async function RecommendationsPage() {
     // Current recommendations remain usable when the read-only coverage planner is unavailable.
   }
 
-  const feedbackEntries = await Promise.all(
-    availableReports.map(async ({report}) => {
-      try {
-        const history = await fetchUserFeedbackHistory(report.reportId);
-        const latest = history.feedback.at(-1) ?? null;
-        return [report.reportId, latest?.decision ?? null] as const;
-      } catch {
-        return [report.reportId, null] as const;
-      }
-    }),
+  let feedbackEntries: ReadonlyArray<readonly [string, FeedbackDecision | null]> = availableReports.map(
+    ({report}) => [report.reportId, null] as const,
   );
+  try {
+    const latestFeedback = await fetchLatestUserFeedback(
+      availableReports.map(({report}) => report.reportId),
+    );
+    const latestByReportId = new Map(
+      latestFeedback.feedback.map((item) => [item.matchReportId, item.decision] as const),
+    );
+    feedbackEntries = availableReports.map(({report}) => [
+      report.reportId,
+      latestByReportId.get(report.reportId) ?? null,
+    ] as const);
+  } catch {
+    // Recommendations remain usable when feedback persistence is unavailable.
+  }
   const feedbackByReportId = new Map(feedbackEntries);
   const feedbackCompletedCount = feedbackEntries.filter(([, decision]) => decision !== null).length;
   const feedbackRemainingCount = Math.max(availableReports.length - feedbackCompletedCount, 0);

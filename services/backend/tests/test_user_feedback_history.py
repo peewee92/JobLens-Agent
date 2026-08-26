@@ -6,14 +6,21 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_list_user_feedback_use_case
+from app.api.deps import get_list_latest_user_feedback_use_case, get_list_user_feedback_use_case
 from app.application.user_feedback import (
+    LatestUserFeedbackResult,
+    ListLatestUserFeedbackUseCase,
     ListUserFeedbackResult,
     ListUserFeedbackUseCase,
     UserFeedbackPersistenceNotReadyError,
 )
 from app.application.user_feedback_persistence import UserFeedbackPersistenceReadiness
-from app.domain.user_feedback import FeedbackDecision, StoredUserFeedback, UserFeedbackDraft
+from app.domain.user_feedback import (
+    FeedbackDecision,
+    FeedbackReason,
+    StoredUserFeedback,
+    UserFeedbackDraft,
+)
 from app.main import app
 
 
@@ -32,6 +39,9 @@ class _FeedbackQueries:
 
     def list_for_job(self, job_id: str):
         self.job_calls.append(job_id)
+        return self.items
+
+    def list_all(self):
         return self.items
 
 
@@ -88,6 +98,39 @@ def test_list_feedback_for_job_is_read_only() -> None:
     assert queries.match_report_calls == []
 
 
+def test_list_latest_feedback_returns_one_record_per_requested_report() -> None:
+    older = _stored()
+    newer = StoredUserFeedback(
+        id="feedback_2",
+        feedback=UserFeedbackDraft.create(
+            match_report_id="report_1",
+            job_id="job_1",
+            decision=FeedbackDecision.REJECTED,
+            reasons=(FeedbackReason.ROLE_FIT,),
+        ),
+        created_at=datetime(2026, 8, 11, tzinfo=UTC),
+    )
+    other = StoredUserFeedback(
+        id="feedback_3",
+        feedback=UserFeedbackDraft.create(
+            match_report_id="report_2",
+            job_id="job_2",
+            decision=FeedbackDecision.MAYBE,
+        ),
+        created_at=datetime(2026, 8, 12, tzinfo=UTC),
+    )
+    result = ListLatestUserFeedbackUseCase(
+        repository=_FeedbackQueries((older, newer, other)),
+        persistence_readiness=_ready,
+    ).execute(match_report_ids=("report_2", "report_1", "report_1"))
+
+    assert [(item.feedback.match_report_id, item.feedback.decision) for item in result.latest_by_match_report] == [
+        ("report_2", FeedbackDecision.MAYBE),
+        ("report_1", FeedbackDecision.REJECTED),
+    ]
+    assert result.db_writes == result.provider_calls == result.trace_runs_created == 0
+
+
 def test_list_feedback_requires_exactly_one_scope() -> None:
     use_case = ListUserFeedbackUseCase(
         repository=_FeedbackQueries(()),
@@ -118,6 +161,29 @@ class _UseCase:
     def execute(self, **kwargs):
         assert kwargs == {"match_report_id": "report_1", "job_id": None}
         return ListUserFeedbackResult(feedback=(_stored(),))
+
+
+class _LatestUseCase:
+    def execute(self, **kwargs):
+        assert kwargs == {"match_report_ids": ("report_1", "report_2")}
+        return LatestUserFeedbackResult(latest_by_match_report=(_stored(),))
+
+
+def test_latest_user_feedback_api_returns_batch_read_model() -> None:
+    app.dependency_overrides[get_list_latest_user_feedback_use_case] = lambda: _LatestUseCase()
+    try:
+        with TestClient(app) as client:
+            response = client.get(
+                "/api/v1/user-feedback/latest",
+                params=[("matchReportId", "report_1"), ("matchReportId", "report_2")],
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["feedback"][0]["feedbackId"] == "feedback_1"
+    assert body["dbWrites"] == body["providerCalls"] == body["traceRunsCreated"] == 0
 
 
 def test_user_feedback_history_api_returns_read_only_history() -> None:
