@@ -41,7 +41,7 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
   - [x] 自动 freeze guard 通过 `test_requirement_extraction_versions_remain_frozen_for_mvp` 钉死 Extractor / Semantic Policy 版本常量；任何意外 bump 都会让默认 Backend 测试红灯，而不是静默演进。mixed fanout/cardinality 等低价值边缘语义调优进入 P1 backlog。
 - [ ] 阶段 3：100% 离线 `JobRequirements → MatchReport → Ranking → Top N + evidenceLinks` 可演示切片。
   - [x] 现有 persisted MatchReport Ranking API 支持 `topN` 截断并透传 MatchReport `summary + evidenceLinks`；排序仍复用 Backend Ranking Policy，stale Profile / stale Requirement snapshot 继续过滤，路径固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`。
-  - [ ] 用 fixture JobRequirements + fixture Semantic Match + SQLite 持久化打通可重复离线 E2E，并提供一条 Top 5 demo 命令/API。
+  - [x] 用 fixture JobRequirements + Fixture Semantic Matcher + SQLite MatchReport 持久化打通可重复离线 Top 5 demo：`cd services/backend && .venv/bin/python -m scripts.run_offline_match_demo --json`。该命令不读取任何 Provider key，输出 `externalProviderCalls=0`、持久化 MatchReport 数、Top 5 `summary` 理由与 Requirement → Profile Evidence 的 `evidenceLinks`；自动测试锁定 SQLite persistence + Top-N 输出。阶段 3 仍需补关键失败路径与（若仓库有合法数据）20-job fixture 演示后才能整体完成。
 - [ ] 阶段 4：默认 MVP quality gate 降配为 offline replay + match/ranking tests + lightweight eval；live canary 保留为诊断/周期 smoke。
 - [ ] 阶段 5：落地抽取版本时间盒与 E2E slice / Top-N 可用性进度指标。
 
