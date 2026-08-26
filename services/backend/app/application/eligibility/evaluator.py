@@ -21,6 +21,29 @@ _YEAR_REQUIREMENT = re.compile(
 )
 _GENERIC_EXPERIENCE_TOPICS = {"", "工作", "相关工作", "从业", "相关"}
 _DEGREE_RANK = {"大专": 1, "专科": 1, "本科": 2, "硕士": 3, "博士": 4}
+_EDUCATION_MAJOR_MARKERS = (
+    "计算机",
+    "人工智能",
+    "软件工程",
+    "汽车工程",
+    "电子信息",
+    "通信",
+    "数学",
+    "统计",
+    "自动化",
+    "信息安全",
+    "网络工程",
+    "数据科学",
+)
+_EDUCATION_SCHOOL_QUALIFIERS = (
+    "知名高校",
+    "重点高校",
+    "重点大学",
+    "985",
+    "211",
+    "双一流",
+    "名校",
+)
 
 
 def evaluate_eligibility(
@@ -208,27 +231,35 @@ def _evaluate_education(
         return _unknown_or_missing(requirement, "当前资料不足以可靠判断这条学历/专业要求。")
 
     education = [item for item in profile.evidence if item.type.value == "education"]
-    best_rank = 0
-    matching_ids: list[str] = []
+    degree_matching_ids: list[str] = []
+    fully_matching_ids: list[str] = []
     for item in education:
-        rank = max((_DEGREE_RANK.get(name, 0) for name in _DEGREE_RANK if name in item.summary), default=0)
-        if rank > best_rank:
-            best_rank = rank
-        if rank >= _DEGREE_RANK[required_degree]:
-            matching_ids.append(item.id)
-    if matching_ids:
-        if "专业" in requirement.original_text and "优先" in requirement.original_text:
-            return _result(
-                requirement,
-                status=RequirementFitStatus.CONDITIONAL,
-                evidence_ids=tuple(matching_ids),
-                reason="已确认学历层级满足，但这条要求还包含专业偏好，当前切片不做语义猜测。",
-            )
+        rank = max(
+            (_DEGREE_RANK.get(name, 0) for name in _DEGREE_RANK if name in item.summary),
+            default=0,
+        )
+        if rank < _DEGREE_RANK[required_degree]:
+            continue
+        degree_matching_ids.append(item.id)
+        if _education_qualifiers_supported(requirement.original_text, item.summary):
+            fully_matching_ids.append(item.id)
+
+    if fully_matching_ids:
         return _result(
             requirement,
             status=RequirementFitStatus.MATCHED,
-            evidence_ids=tuple(matching_ids),
-            reason=f"已确认教育经历满足“{required_degree}及以上”的学历层级要求。",
+            evidence_ids=tuple(fully_matching_ids),
+            reason=f"已确认教育经历满足“{required_degree}及以上”及岗位明确的教育限定。",
+        )
+    if degree_matching_ids:
+        return _result(
+            requirement,
+            status=RequirementFitStatus.CONDITIONAL,
+            evidence_ids=tuple(degree_matching_ids),
+            reason=(
+                f"已确认学历层级达到“{required_degree}及以上”，但岗位还包含专业或院校限定，"
+                "当前教育证据没有直接证明该限定。"
+            ),
         )
     return _unknown_or_missing(requirement, f"当前已确认教育经历没有“{required_degree}及以上”的直接证据。")
 
@@ -300,6 +331,26 @@ def _topic_evidence_matches(profile: ProfileDetail, topic: str) -> tuple[str, ..
         for item in profile.evidence
         if normalized_topic in _normalize_label(item.summary)
     )
+
+
+def _education_qualifiers_supported(requirement_text: str, evidence_summary: str) -> bool:
+    if "专业" in requirement_text:
+        required_major_markers = tuple(
+            marker for marker in _EDUCATION_MAJOR_MARKERS if marker in requirement_text
+        )
+        if not required_major_markers or not any(
+            marker in evidence_summary for marker in required_major_markers
+        ):
+            return False
+
+    required_school_qualifiers = tuple(
+        marker for marker in _EDUCATION_SCHOOL_QUALIFIERS if marker in requirement_text
+    )
+    if required_school_qualifiers and not all(
+        marker in evidence_summary for marker in required_school_qualifiers
+    ):
+        return False
+    return True
 
 
 def _required_degree(text: str) -> str | None:

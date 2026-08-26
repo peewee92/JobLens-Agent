@@ -24,7 +24,11 @@ from app.domain.job_requirements import RequirementImportance, RequirementType
 NOW = datetime(2026, 8, 9, tzinfo=UTC)
 
 
-def _profile(*, years: float | None = 8.0) -> ProfileDetail:
+def _profile(
+    *,
+    years: float | None = 8.0,
+    education_summary: str = "计算机科学与技术，本科。",
+) -> ProfileDetail:
     evidence = (
         EvidenceDetail(
             id="ev_agent",
@@ -44,7 +48,7 @@ def _profile(*, years: float | None = 8.0) -> ProfileDetail:
             id="ev_edu",
             key="education",
             type=EvidenceType.EDUCATION,
-            summary="计算机科学与技术，本科。",
+            summary=education_summary,
             source="confirmed by user",
         ),
     )
@@ -255,6 +259,78 @@ def test_generic_total_experience_can_use_confirmed_profile_years_but_specialize
     assert result.requirements[0].profile_fact_refs == ("yearsOfExperience",)
     assert result.requirements[1].status is RequirementFitStatus.MISSING
     assert result.eligibility is EligibilityDecision.BLOCKED
+
+
+def test_plain_bachelor_evidence_satisfies_plain_bachelor_requirement() -> None:
+    result = _use_case(
+        _profile(education_summary="本科。"),
+        _extraction(
+            _requirement(
+                0,
+                type=RequirementType.EDUCATION,
+                text="本科及以上学历",
+                importance=RequirementImportance.MUST_HAVE,
+            ),
+        ),
+    ).execute("job_1")
+
+    assert result.eligibility is EligibilityDecision.ELIGIBLE
+    assert result.requirements[0].status is RequirementFitStatus.MATCHED
+    assert result.requirements[0].evidence_ids == ("ev_edu",)
+
+
+def test_bachelor_level_alone_does_not_prove_related_major_requirement() -> None:
+    result = _use_case(
+        _profile(education_summary="本科。"),
+        _extraction(
+            _requirement(
+                0,
+                type=RequirementType.EDUCATION,
+                text="本科及以上，计算机相关专业",
+                importance=RequirementImportance.MUST_HAVE,
+            ),
+        ),
+    ).execute("job_1")
+
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
+    assert result.requirements[0].status is RequirementFitStatus.CONDITIONAL
+    assert result.requirements[0].evidence_ids == ("ev_edu",)
+
+
+def test_computer_science_bachelor_evidence_satisfies_related_major_requirement() -> None:
+    result = _use_case(
+        _profile(education_summary="计算机科学与技术，本科。"),
+        _extraction(
+            _requirement(
+                0,
+                type=RequirementType.EDUCATION,
+                text="本科及以上，计算机相关专业",
+                importance=RequirementImportance.MUST_HAVE,
+            ),
+        ),
+    ).execute("job_1")
+
+    assert result.eligibility is EligibilityDecision.ELIGIBLE
+    assert result.requirements[0].status is RequirementFitStatus.MATCHED
+    assert result.requirements[0].evidence_ids == ("ev_edu",)
+
+
+def test_bachelor_level_alone_does_not_prove_named_school_requirement() -> None:
+    result = _use_case(
+        _profile(education_summary="本科。"),
+        _extraction(
+            _requirement(
+                0,
+                type=RequirementType.EDUCATION,
+                text="知名高校本科及以上学历",
+                importance=RequirementImportance.MUST_HAVE,
+            ),
+        ),
+    ).execute("job_1")
+
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
+    assert result.requirements[0].status is RequirementFitStatus.CONDITIONAL
+    assert result.requirements[0].evidence_ids == ("ev_edu",)
 
 
 def test_unstructured_must_have_experience_stays_conditional_for_semantic_match() -> None:
