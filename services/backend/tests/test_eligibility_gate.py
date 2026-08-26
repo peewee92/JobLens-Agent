@@ -257,6 +257,24 @@ def test_generic_total_experience_can_use_confirmed_profile_years_but_specialize
     assert result.eligibility is EligibilityDecision.BLOCKED
 
 
+def test_unstructured_must_have_experience_stays_conditional_for_semantic_match() -> None:
+    result = _use_case(
+        _profile(),
+        _extraction(
+            _requirement(
+                0,
+                type=RequirementType.EXPERIENCE,
+                text="有 LLM/Agent 应用落地项目经验",
+                importance=RequirementImportance.MUST_HAVE,
+            ),
+        ),
+    ).execute("job_1")
+
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
+    assert result.requirements[0].status is RequirementFitStatus.CONDITIONAL
+    assert result.missing_count == 0
+
+
 def test_unstructured_must_have_responsibility_stays_conditional_instead_of_guessing() -> None:
     result = _use_case(
         _profile(),

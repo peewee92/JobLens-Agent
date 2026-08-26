@@ -140,7 +140,14 @@ def _evaluate_experience(
                 evidence_ids=exact_evidence_ids,
                 reason="已确认经历中存在与这条经验要求直接一致的事实。",
             )
-        return _unknown_or_missing(requirement, "当前资料没有足够结构化信息证明这条经验要求。")
+        return _result(
+            requirement,
+            status=RequirementFitStatus.CONDITIONAL,
+            reason=(
+                "这条经验要求不包含可确定性核验的年限，当前结构化事实不足以直接判定缺失；"
+                "保留给后续基于 Evidence 的语义匹配判断。"
+            ),
+        )
 
     required_years = float(match.group("years"))
     topic = match.group("topic").strip().replace("的", "")
