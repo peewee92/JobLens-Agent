@@ -117,6 +117,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /requirement\.originalText/);
   assert.match(page, /去补对应证据/);
   assert.match(page, /focusRequirement=\$\{requirement\.requirementType\}/);
+  assert.match(page, /focusJob=\$\{job\.id\}/);
+  assert.match(page, /recomputeJob/);
   assert.match(page, /硬条件缺口较少的岗位排在前面/);
   assert.match(page, /这不是成功概率/);
   assert.match(page, /哪些资料最可能解锁更多岗位判断/);
@@ -187,6 +189,8 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /正在返回岗位优先级/);
   assert.match(page, /requestedFocus === "education"/);
   assert.match(page, /focusRequirementType/);
+  assert.match(page, /requestedFocusJob/);
+  assert.match(page, /recomputeJob/);
   assert.match(page, /requestedRequirementFocus/);
   assert.match(editor, /focusRequirementType/);
   assert.match(editor, /补充能证明技能的真实经历/);

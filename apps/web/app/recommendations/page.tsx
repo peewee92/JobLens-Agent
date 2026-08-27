@@ -14,7 +14,7 @@ import {
   fetchMatchReviewReadiness,
   fetchRecommendationCoverage,
 } from "@/lib/backend";
-import type {RequirementType, UserFeedbackRecord} from "@/lib/contracts";
+import type {RequirementType, SearchParams, UserFeedbackRecord} from "@/lib/contracts";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -42,7 +42,13 @@ function blockerRequirementTypeLabel(requirementType: RequirementType): string {
   }
 }
 
-export default async function RecommendationsPage() {
+export default async function RecommendationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const focusJobId = typeof params.focusJob === "string" ? params.focusJob : null;
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -130,6 +136,12 @@ export default async function RecommendationsPage() {
   } catch {
     // Existing ranking remains readable even when the refresh readiness check is unavailable.
   }
+
+  // Prioritize the job the user just supplemented evidence for, then the rest of the ready pool.
+  const recomputeJobIds = focusJobId
+    ? [focusJobId, ...reviewableJobIds.filter((id) => id !== focusJobId)]
+    : reviewableJobIds;
+  const focusJobTitle = focusJobId ? (jobById.get(focusJobId)?.title ?? null) : null;
 
   let coverage = null;
   try {
@@ -220,7 +232,11 @@ export default async function RecommendationsPage() {
         </section>
       ) : null}
 
-      <RecommendationRefresh jobIds={reviewableJobIds} />
+      <RecommendationRefresh
+        jobIds={recomputeJobIds}
+        focusJobId={focusJobId}
+        focusJobTitle={focusJobTitle}
+      />
 
       {rankedItems.length > 0 ? (
         <section className="job-list" aria-label="优先投递岗位">
@@ -468,7 +484,7 @@ export default async function RecommendationsPage() {
                             <span>{requirement.originalText}</span>
                             <Link
                               className="recommendation-blocker-action"
-                              href={`/profile?next=/recommendations&focusRequirement=${requirement.requirementType}#profile-evidence-focus`}
+                              href={`/profile?next=/recommendations&focusRequirement=${requirement.requirementType}&focusJob=${job.id}#profile-evidence-focus`}
                             >
                               去补对应证据 →
                             </Link>

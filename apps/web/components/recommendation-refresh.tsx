@@ -21,10 +21,19 @@ async function responseMessage(response: Response): Promise<string> {
   }
 }
 
-export function RecommendationRefresh({jobIds}: {jobIds: string[]}) {
+export function RecommendationRefresh({
+  jobIds,
+  focusJobId = null,
+  focusJobTitle = null,
+}: {
+  jobIds: string[];
+  focusJobId?: string | null;
+  focusJobTitle?: string | null;
+}) {
   const router = useRouter();
   const [pendingJobIds, setPendingJobIds] = useState(jobIds);
   const [state, setState] = useState<RefreshState>({kind: "idle", message: ""});
+  const isFocused = Boolean(focusJobId);
 
   async function run() {
     if (pendingJobIds.length === 0 || state.kind === "running") return;
@@ -62,7 +71,9 @@ export function RecommendationRefresh({jobIds}: {jobIds: string[]}) {
         message:
           failures > 0
             ? `本轮完成 ${result.succeededCount} 个，另有 ${failures} 个未完成。可以查看岗位详情确认阻塞原因。`
-            : `已重新计算 ${result.succeededCount} 个岗位，优先级已更新。`,
+            : isFocused
+              ? `已优先重算你刚补充证据的岗位，优先级已更新。`
+              : `已重新计算 ${result.succeededCount} 个岗位，优先级已更新。`,
       });
       router.refresh();
     } catch {
@@ -79,19 +90,25 @@ export function RecommendationRefresh({jobIds}: {jobIds: string[]}) {
     );
   }
 
+  const buttonLabel = state.kind === "running"
+    ? "正在重新计算…"
+    : pendingJobIds.length < jobIds.length && pendingJobIds.length > 0
+      ? `继续计算剩余 ${pendingJobIds.length} 个`
+      : isFocused
+        ? `优先重算这个岗位${pendingJobIds.length > 1 ? `及另外 ${Math.min(pendingJobIds.length - 1, 9)} 个` : ""}`
+        : `重新计算 ${Math.min(pendingJobIds.length, 10)} 个岗位`;
+
   return (
     <div className="notice">
-      <strong>资料更新后，重新计算岗位</strong>
+      <strong>{isFocused ? "针对你刚补充的岗位，优先重算" : "资料更新后，重新计算岗位"}</strong>
       <p>
-        当前有 {jobIds.length} 个岗位的输入事实已准备好。重新计算只会使用你确认过的 Profile 和当前可信岗位要求；如果某些条件需要语义判断，才可能调用模型。
+        {isFocused
+          ? `你刚为${focusJobTitle ? `「${focusJobTitle}」` : "这个岗位"}补充了证据。重新计算会先重算它，再看其余已准备好的岗位；只会使用你确认过的 Profile 和当前可信岗位要求。`
+          : `当前有 ${jobIds.length} 个岗位的输入事实已准备好。重新计算只会使用你确认过的 Profile 和当前可信岗位要求；如果某些条件需要语义判断，才可能调用模型。`}
       </p>
       <div className="actions">
         <button className="button" type="button" onClick={run} disabled={state.kind === "running" || pendingJobIds.length === 0}>
-          {state.kind === "running"
-            ? "正在重新计算…"
-            : pendingJobIds.length < jobIds.length && pendingJobIds.length > 0
-              ? `继续计算剩余 ${pendingJobIds.length} 个`
-              : `重新计算 ${Math.min(pendingJobIds.length, 10)} 个岗位`}
+          {buttonLabel}
         </button>
       </div>
       {state.message ? (

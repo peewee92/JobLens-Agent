@@ -15,6 +15,14 @@ import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
+function buildRecommendationReturnHref(focusJob: string | null, focusRequirement: string | null): string {
+  const query = new URLSearchParams();
+  if (focusJob) query.set("focusJob", focusJob);
+  if (focusRequirement) query.set("focusRequirement", focusRequirement);
+  const queryString = query.toString();
+  return queryString ? `/recommendations?${queryString}` : "/recommendations";
+}
+
 export default async function ProfilePage({
   searchParams,
 }: {
@@ -26,7 +34,16 @@ export default async function ProfilePage({
   const requestedRequirementFocus = Array.isArray(params.focusRequirement)
     ? params.focusRequirement[0]
     : params.focusRequirement;
-  const afterProfileSaveHref = requestedNext === "/recommendations" ? "/recommendations" : null;
+  const requestedFocusJob = Array.isArray(params.focusJob) ? params.focusJob[0] : params.focusJob ?? null;
+  // Return to recommendations carrying the same focus so the recompute can prioritize that job.
+  const afterProfileSaveHref = requestedNext === "/recommendations"
+    ? buildRecommendationReturnHref(
+        requestedFocusJob,
+        typeof requestedRequirementFocus === "string" ? requestedRequirementFocus : null,
+      )
+    : null;
+  // The specific job the user is supplementing evidence for; it should be recomputed first on return.
+  const recomputeJobId = requestedFocusJob;
   const focusEvidenceType = requestedFocus === "education" || requestedRequirementFocus === "education"
     ? "education"
     : null;
@@ -164,6 +181,7 @@ export default async function ProfilePage({
         afterProfileSaveHref={afterProfileSaveHref}
         focusEvidenceType={focusEvidenceType}
         focusRequirementType={focusRequirementType}
+        focusJobId={requestedFocusJob}
       />
     </>
   );
