@@ -781,18 +781,6 @@ def get_user_feedback_match_eval_query_use_case(
     )
 
 
-def get_create_user_feedback_use_case(
-    reports: AbstractMatchReportQueryRepository = Depends(
-        get_match_report_query_repository
-    ),
-) -> CreateUserFeedbackUseCase:
-    return CreateUserFeedbackUseCase(
-        reports=reports,
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
-        uow_factory=lambda: SqlAlchemyUserFeedbackUnitOfWork(SessionLocal),
-    )
-
-
 def get_batch_match_execution_use_case(
     readiness: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
     report_runner: BuildJobMatchReportUseCase = Depends(get_match_report_use_case),
@@ -825,6 +813,22 @@ def get_batch_match_ranking_use_case(
         job_repository=jobs,
         requirement_repository=requirements,
         persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+    )
+
+
+def get_create_user_feedback_use_case(
+    reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+    current_reports: BatchRankMatchReportsUseCase = Depends(
+        get_batch_match_ranking_use_case
+    ),
+) -> CreateUserFeedbackUseCase:
+    return CreateUserFeedbackUseCase(
+        reports=reports,
+        current_reports=current_reports,
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        uow_factory=lambda: SqlAlchemyUserFeedbackUnitOfWork(SessionLocal),
     )
 
 

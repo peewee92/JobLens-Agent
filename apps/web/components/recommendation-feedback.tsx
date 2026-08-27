@@ -3,7 +3,8 @@
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 
-import type {FeedbackDecision, FeedbackReason} from "@/lib/contracts";
+import type {ApiErrorBody, FeedbackDecision, FeedbackReason} from "@/lib/contracts";
+import {userFacingApiError} from "@/lib/user-facing-errors";
 
 const decisionLabels: Record<FeedbackDecision, string> = {
   interested: "感兴趣",
@@ -64,7 +65,17 @@ export function RecommendationFeedback({
         }),
       });
       if (!response.ok) {
-        throw new Error("feedback_save_failed");
+        let body: Partial<ApiErrorBody> | null = null;
+        try {
+          body = (await response.json()) as Partial<ApiErrorBody>;
+        } catch {
+          body = null;
+        }
+        setError(userFacingApiError(body, "反馈暂时保存失败，请稍后再试。"));
+        if (body?.error?.code === "feedback_match_report_stale") {
+          router.refresh();
+        }
+        return;
       }
       setSavedDecision(decision);
       setSavedReasons(reasons);

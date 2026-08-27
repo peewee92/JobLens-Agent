@@ -21,6 +21,7 @@ from app.application.match_report import MatchReportPersistenceNotReadyError
 from app.application.user_feedback import (
     FeedbackMatchReportMismatchError,
     FeedbackMatchReportNotFoundError,
+    FeedbackMatchReportStaleError,
     UserFeedbackPersistenceNotReadyError,
 )
 from app.application.semantic_match.errors import (
@@ -194,6 +195,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_409_CONFLICT,
             "feedback_match_report_mismatch",
+            str(error),
+        )
+
+    @app.exception_handler(FeedbackMatchReportStaleError)
+    async def handle_feedback_match_report_stale(
+        _request: Request,
+        error: FeedbackMatchReportStaleError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_409_CONFLICT,
+            "feedback_match_report_stale",
             str(error),
         )
 

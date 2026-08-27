@@ -32,6 +32,13 @@ test("primary user flows translate stable backend errors into actionable Chinese
     ),
     "完整匹配建议暂时不可用；你仍可以先参考上方的硬条件判断。",
   );
+  assert.equal(
+    userFacingApiError(
+      {error: {code: "feedback_match_report_stale", message: "stale report"}},
+      "反馈暂时保存失败，请稍后再试。",
+    ),
+    "这个岗位的推荐刚刚更新了，请根据最新建议重新判断。",
+  );
 });
 
 test("unknown backend messages are not leaked into the ordinary user flow", () => {

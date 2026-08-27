@@ -6,9 +6,14 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_create_user_feedback_use_case
-from app.application.user_feedback import CreateUserFeedbackResult
+from app.application.user_feedback import CreateUserFeedbackResult, FeedbackMatchReportStaleError
 from app.domain.user_feedback import FeedbackDecision, FeedbackReason, StoredUserFeedback, UserFeedbackDraft
 from app.main import app
+
+
+class _StaleUseCase:
+    def execute(self, **kwargs):
+        raise FeedbackMatchReportStaleError("Feedback must target the current MatchReport for the Job")
 
 
 class _UseCase:
@@ -62,6 +67,25 @@ def test_user_feedback_api_returns_created_immutable_record() -> None:
     assert body["traceRunsCreated"] == 0
     assert use_case.calls[0]["decision"] is FeedbackDecision.REJECTED
     assert use_case.calls[0]["reasons"] == (FeedbackReason.SKILL_GAP,)
+
+
+def test_user_feedback_api_returns_conflict_for_stale_match_report() -> None:
+    app.dependency_overrides[get_create_user_feedback_use_case] = lambda: _StaleUseCase()
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/user-feedback",
+                json={
+                    "matchReportId": "report_old",
+                    "jobId": "job_1",
+                    "decision": "interested",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "feedback_match_report_stale"
 
 
 def test_user_feedback_api_rejects_invalid_enum_before_use_case() -> None:

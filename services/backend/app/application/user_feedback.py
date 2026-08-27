@@ -29,6 +29,20 @@ class FeedbackMatchReportMismatchError(ValueError):
     """Raised when a MatchReport belongs to a different Job."""
 
 
+class FeedbackMatchReportStaleError(ValueError):
+    """Raised when feedback targets a MatchReport that is no longer current."""
+
+
+class CurrentMatchReportQuery(Protocol):
+    def execute(
+        self,
+        job_ids: tuple[str, ...],
+        *,
+        include_blocked: bool = False,
+        top_n: int | None = None,
+    ): ...
+
+
 class PersistenceReadinessCheck(Protocol):
     def __call__(self) -> UserFeedbackPersistenceReadiness: ...
 
@@ -146,10 +160,12 @@ class CreateUserFeedbackUseCase:
         self,
         *,
         reports: AbstractMatchReportQueryRepository,
+        current_reports: CurrentMatchReportQuery,
         persistence_readiness: PersistenceReadinessCheck,
         uow_factory: UserFeedbackUnitOfWorkFactory,
     ) -> None:
         self._reports = reports
+        self._current_reports = current_reports
         self._persistence_readiness = persistence_readiness
         self._uow_factory = uow_factory
 
@@ -174,9 +190,19 @@ class CreateUserFeedbackUseCase:
             raise FeedbackMatchReportNotFoundError(
                 f"MatchReport {match_report_id!r} was not found"
             )
-        if report.report.job_id != job_id.strip():
+        normalized_job_id = job_id.strip()
+        if report.report.job_id != normalized_job_id:
             raise FeedbackMatchReportMismatchError(
                 "Feedback jobId must match the Job bound to the referenced MatchReport"
+            )
+
+        current_reports = self._current_reports.execute(
+            (normalized_job_id,),
+            include_blocked=True,
+        )
+        if not any(item.id == report.id for item in current_reports):
+            raise FeedbackMatchReportStaleError(
+                "Feedback must target the current MatchReport for the Job"
             )
 
         draft = UserFeedbackDraft.create(
@@ -197,6 +223,7 @@ __all__ = [
     "CreateUserFeedbackUseCase",
     "FeedbackMatchReportMismatchError",
     "FeedbackMatchReportNotFoundError",
+    "FeedbackMatchReportStaleError",
     "LatestUserFeedbackResult",
     "ListLatestUserFeedbackUseCase",
     "ListUserFeedbackResult",

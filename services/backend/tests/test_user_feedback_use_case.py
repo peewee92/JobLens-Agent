@@ -10,6 +10,7 @@ from app.application.user_feedback import (
     CreateUserFeedbackUseCase,
     FeedbackMatchReportMismatchError,
     FeedbackMatchReportNotFoundError,
+    FeedbackMatchReportStaleError,
     UserFeedbackPersistenceNotReadyError,
 )
 from app.domain.user_feedback import FeedbackDecision, FeedbackReason, StoredUserFeedback
@@ -23,6 +24,16 @@ class _Reports:
     def get(self, report_id: str):
         self.calls.append(report_id)
         return self.report
+
+
+class _CurrentReports:
+    def __init__(self, reports=()) -> None:
+        self.reports = tuple(reports)
+        self.calls = []
+
+    def execute(self, job_ids, *, include_blocked=False, top_n=None):
+        self.calls.append((job_ids, include_blocked, top_n))
+        return self.reports
 
 
 class _FeedbackRepo:
@@ -65,6 +76,7 @@ def test_create_user_feedback_persists_one_immutable_record() -> None:
     uow = _Uow()
     use_case = CreateUserFeedbackUseCase(
         reports=reports,
+        current_reports=_CurrentReports((_report(),)),
         persistence_readiness=lambda: SimpleNamespace(ready=True, blocker_codes=()),
         uow_factory=lambda: uow,
     )
@@ -91,6 +103,7 @@ def test_create_user_feedback_fails_before_queries_or_writes_when_schema_not_rea
     uow = _Uow()
     use_case = CreateUserFeedbackUseCase(
         reports=reports,
+        current_reports=_CurrentReports((_report(),)),
         persistence_readiness=lambda: SimpleNamespace(
             ready=False,
             blocker_codes=("match_report_persistence_not_ready", "user_feedback_persistence_not_ready"),
@@ -115,6 +128,7 @@ def test_create_user_feedback_rejects_missing_match_report() -> None:
     uow = _Uow()
     use_case = CreateUserFeedbackUseCase(
         reports=reports,
+        current_reports=_CurrentReports(()),
         persistence_readiness=lambda: SimpleNamespace(ready=True, blocker_codes=()),
         uow_factory=lambda: uow,
     )
@@ -135,6 +149,7 @@ def test_create_user_feedback_rejects_job_binding_mismatch() -> None:
     uow = _Uow()
     use_case = CreateUserFeedbackUseCase(
         reports=reports,
+        current_reports=_CurrentReports((_report(job_id="job_other"),)),
         persistence_readiness=lambda: SimpleNamespace(ready=True, blocker_codes=()),
         uow_factory=lambda: uow,
     )
@@ -146,5 +161,28 @@ def test_create_user_feedback_rejects_job_binding_mismatch() -> None:
             decision=FeedbackDecision.INTERESTED,
         )
 
+    assert uow.feedback.added == []
+    assert uow.commits == 0
+
+
+def test_create_user_feedback_rejects_stale_match_report_before_write() -> None:
+    reports = _Reports(_report())
+    current_reports = _CurrentReports((SimpleNamespace(id="report_new"),))
+    uow = _Uow()
+    use_case = CreateUserFeedbackUseCase(
+        reports=reports,
+        current_reports=current_reports,
+        persistence_readiness=lambda: SimpleNamespace(ready=True, blocker_codes=()),
+        uow_factory=lambda: uow,
+    )
+
+    with pytest.raises(FeedbackMatchReportStaleError):
+        use_case.execute(
+            match_report_id="report_1",
+            job_id="job_1",
+            decision=FeedbackDecision.INTERESTED,
+        )
+
+    assert current_reports.calls == [(("job_1",), True, None)]
     assert uow.feedback.added == []
     assert uow.commits == 0

@@ -23,6 +23,7 @@ const messages: Record<string, string> = {
   semantic_matcher_unavailable: "完整匹配建议暂时不可用；你仍可以先参考上方的硬条件判断。",
   semantic_matcher_failed: "这次 AI 匹配分析没有成功，请稍后重试。",
   invalid_semantic_matcher_output: "这次 AI 匹配结果不完整，没有生成正式建议，请稍后重试。",
+  feedback_match_report_stale: "这个岗位的推荐刚刚更新了，请根据最新建议重新判断。",
   internal_server_error: "服务暂时出了点问题，请稍后重试。",
 };
 
