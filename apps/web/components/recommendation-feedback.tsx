@@ -108,6 +108,7 @@ export function RecommendationFeedback({
       setSavedDecision(decision);
       setSavedReasons(normalizedReasons);
       setSavedNote(note);
+      setSelectedReasons(decision === "rejected" ? normalizedReasons : []);
       router.refresh();
     } catch {
       setError("反馈暂时保存失败，请稍后再试。");

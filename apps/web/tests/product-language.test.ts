@@ -146,6 +146,7 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(feedback, /可多选/);
   assert.match(feedback, /aria-pressed/);
   assert.match(feedback, /savedDecision === decision/);
+  assert.match(feedback, /setSelectedReasons\(decision === "rejected" \? normalizedReasons : \[\]\)/);
   assert.match(page, /重新计算当前输入已准备好的岗位/);
   assert.match(page, /\/profile\?next=\/recommendations#profile-evidence/);
   assert.match(page, /没有完整 MatchReport 的岗位不会被偷偷猜一个名次/);
