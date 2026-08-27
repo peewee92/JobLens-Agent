@@ -48,7 +48,7 @@ export function RecommendationFeedback({
   const [savedNote, setSavedNote] = useState<string | null>(initialNote);
   const [pendingDecision, setPendingDecision] = useState<FeedbackDecision | null>(null);
   const [selectedReasons, setSelectedReasons] = useState<FeedbackReason[]>(normalizeReasons(initialReasons));
-  const [otherNote, setOtherNote] = useState(initialReasons.includes("other") ? initialNote ?? "" : "");
+  const [feedbackNote, setFeedbackNote] = useState(initialNote ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function isSameFeedback(
@@ -123,13 +123,24 @@ export function RecommendationFeedback({
           ? `你当前的选择：${decisionLabels[savedDecision]}${savedReasons.length > 0 ? ` · 原因：${savedReasons.map((reason) => rejectionReasonLabels[reason]).join("、")}` : ""}${savedNote ? ` · 补充：${savedNote}` : ""}`
           : "这条推荐符合你的真实判断吗？"}
       </p>
+      <label>
+        补充说明（可选）
+        <input
+          aria-label="反馈补充说明"
+          type="text"
+          value={feedbackNote}
+          onChange={(event) => setFeedbackNote(event.target.value)}
+          placeholder="例如：方向很匹配，但还想确认团队和薪资"
+          disabled={pendingDecision !== null}
+        />
+      </label>
       <div className="actions">
         <button
           className="button-secondary"
           type="button"
           aria-pressed={savedDecision === "interested"}
-          disabled={pendingDecision !== null || isSameFeedback("interested")}
-          onClick={() => void submit("interested")}
+          disabled={pendingDecision !== null || isSameFeedback("interested", [], feedbackNote.trim() || null)}
+          onClick={() => void submit("interested", [], feedbackNote.trim() || null)}
         >
           {pendingDecision === "interested" ? "保存中…" : "感兴趣"}
         </button>
@@ -137,8 +148,8 @@ export function RecommendationFeedback({
           className="button-ghost"
           type="button"
           aria-pressed={savedDecision === "maybe"}
-          disabled={pendingDecision !== null || isSameFeedback("maybe")}
-          onClick={() => void submit("maybe")}
+          disabled={pendingDecision !== null || isSameFeedback("maybe", [], feedbackNote.trim() || null)}
+          onClick={() => void submit("maybe", [], feedbackNote.trim() || null)}
         >
           {pendingDecision === "maybe" ? "保存中…" : "再看看"}
         </button>
@@ -161,14 +172,7 @@ export function RecommendationFeedback({
           })}
         </div>
         {selectedReasons.includes("other") ? (
-          <input
-            aria-label="其他不考虑原因"
-            type="text"
-            value={otherNote}
-            onChange={(event) => setOtherNote(event.target.value)}
-            placeholder="补充你的真实原因"
-            disabled={pendingDecision !== null}
-          />
+          <p className="muted">选择“其他”时请说明原因。</p>
         ) : null}
         <div className="actions">
           <button
@@ -179,23 +183,23 @@ export function RecommendationFeedback({
               && isSameFeedback(
                 "rejected",
                 selectedReasons,
-                selectedReasons.includes("other") ? otherNote.trim() || null : null,
+                feedbackNote.trim() || null,
               )
             }
             disabled={
               pendingDecision !== null
               || selectedReasons.length === 0
-              || (selectedReasons.includes("other") && otherNote.trim() === "")
+              || (selectedReasons.includes("other") && feedbackNote.trim() === "")
               || isSameFeedback(
                 "rejected",
                 selectedReasons,
-                selectedReasons.includes("other") ? otherNote.trim() || null : null,
+                feedbackNote.trim() || null,
               )
             }
             onClick={() => void submit(
               "rejected",
               selectedReasons,
-              selectedReasons.includes("other") ? otherNote.trim() || null : null,
+              feedbackNote.trim() || null,
             )}
           >
             {pendingDecision === "rejected" ? "保存中…" : "不考虑"}
