@@ -65,12 +65,18 @@ def rank_match_reports(
         searchable = " ".join(part for part in (job.title, job.area or "") if part).casefold()
         return sum(_contains_term(searchable, preference) for preference in normalized_preferences)
 
+    def blocked_hard_gap_count(item: StoredMatchReport) -> int:
+        if item.report.recommendation is not MatchRecommendation.BLOCKED:
+            return 0
+        return len(item.report.missing_requirement_ids)
+
     return tuple(
         sorted(
             visible,
             key=lambda item: (
                 _RECOMMENDATION_PRIORITY[item.report.recommendation],
                 -preference_matches(item),
+                blocked_hard_gap_count(item),
             ),
         )
     )

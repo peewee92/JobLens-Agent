@@ -112,6 +112,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /查看为什么/);
   assert.match(page, /当前没有值得优先投的已分析岗位/);
   assert.match(page, /这些岗位当前有明确硬条件缺口/);
+  assert.match(page, /硬条件缺口较少的岗位排在前面/);
+  assert.match(page, /这不是成功概率/);
   assert.match(page, /哪些资料最可能解锁更多岗位判断/);
   assert.match(page, /当前 Profile 没有足够证据支撑这些硬条件/);
   assert.match(page, /补充我的真实经历/);

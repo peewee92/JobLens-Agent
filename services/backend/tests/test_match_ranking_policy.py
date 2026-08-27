@@ -8,7 +8,12 @@ from app.application.match_ranking import rank_match_reports
 from app.domain.jobs import RemoteConfidence, RemoteStatus
 
 
-def _stored(report_id: str, recommendation: MatchRecommendation) -> StoredMatchReport:
+def _stored(
+    report_id: str,
+    recommendation: MatchRecommendation,
+    *,
+    missing_requirement_count: int = 0,
+) -> StoredMatchReport:
     return StoredMatchReport(
         id=report_id,
         report=MatchReport(
@@ -28,7 +33,10 @@ def _stored(report_id: str, recommendation: MatchRecommendation) -> StoredMatchR
             requirement_results=(),
             matched_requirement_ids=(),
             partial_requirement_ids=(),
-            missing_requirement_ids=(),
+            missing_requirement_ids=tuple(
+                f"req_missing_{report_id}_{index}"
+                for index in range(missing_requirement_count)
+            ),
             evidence_links=(),
             matcher_version="semantic-match-v1",
             prompt_version="semantic-match-v3",
@@ -69,6 +77,42 @@ def test_rank_match_reports_can_include_blocked_only_at_the_end() -> None:
         "blocked-a",
         "blocked-b",
     )
+
+
+def test_rank_match_reports_orders_blocked_jobs_with_fewer_hard_gaps_first() -> None:
+    reports = (
+        _stored("blocked-seven", MatchRecommendation.BLOCKED, missing_requirement_count=7),
+        _stored("blocked-one", MatchRecommendation.BLOCKED, missing_requirement_count=1),
+        _stored("blocked-three", MatchRecommendation.BLOCKED, missing_requirement_count=3),
+    )
+
+    ranked = rank_match_reports(reports, include_blocked=True)
+
+    assert tuple(item.id for item in ranked) == (
+        "blocked-one",
+        "blocked-three",
+        "blocked-seven",
+    )
+
+
+def test_rank_match_reports_keeps_explicit_preference_ahead_of_blocked_gap_count() -> None:
+    reports = (
+        _stored("plain-one", MatchRecommendation.BLOCKED, missing_requirement_count=1),
+        _stored("agent-three", MatchRecommendation.BLOCKED, missing_requirement_count=3),
+    )
+    jobs = {
+        "job_plain-one": _job("job_plain-one", title="Frontend Engineer"),
+        "job_agent-three": _job("job_agent-three", title="AI Agent Engineer"),
+    }
+
+    ranked = rank_match_reports(
+        reports,
+        include_blocked=True,
+        soft_preferences=("AI Agent",),
+        jobs_by_id=jobs,
+    )
+
+    assert tuple(item.id for item in ranked) == ("agent-three", "plain-one")
 
 
 def _job(job_id: str, *, title: str, area: str | None = None) -> JobListItem:

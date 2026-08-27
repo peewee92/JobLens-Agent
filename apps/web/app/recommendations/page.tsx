@@ -411,6 +411,9 @@ export default async function RecommendationsPage() {
           <div className="section-heading">
             <p className="eyebrow">暂不优先</p>
             <h2>这些岗位当前有明确硬条件缺口</h2>
+            <p className="muted">
+              同样属于暂不建议投递时，会先参考你的明确求职偏好，再把硬条件缺口较少的岗位排在前面，方便你先核实或补证据；这不是成功概率。
+            </p>
           </div>
           <div className="job-list" aria-label="当前不建议投递岗位">
             {blockedItems.map(({report, job}) => {
@@ -457,7 +460,7 @@ export default async function RecommendationsPage() {
       <section className="notice product-trust-note">
         <strong>排序依据是什么？</strong>
         <p>
-          先看硬条件是否通过，再看已有经历对岗位要求的证据支撑，最后只在同一推荐等级里参考你的求职偏好。没有完整 MatchReport 的岗位不会被偷偷猜一个名次。
+          先看硬条件是否通过，再看已有经历对岗位要求的证据支撑，最后只在同一推荐等级里参考你的求职偏好；同为 blocked 时，再用明确硬缺口数量帮助安排核实顺序。没有完整 MatchReport 的岗位不会被偷偷猜一个名次。
         </p>
       </section>
     </>
