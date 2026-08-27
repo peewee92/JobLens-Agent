@@ -12,6 +12,34 @@ type State =
   | {kind: "success"; message: string}
   | {kind: "error"; message: string};
 
+const PROVIDER_COOLDOWN_STORAGE_KEY = "joblens:requirement-provider-cooldown-until";
+const PROVIDER_COOLDOWN_MS = 30 * 60 * 1000;
+
+function providerCooldownActive(): boolean {
+  if (typeof window === "undefined") return false;
+  const stored = window.sessionStorage.getItem(PROVIDER_COOLDOWN_STORAGE_KEY);
+  if (!stored) return false;
+  const cooldownUntil = Number(stored);
+  if (!Number.isFinite(cooldownUntil) || cooldownUntil <= Date.now()) {
+    window.sessionStorage.removeItem(PROVIDER_COOLDOWN_STORAGE_KEY);
+    return false;
+  }
+  return true;
+}
+
+function startProviderCooldown(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(
+    PROVIDER_COOLDOWN_STORAGE_KEY,
+    String(Date.now() + PROVIDER_COOLDOWN_MS),
+  );
+}
+
+function clearProviderCooldown(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(PROVIDER_COOLDOWN_STORAGE_KEY);
+}
+
 async function responseMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
@@ -24,7 +52,7 @@ async function responseMessage(response: Response): Promise<string> {
 export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) {
   const router = useRouter();
   const [state, setState] = useState<State>({kind: "idle", message: ""});
-  const [providerBlocked, setProviderBlocked] = useState(false);
+  const [providerBlocked, setProviderBlocked] = useState(providerCooldownActive);
 
   async function run() {
     if (jobIds.length === 0 || state.kind === "running" || providerBlocked) return;
@@ -46,15 +74,17 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
 
       const result = (await response.json()) as RequirementBatchExecutionResponse;
       if (result.providerUnavailableCount > 0) {
+        startProviderCooldown();
         setProviderBlocked(true);
         setState({
           kind: "error",
-          message: `Provider 当前不可用，本轮已立即停止。成功 ${result.succeededCount} 个，剩余 ${result.deferredCount} 个未继续调用。为避免连续产生失败调用，本页将暂停再次分析；确认 Provider 恢复后再刷新页面重试。`,
+          message: `Provider 当前不可用，本轮已立即停止。成功 ${result.succeededCount} 个，剩余 ${result.deferredCount} 个未继续调用。为避免刷新页面后立即重复产生失败付费调用，本浏览器会话将冷却 30 分钟后再允许重试。`,
         });
         router.refresh();
         return;
       }
 
+      clearProviderCooldown();
       const incomplete = result.failedCount + result.notSelectedCount + result.deferredCount;
       setState({
         kind: incomplete > 0 ? "error" : "success",
@@ -75,7 +105,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
     <div className="notice">
       <strong>可以直接分析这一批优先岗位</strong>
       <p>
-        本轮最多分析 {jobIds.length} 个由 Backend Coverage Planner 选出的岗位。该操作可能调用模型；如果 Provider 出现 429/503/504 等不可用情况，Backend 会立即停止后续岗位，不会继续批量消耗调用。
+        本轮最多分析 {jobIds.length} 个由 Backend Coverage Planner 选出的岗位。该操作可能调用模型；如果 Provider 出现 429/503/504 等不可用情况，Backend 会立即停止后续岗位，并在当前浏览器会话中保持 30 分钟冷却，避免刷新页面后立即重复付费失败。
       </p>
       <div className="actions">
         <button className="button" type="button" onClick={run} disabled={state.kind === "running" || providerBlocked}>

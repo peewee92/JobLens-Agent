@@ -144,6 +144,10 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /RecommendationRequirementAnalysis/);
   assert.match(requirementBatch, /分析下一批/);
   assert.match(requirementBatch, /Provider 当前不可用/);
+  assert.match(requirementBatch, /joblens:requirement-provider-cooldown-until/);
+  assert.match(requirementBatch, /30 \* 60 \* 1000/);
+  assert.match(requirementBatch, /sessionStorage\.setItem/);
+  assert.match(requirementBatch, /sessionStorage\.removeItem/);
   assert.match(page, /initialReasons=/);
   assert.match(feedback, /initialReasons/);
   assert.match(feedback, /你当前的选择：.*原因/);
