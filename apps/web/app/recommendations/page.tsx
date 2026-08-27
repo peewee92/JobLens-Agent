@@ -466,6 +466,12 @@ export default async function RecommendationsPage() {
                           <li key={requirement.requirementId}>
                             <span className="tag">{blockerRequirementTypeLabel(requirement.requirementType)}</span>
                             <span>{requirement.originalText}</span>
+                            <Link
+                              className="recommendation-blocker-action"
+                              href={`/profile?next=/recommendations&focusRequirement=${requirement.requirementType}#profile-evidence-focus`}
+                            >
+                              去补对应证据 →
+                            </Link>
                           </li>
                         ))}
                       </ul>

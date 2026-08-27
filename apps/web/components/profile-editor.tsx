@@ -13,6 +13,7 @@ import type {
   ApiErrorBody,
   EvidenceType,
   ProfileExtractionProposal,
+  RequirementType,
   SaveProfilePayload,
   SaveSearchIntentPayload,
   SearchIntent,
@@ -50,6 +51,33 @@ const skillLevelLabels: Record<SkillLevel, string> = {
   working: "可工作使用",
   basic: "基础了解",
   unknown: "待确认",
+};
+
+const requirementFocusCopy: Record<RequirementType, {title: string; description: string}> = {
+  education: {
+    title: "先补教育事实，再回到岗位优先级重算",
+    description: "当前岗位存在学历、专业或院校硬条件，但已确认 Profile 还缺少足够直接的教育证据。只填写真实信息；学历层级、专业和岗位明确要求的院校限定会直接影响 Eligibility 判断。",
+  },
+  skill: {
+    title: "补充能证明技能的真实经历",
+    description: "当前岗位存在技能硬条件。请优先补充你真实做过的项目或工作经历，并在“我的技能”中把技能关联到这些 Evidence。",
+  },
+  experience: {
+    title: "补充能证明专项经验的真实经历",
+    description: "当前岗位存在经验硬条件。请填写真实工作或项目经历，尽量写清负责内容、场景和可核实结果，不要为了匹配岗位补造经历。",
+  },
+  responsibility: {
+    title: "补充能证明职责范围的真实经历",
+    description: "当前岗位存在职责硬条件。请补充你实际承担过的职责和对应项目或工作背景，只有已确认 Evidence 才会进入后续匹配。",
+  },
+  domain: {
+    title: "补充能证明领域经验的真实经历",
+    description: "当前岗位存在行业或业务领域硬条件。请补充真实项目或工作场景，说明你在哪个领域做过什么，不自动推断行业经验。",
+  },
+  constraint: {
+    title: "核对这项岗位硬约束",
+    description: "当前岗位存在其他硬约束。请只补充能够直接证明该事实的真实信息；无法证明时保持缺口，不要为了通过匹配修改事实。",
+  },
 };
 
 const REVIEW_EVIDENCE_LIMIT = 6;
@@ -101,11 +129,13 @@ export function ProfileEditor({
   initialIntent,
   afterProfileSaveHref = null,
   focusEvidenceType = null,
+  focusRequirementType = null,
 }: {
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
   afterProfileSaveHref?: string | null;
   focusEvidenceType?: EvidenceType | null;
+  focusRequirementType?: RequirementType | null;
 }) {
   const router = useRouter();
   const profileFormRef = useRef<HTMLFormElement>(null);
@@ -123,7 +153,9 @@ export function ProfileEditor({
     message: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
-  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(Boolean(focusEvidenceType));
+  const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
+    Boolean(focusEvidenceType || focusRequirementType),
+  );
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
   const [targetRoles, setTargetRoles] = useState(
@@ -176,6 +208,8 @@ export function ProfileEditor({
       : 0,
     [evidence, focusEvidenceType],
   );
+  const activeRequirementFocus = focusRequirementType
+    ?? (focusEvidenceType === "education" ? "education" : null);
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
   const profileStatusLabel = profileDraftBlank
     ? "尚未填写"
@@ -386,22 +420,26 @@ export function ProfileEditor({
           </span>
         </div>
 
-        {focusEvidenceType === "education" ? (
+        {activeRequirementFocus ? (
           <section className="notice" id="profile-evidence-focus">
-            <strong>先补教育事实，再回到岗位优先级重算</strong>
-            <p>
-              当前已有匹配结果里存在学历或专业硬条件，但你的已确认 Profile 还缺少足够直接的教育证据。只填写真实信息；学历层级、专业和岗位明确要求的院校限定会直接影响 Eligibility 判断。
-            </p>
-            <p className="muted">
-              {focusedEvidenceCount > 0
-                ? `当前草稿里已有 ${focusedEvidenceCount} 条教育经历，请检查关键信息是否写完整。`
-                : "当前草稿还没有完整的教育经历条目。"}
-            </p>
-            <div className="actions">
-              <button className="button-secondary" type="button" onClick={addFocusedEvidence}>
-                + 添加教育经历
-              </button>
-            </div>
+            <strong>{requirementFocusCopy[activeRequirementFocus].title}</strong>
+            <p>{requirementFocusCopy[activeRequirementFocus].description}</p>
+            {activeRequirementFocus === "education" ? (
+              <>
+                <p className="muted">
+                  {focusedEvidenceCount > 0
+                    ? `当前草稿里已有 ${focusedEvidenceCount} 条教育经历，请检查关键信息是否写完整。`
+                    : "当前草稿还没有完整的教育经历条目。"}
+                </p>
+                <div className="actions">
+                  <button className="button-secondary" type="button" onClick={addFocusedEvidence}>
+                    + 添加教育经历
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="muted">详细编辑已为你展开；保存后会返回岗位优先级，由你显式重新计算当前已准备好的岗位。</p>
+            )}
           </section>
         ) : null}
 

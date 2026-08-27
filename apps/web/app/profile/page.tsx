@@ -10,7 +10,7 @@ import {
   careerContextReleaseBlockerCopy,
   careerContextReleaseLabel,
 } from "@/lib/career-context";
-import type {SearchParams} from "@/lib/contracts";
+import type {RequirementType, SearchParams} from "@/lib/contracts";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,23 @@ export default async function ProfilePage({
   const params = await searchParams;
   const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
   const requestedFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
+  const requestedRequirementFocus = Array.isArray(params.focusRequirement)
+    ? params.focusRequirement[0]
+    : params.focusRequirement;
   const afterProfileSaveHref = requestedNext === "/recommendations" ? "/recommendations" : null;
-  const focusEvidenceType = requestedFocus === "education" ? "education" : null;
+  const focusEvidenceType = requestedFocus === "education" || requestedRequirementFocus === "education"
+    ? "education"
+    : null;
+  const focusRequirementType: RequirementType | null = [
+    "skill",
+    "experience",
+    "education",
+    "responsibility",
+    "domain",
+    "constraint",
+  ].includes(requestedRequirementFocus ?? "")
+    ? requestedRequirementFocus as RequirementType
+    : null;
   let profile;
   let intent;
   try {
@@ -148,6 +163,7 @@ export default async function ProfilePage({
         initialIntent={intent}
         afterProfileSaveHref={afterProfileSaveHref}
         focusEvidenceType={focusEvidenceType}
+        focusRequirementType={focusRequirementType}
       />
     </>
   );

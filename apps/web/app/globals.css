@@ -860,6 +860,14 @@ h3 {
   flex: 0 0 auto;
 }
 
+.recommendation-blocker-action {
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .status-confirmed,
 .status-created {
   color: var(--success);
