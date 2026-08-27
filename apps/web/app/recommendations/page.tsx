@@ -142,6 +142,10 @@ export default async function RecommendationsPage({
     ? [focusJobId, ...reviewableJobIds.filter((id) => id !== focusJobId)]
     : reviewableJobIds;
   const focusJobTitle = focusJobId ? (jobById.get(focusJobId)?.title ?? null) : null;
+  const focusJobReport = focusJobId
+    ? availableReports.find((item) => item.report.jobId === focusJobId) ?? null
+    : null;
+  const focusJobNowBlocked = focusJobReport?.report.recommendation === "blocked";
 
   let coverage = null;
   try {
@@ -189,6 +193,22 @@ export default async function RecommendationsPage({
           基于你确认过的经历、当前求职偏好和已经生成的完整匹配结果排序。这里只比较有可追溯依据的岗位，不把“匹配分数”当成功概率。
         </p>
       </section>
+
+      {focusJobId && focusJobTitle ? (
+        <section className="notice focus-return-banner">
+          <strong>你刚为「{focusJobTitle}」补充了证据</strong>
+          <p>
+            下面已把这个岗位排到重新计算的最前面。重算后，这里会显示它现在是否值得优先投——而不是只停留在之前的硬缺口。
+          </p>
+          {focusJobReport ? (
+            <p className="muted">
+              {focusJobNowBlocked
+                ? `重算后它仍有 ${focusJobReport.report.missingRequirementIds.length} 条硬条件缺口，可以继续补下面列出的证据。`
+                : "这次补充的证据已经让它进入优先候选，下面也会按新结果排序。"}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="result-bar">
         <span>岗位池 {jobs.total} 个 · 本轮比较前 {jobs.items.length} 个</span>
@@ -243,7 +263,11 @@ export default async function RecommendationsPage({
           {rankedItems.map(({report, job, rank}) => {
             if (!job) return null;
             return (
-              <article className="job-card" id={`feedback-${report.reportId}`} key={report.reportId}>
+              <article
+                className={job.id === focusJobId ? "job-card focus-job-card" : "job-card"}
+                id={job.id === focusJobId ? `focus-job-${report.reportId}` : `feedback-${report.reportId}`}
+                key={report.reportId}
+              >
                 <div className="job-card-header">
                   <div>
                     <p className="eyebrow">第 {rank} 优先</p>
@@ -268,6 +292,13 @@ export default async function RecommendationsPage({
                 </div>
 
                 <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
+                {job.id === focusJobId ? (
+                  <p className="focus-job-note">
+                    {focusJobNowBlocked
+                      ? `你刚为这个岗位补充了证据，重算后仍有 ${report.missingRequirementIds.length} 条硬条件缺口。`
+                      : "你刚为这个岗位补充的证据已生效，它现在进入优先候选。"}
+                  </p>
+                ) : null}
                 {report.missingRequirementIds.length > 0 ? (
                   <p className="muted">仍有 {report.missingRequirementIds.length} 条要求缺少足够证据，需要投递前重点确认。</p>
                 ) : null}
@@ -453,7 +484,11 @@ export default async function RecommendationsPage({
               if (!job) return null;
               const jobBlocker = blockerSummary?.jobBlockers.find((item) => item.jobId === job.id);
               return (
-                <article className="job-card" id={`feedback-${report.reportId}`} key={report.reportId}>
+                <article
+                  className={job.id === focusJobId ? "job-card focus-job-card" : "job-card"}
+                  id={job.id === focusJobId ? `focus-job-${report.reportId}` : `feedback-${report.reportId}`}
+                  key={report.reportId}
+                >
                   <div className="job-card-header">
                     <div>
                       <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
@@ -474,6 +509,13 @@ export default async function RecommendationsPage({
                     ) : null}
                   </div>
                   <p>{report.summary || matchRecommendationDescriptions.blocked}</p>
+                  {job.id === focusJobId ? (
+                    <p className="focus-job-note">
+                      {focusJobNowBlocked
+                        ? `你刚为这个岗位补充了证据，重算后仍有 ${report.missingRequirementIds.length} 条硬条件缺口。`
+                        : "你刚为这个岗位补充的证据已生效，它现在进入优先候选。"}
+                    </p>
+                  ) : null}
                   {jobBlocker && jobBlocker.requirements.length > 0 ? (
                     <div className="recommendation-blocker-facts">
                       <strong>当前缺少足够 Profile 证据的硬条件</strong>
