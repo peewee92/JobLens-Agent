@@ -232,6 +232,7 @@ export default async function RecommendationsPage() {
                   jobId={job.id}
                   initialDecision={feedbackByReportId.get(report.reportId)?.decision ?? null}
                   initialReasons={feedbackByReportId.get(report.reportId)?.reasons ?? []}
+                  initialNote={feedbackByReportId.get(report.reportId)?.note ?? null}
                 />
               </article>
             );
@@ -424,6 +425,7 @@ export default async function RecommendationsPage() {
                     jobId={job.id}
                     initialDecision={feedbackByReportId.get(report.reportId)?.decision ?? null}
                     initialReasons={feedbackByReportId.get(report.reportId)?.reasons ?? []}
+                    initialNote={feedbackByReportId.get(report.reportId)?.note ?? null}
                   />
                 </article>
               );

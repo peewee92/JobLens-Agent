@@ -28,29 +28,42 @@ export function RecommendationFeedback({
   jobId,
   initialDecision,
   initialReasons,
+  initialNote,
 }: {
   matchReportId: string;
   jobId: string;
   initialDecision: FeedbackDecision | null;
   initialReasons: FeedbackReason[];
+  initialNote: string | null;
 }) {
   const router = useRouter();
   const [savedDecision, setSavedDecision] = useState<FeedbackDecision | null>(initialDecision);
   const [savedReasons, setSavedReasons] = useState<FeedbackReason[]>(initialReasons);
+  const [savedNote, setSavedNote] = useState<string | null>(initialNote);
   const [pendingDecision, setPendingDecision] = useState<FeedbackDecision | null>(null);
   const [rejectionReason, setRejectionReason] = useState<FeedbackReason>(
     initialReasons[0] ?? "role_fit",
   );
+  const [otherNote, setOtherNote] = useState(initialReasons.includes("other") ? initialNote ?? "" : "");
   const [error, setError] = useState<string | null>(null);
 
-  function isSameFeedback(decision: FeedbackDecision, reasons: FeedbackReason[] = []) {
+  function isSameFeedback(
+    decision: FeedbackDecision,
+    reasons: FeedbackReason[] = [],
+    note: string | null = null,
+  ) {
     return savedDecision === decision
       && savedReasons.length === reasons.length
-      && savedReasons.every((reason, index) => reason === reasons[index]);
+      && savedReasons.every((reason, index) => reason === reasons[index])
+      && (savedNote ?? null) === (note ?? null);
   }
 
-  async function submit(decision: FeedbackDecision, reasons: FeedbackReason[] = []) {
-    if (isSameFeedback(decision, reasons)) return;
+  async function submit(
+    decision: FeedbackDecision,
+    reasons: FeedbackReason[] = [],
+    note: string | null = null,
+  ) {
+    if (isSameFeedback(decision, reasons, note)) return;
     setPendingDecision(decision);
     setError(null);
     try {
@@ -62,6 +75,7 @@ export function RecommendationFeedback({
           jobId,
           decision,
           reasons,
+          note,
         }),
       });
       if (!response.ok) {
@@ -79,6 +93,7 @@ export function RecommendationFeedback({
       }
       setSavedDecision(decision);
       setSavedReasons(reasons);
+      setSavedNote(note);
       router.refresh();
     } catch {
       setError("反馈暂时保存失败，请稍后再试。");
@@ -91,7 +106,7 @@ export function RecommendationFeedback({
     <div className="recommendation-feedback" aria-label="岗位反馈">
       <p className="muted">
         {savedDecision
-          ? `你当前的选择：${decisionLabels[savedDecision]}${savedReasons.length > 0 ? ` · 原因：${savedReasons.map((reason) => rejectionReasonLabels[reason]).join("、")}` : ""}`
+          ? `你当前的选择：${decisionLabels[savedDecision]}${savedReasons.length > 0 ? ` · 原因：${savedReasons.map((reason) => rejectionReasonLabels[reason]).join("、")}` : ""}${savedNote ? ` · 补充：${savedNote}` : ""}`
           : "这条推荐符合你的真实判断吗？"}
       </p>
       <div className="actions">
@@ -119,18 +134,45 @@ export function RecommendationFeedback({
           onChange={(event) => setRejectionReason(event.target.value as FeedbackReason)}
           disabled={pendingDecision !== null}
         >
-          {Object.entries(rejectionReasonLabels)
-            .filter(([reason]) => reason !== "other")
-            .map(([reason, label]) => (
-              <option key={reason} value={reason}>{label}</option>
-            ))}
+          {Object.entries(rejectionReasonLabels).map(([reason, label]) => (
+            <option key={reason} value={reason}>{label}</option>
+          ))}
         </select>
+        {rejectionReason === "other" ? (
+          <input
+            aria-label="其他不考虑原因"
+            type="text"
+            value={otherNote}
+            onChange={(event) => setOtherNote(event.target.value)}
+            placeholder="补充你的真实原因"
+            disabled={pendingDecision !== null}
+          />
+        ) : null}
         <button
           className="button-ghost"
           type="button"
-          aria-pressed={savedDecision === "rejected" && isSameFeedback("rejected", [rejectionReason])}
-          disabled={pendingDecision !== null || isSameFeedback("rejected", [rejectionReason])}
-          onClick={() => void submit("rejected", [rejectionReason])}
+          aria-pressed={
+            savedDecision === "rejected"
+            && isSameFeedback(
+              "rejected",
+              [rejectionReason],
+              rejectionReason === "other" ? otherNote.trim() || null : null,
+            )
+          }
+          disabled={
+            pendingDecision !== null
+            || (rejectionReason === "other" && otherNote.trim() === "")
+            || isSameFeedback(
+              "rejected",
+              [rejectionReason],
+              rejectionReason === "other" ? otherNote.trim() || null : null,
+            )
+          }
+          onClick={() => void submit(
+            "rejected",
+            [rejectionReason],
+            rejectionReason === "other" ? otherNote.trim() || null : null,
+          )}
         >
           {pendingDecision === "rejected" ? "保存中…" : "不考虑"}
         </button>
