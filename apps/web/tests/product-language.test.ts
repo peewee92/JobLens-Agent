@@ -139,6 +139,10 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /initialReasons=/);
   assert.match(feedback, /initialReasons/);
   assert.match(feedback, /你当前的选择：.*原因/);
+  assert.match(feedback, /type="checkbox"/);
+  assert.match(feedback, /selectedReasons/);
+  assert.match(feedback, /toggleReason/);
+  assert.match(feedback, /可多选/);
   assert.match(feedback, /aria-pressed/);
   assert.match(feedback, /savedDecision === decision/);
   assert.match(page, /重新计算当前输入已准备好的岗位/);

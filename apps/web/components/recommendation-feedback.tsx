@@ -23,6 +23,12 @@ const rejectionReasonLabels: Record<FeedbackReason, string> = {
   other: "其他",
 };
 
+const rejectionReasonOrder = Object.keys(rejectionReasonLabels) as FeedbackReason[];
+
+function normalizeReasons(reasons: FeedbackReason[]) {
+  return rejectionReasonOrder.filter((reason) => reasons.includes(reason));
+}
+
 export function RecommendationFeedback({
   matchReportId,
   jobId,
@@ -38,12 +44,10 @@ export function RecommendationFeedback({
 }) {
   const router = useRouter();
   const [savedDecision, setSavedDecision] = useState<FeedbackDecision | null>(initialDecision);
-  const [savedReasons, setSavedReasons] = useState<FeedbackReason[]>(initialReasons);
+  const [savedReasons, setSavedReasons] = useState<FeedbackReason[]>(normalizeReasons(initialReasons));
   const [savedNote, setSavedNote] = useState<string | null>(initialNote);
   const [pendingDecision, setPendingDecision] = useState<FeedbackDecision | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<FeedbackReason>(
-    initialReasons[0] ?? "role_fit",
-  );
+  const [selectedReasons, setSelectedReasons] = useState<FeedbackReason[]>(normalizeReasons(initialReasons));
   const [otherNote, setOtherNote] = useState(initialReasons.includes("other") ? initialNote ?? "" : "");
   const [error, setError] = useState<string | null>(null);
 
@@ -52,10 +56,19 @@ export function RecommendationFeedback({
     reasons: FeedbackReason[] = [],
     note: string | null = null,
   ) {
+    const normalizedReasons = normalizeReasons(reasons);
     return savedDecision === decision
-      && savedReasons.length === reasons.length
-      && savedReasons.every((reason, index) => reason === reasons[index])
+      && savedReasons.length === normalizedReasons.length
+      && savedReasons.every((reason, index) => reason === normalizedReasons[index])
       && (savedNote ?? null) === (note ?? null);
+  }
+
+  function toggleReason(reason: FeedbackReason) {
+    setSelectedReasons((current) => normalizeReasons(
+      current.includes(reason)
+        ? current.filter((item) => item !== reason)
+        : [...current, reason],
+    ));
   }
 
   async function submit(
@@ -63,7 +76,8 @@ export function RecommendationFeedback({
     reasons: FeedbackReason[] = [],
     note: string | null = null,
   ) {
-    if (isSameFeedback(decision, reasons, note)) return;
+    const normalizedReasons = normalizeReasons(reasons);
+    if (isSameFeedback(decision, normalizedReasons, note)) return;
     setPendingDecision(decision);
     setError(null);
     try {
@@ -74,7 +88,7 @@ export function RecommendationFeedback({
           matchReportId,
           jobId,
           decision,
-          reasons,
+          reasons: normalizedReasons,
           note,
         }),
       });
@@ -92,7 +106,7 @@ export function RecommendationFeedback({
         return;
       }
       setSavedDecision(decision);
-      setSavedReasons(reasons);
+      setSavedReasons(normalizedReasons);
       setSavedNote(note);
       router.refresh();
     } catch {
@@ -128,17 +142,25 @@ export function RecommendationFeedback({
         >
           {pendingDecision === "maybe" ? "保存中…" : "再看看"}
         </button>
-        <select
-          aria-label="不考虑原因"
-          value={rejectionReason}
-          onChange={(event) => setRejectionReason(event.target.value as FeedbackReason)}
-          disabled={pendingDecision !== null}
-        >
-          {Object.entries(rejectionReasonLabels).map(([reason, label]) => (
-            <option key={reason} value={reason}>{label}</option>
-          ))}
-        </select>
-        {rejectionReason === "other" ? (
+      </div>
+      <fieldset disabled={pendingDecision !== null}>
+        <legend>不考虑原因（可多选）</legend>
+        <div className="actions">
+          {Object.entries(rejectionReasonLabels).map(([reason, label]) => {
+            const typedReason = reason as FeedbackReason;
+            return (
+              <label key={reason}>
+                <input
+                  type="checkbox"
+                  checked={selectedReasons.includes(typedReason)}
+                  onChange={() => toggleReason(typedReason)}
+                />{" "}
+                {label}
+              </label>
+            );
+          })}
+        </div>
+        {selectedReasons.includes("other") ? (
           <input
             aria-label="其他不考虑原因"
             type="text"
@@ -148,35 +170,38 @@ export function RecommendationFeedback({
             disabled={pendingDecision !== null}
           />
         ) : null}
-        <button
-          className="button-ghost"
-          type="button"
-          aria-pressed={
-            savedDecision === "rejected"
-            && isSameFeedback(
+        <div className="actions">
+          <button
+            className="button-ghost"
+            type="button"
+            aria-pressed={
+              savedDecision === "rejected"
+              && isSameFeedback(
+                "rejected",
+                selectedReasons,
+                selectedReasons.includes("other") ? otherNote.trim() || null : null,
+              )
+            }
+            disabled={
+              pendingDecision !== null
+              || selectedReasons.length === 0
+              || (selectedReasons.includes("other") && otherNote.trim() === "")
+              || isSameFeedback(
+                "rejected",
+                selectedReasons,
+                selectedReasons.includes("other") ? otherNote.trim() || null : null,
+              )
+            }
+            onClick={() => void submit(
               "rejected",
-              [rejectionReason],
-              rejectionReason === "other" ? otherNote.trim() || null : null,
-            )
-          }
-          disabled={
-            pendingDecision !== null
-            || (rejectionReason === "other" && otherNote.trim() === "")
-            || isSameFeedback(
-              "rejected",
-              [rejectionReason],
-              rejectionReason === "other" ? otherNote.trim() || null : null,
-            )
-          }
-          onClick={() => void submit(
-            "rejected",
-            [rejectionReason],
-            rejectionReason === "other" ? otherNote.trim() || null : null,
-          )}
-        >
-          {pendingDecision === "rejected" ? "保存中…" : "不考虑"}
-        </button>
-      </div>
+              selectedReasons,
+              selectedReasons.includes("other") ? otherNote.trim() || null : null,
+            )}
+          >
+            {pendingDecision === "rejected" ? "保存中…" : "不考虑"}
+          </button>
+        </div>
+      </fieldset>
       {error ? <p className="error-text" role="alert">{error}</p> : null}
     </div>
   );
