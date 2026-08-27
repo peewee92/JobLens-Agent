@@ -147,6 +147,9 @@ export default async function RecommendationsPage() {
   const feedbackRemainingCount = feedbackCompletedCount === null
     ? null
     : Math.max(availableReports.length - feedbackCompletedCount, 0);
+  const nextFeedbackReportId = feedbackStateAvailable
+    ? availableReports.find(({report}) => feedbackByReportId.get(report.reportId) === null)?.report.reportId ?? null
+    : null;
 
   return (
     <>
@@ -172,6 +175,13 @@ export default async function RecommendationsPage() {
         <section className="notice">
           <strong>还差 {feedbackRemainingCount} 个岗位需要你的真实判断</strong>
           <p>你的反馈会帮助 JobLens 判断推荐是否符合真实求职选择。即使系统当前不建议优先投，也可以记录“感兴趣 / 再看看 / 不考虑”。</p>
+          {nextFeedbackReportId ? (
+            <div className="actions">
+              <Link className="button-secondary" href={`#feedback-${nextFeedbackReportId}`}>
+                继续完成反馈 →
+              </Link>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -200,7 +210,7 @@ export default async function RecommendationsPage() {
           {rankedItems.map(({report, job, rank}) => {
             if (!job) return null;
             return (
-              <article className="job-card" key={report.reportId}>
+              <article className="job-card" id={`feedback-${report.reportId}`} key={report.reportId}>
                 <div className="job-card-header">
                   <div>
                     <p className="eyebrow">第 {rank} 优先</p>
@@ -217,6 +227,11 @@ export default async function RecommendationsPage() {
                   {job.area ? <span className="tag">{job.area}</span> : null}
                   <RemoteStatusPill status={job.remoteStatus} />
                   <span className="tag">有依据要求 {report.evidenceLinks.length} 条</span>
+                  {feedbackStateAvailable ? (
+                    <span className="tag">
+                      {feedbackByReportId.get(report.reportId) ? "已反馈" : "待反馈"}
+                    </span>
+                  ) : null}
                 </div>
 
                 <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
@@ -401,7 +416,7 @@ export default async function RecommendationsPage() {
             {blockedItems.map(({report, job}) => {
               if (!job) return null;
               return (
-                <article className="job-card" key={report.reportId}>
+                <article className="job-card" id={`feedback-${report.reportId}`} key={report.reportId}>
                   <div className="job-card-header">
                     <div>
                       <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
@@ -415,6 +430,11 @@ export default async function RecommendationsPage() {
                     </span>
                     {job.area ? <span className="tag">{job.area}</span> : null}
                     <span className="tag">明显缺失 {report.missingRequirementIds.length} 条</span>
+                    {feedbackStateAvailable ? (
+                      <span className="tag">
+                        {feedbackByReportId.get(report.reportId) ? "已反馈" : "待反馈"}
+                      </span>
+                    ) : null}
                   </div>
                   <p>{report.summary || matchRecommendationDescriptions.blocked}</p>
                   <div className="actions">
