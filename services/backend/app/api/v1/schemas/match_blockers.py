@@ -5,6 +5,19 @@ from app.api.v1.schemas.common import CamelCaseModel
 from app.application.match_blocker_summary import MatchBlockerSummary
 
 
+class MatchBlockerRequirementResponse(CamelCaseModel):
+    requirement_id: str
+    requirement_type: str
+    original_text: str
+
+
+class MatchBlockerJobResponse(CamelCaseModel):
+    job_id: str
+    missing_requirement_count: int
+    requirements: list[MatchBlockerRequirementResponse]
+    unresolved_missing_requirement_ids: list[str]
+
+
 class MatchBlockerCategoryResponse(CamelCaseModel):
     requirement_type: str
     missing_requirement_count: int
@@ -20,6 +33,7 @@ class MatchBlockerSummaryResponse(CamelCaseModel):
     resolved_missing_requirement_count: int
     unresolved_missing_requirement_ids: list[str]
     categories: list[MatchBlockerCategoryResponse]
+    job_blockers: list[MatchBlockerJobResponse]
     db_writes: int
     provider_calls: int
     trace_runs_created: int
@@ -41,6 +55,22 @@ class MatchBlockerSummaryResponse(CamelCaseModel):
                     examples=list(item.examples),
                 )
                 for item in summary.categories
+            ],
+            job_blockers=[
+                MatchBlockerJobResponse(
+                    job_id=item.job_id,
+                    missing_requirement_count=item.missing_requirement_count,
+                    requirements=[
+                        MatchBlockerRequirementResponse(
+                            requirement_id=requirement.requirement_id,
+                            requirement_type=requirement.requirement_type.value,
+                            original_text=requirement.original_text,
+                        )
+                        for requirement in item.requirements
+                    ],
+                    unresolved_missing_requirement_ids=list(item.unresolved_missing_requirement_ids),
+                )
+                for item in summary.job_blockers
             ],
             db_writes=summary.db_writes,
             provider_calls=summary.provider_calls,

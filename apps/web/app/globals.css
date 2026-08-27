@@ -828,6 +828,38 @@ h3 {
   font-weight: 750;
 }
 
+.recommendation-blocker-facts {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #f1d5ad;
+  border-radius: 12px;
+  background: #fffaf2;
+}
+
+.recommendation-blocker-facts > strong {
+  display: block;
+  margin-bottom: 9px;
+}
+
+.recommendation-blocker-facts ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recommendation-blocker-facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.55;
+}
+
+.recommendation-blocker-facts li .tag {
+  flex: 0 0 auto;
+}
+
 .status-confirmed,
 .status-created {
   color: var(--success);

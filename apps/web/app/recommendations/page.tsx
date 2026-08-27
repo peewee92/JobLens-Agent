@@ -14,7 +14,7 @@ import {
   fetchMatchReviewReadiness,
   fetchRecommendationCoverage,
 } from "@/lib/backend";
-import type {UserFeedbackRecord} from "@/lib/contracts";
+import type {RequirementType, UserFeedbackRecord} from "@/lib/contracts";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -24,6 +24,23 @@ import {
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
+
+function blockerRequirementTypeLabel(requirementType: RequirementType): string {
+  switch (requirementType) {
+    case "education":
+      return "教育";
+    case "skill":
+      return "技能";
+    case "experience":
+      return "经验";
+    case "domain":
+      return "领域";
+    case "responsibility":
+      return "职责";
+    default:
+      return "其他";
+  }
+}
 
 export default async function RecommendationsPage() {
   let jobs;
@@ -418,6 +435,7 @@ export default async function RecommendationsPage() {
           <div className="job-list" aria-label="当前不建议投递岗位">
             {blockedItems.map(({report, job}) => {
               if (!job) return null;
+              const jobBlocker = blockerSummary?.jobBlockers.find((item) => item.jobId === job.id);
               return (
                 <article className="job-card" id={`feedback-${report.reportId}`} key={report.reportId}>
                   <div className="job-card-header">
@@ -440,6 +458,27 @@ export default async function RecommendationsPage() {
                     ) : null}
                   </div>
                   <p>{report.summary || matchRecommendationDescriptions.blocked}</p>
+                  {jobBlocker && jobBlocker.requirements.length > 0 ? (
+                    <div className="recommendation-blocker-facts">
+                      <strong>当前缺少足够 Profile 证据的硬条件</strong>
+                      <ul>
+                        {jobBlocker.requirements.slice(0, 3).map((requirement) => (
+                          <li key={requirement.requirementId}>
+                            <span className="tag">{blockerRequirementTypeLabel(requirement.requirementType)}</span>
+                            <span>{requirement.originalText}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {jobBlocker.requirements.length > 3 ? (
+                        <p className="muted">还有 {jobBlocker.requirements.length - 3} 条已解析硬条件，可进入岗位详情继续核实。</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {jobBlocker && jobBlocker.unresolvedMissingRequirementIds.length > 0 ? (
+                    <p className="muted">
+                      另有 {jobBlocker.unresolvedMissingRequirementIds.length} 条历史缺口无法与当前岗位要求对应，需要重新生成完整匹配结果后再判断。
+                    </p>
+                  ) : null}
                   <div className="actions">
                     <Link className="button-secondary" href={`/jobs/${job.id}`}>查看硬条件缺口 →</Link>
                   </div>

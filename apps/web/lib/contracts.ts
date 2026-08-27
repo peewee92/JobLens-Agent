@@ -353,6 +353,19 @@ export interface BatchMatchExecutionResponse {
   sideEffectCountsComplete: boolean;
 }
 
+export interface MatchBlockerRequirement {
+  requirementId: string;
+  requirementType: RequirementType;
+  originalText: string;
+}
+
+export interface MatchBlockerJob {
+  jobId: string;
+  missingRequirementCount: number;
+  requirements: MatchBlockerRequirement[];
+  unresolvedMissingRequirementIds: string[];
+}
+
 export interface MatchBlockerCategory {
   requirementType: RequirementType;
   missingRequirementCount: number;
@@ -368,6 +381,7 @@ export interface MatchBlockerSummary {
   resolvedMissingRequirementCount: number;
   unresolvedMissingRequirementIds: string[];
   categories: MatchBlockerCategory[];
+  jobBlockers: MatchBlockerJob[];
   dbWrites: number;
   providerCalls: number;
   traceRunsCreated: number;

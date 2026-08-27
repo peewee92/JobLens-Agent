@@ -10,6 +10,21 @@ from app.domain.job_requirements import RequirementType
 
 
 @dataclass(frozen=True, slots=True)
+class MatchBlockerRequirementSummary:
+    requirement_id: str
+    requirement_type: RequirementType
+    original_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class MatchBlockerJobSummary:
+    job_id: str
+    missing_requirement_count: int
+    requirements: tuple[MatchBlockerRequirementSummary, ...]
+    unresolved_missing_requirement_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class MatchBlockerCategorySummary:
     requirement_type: RequirementType
     missing_requirement_count: int
@@ -26,6 +41,7 @@ class MatchBlockerSummary:
     resolved_missing_requirement_count: int
     unresolved_missing_requirement_ids: tuple[str, ...]
     categories: tuple[MatchBlockerCategorySummary, ...]
+    job_blockers: tuple[MatchBlockerJobSummary, ...]
     db_writes: int = 0
     provider_calls: int = 0
     trace_runs_created: int = 0
@@ -55,23 +71,43 @@ class BuildMatchBlockerSummaryUseCase:
         category_examples: dict[RequirementType, list[str]] = {}
         category_requirement_counts: dict[RequirementType, int] = {}
         unresolved: list[str] = []
+        job_blockers: list[MatchBlockerJobSummary] = []
         resolved_count = 0
         missing_count = 0
 
         for stored in blocked:
             report = stored.report
             missing_count += len(report.missing_requirement_ids)
+            job_requirements: list[MatchBlockerRequirementSummary] = []
+            job_unresolved: list[str] = []
             extraction = self._requirements.get_latest(report.job_id)
             if extraction is None:
+                job_unresolved.extend(report.missing_requirement_ids)
                 unresolved.extend(report.missing_requirement_ids)
+                job_blockers.append(
+                    MatchBlockerJobSummary(
+                        job_id=report.job_id,
+                        missing_requirement_count=len(report.missing_requirement_ids),
+                        requirements=(),
+                        unresolved_missing_requirement_ids=tuple(job_unresolved),
+                    )
+                )
                 continue
             by_id = {item.id: item for item in extraction.requirements}
             for requirement_id in report.missing_requirement_ids:
                 requirement = by_id.get(requirement_id)
                 if requirement is None:
+                    job_unresolved.append(requirement_id)
                     unresolved.append(requirement_id)
                     continue
                 resolved_count += 1
+                job_requirements.append(
+                    MatchBlockerRequirementSummary(
+                        requirement_id=requirement.id,
+                        requirement_type=requirement.type,
+                        original_text=requirement.original_text,
+                    )
+                )
                 requirement_type = requirement.type
                 category_requirement_counts[requirement_type] = (
                     category_requirement_counts.get(requirement_type, 0) + 1
@@ -82,6 +118,15 @@ class BuildMatchBlockerSummaryUseCase:
                 examples = category_examples.setdefault(requirement_type, [])
                 if requirement.original_text not in examples and len(examples) < 3:
                     examples.append(requirement.original_text)
+
+            job_blockers.append(
+                MatchBlockerJobSummary(
+                    job_id=report.job_id,
+                    missing_requirement_count=len(report.missing_requirement_ids),
+                    requirements=tuple(job_requirements),
+                    unresolved_missing_requirement_ids=tuple(job_unresolved),
+                )
+            )
 
         categories = tuple(
             MatchBlockerCategorySummary(
@@ -108,4 +153,5 @@ class BuildMatchBlockerSummaryUseCase:
             resolved_missing_requirement_count=resolved_count,
             unresolved_missing_requirement_ids=tuple(unresolved),
             categories=categories,
+            job_blockers=tuple(job_blockers),
         )

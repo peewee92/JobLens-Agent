@@ -108,6 +108,14 @@ def test_blocker_summary_groups_missing_evidence_by_requirement_type_and_job_cov
     assert education.missing_requirement_count == 2
     assert education.affected_job_ids == ("job_1", "job_2")
     assert education.examples == ("本科及以上学历", "计算机相关专业本科及以上")
+    assert [item.job_id for item in result.job_blockers] == ["job_1", "job_2"]
+    assert result.job_blockers[0].missing_requirement_count == 2
+    assert [item.requirement_id for item in result.job_blockers[0].requirements] == ["edu_1", "skill_1"]
+    assert [item.original_text for item in result.job_blockers[0].requirements] == [
+        "本科及以上学历",
+        "熟练使用 Python",
+    ]
+    assert result.job_blockers[0].unresolved_missing_requirement_ids == ()
     assert result.db_writes == 0
     assert result.provider_calls == 0
     assert result.trace_runs_created == 0
@@ -126,3 +134,7 @@ def test_blocker_summary_never_silently_drops_missing_requirement_ids() -> None:
     assert result.resolved_missing_requirement_count == 0
     assert result.unresolved_missing_requirement_ids == ("missing_unknown",)
     assert result.categories == ()
+    assert result.job_blockers[0].job_id == "job_1"
+    assert result.job_blockers[0].missing_requirement_count == 1
+    assert result.job_blockers[0].requirements == ()
+    assert result.job_blockers[0].unresolved_missing_requirement_ids == ("missing_unknown",)

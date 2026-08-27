@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 from app.api.deps import get_match_blocker_summary_use_case
 from app.application.match_blocker_summary import (
     MatchBlockerCategorySummary,
+    MatchBlockerJobSummary,
+    MatchBlockerRequirementSummary,
     MatchBlockerSummary,
 )
 from app.domain.job_requirements import RequirementType
@@ -40,6 +42,37 @@ class _UseCase:
                     examples=("熟练使用 Python",),
                 ),
             ),
+            job_blockers=(
+                MatchBlockerJobSummary(
+                    job_id="job_1",
+                    missing_requirement_count=1,
+                    requirements=(
+                        MatchBlockerRequirementSummary(
+                            requirement_id="edu_1",
+                            requirement_type=RequirementType.EDUCATION,
+                            original_text="本科及以上学历",
+                        ),
+                    ),
+                    unresolved_missing_requirement_ids=(),
+                ),
+                MatchBlockerJobSummary(
+                    job_id="job_2",
+                    missing_requirement_count=2,
+                    requirements=(
+                        MatchBlockerRequirementSummary(
+                            requirement_id="edu_2",
+                            requirement_type=RequirementType.EDUCATION,
+                            original_text="计算机相关专业本科及以上",
+                        ),
+                        MatchBlockerRequirementSummary(
+                            requirement_id="skill_1",
+                            requirement_type=RequirementType.SKILL,
+                            original_text="熟练使用 Python",
+                        ),
+                    ),
+                    unresolved_missing_requirement_ids=(),
+                ),
+            ),
         )
 
 
@@ -68,6 +101,23 @@ def test_match_blocker_summary_api_exposes_read_only_profile_evidence_gaps() -> 
         "affectedJobCount": 2,
         "affectedJobIds": ["job_1", "job_2"],
         "examples": ["本科及以上学历", "计算机相关专业本科及以上"],
+    }
+    assert body["jobBlockers"][1] == {
+        "jobId": "job_2",
+        "missingRequirementCount": 2,
+        "requirements": [
+            {
+                "requirementId": "edu_2",
+                "requirementType": "education",
+                "originalText": "计算机相关专业本科及以上",
+            },
+            {
+                "requirementId": "skill_1",
+                "requirementType": "skill",
+                "originalText": "熟练使用 Python",
+            },
+        ],
+        "unresolvedMissingRequirementIds": [],
     }
     assert body["dbWrites"] == 0
     assert body["providerCalls"] == 0
