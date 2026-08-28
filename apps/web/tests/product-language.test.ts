@@ -137,6 +137,9 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /这不是成功概率/);
   assert.match(page, /哪些资料最可能解锁更多岗位判断/);
   assert.match(page, /下一步最值得先核实/);
+  assert.match(page, /priorityActions\[0\]/);
+  assert.match(page, /normalizedCapability/);
+  assert.match(page, /这个具体要求目前影响/);
   assert.match(page, /如果你确实有对应经历/);
   assert.match(page, /不要为了排名补造经历/);
   assert.match(page, /focusRequirement=\$\{nextEvidencePriority\.requirementType\}/);

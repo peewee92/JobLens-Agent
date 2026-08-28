@@ -9,6 +9,7 @@ class MatchBlockerRequirementResponse(CamelCaseModel):
     requirement_id: str
     requirement_type: str
     original_text: str
+    normalized_capability: str | None
 
 
 class MatchBlockerJobResponse(CamelCaseModel):
@@ -26,6 +27,16 @@ class MatchBlockerCategoryResponse(CamelCaseModel):
     examples: list[str]
 
 
+class MatchBlockerActionResponse(CamelCaseModel):
+    requirement_type: str
+    normalized_capability: str | None
+    missing_requirement_count: int
+    affected_job_count: int
+    affected_job_ids: list[str]
+    requirement_ids: list[str]
+    examples: list[str]
+
+
 class MatchBlockerSummaryResponse(CamelCaseModel):
     analyzed_report_count: int
     blocked_report_count: int
@@ -33,6 +44,7 @@ class MatchBlockerSummaryResponse(CamelCaseModel):
     resolved_missing_requirement_count: int
     unresolved_missing_requirement_ids: list[str]
     categories: list[MatchBlockerCategoryResponse]
+    priority_actions: list[MatchBlockerActionResponse]
     job_blockers: list[MatchBlockerJobResponse]
     db_writes: int
     provider_calls: int
@@ -56,6 +68,18 @@ class MatchBlockerSummaryResponse(CamelCaseModel):
                 )
                 for item in summary.categories
             ],
+            priority_actions=[
+                MatchBlockerActionResponse(
+                    requirement_type=item.requirement_type.value,
+                    normalized_capability=item.normalized_capability,
+                    missing_requirement_count=item.missing_requirement_count,
+                    affected_job_count=item.affected_job_count,
+                    affected_job_ids=list(item.affected_job_ids),
+                    requirement_ids=list(item.requirement_ids),
+                    examples=list(item.examples),
+                )
+                for item in summary.priority_actions
+            ],
             job_blockers=[
                 MatchBlockerJobResponse(
                     job_id=item.job_id,
@@ -65,6 +89,7 @@ class MatchBlockerSummaryResponse(CamelCaseModel):
                             requirement_id=requirement.requirement_id,
                             requirement_type=requirement.requirement_type.value,
                             original_text=requirement.original_text,
+                            normalized_capability=requirement.normalized_capability,
                         )
                         for requirement in item.requirements
                     ],

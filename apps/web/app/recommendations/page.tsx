@@ -238,7 +238,7 @@ export default async function RecommendationsPage({
     })),
   }));
 
-  const nextEvidencePriority = blockerSummary?.categories[0] ?? null;
+  const nextEvidencePriority = blockerSummary?.priorityActions[0] ?? null;
 
   let coverage = null;
   try {
@@ -512,9 +512,11 @@ export default async function RecommendationsPage({
           </div>
           {nextEvidencePriority ? (
             <div className="notice evidence-next-action">
-              <strong>下一步最值得先核实：{blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类证据</strong>
+              <strong>
+                下一步最值得先核实：{nextEvidencePriority.normalizedCapability ?? `${blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类事实`}
+              </strong>
               <p>
-                这类事实目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共涉及 {nextEvidencePriority.missingRequirementCount} 条硬条件。
+                这个具体要求目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共对应 {nextEvidencePriority.missingRequirementCount} 条当前硬条件。
                 如果你确实有对应经历，优先把真实证据补进 Profile，再回来重算；如果没有，就保留缺口，不要为了排名补造经历。
               </p>
               {nextEvidencePriority.examples.length > 0 ? (

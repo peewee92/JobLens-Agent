@@ -357,6 +357,7 @@ export interface MatchBlockerRequirement {
   requirementId: string;
   requirementType: RequirementType;
   originalText: string;
+  normalizedCapability: string | null;
 }
 
 export interface MatchBlockerJob {
@@ -374,6 +375,16 @@ export interface MatchBlockerCategory {
   examples: string[];
 }
 
+export interface MatchBlockerPriorityAction {
+  requirementType: RequirementType;
+  normalizedCapability: string | null;
+  missingRequirementCount: number;
+  affectedJobCount: number;
+  affectedJobIds: string[];
+  requirementIds: string[];
+  examples: string[];
+}
+
 export interface MatchBlockerSummary {
   analyzedReportCount: number;
   blockedReportCount: number;
@@ -381,6 +392,7 @@ export interface MatchBlockerSummary {
   resolvedMissingRequirementCount: number;
   unresolvedMissingRequirementIds: string[];
   categories: MatchBlockerCategory[];
+  priorityActions: MatchBlockerPriorityAction[];
   jobBlockers: MatchBlockerJob[];
   dbWrites: number;
   providerCalls: number;

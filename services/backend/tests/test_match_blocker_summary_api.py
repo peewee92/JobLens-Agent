@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_match_blocker_summary_use_case
 from app.application.match_blocker_summary import (
+    MatchBlockerActionSummary,
     MatchBlockerCategorySummary,
     MatchBlockerJobSummary,
     MatchBlockerRequirementSummary,
@@ -42,6 +43,17 @@ class _UseCase:
                     examples=("熟练使用 Python",),
                 ),
             ),
+            priority_actions=(
+                MatchBlockerActionSummary(
+                    requirement_type=RequirementType.SKILL,
+                    normalized_capability="Python",
+                    missing_requirement_count=2,
+                    affected_job_count=2,
+                    affected_job_ids=("job_1", "job_2"),
+                    requirement_ids=("skill_1", "skill_2"),
+                    examples=("熟练使用 Python", "具备 Python 项目经验"),
+                ),
+            ),
             job_blockers=(
                 MatchBlockerJobSummary(
                     job_id="job_1",
@@ -51,6 +63,7 @@ class _UseCase:
                             requirement_id="edu_1",
                             requirement_type=RequirementType.EDUCATION,
                             original_text="本科及以上学历",
+                            normalized_capability=None,
                         ),
                     ),
                     unresolved_missing_requirement_ids=(),
@@ -63,11 +76,13 @@ class _UseCase:
                             requirement_id="edu_2",
                             requirement_type=RequirementType.EDUCATION,
                             original_text="计算机相关专业本科及以上",
+                            normalized_capability=None,
                         ),
                         MatchBlockerRequirementSummary(
                             requirement_id="skill_1",
                             requirement_type=RequirementType.SKILL,
                             original_text="熟练使用 Python",
+                            normalized_capability="Python",
                         ),
                     ),
                     unresolved_missing_requirement_ids=(),
@@ -102,6 +117,15 @@ def test_match_blocker_summary_api_exposes_read_only_profile_evidence_gaps() -> 
         "affectedJobIds": ["job_1", "job_2"],
         "examples": ["本科及以上学历", "计算机相关专业本科及以上"],
     }
+    assert body["priorityActions"][0] == {
+        "requirementType": "skill",
+        "normalizedCapability": "Python",
+        "missingRequirementCount": 2,
+        "affectedJobCount": 2,
+        "affectedJobIds": ["job_1", "job_2"],
+        "requirementIds": ["skill_1", "skill_2"],
+        "examples": ["熟练使用 Python", "具备 Python 项目经验"],
+    }
     assert body["jobBlockers"][1] == {
         "jobId": "job_2",
         "missingRequirementCount": 2,
@@ -110,11 +134,13 @@ def test_match_blocker_summary_api_exposes_read_only_profile_evidence_gaps() -> 
                 "requirementId": "edu_2",
                 "requirementType": "education",
                 "originalText": "计算机相关专业本科及以上",
+                "normalizedCapability": None,
             },
             {
                 "requirementId": "skill_1",
                 "requirementType": "skill",
                 "originalText": "熟练使用 Python",
+                "normalizedCapability": "Python",
             },
         ],
         "unresolvedMissingRequirementIds": [],

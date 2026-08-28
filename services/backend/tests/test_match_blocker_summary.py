@@ -55,12 +55,19 @@ class _Requirements:
         return self.by_job.get(job_id)
 
 
-def _requirement(requirement_id: str, requirement_type: RequirementType, text: str):
+def _requirement(
+    requirement_id: str,
+    requirement_type: RequirementType,
+    text: str,
+    *,
+    normalized_capability: str | None = None,
+):
     return SimpleNamespace(
         id=requirement_id,
         type=requirement_type,
         importance=RequirementImportance.MUST_HAVE,
         original_text=text,
+        normalized_capability=normalized_capability,
     )
 
 
@@ -77,7 +84,12 @@ def test_blocker_summary_groups_missing_evidence_by_requirement_type_and_job_cov
             "job_1": SimpleNamespace(
                 requirements=(
                     _requirement("edu_1", RequirementType.EDUCATION, "本科及以上学历"),
-                    _requirement("skill_1", RequirementType.SKILL, "熟练使用 Python"),
+                    _requirement(
+                        "skill_1",
+                        RequirementType.SKILL,
+                        "熟练使用 Python",
+                        normalized_capability="Python",
+                    ),
                 )
             ),
             "job_2": SimpleNamespace(
@@ -108,6 +120,13 @@ def test_blocker_summary_groups_missing_evidence_by_requirement_type_and_job_cov
     assert education.missing_requirement_count == 2
     assert education.affected_job_ids == ("job_1", "job_2")
     assert education.examples == ("本科及以上学历", "计算机相关专业本科及以上")
+    assert result.priority_actions[0].requirement_type is RequirementType.EDUCATION
+    assert result.priority_actions[0].affected_job_count == 1
+    assert result.priority_actions[1].requirement_type is RequirementType.EDUCATION
+    assert result.priority_actions[1].affected_job_count == 1
+    assert result.priority_actions[2].normalized_capability == "Python"
+    assert result.priority_actions[2].affected_job_ids == ("job_1",)
+    assert result.priority_actions[2].requirement_ids == ("skill_1",)
     assert [item.job_id for item in result.job_blockers] == ["job_1", "job_2"]
     assert result.job_blockers[0].missing_requirement_count == 2
     assert [item.requirement_id for item in result.job_blockers[0].requirements] == ["edu_1", "skill_1"]
@@ -119,6 +138,60 @@ def test_blocker_summary_groups_missing_evidence_by_requirement_type_and_job_cov
     assert result.db_writes == 0
     assert result.provider_calls == 0
     assert result.trace_runs_created == 0
+
+
+def test_blocker_summary_prioritizes_exact_normalized_capability_across_jobs_without_semantic_guessing() -> None:
+    ranking = _Ranking(
+        (
+            _stored("job_1", missing=("python_1", "domain_1")),
+            _stored("job_2", missing=("python_2", "domain_2")),
+        )
+    )
+    requirements = _Requirements(
+        {
+            "job_1": SimpleNamespace(
+                requirements=(
+                    _requirement(
+                        "python_1",
+                        RequirementType.SKILL,
+                        "熟练使用 Python",
+                        normalized_capability="Python",
+                    ),
+                    _requirement("domain_1", RequirementType.DOMAIN, "有金融行业经验"),
+                )
+            ),
+            "job_2": SimpleNamespace(
+                requirements=(
+                    _requirement(
+                        "python_2",
+                        RequirementType.SKILL,
+                        "具备 Python 项目经验",
+                        normalized_capability="python",
+                    ),
+                    _requirement("domain_2", RequirementType.DOMAIN, "有电商行业经验"),
+                )
+            ),
+        }
+    )
+
+    result = BuildMatchBlockerSummaryUseCase(
+        ranking=ranking,
+        requirements=requirements,
+    ).execute(("job_1", "job_2"))
+
+    python_action = result.priority_actions[0]
+    assert python_action.requirement_type is RequirementType.SKILL
+    assert python_action.normalized_capability == "Python"
+    assert python_action.affected_job_count == 2
+    assert python_action.missing_requirement_count == 2
+    assert python_action.affected_job_ids == ("job_1", "job_2")
+    assert python_action.requirement_ids == ("python_1", "python_2")
+    assert python_action.examples == ("熟练使用 Python", "具备 Python 项目经验")
+
+    assert result.priority_actions[1].normalized_capability is None
+    assert result.priority_actions[1].affected_job_count == 1
+    assert result.priority_actions[2].normalized_capability is None
+    assert result.priority_actions[2].affected_job_count == 1
 
 
 def test_blocker_summary_never_silently_drops_missing_requirement_ids() -> None:
@@ -134,6 +207,7 @@ def test_blocker_summary_never_silently_drops_missing_requirement_ids() -> None:
     assert result.resolved_missing_requirement_count == 0
     assert result.unresolved_missing_requirement_ids == ("missing_unknown",)
     assert result.categories == ()
+    assert result.priority_actions == ()
     assert result.job_blockers[0].job_id == "job_1"
     assert result.job_blockers[0].missing_requirement_count == 1
     assert result.job_blockers[0].requirements == ()
