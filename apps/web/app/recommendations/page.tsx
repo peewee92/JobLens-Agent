@@ -247,7 +247,13 @@ export default async function RecommendationsPage({
     })),
   }));
 
-  const nextEvidencePriority = blockerSummary?.priorityActions[0] ?? null;
+  const nextEvidencePriority = blockerSummary?.priorityActions.find(
+    (action) => !(
+      focusRequirementId
+      && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId)
+      && action.requirementIds.includes(focusRequirementId)
+    ),
+  ) ?? null;
   const nextEvidenceJobId = nextEvidencePriority?.affectedJobIds[0] ?? null;
   const nextEvidenceRequirement = nextEvidencePriority && nextEvidenceJobId
     ? blockerSummary?.jobBlockers
@@ -361,6 +367,22 @@ export default async function RecommendationsPage({
                   <p className="muted">
                     这里只显示前后 Profile 版本比较后，首次进入这条 Requirement ID 的 Evidence；不会用相似关键词或岗位文案反推你的经历。
                   </p>
+                </div>
+              ) : null}
+              {focusedRequirementResolved && nextEvidencePriority && nextEvidenceProfileHref ? (
+                <div className="focus-improvement-facts">
+                  <strong>
+                    下一项最值得核实：{nextEvidencePriority.normalizedCapability ?? `${blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类事实`}
+                  </strong>
+                  <p>
+                    当前仍影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共对应 {nextEvidencePriority.missingRequirementCount} 条硬条件缺口。
+                    已解决的 Requirement 不会继续占用下一步行动位。
+                  </p>
+                  <div className="actions">
+                    <Link className="button" href={nextEvidenceProfileHref}>
+                      继续核实下一项真实证据 →
+                    </Link>
+                  </div>
                 </div>
               ) : null}
             </div>

@@ -483,6 +483,10 @@ Profile 页面可以明确区分：
 
 目标：形成真正的 `Gap → Action → Evidence → Re-match`，并从“下载 JSON → 上传”升级为一键同步。
 
+### 当前进度（2026-08-29）
+
+- 已完成 Requirement 级 Evidence 核实后的连续下一步：用户从推荐页进入 Profile 核实具体 Requirement，保存并 Re-match 后若该 Requirement 已由真实 Evidence 解决，结果区会基于当前 blocker priority 直接给出下一个仍影响岗位最多的事实核对项及 Profile 入口；已解决的 Requirement ID 会从下一行动位排除。该选择只复用当前 Match/Blocker facts，不使用关键词、模糊匹配或 Provider 推断，也不会自动生成用户经历。
+
 ### 任务
 
 - ActionItem 状态；
