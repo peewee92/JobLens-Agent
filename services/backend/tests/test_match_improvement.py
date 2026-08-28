@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from app.application.eligibility import EligibilityDecision
 from app.application.match_improvement import GetMatchImprovementUseCase
-from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
+from app.application.match_report import MatchEvidenceLink, MatchRecommendation, MatchReport, StoredMatchReport
 from app.application.ports.job_requirement_repository import AbstractJobRequirementQueryRepository
 from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
 
@@ -16,15 +16,17 @@ def _stored(
     *,
     profile_version: int,
     missing: tuple[str, ...],
+    profile_id: str = "profile_1",
     recommendation: MatchRecommendation,
     extraction_id: str = "reqrun_1",
     created_offset: int = 0,
+    evidence_links: tuple[MatchEvidenceLink, ...] = (),
 ) -> StoredMatchReport:
     return StoredMatchReport(
         id=report_id,
         report=MatchReport(
             job_id="job_1",
-            profile_id="profile_1",
+            profile_id=profile_id,
             profile_version=profile_version,
             extraction_id=extraction_id,
             eligibility=(
@@ -40,7 +42,7 @@ def _stored(
             matched_requirement_ids=(),
             partial_requirement_ids=(),
             missing_requirement_ids=missing,
-            evidence_links=(),
+            evidence_links=evidence_links,
             matcher_version="matcher-v1",
             prompt_version="prompt-v1",
             model="fixture",
@@ -64,6 +66,43 @@ class _RequirementRepository(AbstractJobRequirementQueryRepository):
                 SimpleNamespace(id="req_3", original_text="3 年以上相关经验"),
             )
         )
+
+
+class _ProfileRepository:
+    def get_profile_version(self, version: int):
+        if version == 3:
+            return SimpleNamespace(
+                id="profile_v3",
+                version=3,
+                evidence=(
+                    SimpleNamespace(
+                        id="evidence_existing_v3",
+                        key="existing-project",
+                        type=SimpleNamespace(value="project"),
+                        summary="长期保留的既有项目证据",
+                    ),
+                    SimpleNamespace(
+                        id="evidence_new",
+                        key="python-service",
+                        type=SimpleNamespace(value="project"),
+                        summary="在真实项目中使用 Python 构建数据处理服务",
+                    ),
+                ),
+            )
+        if version == 2:
+            return SimpleNamespace(
+                id="profile_v2",
+                version=2,
+                evidence=(
+                    SimpleNamespace(
+                        id="evidence_existing_v2",
+                        key="existing-project",
+                        type=SimpleNamespace(value="project"),
+                        summary="长期保留的既有项目证据",
+                    ),
+                ),
+            )
+        return None
 
 
 class _Repository(AbstractMatchReportQueryRepository):
@@ -147,6 +186,45 @@ def test_match_improvement_resolves_newly_missing_requirement_text_from_same_ext
     assert [item.original_text for item in result.resolved_requirements] == ["本科及以上学历"]
     assert result.newly_missing_requirement_ids == ("req_2",)
     assert [item.original_text for item in result.newly_missing_requirements] == ["熟悉 Python"]
+
+
+def test_match_improvement_attributes_newly_used_evidence_to_frozen_requirements() -> None:
+    current = _stored(
+        "report_current",
+        profile_version=3,
+        missing=("req_3",),
+        recommendation=MatchRecommendation.STRETCH,
+        profile_id="profile_v3",
+        created_offset=2,
+        evidence_links=(
+            MatchEvidenceLink(requirement_id="req_1", evidence_ids=("evidence_existing_v3",)),
+            MatchEvidenceLink(requirement_id="req_2", evidence_ids=("evidence_new",)),
+        ),
+    )
+    previous = _stored(
+        "report_previous",
+        profile_version=2,
+        missing=("req_2", "req_3"),
+        recommendation=MatchRecommendation.BLOCKED,
+        profile_id="profile_v2",
+        created_offset=1,
+        evidence_links=(
+            MatchEvidenceLink(requirement_id="req_1", evidence_ids=("evidence_existing_v2",)),
+        ),
+    )
+
+    result = GetMatchImprovementUseCase(
+        _Repository((current, previous)),
+        _RequirementRepository(),
+        _ProfileRepository(),
+    ).execute(job_id="job_1", current_report_id="report_current")
+
+    assert len(result.newly_supporting_evidence) == 1
+    impact = result.newly_supporting_evidence[0]
+    assert impact.evidence_id == "evidence_new"
+    assert impact.evidence_type == "project"
+    assert impact.summary == "在真实项目中使用 Python 构建数据处理服务"
+    assert [item.original_text for item in impact.supporting_requirements] == ["熟悉 Python"]
 
 
 def test_match_improvement_ignores_same_profile_version_reruns() -> None:

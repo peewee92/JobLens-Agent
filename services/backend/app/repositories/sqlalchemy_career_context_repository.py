@@ -309,6 +309,18 @@ class SqlAlchemyCareerContextQueryRepository(
                 else None
             )
 
+    def get_profile_version(self, version: int) -> ProfileDetail | None:
+        with self._session_factory() as session:
+            profile_id = session.scalar(
+                select(UserProfileORM.id)
+                .where(
+                    UserProfileORM.profile_key == PROFILE_KEY,
+                    UserProfileORM.version == version,
+                )
+                .limit(1)
+            )
+            return _load_profile(session, profile_id) if profile_id is not None else None
+
     def get_current_search_intent(self) -> SearchIntentDetail | None:
         with self._session_factory() as session:
             model = session.scalar(

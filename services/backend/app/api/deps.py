@@ -715,8 +715,11 @@ def get_match_improvement_use_case(
     requirements: AbstractJobRequirementQueryRepository = Depends(
         get_job_requirement_query_repository
     ),
+    profiles: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
 ) -> GetMatchImprovementUseCase:
-    return GetMatchImprovementUseCase(reports, requirements)
+    return GetMatchImprovementUseCase(reports, requirements, profiles)
 
 
 def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:

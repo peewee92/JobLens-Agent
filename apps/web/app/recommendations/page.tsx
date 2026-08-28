@@ -197,6 +197,47 @@ export default async function RecommendationsPage({
     return [result.value];
   });
 
+  const evidenceImpactById = new Map<
+    string,
+    {summary: string; jobs: Map<string, {title: string; requirementTexts: Set<string>}>}
+  >();
+  const collectEvidenceImpact = (
+    jobId: string,
+    jobTitle: string,
+    improvement: NonNullable<typeof focusImprovement>,
+  ) => {
+    for (const evidence of improvement.newlySupportingEvidence) {
+      const impact = evidenceImpactById.get(evidence.evidenceId) ?? {
+        summary: evidence.summary,
+        jobs: new Map<string, {title: string; requirementTexts: Set<string>}>(),
+      };
+      const jobImpact = impact.jobs.get(jobId) ?? {
+        title: jobTitle,
+        requirementTexts: new Set<string>(),
+      };
+      for (const requirement of evidence.supportingRequirements) {
+        jobImpact.requirementTexts.add(requirement.originalText);
+      }
+      impact.jobs.set(jobId, jobImpact);
+      evidenceImpactById.set(evidence.evidenceId, impact);
+    }
+  };
+  if (focusJobId && focusJobTitle && focusImprovement?.comparable) {
+    collectEvidenceImpact(focusJobId, focusJobTitle, focusImprovement);
+  }
+  for (const {job, improvement} of otherImprovedJobs) {
+    if (job) collectEvidenceImpact(job.id, job.title, improvement);
+  }
+  const evidenceImpacts = Array.from(evidenceImpactById.entries()).map(([evidenceId, impact]) => ({
+    evidenceId,
+    summary: impact.summary,
+    jobs: Array.from(impact.jobs.entries()).map(([jobId, item]) => ({
+      jobId,
+      title: item.title,
+      requirementTexts: Array.from(item.requirementTexts),
+    })),
+  }));
+
   let coverage = null;
   try {
     coverage = await fetchRecommendationCoverage();
@@ -289,6 +330,29 @@ export default async function RecommendationsPage({
                   </ul>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {evidenceImpacts.length > 0 ? (
+            <div className="focus-improvement-facts">
+              <strong>这次哪些真实经历进入了岗位匹配依据</strong>
+              <ul>
+                {evidenceImpacts.slice(0, 3).map((impact) => (
+                  <li key={impact.evidenceId}>
+                    <span>{impact.summary}</span>
+                    <span className="muted"> · 支撑 {impact.jobs.length} 个当前岗位</span>
+                    <ul>
+                      {impact.jobs.slice(0, 3).map((jobImpact) => (
+                        <li key={jobImpact.jobId}>
+                          <Link href={`/jobs/${jobImpact.jobId}`}>{jobImpact.title}</Link>
+                          {jobImpact.requirementTexts.length > 0
+                            ? `：${jobImpact.requirementTexts.slice(0, 2).join("；")}`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
           {otherImprovedJobs.length > 0 ? (

@@ -10,6 +10,13 @@ class MatchImprovementRequirementResponse(CamelCaseModel):
     original_text: str
 
 
+class MatchImprovementEvidenceImpactResponse(CamelCaseModel):
+    evidence_id: str
+    evidence_type: str
+    summary: str
+    supporting_requirements: list[MatchImprovementRequirementResponse]
+
+
 class MatchImprovementResponse(CamelCaseModel):
     job_id: str
     current_report_id: str
@@ -24,6 +31,7 @@ class MatchImprovementResponse(CamelCaseModel):
     newly_missing_requirement_ids: list[str]
     resolved_requirements: list[MatchImprovementRequirementResponse]
     newly_missing_requirements: list[MatchImprovementRequirementResponse]
+    newly_supporting_evidence: list[MatchImprovementEvidenceImpactResponse]
     comparable: bool
     db_writes: int
     provider_calls: int
@@ -49,6 +57,21 @@ class MatchImprovementResponse(CamelCaseModel):
             newly_missing_requirement_ids=list(detail.newly_missing_requirement_ids),
             resolved_requirements=[MatchImprovementRequirementResponse(requirement_id=item.requirement_id, original_text=item.original_text) for item in detail.resolved_requirements],
             newly_missing_requirements=[MatchImprovementRequirementResponse(requirement_id=item.requirement_id, original_text=item.original_text) for item in detail.newly_missing_requirements],
+            newly_supporting_evidence=[
+                MatchImprovementEvidenceImpactResponse(
+                    evidence_id=item.evidence_id,
+                    evidence_type=item.evidence_type,
+                    summary=item.summary,
+                    supporting_requirements=[
+                        MatchImprovementRequirementResponse(
+                            requirement_id=requirement.requirement_id,
+                            original_text=requirement.original_text,
+                        )
+                        for requirement in item.supporting_requirements
+                    ],
+                )
+                for item in detail.newly_supporting_evidence
+            ],
             comparable=detail.comparable,
             db_writes=detail.db_writes,
             provider_calls=detail.provider_calls,

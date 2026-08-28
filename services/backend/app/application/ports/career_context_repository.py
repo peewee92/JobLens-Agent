@@ -53,6 +53,15 @@ class AbstractCareerContextQueryRepository(ABC):
     def get_current_profile(self) -> ProfileDetail | None:
         """Return the latest confirmed Profile version."""
 
+    def get_profile_version(self, version: int) -> ProfileDetail | None:
+        """Return one immutable Profile version when the adapter supports history reads.
+
+        The default keeps existing lightweight adapters compatible; production persistence
+        overrides this with an exact version lookup.
+        """
+        profile = self.get_current_profile()
+        return profile if profile is not None and profile.version == version else None
+
     @abstractmethod
     def get_current_search_intent(self) -> SearchIntentDetail | None:
         """Return the latest confirmed SearchIntent version."""

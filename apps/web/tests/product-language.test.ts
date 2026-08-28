@@ -146,6 +146,10 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /previousProfileVersion/);
   assert.match(page, /currentProfileVersion/);
   assert.match(page, /这次资料更新也改善了其他岗位/);
+  assert.match(page, /这次哪些真实经历进入了岗位匹配依据/);
+  assert.match(page, /newlySupportingEvidence/);
+  assert.match(page, /supportingRequirements/);
+  assert.match(page, /支撑 .* 个当前岗位/);
   assert.match(page, /Promise\.allSettled/);
   assert.match(page, /这次已经补齐的岗位要求/);
   assert.match(page, /这次新增需要核实的硬条件/);

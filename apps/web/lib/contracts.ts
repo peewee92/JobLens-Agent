@@ -392,6 +392,13 @@ export interface MatchImprovementRequirement {
   originalText: string;
 }
 
+export interface MatchImprovementEvidenceImpact {
+  evidenceId: string;
+  evidenceType: string;
+  summary: string;
+  supportingRequirements: MatchImprovementRequirement[];
+}
+
 export interface MatchImprovement {
   jobId: string;
   currentReportId: string;
@@ -406,6 +413,7 @@ export interface MatchImprovement {
   newlyMissingRequirementIds: string[];
   resolvedRequirements: MatchImprovementRequirement[];
   newlyMissingRequirements: MatchImprovementRequirement[];
+  newlySupportingEvidence: MatchImprovementEvidenceImpact[];
   comparable: boolean;
   dbWrites: number;
   providerCalls: number;

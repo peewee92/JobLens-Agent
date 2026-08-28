@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_match_improvement_use_case
-from app.application.match_improvement import MatchImprovement, MatchImprovementRequirement
+from app.application.match_improvement import MatchImprovement, MatchImprovementEvidenceImpact, MatchImprovementRequirement
 from app.application.match_report import MatchRecommendation
 from app.main import app
 
@@ -32,6 +32,16 @@ class _UseCase:
                 MatchImprovementRequirement(requirement_id="req_2", original_text="熟悉 Python"),
             ),
             newly_missing_requirements=(),
+            newly_supporting_evidence=(
+                MatchImprovementEvidenceImpact(
+                    evidence_id="evidence_1",
+                    evidence_type="project",
+                    summary="在真实项目中使用 Python 构建数据处理服务",
+                    supporting_requirements=(
+                        MatchImprovementRequirement(requirement_id="req_2", original_text="熟悉 Python"),
+                    ),
+                ),
+            ),
             comparable=True,
         )
 
@@ -66,6 +76,16 @@ def test_match_improvement_api_exposes_read_only_delta() -> None:
             {"requirementId": "req_2", "originalText": "熟悉 Python"},
         ],
         "newlyMissingRequirements": [],
+        "newlySupportingEvidence": [
+            {
+                "evidenceId": "evidence_1",
+                "evidenceType": "project",
+                "summary": "在真实项目中使用 Python 构建数据处理服务",
+                "supportingRequirements": [
+                    {"requirementId": "req_2", "originalText": "熟悉 Python"},
+                ],
+            }
+        ],
         "comparable": True,
         "dbWrites": 0,
         "providerCalls": 0,
