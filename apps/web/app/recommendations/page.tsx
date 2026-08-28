@@ -9,6 +9,7 @@ import {
   BackendApiError,
   fetchJobPage,
   fetchMatchBlockerSummary,
+  fetchMatchImprovement,
   fetchMatchRanking,
   fetchLatestUserFeedback,
   fetchMatchReviewReadiness,
@@ -161,6 +162,17 @@ export default async function RecommendationsPage({
     ? availableReports.find((item) => item.report.jobId === focusJobId) ?? null
     : null;
   const focusJobNowBlocked = focusJobReport?.report.recommendation === "blocked";
+  let focusImprovement = null;
+  if (focusJobId && focusJobReport) {
+    try {
+      focusImprovement = await fetchMatchImprovement(
+        focusJobId,
+        focusJobReport.report.reportId,
+      );
+    } catch {
+      // The current recommendation remains usable when comparison history is unavailable.
+    }
+  }
 
   let coverage = null;
   try {
@@ -220,6 +232,15 @@ export default async function RecommendationsPage({
               {focusJobNowBlocked
                 ? `重算后它仍有 ${focusJobReport.report.missingRequirementIds.length} 条硬条件缺口，可以继续补下面列出的证据。`
                 : "这次补充的证据已经让它进入优先候选，下面也会按新结果排序。"}
+            </p>
+          ) : null}
+          {focusImprovement?.comparable ? (
+            <p className="focus-job-note">
+              {focusImprovement.resolvedRequirementIds.length > 0
+                ? `和上一次可比结果相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
+                : focusImprovement.currentMissingRequirementCount < (focusImprovement.previousMissingRequirementCount ?? 0)
+                  ? `硬条件缺口从 ${focusImprovement.previousMissingRequirementCount} 条降到 ${focusImprovement.currentMissingRequirementCount} 条。`
+                  : "和上一次可比结果相比，硬条件缺口暂时没有减少。"}
             </p>
           ) : null}
         </section>

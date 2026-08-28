@@ -37,6 +37,7 @@ from app.application.job_requirements.use_cases import (
 from app.application.match_batch_execution import ExecuteBatchMatchUseCase
 from app.application.match_batch_planning import PlanBatchMatchUseCase
 from app.application.match_blocker_summary import BuildMatchBlockerSummaryUseCase
+from app.application.match_improvement import GetMatchImprovementUseCase
 from app.application.match_inputs.readiness import GetMatchInputReadinessUseCase
 from app.application.match_ranking import BatchRankMatchReportsUseCase
 from app.application.match_report import BuildJobMatchReportUseCase
@@ -705,6 +706,14 @@ def get_match_report_use_case(
 
 def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
     return SqlAlchemyMatchReportQueryRepository(SessionLocal)
+
+
+def get_match_improvement_use_case(
+    reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+) -> GetMatchImprovementUseCase:
+    return GetMatchImprovementUseCase(reports)
 
 
 def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:

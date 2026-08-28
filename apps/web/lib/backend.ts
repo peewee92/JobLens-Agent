@@ -5,6 +5,7 @@ import type {
   BatchMatchRanking,
   CareerContextReleaseReadiness,
   MatchBlockerSummary,
+  MatchImprovement,
   MatchReviewReadiness,
   RecommendationCoverage,
   JobDetail,
@@ -133,6 +134,14 @@ export function fetchMatchBlockerSummary(
     query.append("jobId", jobId);
   }
   return backendJson<MatchBlockerSummary>(`/api/v1/match-blockers?${query.toString()}`);
+}
+
+export function fetchMatchImprovement(
+  jobId: string,
+  currentReportId: string,
+): Promise<MatchImprovement> {
+  const query = new URLSearchParams({jobId, currentReportId});
+  return backendJson<MatchImprovement>(`/api/v1/match-improvement?${query.toString()}`);
 }
 
 export function fetchMatchReviewReadiness(): Promise<MatchReviewReadiness> {

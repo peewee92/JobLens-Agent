@@ -387,6 +387,22 @@ export interface MatchBlockerSummary {
   traceRunsCreated: number;
 }
 
+export interface MatchImprovement {
+  jobId: string;
+  currentReportId: string;
+  previousReportId: string | null;
+  previousRecommendation: MatchRecommendation | null;
+  currentRecommendation: MatchRecommendation;
+  previousMissingRequirementCount: number | null;
+  currentMissingRequirementCount: number;
+  resolvedRequirementIds: string[];
+  newlyMissingRequirementIds: string[];
+  comparable: boolean;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
 export type RecommendationCoverageStatus =
   | "current_report"
   | "match_ready"

@@ -13,6 +13,7 @@ from app.api.v1.job_requirements import router as job_requirements_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.match_batch import router as match_batch_router
 from app.api.v1.match_blockers import router as match_blockers_router
+from app.api.v1.match_improvement import router as match_improvement_router
 from app.api.v1.match_ranking import router as match_ranking_router
 from app.api.v1.match_review import router as match_review_router
 from app.api.v1.profile_evals import router as profile_evals_router
@@ -36,6 +37,7 @@ api_router.include_router(jobs_router, tags=["jobs"])
 api_router.include_router(job_requirements_router, tags=["job-requirements"])
 api_router.include_router(match_batch_router, tags=["match-batch"])
 api_router.include_router(match_blockers_router, tags=["match-blockers"])
+api_router.include_router(match_improvement_router, tags=["match-improvement"])
 api_router.include_router(match_ranking_router, tags=["match-ranking"])
 api_router.include_router(match_review_router, tags=["match-review"])
 api_router.include_router(recommendation_coverage_router, tags=["recommendation-coverage"])
