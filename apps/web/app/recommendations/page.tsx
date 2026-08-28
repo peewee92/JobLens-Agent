@@ -240,7 +240,7 @@ export default async function RecommendationsPage({
 
   const nextEvidencePriority = blockerSummary?.priorityActions[0] ?? null;
   const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidencePriority.affectedJobIds[0] ?? "")}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}#profile-evidence-focus`
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidencePriority.affectedJobIds[0] ?? "")}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
     : null;
 
   let coverage = null;

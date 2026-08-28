@@ -38,8 +38,14 @@ export default async function ProfilePage({
   const requestedFocusCapability = Array.isArray(params.focusCapability)
     ? params.focusCapability[0]
     : params.focusCapability;
+  const requestedFocusRequirementText = Array.isArray(params.focusRequirementText)
+    ? params.focusRequirementText[0]
+    : params.focusRequirementText;
   const focusCapability = typeof requestedFocusCapability === "string"
     ? requestedFocusCapability.trim().slice(0, 120) || null
+    : null;
+  const focusRequirementText = typeof requestedFocusRequirementText === "string"
+    ? requestedFocusRequirementText.trim().slice(0, 300) || null
     : null;
   // Return to recommendations carrying the same focus so the recompute can prioritize that job.
   const afterProfileSaveHref = requestedNext === "/recommendations"
@@ -189,6 +195,7 @@ export default async function ProfilePage({
         focusRequirementType={focusRequirementType}
         focusJobId={requestedFocusJob}
         focusCapability={focusCapability}
+        focusRequirementText={focusRequirementText}
       />
     </>
   );

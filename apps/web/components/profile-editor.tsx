@@ -132,6 +132,7 @@ export function ProfileEditor({
   focusRequirementType = null,
   focusJobId = null,
   focusCapability = null,
+  focusRequirementText = null,
 }: {
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
@@ -140,6 +141,7 @@ export function ProfileEditor({
   focusRequirementType?: RequirementType | null;
   focusJobId?: string | null;
   focusCapability?: string | null;
+  focusRequirementText?: string | null;
 }) {
   const router = useRouter();
   const profileFormRef = useRef<HTMLFormElement>(null);
@@ -448,6 +450,13 @@ export function ProfileEditor({
               <p className="focus-capability-note">
                 当前重点核实：<strong>{focusCapability}</strong>。只补你真实做过、能被现有经历证明的内容。
               </p>
+            ) : null}
+            {focusRequirementText ? (
+              <div className="readiness-blocker-item focus-requirement-context">
+                <strong>当前岗位要求</strong>
+                <p>{focusRequirementText}</p>
+                <p className="muted">这段文字来自已分析的岗位要求，仅用于核对你的真实经历，不会自动写入 Profile。</p>
+              </div>
             ) : null}
             {focusCapabilityCoverage ? (
               focusCapabilityCoverage.matchingSkills.length > 0 ? (

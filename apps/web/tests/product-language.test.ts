@@ -144,6 +144,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /不要为了排名补造经历/);
   assert.match(page, /nextEvidenceProfileHref/);
   assert.match(page, /focusCapability=/);
+  assert.match(page, /focusRequirementText=/);
+  assert.match(page, /nextEvidencePriority\.examples\[0\]/);
   assert.match(page, /nextEvidencePriority\.affectedJobIds\[0\]/);
   assert.match(page, /当前 Profile 没有足够证据支撑这些硬条件/);
   assert.match(page, /补充我的真实经历/);
@@ -233,10 +235,14 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(page, /recomputeJob/);
   assert.match(page, /requestedRequirementFocus/);
   assert.match(page, /requestedFocusCapability/);
+  assert.match(page, /requestedFocusRequirementText/);
   assert.match(page, /slice\(0, 120\)/);
+  assert.match(page, /slice\(0, 300\)/);
   assert.match(editor, /focusRequirementType/);
   assert.match(editor, /focusCapability/);
   assert.match(editor, /当前重点核实/);
+  assert.match(editor, /当前岗位要求/);
+  assert.match(editor, /仅用于核对你的真实经历，不会自动写入 Profile/);
   assert.match(editor, /只补你真实做过、能被现有经历证明的内容/);
   assert.match(editor, /补充能证明技能的真实经历/);
   assert.match(editor, /补充能证明专项经验的真实经历/);
