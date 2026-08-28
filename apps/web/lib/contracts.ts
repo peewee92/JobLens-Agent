@@ -398,6 +398,8 @@ export interface MatchImprovement {
   previousReportId: string | null;
   previousRecommendation: MatchRecommendation | null;
   currentRecommendation: MatchRecommendation;
+  previousProfileVersion: number | null;
+  currentProfileVersion: number;
   previousMissingRequirementCount: number | null;
   currentMissingRequirementCount: number;
   resolvedRequirementIds: string[];

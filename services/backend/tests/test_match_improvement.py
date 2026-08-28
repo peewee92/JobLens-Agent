@@ -149,6 +149,33 @@ def test_match_improvement_resolves_newly_missing_requirement_text_from_same_ext
     assert [item.original_text for item in result.newly_missing_requirements] == ["熟悉 Python"]
 
 
+def test_match_improvement_ignores_same_profile_version_reruns() -> None:
+    current = _stored(
+        "report_current",
+        profile_version=3,
+        missing=("req_3",),
+        recommendation=MatchRecommendation.STRETCH,
+        created_offset=2,
+    )
+    same_version = _stored(
+        "report_same_version",
+        profile_version=3,
+        missing=("req_1", "req_3"),
+        recommendation=MatchRecommendation.BLOCKED,
+        created_offset=1,
+    )
+
+    result = GetMatchImprovementUseCase(
+        _Repository((current, same_version)),
+        _RequirementRepository(),
+    ).execute(job_id="job_1", current_report_id="report_current")
+
+    assert result.comparable is False
+    assert result.previous_report_id is None
+    assert result.previous_profile_version is None
+    assert result.current_profile_version == 3
+
+
 def test_match_improvement_does_not_compare_across_requirement_extractions() -> None:
     current = _stored(
         "report_current",

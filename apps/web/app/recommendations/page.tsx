@@ -174,6 +174,29 @@ export default async function RecommendationsPage({
     }
   }
 
+  const visibleImpactCandidates = [...rankedDisplayItems, ...blockedDisplayItems]
+    .filter(({report}) => report.jobId !== focusJobId)
+    .slice(0, 10);
+  const visibleImpactResults = focusJobId
+    ? await Promise.allSettled(
+      visibleImpactCandidates.map(async ({report, job}) => ({
+        report,
+        job,
+        improvement: await fetchMatchImprovement(report.jobId, report.reportId),
+      })),
+    )
+    : [];
+  const otherImprovedJobs = visibleImpactResults.flatMap((result) => {
+    if (result.status !== "fulfilled") return [];
+    const {improvement} = result.value;
+    if (!improvement.comparable || improvement.previousProfileVersion === improvement.currentProfileVersion) return [];
+    if (
+      improvement.resolvedRequirementIds.length === 0
+      && improvement.previousRecommendation === improvement.currentRecommendation
+    ) return [];
+    return [result.value];
+  });
+
   let coverage = null;
   try {
     coverage = await fetchRecommendationCoverage();
@@ -238,10 +261,10 @@ export default async function RecommendationsPage({
             <div className="focus-improvement">
               <p className="focus-job-note">
                 {focusImprovement.resolvedRequirementIds.length > 0
-                  ? `和上一次可比结果相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
+                  ? `和上一次资料版本相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
                   : focusImprovement.currentMissingRequirementCount < (focusImprovement.previousMissingRequirementCount ?? 0)
                     ? `硬条件缺口从 ${focusImprovement.previousMissingRequirementCount} 条降到 ${focusImprovement.currentMissingRequirementCount} 条。`
-                    : "和上一次可比结果相比，硬条件缺口暂时没有减少。"}
+                    : "和上一次资料版本相比，硬条件缺口暂时没有减少。"}
               </p>
               {focusImprovement.resolvedRequirements.length > 0 ? (
                 <div className="focus-improvement-facts">
@@ -265,6 +288,28 @@ export default async function RecommendationsPage({
                     ))}
                   </ul>
                 </div>
+              ) : null}
+            </div>
+          ) : null}
+          {otherImprovedJobs.length > 0 ? (
+            <div className="focus-improvement-facts">
+              <strong>这次资料更新也改善了其他岗位</strong>
+              <ul>
+                {otherImprovedJobs.slice(0, 3).map(({job, improvement}) => (
+                  job ? (
+                    <li key={improvement.currentReportId}>
+                      <Link href={`/jobs/${job.id}`}>{job.title}</Link>
+                      {improvement.resolvedRequirementIds.length > 0
+                        ? `：少了 ${improvement.resolvedRequirementIds.length} 条硬条件缺口`
+                        : improvement.previousRecommendation
+                          ? `：从「${matchRecommendationLabels[improvement.previousRecommendation]}」变为「${matchRecommendationLabels[improvement.currentRecommendation]}」`
+                          : ""}
+                    </li>
+                  ) : null
+                ))}
+              </ul>
+              {otherImprovedJobs.length > 3 ? (
+                <p className="muted">另有 {otherImprovedJobs.length - 3} 个当前展示岗位也发生了可验证改善。</p>
               ) : null}
             </div>
           ) : null}

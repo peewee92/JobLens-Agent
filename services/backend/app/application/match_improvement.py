@@ -21,6 +21,8 @@ class MatchImprovement:
     previous_report_id: str | None
     previous_recommendation: MatchRecommendation | None
     current_recommendation: MatchRecommendation
+    previous_profile_version: int | None
+    current_profile_version: int
     previous_missing_requirement_count: int | None
     current_missing_requirement_count: int
     resolved_requirement_ids: tuple[str, ...]
@@ -60,6 +62,7 @@ class GetMatchImprovementUseCase:
                 for candidate in self._reports.list_for_job(job_id)
                 if candidate.id != current.id
                 and candidate.report.profile_id == current_report.profile_id
+                and candidate.report.profile_version != current_report.profile_version
                 and candidate.report.extraction_id == current_report.extraction_id
             ),
             None,
@@ -72,6 +75,8 @@ class GetMatchImprovementUseCase:
                 previous_report_id=None,
                 previous_recommendation=None,
                 current_recommendation=current_report.recommendation,
+                previous_profile_version=None,
+                current_profile_version=current_report.profile_version,
                 previous_missing_requirement_count=None,
                 current_missing_requirement_count=len(current_missing),
                 resolved_requirement_ids=(),
@@ -119,6 +124,8 @@ class GetMatchImprovementUseCase:
             previous_report_id=previous.id,
             previous_recommendation=previous.report.recommendation,
             current_recommendation=current_report.recommendation,
+            previous_profile_version=previous.report.profile_version,
+            current_profile_version=current_report.profile_version,
             previous_missing_requirement_count=len(previous_missing),
             current_missing_requirement_count=len(current_missing),
             resolved_requirement_ids=resolved_ids,

@@ -16,6 +16,8 @@ class MatchImprovementResponse(CamelCaseModel):
     previous_report_id: str | None
     previous_recommendation: str | None
     current_recommendation: str
+    previous_profile_version: int | None
+    current_profile_version: int
     previous_missing_requirement_count: int | None
     current_missing_requirement_count: int
     resolved_requirement_ids: list[str]
@@ -39,6 +41,8 @@ class MatchImprovementResponse(CamelCaseModel):
                 else None
             ),
             current_recommendation=detail.current_recommendation.value,
+            previous_profile_version=detail.previous_profile_version,
+            current_profile_version=detail.current_profile_version,
             previous_missing_requirement_count=detail.previous_missing_requirement_count,
             current_missing_requirement_count=detail.current_missing_requirement_count,
             resolved_requirement_ids=list(detail.resolved_requirement_ids),
