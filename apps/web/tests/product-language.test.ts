@@ -273,6 +273,11 @@ test("focused evidence action returns with exact requirement identity and report
   assert.match(recommendations, /刚才核实的要求：仍缺少足够证据/);
   assert.match(recommendations, /刚才核实的要求：当前已不在硬缺口中/);
   assert.match(recommendations, /同一 Requirement ID 确认的变化/);
+  assert.match(recommendations, /focusedRequirementEvidence/);
+  assert.match(recommendations, /supportingRequirements\.some/);
+  assert.match(recommendations, /requirement\.requirementId === focusRequirementId/);
+  assert.match(recommendations, /这次直接进入该要求匹配依据的真实经历/);
+  assert.match(recommendations, /首次进入这条 Requirement ID 的 Evidence/);
   assert.match(recommendations, /历史比较不足以证明一定是新增 Evidence 造成的/);
 });
 

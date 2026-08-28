@@ -264,6 +264,13 @@ export default async function RecommendationsPage({
   const focusedRequirementStillMissing = Boolean(
     focusRequirementId && focusJobReport?.report.missingRequirementIds.includes(focusRequirementId),
   );
+  const focusedRequirementEvidence = focusRequirementId && focusImprovement?.comparable
+    ? focusImprovement.newlySupportingEvidence.filter((evidence) =>
+      evidence.supportingRequirements.some(
+        (requirement) => requirement.requirementId === focusRequirementId,
+      ),
+    )
+    : [];
 
   let coverage = null;
   try {
@@ -343,6 +350,19 @@ export default async function RecommendationsPage({
                     ? "这次保存后该 Requirement ID 仍在当前 MatchReport 的硬缺口里；如果没有真实经历可以证明，就继续保留缺口。"
                     : "当前报告已不把这条 Requirement ID 作为硬缺口，但历史比较不足以证明一定是新增 Evidence 造成的，因此这里只报告当前事实。"}
               </p>
+              {focusedRequirementResolved && focusedRequirementEvidence.length > 0 ? (
+                <div className="focus-improvement-facts">
+                  <strong>这次直接进入该要求匹配依据的真实经历</strong>
+                  <ul>
+                    {focusedRequirementEvidence.slice(0, 3).map((evidence) => (
+                      <li key={evidence.evidenceId}>{evidence.summary}</li>
+                    ))}
+                  </ul>
+                  <p className="muted">
+                    这里只显示前后 Profile 版本比较后，首次进入这条 Requirement ID 的 Evidence；不会用相似关键词或岗位文案反推你的经历。
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : null}
           {focusImprovement?.comparable ? (
