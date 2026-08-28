@@ -486,6 +486,7 @@ Profile 页面可以明确区分：
 ### 当前进度（2026-08-29）
 
 - 已完成 Requirement 级 Evidence 核实后的连续下一步：用户从推荐页进入 Profile 核实具体 Requirement，保存并 Re-match 后若该 Requirement 已由真实 Evidence 解决，结果区会基于当前 blocker priority 直接给出下一个仍影响岗位最多的事实核对项及 Profile 入口；已解决的 Requirement ID 会从下一行动位排除。该选择只复用当前 Match/Blocker facts，不使用关键词、模糊匹配或 Provider 推断，也不会自动生成用户经历。
+- 已把 UserFeedback 作为下一 Evidence 行动的受限次级信号：`affectedJobCount / missingRequirementCount` 的 blocker 主排序完全打平时，才用当前 immutable MatchReport 的 latest `interested > maybe > rejected/无反馈` 选择更贴近用户真实目标岗位的 action，并在该 action 的受影响岗位中优先带用户兴趣最强的 Job 进入 Profile；反馈状态不可读时退化为原顺序。该规则绝不跨越 blocker 事实优先级，也不会改变 Match、Eligibility 或 Ranking 结论，不调用 Provider、不新增 DB 写入或迁移。
 
 ### 任务
 

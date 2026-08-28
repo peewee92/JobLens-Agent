@@ -16,6 +16,7 @@ import {
   fetchRecommendationCoverage,
 } from "@/lib/backend";
 import type {RequirementType, SearchParams, UserFeedbackRecord} from "@/lib/contracts";
+import {selectEvidenceFocusJobId, selectNextEvidencePriority} from "@/lib/evidence-priority";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -247,23 +248,6 @@ export default async function RecommendationsPage({
     })),
   }));
 
-  const nextEvidencePriority = blockerSummary?.priorityActions.find(
-    (action) => !(
-      focusRequirementId
-      && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId)
-      && action.requirementIds.includes(focusRequirementId)
-    ),
-  ) ?? null;
-  const nextEvidenceJobId = nextEvidencePriority?.affectedJobIds[0] ?? null;
-  const nextEvidenceRequirement = nextEvidencePriority && nextEvidenceJobId
-    ? blockerSummary?.jobBlockers
-      .find((item) => item.jobId === nextEvidenceJobId)
-      ?.requirements.find((requirement) => nextEvidencePriority.requirementIds.includes(requirement.requirementId)) ?? null
-    : null;
-  const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
-    : null;
-
   const focusedRequirementResolved = Boolean(
     focusRequirementId && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId),
   );
@@ -313,6 +297,35 @@ export default async function RecommendationsPage({
     : Math.max(availableReports.length - feedbackCompletedCount, 0);
   const nextFeedbackReportId = feedbackStateAvailable
     ? availableReports.find(({report}) => feedbackByReportId.get(report.reportId) === null)?.report.reportId ?? null
+    : null;
+  const feedbackByJobId = new Map(
+    availableReports.flatMap(({report}) => {
+      const feedback = feedbackByReportId.get(report.reportId);
+      return feedback ? [[report.jobId, feedback] as const] : [];
+    }),
+  );
+  const resolvedRequirementToExclude = focusRequirementId
+    && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId)
+    ? focusRequirementId
+    : null;
+  const nextEvidencePriority = blockerSummary
+    ? selectNextEvidencePriority(
+      blockerSummary.priorityActions,
+      feedbackStateAvailable ? feedbackByJobId : new Map(),
+      resolvedRequirementToExclude,
+    )
+    : null;
+  const nextEvidenceJobId = selectEvidenceFocusJobId(
+    nextEvidencePriority,
+    feedbackStateAvailable ? feedbackByJobId : new Map(),
+  );
+  const nextEvidenceRequirement = nextEvidencePriority && nextEvidenceJobId
+    ? blockerSummary?.jobBlockers
+      .find((item) => item.jobId === nextEvidenceJobId)
+      ?.requirements.find((requirement) => nextEvidencePriority.requirementIds.includes(requirement.requirementId)) ?? null
+    : null;
+  const nextEvidenceProfileHref = nextEvidencePriority
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
     : null;
 
   return (
@@ -604,6 +617,7 @@ export default async function RecommendationsPage({
               </strong>
               <p>
                 这个具体要求目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共对应 {nextEvidencePriority.missingRequirementCount} 条当前硬条件。
+                如果多个行动的影响范围和缺口数完全相同，会优先你明确标记为“感兴趣 / 再看看”的岗位；不会让反馈越过更重要的硬缺口事实排序。
                 如果你确实有对应经历，优先把真实证据补进 Profile，再回来重算；如果没有，就保留缺口，不要为了排名补造经历。
               </p>
               {nextEvidencePriority.examples.length > 0 ? (

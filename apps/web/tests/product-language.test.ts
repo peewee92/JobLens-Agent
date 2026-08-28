@@ -137,9 +137,11 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /这不是成功概率/);
   assert.match(page, /哪些资料最可能解锁更多岗位判断/);
   assert.match(page, /下一步最值得先核实/);
-  assert.match(page, /priorityActions\.find/);
+  assert.match(page, /selectNextEvidencePriority/);
   assert.match(page, /normalizedCapability/);
   assert.match(page, /这个具体要求目前影响/);
+  assert.match(page, /影响范围和缺口数完全相同/);
+  assert.match(page, /不会让反馈越过更重要的硬缺口事实排序/);
   assert.match(page, /如果你确实有对应经历/);
   assert.match(page, /不要为了排名补造经历/);
   assert.match(page, /nextEvidenceProfileHref/);
@@ -279,8 +281,8 @@ test("focused evidence action returns with exact requirement identity and report
   assert.match(recommendations, /这次直接进入该要求匹配依据的真实经历/);
   assert.match(recommendations, /首次进入这条 Requirement ID 的 Evidence/);
   assert.match(recommendations, /历史比较不足以证明一定是新增 Evidence 造成的/);
-  assert.match(recommendations, /priorityActions\.find/);
-  assert.match(recommendations, /action\.requirementIds\.includes\(focusRequirementId\)/);
+  assert.match(recommendations, /selectNextEvidencePriority/);
+  assert.match(recommendations, /resolvedRequirementToExclude/);
   assert.match(recommendations, /下一项最值得核实/);
   assert.match(recommendations, /已解决的 Requirement 不会继续占用下一步行动位/);
   assert.match(recommendations, /继续核实下一项真实证据/);
