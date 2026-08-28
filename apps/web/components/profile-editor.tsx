@@ -227,8 +227,13 @@ export function ProfileEditor({
     const linkedEvidence = evidence.filter(
       (item) => linkedEvidenceKeys.has(item.key.trim()) && item.summary.trim(),
     );
+    const status = linkedEvidence.length > 0
+      ? "direct_evidence"
+      : matchingSkills.length > 0
+        ? "skill_only"
+        : "no_exact_fact";
 
-    return {matchingSkills, linkedEvidence};
+    return {matchingSkills, linkedEvidence, status};
   }, [evidence, focusCapability, skills]);
   const activeRequirementFocus = focusRequirementType
     ?? (focusEvidenceType === "education" ? "education" : null);
@@ -459,28 +464,36 @@ export function ProfileEditor({
               </div>
             ) : null}
             {focusCapabilityCoverage ? (
-              focusCapabilityCoverage.matchingSkills.length > 0 ? (
-                <div className="readiness-blocker-item focus-capability-coverage">
-                  <strong>你的 Profile 已经直接记录了这项能力</strong>
-                  <p>
-                    已找到同名技能“{focusCapabilityCoverage.matchingSkills[0].name}”
-                    {focusCapabilityCoverage.linkedEvidence.length > 0
-                      ? `，并关联 ${focusCapabilityCoverage.linkedEvidence.length} 条已确认经历。先核对这些经历是否真的能证明岗位要求，不必重复新增。`
-                      : "，但还没有关联已确认经历。若你确实做过，请优先把现有真实经历关联到这项技能。"}
-                  </p>
-                  {focusCapabilityCoverage.linkedEvidence.length > 0 ? (
+              <div className="readiness-blocker-item focus-capability-coverage">
+                <strong>
+                  {focusCapabilityCoverage.status === "direct_evidence"
+                    ? "核对状态：已有直接 Evidence"
+                    : focusCapabilityCoverage.status === "skill_only"
+                      ? "核对状态：只有技能名，证据还不足"
+                      : "核对状态：当前没有精确事实"}
+                </strong>
+                {focusCapabilityCoverage.status === "direct_evidence" ? (
+                  <>
+                    <p>
+                      已找到同名技能“{focusCapabilityCoverage.matchingSkills[0].name}”，并关联 {focusCapabilityCoverage.linkedEvidence.length} 条已确认经历。先核对这些经历是否真的能证明岗位要求；如果可以，不必重复新增。
+                    </p>
                     <ul>
                       {focusCapabilityCoverage.linkedEvidence.slice(0, 3).map((item) => (
                         <li key={item.key}>{item.summary}</li>
                       ))}
                     </ul>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="muted focus-capability-coverage-empty">
-                  当前 Profile 里还没有同名的“{focusCapability}”技能记录。这里只做精确事实核对，不会根据相似词自动推断你具备这项能力。
-                </p>
-              )
+                    <p className="muted">下一步：确认现有 Evidence 足够准确后直接保存并回到岗位优先级重算；只有事实不完整时才补充。</p>
+                  </>
+                ) : focusCapabilityCoverage.status === "skill_only" ? (
+                  <p>
+                    已找到同名技能“{focusCapabilityCoverage.matchingSkills[0].name}”，但还没有关联已确认经历。下一步：如果你确实做过，优先把现有真实经历关联到这项技能；没有对应经历就保留缺口。
+                  </p>
+                ) : (
+                  <p>
+                    当前 Profile 里还没有同名的“{focusCapability}”技能记录。下一步：只有你确实做过时才补真实 Skill / Evidence；否则保留缺口。这里不会根据相似词自动推断你具备这项能力。
+                  </p>
+                )}
+              </div>
             ) : null}
             {focusJobId ? (
               <p className="muted">

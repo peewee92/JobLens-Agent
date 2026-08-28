@@ -242,6 +242,11 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /focusCapability/);
   assert.match(editor, /当前重点核实/);
   assert.match(editor, /当前岗位要求/);
+  assert.match(editor, /核对状态：已有直接 Evidence/);
+  assert.match(editor, /核对状态：只有技能名，证据还不足/);
+  assert.match(editor, /核对状态：当前没有精确事实/);
+  assert.match(editor, /没有对应经历就保留缺口/);
+  assert.match(editor, /否则保留缺口/);
   assert.match(editor, /仅用于核对你的真实经历，不会自动写入 Profile/);
   assert.match(editor, /只补你真实做过、能被现有经历证明的内容/);
   assert.match(editor, /补充能证明技能的真实经历/);
@@ -333,12 +338,17 @@ test("AI resume success auto-fills an empty career draft without silently replac
   assert.doesNotMatch(panel, /填到下方，继续检查和修改/);
 });
 
-test("focused evidence actions reuse exact existing profile facts before asking for more evidence", async () => {
+test("focused evidence actions classify exact profile facts before asking for more evidence", async () => {
   const editor = await source("components/profile-editor.tsx");
 
-  assert.match(editor, /你的 Profile 已经直接记录了这项能力/);
-  assert.match(editor, /先核对这些经历是否真的能证明岗位要求，不必重复新增/);
-  assert.match(editor, /只做精确事实核对，不会根据相似词自动推断你具备这项能力/);
+  assert.match(editor, /"direct_evidence"/);
+  assert.match(editor, /"skill_only"/);
+  assert.match(editor, /"no_exact_fact"/);
+  assert.match(editor, /核对状态：已有直接 Evidence/);
+  assert.match(editor, /核对状态：只有技能名，证据还不足/);
+  assert.match(editor, /核对状态：当前没有精确事实/);
+  assert.match(editor, /如果可以，不必重复新增/);
+  assert.match(editor, /不会根据相似词自动推断你具备这项能力/);
   assert.match(editor, /item\.name\.trim\(\)\.toLocaleLowerCase\(\) === normalizedCapability/);
   assert.match(editor, /matchingSkills\.flatMap/);
 });
