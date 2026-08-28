@@ -238,6 +238,8 @@ export default async function RecommendationsPage({
     })),
   }));
 
+  const nextEvidencePriority = blockerSummary?.categories[0] ?? null;
+
   let coverage = null;
   try {
     coverage = await fetchRecommendationCoverage();
@@ -508,6 +510,29 @@ export default async function RecommendationsPage({
             </div>
             <Link className="button-secondary" href="/profile?next=/recommendations#profile-evidence">补充我的真实经历</Link>
           </div>
+          {nextEvidencePriority ? (
+            <div className="notice evidence-next-action">
+              <strong>下一步最值得先核实：{blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类证据</strong>
+              <p>
+                这类事实目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共涉及 {nextEvidencePriority.missingRequirementCount} 条硬条件。
+                如果你确实有对应经历，优先把真实证据补进 Profile，再回来重算；如果没有，就保留缺口，不要为了排名补造经历。
+              </p>
+              {nextEvidencePriority.examples.length > 0 ? (
+                <ul>
+                  {nextEvidencePriority.examples.slice(0, 2).map((example) => <li key={example}>{example}</li>)}
+                </ul>
+              ) : null}
+              <div className="actions">
+                <Link
+                  className="button"
+                  href={`/profile?next=/recommendations&focusRequirement=${nextEvidencePriority.requirementType}#profile-evidence-focus`}
+                >
+                  去核实并补真实证据 →
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
           <div className="readiness-blocker-list">
             {blockerSummary.categories.slice(0, 3).map((category) => (
               <div className="readiness-blocker-item" key={category.requirementType}>
