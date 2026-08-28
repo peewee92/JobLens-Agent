@@ -50,6 +50,15 @@ export default async function RecommendationsPage({
 }) {
   const params = await searchParams;
   const focusJobId = typeof params.focusJob === "string" ? params.focusJob : null;
+  const focusRequirementId = typeof params.focusRequirementId === "string"
+    ? params.focusRequirementId.trim().slice(0, 120) || null
+    : null;
+  const focusCapability = typeof params.focusCapability === "string"
+    ? params.focusCapability.trim().slice(0, 120) || null
+    : null;
+  const focusRequirementText = typeof params.focusRequirementText === "string"
+    ? params.focusRequirementText.trim().slice(0, 300) || null
+    : null;
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -239,9 +248,22 @@ export default async function RecommendationsPage({
   }));
 
   const nextEvidencePriority = blockerSummary?.priorityActions[0] ?? null;
-  const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidencePriority.affectedJobIds[0] ?? "")}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
+  const nextEvidenceJobId = nextEvidencePriority?.affectedJobIds[0] ?? null;
+  const nextEvidenceRequirement = nextEvidencePriority && nextEvidenceJobId
+    ? blockerSummary?.jobBlockers
+      .find((item) => item.jobId === nextEvidenceJobId)
+      ?.requirements.find((requirement) => nextEvidencePriority.requirementIds.includes(requirement.requirementId)) ?? null
     : null;
+  const nextEvidenceProfileHref = nextEvidencePriority
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
+    : null;
+
+  const focusedRequirementResolved = Boolean(
+    focusRequirementId && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId),
+  );
+  const focusedRequirementStillMissing = Boolean(
+    focusRequirementId && focusJobReport?.report.missingRequirementIds.includes(focusRequirementId),
+  );
 
   let coverage = null;
   try {
@@ -302,6 +324,26 @@ export default async function RecommendationsPage({
                 ? `重算后它仍有 ${focusJobReport.report.missingRequirementIds.length} 条硬条件缺口，可以继续补下面列出的证据。`
                 : "这次补充的证据已经让它进入优先候选，下面也会按新结果排序。"}
             </p>
+          ) : null}
+          {focusRequirementId && focusJobReport ? (
+            <div className={`review-result ${focusedRequirementResolved ? "review-accepted" : "review-pending"}`}>
+              <strong>
+                {focusedRequirementResolved
+                  ? "刚才核实的要求：现在已有匹配依据"
+                  : focusedRequirementStillMissing
+                    ? "刚才核实的要求：仍缺少足够证据"
+                    : "刚才核实的要求：当前已不在硬缺口中"}
+              </strong>
+              {focusCapability ? <p>核实能力：{focusCapability}</p> : null}
+              {focusRequirementText ? <p>岗位要求：{focusRequirementText}</p> : null}
+              <p className="muted">
+                {focusedRequirementResolved
+                  ? "这是根据前后 MatchReport 的同一 Requirement ID 确认的变化，不是根据关键词猜测。"
+                  : focusedRequirementStillMissing
+                    ? "这次保存后该 Requirement ID 仍在当前 MatchReport 的硬缺口里；如果没有真实经历可以证明，就继续保留缺口。"
+                    : "当前报告已不把这条 Requirement ID 作为硬缺口，但历史比较不足以证明一定是新增 Evidence 造成的，因此这里只报告当前事实。"}
+              </p>
+            </div>
           ) : null}
           {focusImprovement?.comparable ? (
             <div className="focus-improvement">

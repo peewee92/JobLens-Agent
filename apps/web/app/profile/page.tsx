@@ -15,10 +15,25 @@ import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
-function buildRecommendationReturnHref(focusJob: string | null, focusRequirement: string | null): string {
+function buildRecommendationReturnHref({
+  focusJob,
+  focusRequirement,
+  focusRequirementId,
+  focusCapability,
+  focusRequirementText,
+}: {
+  focusJob: string | null;
+  focusRequirement: string | null;
+  focusRequirementId: string | null;
+  focusCapability: string | null;
+  focusRequirementText: string | null;
+}): string {
   const query = new URLSearchParams();
   if (focusJob) query.set("focusJob", focusJob);
   if (focusRequirement) query.set("focusRequirement", focusRequirement);
+  if (focusRequirementId) query.set("focusRequirementId", focusRequirementId);
+  if (focusCapability) query.set("focusCapability", focusCapability);
+  if (focusRequirementText) query.set("focusRequirementText", focusRequirementText);
   const queryString = query.toString();
   return queryString ? `/recommendations?${queryString}` : "/recommendations";
 }
@@ -35,12 +50,18 @@ export default async function ProfilePage({
     ? params.focusRequirement[0]
     : params.focusRequirement;
   const requestedFocusJob = Array.isArray(params.focusJob) ? params.focusJob[0] : params.focusJob ?? null;
+  const requestedFocusRequirementId = Array.isArray(params.focusRequirementId)
+    ? params.focusRequirementId[0]
+    : params.focusRequirementId;
   const requestedFocusCapability = Array.isArray(params.focusCapability)
     ? params.focusCapability[0]
     : params.focusCapability;
   const requestedFocusRequirementText = Array.isArray(params.focusRequirementText)
     ? params.focusRequirementText[0]
     : params.focusRequirementText;
+  const focusRequirementId = typeof requestedFocusRequirementId === "string"
+    ? requestedFocusRequirementId.trim().slice(0, 120) || null
+    : null;
   const focusCapability = typeof requestedFocusCapability === "string"
     ? requestedFocusCapability.trim().slice(0, 120) || null
     : null;
@@ -49,10 +70,13 @@ export default async function ProfilePage({
     : null;
   // Return to recommendations carrying the same focus so the recompute can prioritize that job.
   const afterProfileSaveHref = requestedNext === "/recommendations"
-    ? buildRecommendationReturnHref(
-        requestedFocusJob,
-        typeof requestedRequirementFocus === "string" ? requestedRequirementFocus : null,
-      )
+    ? buildRecommendationReturnHref({
+        focusJob: requestedFocusJob,
+        focusRequirement: typeof requestedRequirementFocus === "string" ? requestedRequirementFocus : null,
+        focusRequirementId,
+        focusCapability,
+        focusRequirementText,
+      })
     : null;
   // The specific job the user is supplementing evidence for; it should be recomputed first on return.
   const recomputeJobId = requestedFocusJob;
