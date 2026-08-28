@@ -143,6 +143,10 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /fetchMatchBlockerSummary/);
   assert.match(page, /fetchMatchImprovement/);
   assert.match(page, /和上一次可比结果相比/);
+  assert.match(page, /这次已经补齐的岗位要求/);
+  assert.match(page, /这次新增需要核实的硬条件/);
+  assert.match(page, /resolvedRequirements/);
+  assert.match(page, /newlyMissingRequirements/);
   assert.match(page, /已经少了 .* 条硬条件缺口/);
   assert.match(page, /previousMissingRequirementCount/);
   assert.match(page, /currentMissingRequirementCount/);

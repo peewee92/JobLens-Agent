@@ -235,13 +235,38 @@ export default async function RecommendationsPage({
             </p>
           ) : null}
           {focusImprovement?.comparable ? (
-            <p className="focus-job-note">
-              {focusImprovement.resolvedRequirementIds.length > 0
-                ? `和上一次可比结果相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
-                : focusImprovement.currentMissingRequirementCount < (focusImprovement.previousMissingRequirementCount ?? 0)
-                  ? `硬条件缺口从 ${focusImprovement.previousMissingRequirementCount} 条降到 ${focusImprovement.currentMissingRequirementCount} 条。`
-                  : "和上一次可比结果相比，硬条件缺口暂时没有减少。"}
-            </p>
+            <div className="focus-improvement">
+              <p className="focus-job-note">
+                {focusImprovement.resolvedRequirementIds.length > 0
+                  ? `和上一次可比结果相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
+                  : focusImprovement.currentMissingRequirementCount < (focusImprovement.previousMissingRequirementCount ?? 0)
+                    ? `硬条件缺口从 ${focusImprovement.previousMissingRequirementCount} 条降到 ${focusImprovement.currentMissingRequirementCount} 条。`
+                    : "和上一次可比结果相比，硬条件缺口暂时没有减少。"}
+              </p>
+              {focusImprovement.resolvedRequirements.length > 0 ? (
+                <div className="focus-improvement-facts">
+                  <strong>这次已经补齐的岗位要求</strong>
+                  <ul>
+                    {focusImprovement.resolvedRequirements.slice(0, 3).map((requirement) => (
+                      <li key={requirement.requirementId}>{requirement.originalText}</li>
+                    ))}
+                  </ul>
+                  {focusImprovement.resolvedRequirements.length > 3 ? (
+                    <p className="muted">另有 {focusImprovement.resolvedRequirements.length - 3} 条要求已经不再是硬缺口。</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {focusImprovement.newlyMissingRequirements.length > 0 ? (
+                <div className="focus-improvement-facts">
+                  <strong>这次新增需要核实的硬条件</strong>
+                  <ul>
+                    {focusImprovement.newlyMissingRequirements.slice(0, 3).map((requirement) => (
+                      <li key={requirement.requirementId}>{requirement.originalText}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </section>
       ) : null}

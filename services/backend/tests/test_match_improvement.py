@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from app.application.eligibility import EligibilityDecision
 from app.application.match_improvement import GetMatchImprovementUseCase
 from app.application.match_report import MatchRecommendation, MatchReport, StoredMatchReport
+from app.application.ports.job_requirement_repository import AbstractJobRequirementQueryRepository
 from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
 
 
@@ -48,6 +50,22 @@ def _stored(
     )
 
 
+class _RequirementRepository(AbstractJobRequirementQueryRepository):
+    def get_latest(self, job_id: str):
+        return None
+
+    def get_extraction(self, *, job_id: str, extraction_id: str):
+        if extraction_id != "reqrun_1":
+            return None
+        return SimpleNamespace(
+            requirements=(
+                SimpleNamespace(id="req_1", original_text="本科及以上学历"),
+                SimpleNamespace(id="req_2", original_text="熟悉 Python"),
+                SimpleNamespace(id="req_3", original_text="3 年以上相关经验"),
+            )
+        )
+
+
 class _Repository(AbstractMatchReportQueryRepository):
     def __init__(self, items: tuple[StoredMatchReport, ...]) -> None:
         self.items = items
@@ -85,7 +103,8 @@ def test_match_improvement_reports_resolved_blockers_between_comparable_snapshot
         extraction_id="reqrun_old",
     )
     use_case = GetMatchImprovementUseCase(
-        _Repository((current, previous, unrelated_extraction))
+        _Repository((current, previous, unrelated_extraction)),
+        _RequirementRepository(),
     )
 
     result = use_case.execute(job_id="job_1", current_report_id="report_current")
@@ -97,8 +116,37 @@ def test_match_improvement_reports_resolved_blockers_between_comparable_snapshot
     assert result.previous_missing_requirement_count == 3
     assert result.current_missing_requirement_count == 1
     assert result.resolved_requirement_ids == ("req_1", "req_2")
+    assert [item.original_text for item in result.resolved_requirements] == ["本科及以上学历", "熟悉 Python"]
     assert result.newly_missing_requirement_ids == ()
+    assert result.newly_missing_requirements == ()
     assert result.db_writes == result.provider_calls == result.trace_runs_created == 0
+
+
+def test_match_improvement_resolves_newly_missing_requirement_text_from_same_extraction() -> None:
+    current = _stored(
+        "report_current",
+        profile_version=3,
+        missing=("req_2", "req_3"),
+        recommendation=MatchRecommendation.BLOCKED,
+        created_offset=2,
+    )
+    previous = _stored(
+        "report_previous",
+        profile_version=2,
+        missing=("req_1", "req_3"),
+        recommendation=MatchRecommendation.BLOCKED,
+        created_offset=1,
+    )
+
+    result = GetMatchImprovementUseCase(
+        _Repository((current, previous)),
+        _RequirementRepository(),
+    ).execute(job_id="job_1", current_report_id="report_current")
+
+    assert result.resolved_requirement_ids == ("req_1",)
+    assert [item.original_text for item in result.resolved_requirements] == ["本科及以上学历"]
+    assert result.newly_missing_requirement_ids == ("req_2",)
+    assert [item.original_text for item in result.newly_missing_requirements] == ["熟悉 Python"]
 
 
 def test_match_improvement_does_not_compare_across_requirement_extractions() -> None:
@@ -117,7 +165,7 @@ def test_match_improvement_does_not_compare_across_requirement_extractions() -> 
         extraction_id="reqrun_old",
     )
 
-    result = GetMatchImprovementUseCase(_Repository((current, old))).execute(
+    result = GetMatchImprovementUseCase(_Repository((current, old)), _RequirementRepository()).execute(
         job_id="job_1",
         current_report_id="report_current",
     )
@@ -126,3 +174,5 @@ def test_match_improvement_does_not_compare_across_requirement_extractions() -> 
     assert result.previous_report_id is None
     assert result.resolved_requirement_ids == ()
     assert result.newly_missing_requirement_ids == ()
+    assert result.resolved_requirements == ()
+    assert result.newly_missing_requirements == ()

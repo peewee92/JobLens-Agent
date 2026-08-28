@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_match_improvement_use_case
-from app.application.match_improvement import MatchImprovement
+from app.application.match_improvement import MatchImprovement, MatchImprovementRequirement
 from app.application.match_report import MatchRecommendation
 from app.main import app
 
@@ -25,6 +25,11 @@ class _UseCase:
             current_missing_requirement_count=1,
             resolved_requirement_ids=("req_1", "req_2"),
             newly_missing_requirement_ids=(),
+            resolved_requirements=(
+                MatchImprovementRequirement(requirement_id="req_1", original_text="本科及以上学历"),
+                MatchImprovementRequirement(requirement_id="req_2", original_text="熟悉 Python"),
+            ),
+            newly_missing_requirements=(),
             comparable=True,
         )
 
@@ -52,6 +57,11 @@ def test_match_improvement_api_exposes_read_only_delta() -> None:
         "currentMissingRequirementCount": 1,
         "resolvedRequirementIds": ["req_1", "req_2"],
         "newlyMissingRequirementIds": [],
+        "resolvedRequirements": [
+            {"requirementId": "req_1", "originalText": "本科及以上学历"},
+            {"requirementId": "req_2", "originalText": "熟悉 Python"},
+        ],
+        "newlyMissingRequirements": [],
         "comparable": True,
         "dbWrites": 0,
         "providerCalls": 0,

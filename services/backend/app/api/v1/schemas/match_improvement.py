@@ -5,6 +5,11 @@ from app.api.v1.schemas.common import CamelCaseModel
 from app.application.match_improvement import MatchImprovement
 
 
+class MatchImprovementRequirementResponse(CamelCaseModel):
+    requirement_id: str
+    original_text: str
+
+
 class MatchImprovementResponse(CamelCaseModel):
     job_id: str
     current_report_id: str
@@ -15,6 +20,8 @@ class MatchImprovementResponse(CamelCaseModel):
     current_missing_requirement_count: int
     resolved_requirement_ids: list[str]
     newly_missing_requirement_ids: list[str]
+    resolved_requirements: list[MatchImprovementRequirementResponse]
+    newly_missing_requirements: list[MatchImprovementRequirementResponse]
     comparable: bool
     db_writes: int
     provider_calls: int
@@ -36,6 +43,8 @@ class MatchImprovementResponse(CamelCaseModel):
             current_missing_requirement_count=detail.current_missing_requirement_count,
             resolved_requirement_ids=list(detail.resolved_requirement_ids),
             newly_missing_requirement_ids=list(detail.newly_missing_requirement_ids),
+            resolved_requirements=[MatchImprovementRequirementResponse(requirement_id=item.requirement_id, original_text=item.original_text) for item in detail.resolved_requirements],
+            newly_missing_requirements=[MatchImprovementRequirementResponse(requirement_id=item.requirement_id, original_text=item.original_text) for item in detail.newly_missing_requirements],
             comparable=detail.comparable,
             db_writes=detail.db_writes,
             provider_calls=detail.provider_calls,

@@ -387,6 +387,11 @@ export interface MatchBlockerSummary {
   traceRunsCreated: number;
 }
 
+export interface MatchImprovementRequirement {
+  requirementId: string;
+  originalText: string;
+}
+
 export interface MatchImprovement {
   jobId: string;
   currentReportId: string;
@@ -397,6 +402,8 @@ export interface MatchImprovement {
   currentMissingRequirementCount: number;
   resolvedRequirementIds: string[];
   newlyMissingRequirementIds: string[];
+  resolvedRequirements: MatchImprovementRequirement[];
+  newlyMissingRequirements: MatchImprovementRequirement[];
   comparable: boolean;
   dbWrites: number;
   providerCalls: number;
