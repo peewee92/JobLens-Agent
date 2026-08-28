@@ -327,6 +327,16 @@ test("AI resume success auto-fills an empty career draft without silently replac
   assert.doesNotMatch(panel, /填到下方，继续检查和修改/);
 });
 
+test("focused evidence actions reuse exact existing profile facts before asking for more evidence", async () => {
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(editor, /你的 Profile 已经直接记录了这项能力/);
+  assert.match(editor, /先核对这些经历是否真的能证明岗位要求，不必重复新增/);
+  assert.match(editor, /只做精确事实核对，不会根据相似词自动推断你具备这项能力/);
+  assert.match(editor, /item\.name\.trim\(\)\.toLocaleLowerCase\(\) === normalizedCapability/);
+  assert.match(editor, /matchingSkills\.flatMap/);
+});
+
 test("career background defaults to card review and only expands the detailed editor on demand", async () => {
   const editor = await source("components/profile-editor.tsx");
 

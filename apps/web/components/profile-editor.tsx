@@ -212,6 +212,22 @@ export function ProfileEditor({
       : 0,
     [evidence, focusEvidenceType],
   );
+  const focusCapabilityCoverage = useMemo(() => {
+    const normalizedCapability = focusCapability?.trim().toLocaleLowerCase();
+    if (!normalizedCapability) return null;
+
+    const matchingSkills = skills.filter(
+      (item) => item.name.trim().toLocaleLowerCase() === normalizedCapability,
+    );
+    const linkedEvidenceKeys = new Set(
+      matchingSkills.flatMap((item) => item.evidenceKeys.map((key) => key.trim()).filter(Boolean)),
+    );
+    const linkedEvidence = evidence.filter(
+      (item) => linkedEvidenceKeys.has(item.key.trim()) && item.summary.trim(),
+    );
+
+    return {matchingSkills, linkedEvidence};
+  }, [evidence, focusCapability, skills]);
   const activeRequirementFocus = focusRequirementType
     ?? (focusEvidenceType === "education" ? "education" : null);
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
@@ -432,6 +448,30 @@ export function ProfileEditor({
               <p className="focus-capability-note">
                 当前重点核实：<strong>{focusCapability}</strong>。只补你真实做过、能被现有经历证明的内容。
               </p>
+            ) : null}
+            {focusCapabilityCoverage ? (
+              focusCapabilityCoverage.matchingSkills.length > 0 ? (
+                <div className="readiness-blocker-item focus-capability-coverage">
+                  <strong>你的 Profile 已经直接记录了这项能力</strong>
+                  <p>
+                    已找到同名技能“{focusCapabilityCoverage.matchingSkills[0].name}”
+                    {focusCapabilityCoverage.linkedEvidence.length > 0
+                      ? `，并关联 ${focusCapabilityCoverage.linkedEvidence.length} 条已确认经历。先核对这些经历是否真的能证明岗位要求，不必重复新增。`
+                      : "，但还没有关联已确认经历。若你确实做过，请优先把现有真实经历关联到这项技能。"}
+                  </p>
+                  {focusCapabilityCoverage.linkedEvidence.length > 0 ? (
+                    <ul>
+                      {focusCapabilityCoverage.linkedEvidence.slice(0, 3).map((item) => (
+                        <li key={item.key}>{item.summary}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="muted focus-capability-coverage-empty">
+                  当前 Profile 里还没有同名的“{focusCapability}”技能记录。这里只做精确事实核对，不会根据相似词自动推断你具备这项能力。
+                </p>
+              )
             ) : null}
             {focusJobId ? (
               <p className="muted">
