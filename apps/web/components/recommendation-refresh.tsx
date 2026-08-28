@@ -25,15 +25,44 @@ export function RecommendationRefresh({
   jobIds,
   focusJobId = null,
   focusJobTitle = null,
+  focusReportId = null,
 }: {
   jobIds: string[];
   focusJobId?: string | null;
   focusJobTitle?: string | null;
+  focusReportId?: string | null;
 }) {
   const router = useRouter();
   const [pendingJobIds, setPendingJobIds] = useState(jobIds);
   const [state, setState] = useState<RefreshState>({kind: "idle", message: ""});
   const isFocused = Boolean(focusJobId);
+
+  // MatchReport snapshots are immutable. Wait until the refreshed server tree
+  // exposes a new report id before scrolling, instead of racing router.refresh().
+  function refreshAndScroll() {
+    router.refresh();
+    if (!focusJobId) return;
+
+    let framesRemaining = 120;
+    const scrollWhenFresh = () => {
+      const el = document.getElementById(`focus-job-${focusJobId}`);
+      const renderedReportId = el?.dataset.reportId ?? null;
+      const refreshedReportIsVisible = Boolean(el) && (
+        focusReportId === null || renderedReportId !== focusReportId
+      );
+
+      if (refreshedReportIsVisible) {
+        el?.scrollIntoView({behavior: "smooth", block: "center"});
+        return;
+      }
+      if (framesRemaining <= 0) return;
+
+      framesRemaining -= 1;
+      requestAnimationFrame(scrollWhenFresh);
+    };
+
+    requestAnimationFrame(scrollWhenFresh);
+  }
 
   async function run() {
     if (pendingJobIds.length === 0 || state.kind === "running") return;
@@ -61,7 +90,7 @@ export function RecommendationRefresh({
           kind: "success",
           message: `已完成 ${result.succeededCount} 个；还有 ${result.resumeJobIds.length} 个可继续重新计算。`,
         });
-        router.refresh();
+        refreshAndScroll();
         return;
       }
 
@@ -75,7 +104,7 @@ export function RecommendationRefresh({
               ? `已优先重算你刚补充证据的岗位，优先级已更新。`
               : `已重新计算 ${result.succeededCount} 个岗位，优先级已更新。`,
       });
-      router.refresh();
+      refreshAndScroll();
     } catch {
       setState({kind: "error", message: "重新计算失败，请检查本地服务后重试。"});
     }

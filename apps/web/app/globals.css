@@ -2755,6 +2755,7 @@ h3 {
 .focus-job-card {
   border-color: var(--brand);
   box-shadow: 0 0 0 2px var(--brand-soft);
+  scroll-margin-top: 24px;
 }
 
 .focus-job-note {

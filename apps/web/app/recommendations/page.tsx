@@ -115,13 +115,28 @@ export default async function RecommendationsPage({
   const availableReports = ranking.items
     .map((report) => ({report, job: jobById.get(report.jobId)}))
     .filter((item) => item.job !== undefined);
-  const rankedItems = availableReports
-    .filter(({report}) => report.recommendation !== "blocked")
+  const rankedCandidates = availableReports.filter(({report}) => report.recommendation !== "blocked");
+  const rankedItems = rankedCandidates
     .slice(0, 5)
     .map((item, index) => ({...item, rank: index + 1}));
-  const blockedItems = availableReports
-    .filter(({report}) => report.recommendation === "blocked")
-    .slice(0, 5);
+  const focusRankedCandidateIndex = focusJobId
+    ? rankedCandidates.findIndex(({report}) => report.jobId === focusJobId)
+    : -1;
+  const focusRankedItem = focusRankedCandidateIndex >= 0
+    ? {...rankedCandidates[focusRankedCandidateIndex], rank: focusRankedCandidateIndex + 1}
+    : null;
+  const rankedDisplayItems = focusRankedItem && !rankedItems.some(({report}) => report.jobId === focusJobId)
+    ? [...rankedItems, focusRankedItem]
+    : rankedItems;
+
+  const blockedCandidates = availableReports.filter(({report}) => report.recommendation === "blocked");
+  const blockedItems = blockedCandidates.slice(0, 5);
+  const focusBlockedItem = focusJobId
+    ? blockedCandidates.find(({report}) => report.jobId === focusJobId) ?? null
+    : null;
+  const blockedDisplayItems = focusBlockedItem && !blockedItems.some(({report}) => report.jobId === focusJobId)
+    ? [...blockedItems, focusBlockedItem]
+    : blockedItems;
   let blockerSummary = null;
   try {
     blockerSummary = await fetchMatchBlockerSummary(jobs.items.map((job) => job.id));
@@ -256,16 +271,18 @@ export default async function RecommendationsPage({
         jobIds={recomputeJobIds}
         focusJobId={focusJobId}
         focusJobTitle={focusJobTitle}
+        focusReportId={focusJobReport?.report.reportId ?? null}
       />
 
       {rankedItems.length > 0 ? (
         <section className="job-list" aria-label="优先投递岗位">
-          {rankedItems.map(({report, job, rank}) => {
+          {rankedDisplayItems.map(({report, job, rank}) => {
             if (!job) return null;
             return (
               <article
                 className={job.id === focusJobId ? "job-card focus-job-card" : "job-card"}
-                id={job.id === focusJobId ? `focus-job-${report.reportId}` : `feedback-${report.reportId}`}
+                id={job.id === focusJobId ? `focus-job-${job.id}` : `feedback-${report.reportId}`}
+                data-report-id={report.reportId}
                 key={report.reportId}
               >
                 <div className="job-card-header">
@@ -470,7 +487,7 @@ export default async function RecommendationsPage({
         </section>
       ) : null}
 
-      {blockedItems.length > 0 ? (
+      {blockedDisplayItems.length > 0 ? (
         <section>
           <div className="section-heading">
             <p className="eyebrow">暂不优先</p>
@@ -480,13 +497,14 @@ export default async function RecommendationsPage({
             </p>
           </div>
           <div className="job-list" aria-label="当前不建议投递岗位">
-            {blockedItems.map(({report, job}) => {
+            {blockedDisplayItems.map(({report, job}) => {
               if (!job) return null;
               const jobBlocker = blockerSummary?.jobBlockers.find((item) => item.jobId === job.id);
               return (
                 <article
                   className={job.id === focusJobId ? "job-card focus-job-card" : "job-card"}
-                  id={job.id === focusJobId ? `focus-job-${report.reportId}` : `feedback-${report.reportId}`}
+                  id={job.id === focusJobId ? `focus-job-${job.id}` : `feedback-${report.reportId}`}
+                  data-report-id={report.reportId}
                   key={report.reportId}
                 >
                   <div className="job-card-header">

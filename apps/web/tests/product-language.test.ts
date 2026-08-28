@@ -106,6 +106,7 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   const profileEditor = await source("components/profile-editor.tsx");
   const requirementBatch = await source("components/recommendation-requirement-analysis.tsx");
   const feedback = await source("components/recommendation-feedback.tsx");
+  const refresh = await source("components/recommendation-refresh.tsx");
 
   assert.match(page, /哪些岗位最值得我先投/);
   assert.match(page, /已有完整匹配/);
@@ -122,6 +123,14 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /你刚为「/);
   assert.match(page, /排到重新计算的最前面/);
   assert.match(page, /focus-job-/);
+  assert.match(page, /rankedDisplayItems/);
+  assert.match(page, /blockedDisplayItems/);
+  assert.match(page, /data-report-id/);
+  assert.match(page, /focusReportId=/);
+  assert.match(refresh, /scrollIntoView/);
+  assert.match(refresh, /focus-job-\$\{focusJobId\}/);
+  assert.match(refresh, /renderedReportId !== focusReportId/);
+  assert.match(refresh, /framesRemaining = 120/);
   assert.match(page, /这次补充的证据已经让它进入优先候选/);
   assert.match(page, /重算后仍有 .* 条硬条件缺口/);
   assert.match(page, /硬条件缺口较少的岗位排在前面/);
