@@ -239,6 +239,9 @@ export default async function RecommendationsPage({
   }));
 
   const nextEvidencePriority = blockerSummary?.priorityActions[0] ?? null;
+  const nextEvidenceProfileHref = nextEvidencePriority
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidencePriority.affectedJobIds[0] ?? "")}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}#profile-evidence-focus`
+    : null;
 
   let coverage = null;
   try {
@@ -527,7 +530,7 @@ export default async function RecommendationsPage({
               <div className="actions">
                 <Link
                   className="button"
-                  href={`/profile?next=/recommendations&focusRequirement=${nextEvidencePriority.requirementType}#profile-evidence-focus`}
+                  href={nextEvidenceProfileHref ?? "/profile?next=/recommendations#profile-evidence"}
                 >
                   去核实并补真实证据 →
                 </Link>

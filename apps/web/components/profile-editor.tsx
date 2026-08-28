@@ -131,6 +131,7 @@ export function ProfileEditor({
   focusEvidenceType = null,
   focusRequirementType = null,
   focusJobId = null,
+  focusCapability = null,
 }: {
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
@@ -138,6 +139,7 @@ export function ProfileEditor({
   focusEvidenceType?: EvidenceType | null;
   focusRequirementType?: RequirementType | null;
   focusJobId?: string | null;
+  focusCapability?: string | null;
 }) {
   const router = useRouter();
   const profileFormRef = useRef<HTMLFormElement>(null);
@@ -426,6 +428,11 @@ export function ProfileEditor({
           <section className="notice" id="profile-evidence-focus">
             <strong>{requirementFocusCopy[activeRequirementFocus].title}</strong>
             <p>{requirementFocusCopy[activeRequirementFocus].description}</p>
+            {focusCapability ? (
+              <p className="focus-capability-note">
+                当前重点核实：<strong>{focusCapability}</strong>。只补你真实做过、能被现有经历证明的内容。
+              </p>
+            ) : null}
             {focusJobId ? (
               <p className="muted">
                 保存后会回到优先投递页，并优先重新计算你正在处理的这个岗位，再处理其余已准备好的岗位。
