@@ -25,8 +25,8 @@ test("global integrity reports dangling evidence across all skills", () => {
   });
 
   assert.deepEqual(issues, [
-    {skillName: "React", missingEvidenceKeys: ["project-missing"]},
-    {skillName: "TypeScript", missingEvidenceKeys: ["WORK-EMPTY"]},
+    {skillIndex: 0, skillName: "React", missingEvidenceKeys: ["project-missing"]},
+    {skillIndex: 1, skillName: "TypeScript", missingEvidenceKeys: ["WORK-EMPTY"]},
   ]);
 });
 

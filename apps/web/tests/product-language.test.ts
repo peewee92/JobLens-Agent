@@ -445,3 +445,13 @@ test("career background defaults to card review and only expands the detailed ed
   assert.match(editor, /setIsProfileEditorOpen\(true\)/);
   assert.match(editor, /完成编辑，返回审核/);
 });
+
+test("global dangling evidence issues offer explicit locate and remove actions", async () => {
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(editor, /定位到这项技能/);
+  assert.match(editor, /只移除这些失效引用/);
+  assert.match(editor, /focusSkillEditor\(issue\.skillIndex\)/);
+  assert.match(editor, /removeDanglingEvidenceReferences/);
+  assert.match(editor, /profile-skill-\$\{index\}/);
+});

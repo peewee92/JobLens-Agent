@@ -33,6 +33,7 @@ export type EvidenceDeleteImpact = {
 };
 
 export type SkillDanglingEvidenceIssue = {
+  skillIndex: number;
   skillName: string;
   missingEvidenceKeys: string[];
 };
@@ -50,7 +51,7 @@ export function skillDanglingEvidenceIssues({
       .map((item) => normalized(item.key)),
   );
 
-  return skills.flatMap((skill) => {
+  return skills.flatMap((skill, skillIndex) => {
     const skillName = skill.name.trim();
     if (!skillName) return [];
     const missingEvidenceKeys = skill.evidenceKeys
@@ -58,7 +59,7 @@ export function skillDanglingEvidenceIssues({
       .filter(Boolean)
       .filter((key) => !completeEvidenceKeys.has(normalized(key)));
     if (missingEvidenceKeys.length === 0) return [];
-    return [{skillName, missingEvidenceKeys}];
+    return [{skillIndex, skillName, missingEvidenceKeys}];
   });
 }
 

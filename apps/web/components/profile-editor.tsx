@@ -562,6 +562,29 @@ export function ProfileEditor({
     profileFormRef.current?.scrollIntoView({behavior: "smooth", block: "start"});
   }
 
+  function focusSkillEditor(skillIndex: number) {
+    setIsProfileEditorOpen(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`profile-skill-${skillIndex}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    });
+  }
+
+  function removeDanglingEvidenceReferences(skillIndex: number, missingEvidenceKeys: string[]) {
+    const skill = skills[skillIndex];
+    if (!skill || missingEvidenceKeys.length === 0) return;
+    updateSkill(skillIndex, {
+      evidenceKeys: removeEvidenceKeyReferences({
+        currentEvidenceKeys: skill.evidenceKeys,
+        deletedEvidenceKeys: missingEvidenceKeys,
+      }),
+    });
+  }
+
   function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     if (isProfileEditorOpen) {
       event.preventDefault();
@@ -884,8 +907,27 @@ export function ProfileEditor({
                 <p>先打开详细编辑修复这些既有事实关联；JobLens 不会静默删除引用，也不会替你补造经历。</p>
                 <ul>
                   {globalDanglingEvidenceIssues.map((issue) => (
-                    <li key={issue.skillName}>
+                    <li key={`${issue.skillIndex}-${issue.skillName}`}>
                       <strong>{issue.skillName}</strong>：{issue.missingEvidenceKeys.join("、")}
+                      <div className="actions">
+                        <button
+                          className="button-secondary"
+                          type="button"
+                          onClick={() => focusSkillEditor(issue.skillIndex)}
+                        >
+                          定位到这项技能
+                        </button>
+                        <button
+                          className="button-secondary"
+                          type="button"
+                          onClick={() => removeDanglingEvidenceReferences(
+                            issue.skillIndex,
+                            issue.missingEvidenceKeys,
+                          )}
+                        >
+                          只移除这些失效引用
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1112,7 +1154,7 @@ export function ProfileEditor({
 
         <div className="editor-list">
           {skills.map((item, index) => (
-            <article className="editor-card" key={`skill-${index}`}>
+            <article className="editor-card" id={`profile-skill-${index}`} key={`skill-${index}`}>
               <div className="editor-card-grid">
                 <div className="field">
                   <label htmlFor={`skill-name-${index}`}>技能名称</label>

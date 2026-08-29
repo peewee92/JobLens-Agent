@@ -505,6 +505,7 @@ Profile 页面可以明确区分：
 - 2026-08-30：补上 Evidence 改名对既有 Skill 关联的影响预览与显式迁移。用户修改一条已被 Skill 引用的 Evidence 简称时，Profile 编辑器会在该 Evidence 卡片内列出实际受影响的已有 Skill；直接保存不会静默改写引用，只有用户点击迁移动作后，系统才把这些**既有引用**从旧 key 更新到新 key，并去重保留其他有效 Evidence。迁移后的新 key 会成为后续再次改名的引用基线，因此连续改名仍能得到正确影响提示。该能力不新增 Skill、不推断新能力、不修改 Evidence 内容，也不涉及 Provider、Backend 业务写模型或 migration。
 - 2026-08-30：补齐 Evidence 删除时的既有 Skill 引用保护。删除一条被技能引用的真实经历前，Profile 编辑器会明确列出实际受影响的 Skill，并把删除动作收敛为“同时移除这些技能引用并删除这段经历”；只有用户显式执行该动作才会删除 Evidence，同时仅移除指向该 Evidence 当前 key / 原始 key 的既有引用，其他 Evidence 和 Skill 关联保持不变。若经历曾改名但尚未迁移，删除保护也会同时覆盖旧、新 key，避免留下 dangling Evidence reference。该能力不创建新 Skill、不补造 Evidence、不改变 Match/Eligibility/Ranking/UserFeedback，也不涉及 Provider、Backend 写模型或 migration。
 - 2026-08-30：把 Evidence 完整性保护从当前 focused ActionItem 扩展到整个 Profile 草稿的保存边界。保存前会扫描所有已有 Skill → Evidence 引用；只要某个 Skill 仍指向不存在、已改名未迁移或内容为空的 Evidence，就在审核区直接列出具体 Skill 与失效 key，并阻止保存，直到用户显式修复或移除旧引用。全局校验**不会**把“Skill 暂时没有 Evidence”当作错误，因为 Profile 仍需表达“了解但缺少项目证据”的真实状态；它只拦截已经存在但失效的引用关系。该切片不自动修复、不新增 Skill/Evidence、不修改 Match/Eligibility/Ranking/UserFeedback，零 Provider、零 Backend 业务改动、零 migration。
+- 2026-08-30：把全局断链门禁推进为可直接处理的修复入口。每条失效 Skill → Evidence 问题现在都携带精确 Skill index，审核区可直接打开详细编辑并滚动定位到对应 Skill；用户也可显式选择“只移除这些失效引用”，系统仅删除完整性检查已确认失效的 key，保留该 Skill 的其他有效 Evidence。移除后 Skill 可以合法保持“暂无 Evidence”状态，表示了解但缺少项目证据；不会自动补造经历、重新关联其他 Evidence 或推断新能力。该切片继续只修改 Web 草稿事实关系，不改 Match/Eligibility/Ranking/UserFeedback，零 Provider、零 Backend 业务改动、零 migration。
 
 ### 任务
 
