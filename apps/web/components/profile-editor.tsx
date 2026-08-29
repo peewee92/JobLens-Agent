@@ -260,8 +260,7 @@ export function ProfileEditor({
     );
   }
 
-  function addFocusedEvidence() {
-    if (!focusEvidenceType) return;
+  function addEvidenceForCurrentRequirement(type: EvidenceType) {
     markProfileDirty();
     setEvidence((items) => {
       const blankIndex = items.findIndex(
@@ -269,10 +268,10 @@ export function ProfileEditor({
       );
       if (blankIndex >= 0) {
         return items.map((item, index) =>
-          index === blankIndex ? {...item, type: focusEvidenceType} : item,
+          index === blankIndex ? {...item, type} : item,
         );
       }
-      return [...items, {...EMPTY_EVIDENCE, type: focusEvidenceType}];
+      return [...items, {...EMPTY_EVIDENCE, type}];
     });
     setIsProfileEditorOpen(true);
   }
@@ -508,13 +507,24 @@ export function ProfileEditor({
                     : "当前草稿还没有完整的教育经历条目。"}
                 </p>
                 <div className="actions">
-                  <button className="button-secondary" type="button" onClick={addFocusedEvidence}>
+                  <button className="button-secondary" type="button" onClick={() => addEvidenceForCurrentRequirement("education")}>
                     + 添加教育经历
                   </button>
                 </div>
               </>
             ) : (
-              <p className="muted">详细编辑已为你展开；保存后会返回岗位优先级，由你显式重新计算当前已准备好的岗位。</p>
+              <>
+                <p className="muted">如果现有经历还不能证明这项要求，可以直接新建一条空白 Evidence。JobLens 只帮你把录入入口放到当前任务旁边，不会替你预填能力或经历事实。</p>
+                <div className="actions">
+                  <button className="button-secondary" type="button" onClick={() => addEvidenceForCurrentRequirement("project")}>
+                    + 添加项目经历
+                  </button>
+                  <button className="button-secondary" type="button" onClick={() => addEvidenceForCurrentRequirement("work")}>
+                    + 添加工作经历
+                  </button>
+                </div>
+                <p className="muted">详细编辑已为你展开；填写真实的项目、职责和结果后保存，再回到岗位优先级验证这条 Evidence 是否真的改变匹配结果。</p>
+              </>
             )}
           </section>
         ) : null}

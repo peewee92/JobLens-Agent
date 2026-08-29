@@ -277,6 +277,11 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /先补教育事实，再回到岗位优先级重算/);
   assert.match(editor, /学历层级、专业和岗位明确要求的院校限定/);
   assert.match(editor, /\+ 添加教育经历/);
+  assert.match(editor, /\+ 添加项目经历/);
+  assert.match(editor, /\+ 添加工作经历/);
+  assert.match(editor, /不会替你预填能力或经历事实/);
+  assert.match(editor, /addEvidenceForCurrentRequirement\("project"\)/);
+  assert.match(editor, /addEvidenceForCurrentRequirement\("work"\)/);
 });
 
 test("focused evidence action returns with exact requirement identity and reports rematch outcome", async () => {
