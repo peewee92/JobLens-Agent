@@ -302,6 +302,13 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /只会移除已确认失效的旧引用/);
   assert.match(editor, /不会自动创建新能力/);
   assert.match(editor, /repairFocusedSkillWithCurrentEvidence/);
+  assert.match(editor, /改名会影响已有技能关联/);
+  assert.match(editor, /直接保存新简称会让这些既有引用失效/);
+  assert.match(editor, /这里只迁移已有引用，不会新增技能或能力判断/);
+  assert.match(editor, /将这些已有技能引用迁移到/);
+  assert.match(editor, /有经历简称已改名，但已有技能仍引用旧简称/);
+  assert.match(editor, /请先迁移这些既有引用，或手动取消旧关联后再保存/);
+  assert.match(editor, /migrateRenamedEvidenceReferences/);
 });
 
 test("focused evidence action returns with exact requirement identity and reports rematch outcome", async () => {

@@ -9,7 +9,9 @@ import {
   proposalToProfileDraft,
 } from "@/lib/profile-proposal";
 import {
+  evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
+  migrateEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
 } from "@/lib/profile-draft-integrity";
 import {userFacingApiError} from "@/lib/user-facing-errors";
@@ -157,6 +159,9 @@ export function ProfileEditor({
   const [evidence, setEvidence] = useState<EvidenceDraft[]>(
     initialEvidence(initialProfile),
   );
+  const [evidenceReferenceKeys, setEvidenceReferenceKeys] = useState<string[]>(
+    initialProfile?.evidence.map((item) => item.key) ?? [],
+  );
   const [skills, setSkills] = useState<SkillDraft[]>(initialSkills(initialProfile));
   const [profileState, setProfileState] = useState<SaveState>({
     kind: "idle",
@@ -265,6 +270,14 @@ export function ProfileEditor({
       && focusedEvidenceDraft.summary.trim()
       && focusedExactSkillIndex < 0,
   );
+  const renameImpacts = useMemo(
+    () => evidenceRenameImpacts({originalEvidenceKeys: evidenceReferenceKeys, evidence, skills}),
+    [evidence, evidenceReferenceKeys, skills],
+  );
+  const renameImpactByEvidenceIndex = useMemo(
+    () => new Map(renameImpacts.map((impact) => [impact.evidenceIndex, impact])),
+    [renameImpacts],
+  );
   const focusedSkillIntegrityIssue = activeRequirementFocus === "skill"
     ? focusedSkillEvidenceIssue({focusCapability, evidence, skills})
     : null;
@@ -311,6 +324,9 @@ export function ProfileEditor({
         )
         : [...items, {...EMPTY_EVIDENCE, type}],
     );
+    if (blankIndex < 0) {
+      setEvidenceReferenceKeys((keys) => [...keys, ""]);
+    }
     setIsProfileEditorOpen(true);
   }
 
@@ -366,6 +382,24 @@ export function ProfileEditor({
     });
   }
 
+  function migrateRenamedEvidenceReferences(evidenceIndex: number) {
+    const impact = renameImpactByEvidenceIndex.get(evidenceIndex);
+    if (!impact) return;
+
+    markProfileDirty();
+    setSkills((items) => items.map((skill) => ({
+      ...skill,
+      evidenceKeys: migrateEvidenceKeyReferences({
+        currentEvidenceKeys: skill.evidenceKeys,
+        previousEvidenceKey: impact.previousKey,
+        nextEvidenceKey: impact.nextKey,
+      }),
+    })));
+    setEvidenceReferenceKeys((keys) => keys.map(
+      (key, index) => index === evidenceIndex ? impact.nextKey : key,
+    ));
+  }
+
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
     markProfileDirty();
     setSkills((items) =>
@@ -386,6 +420,15 @@ export function ProfileEditor({
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (renameImpacts.length > 0) {
+      setIsProfileEditorOpen(true);
+      setProfileState({
+        kind: "error",
+        message: "有经历简称已改名，但已有技能仍引用旧简称。请先迁移这些既有引用，或手动取消旧关联后再保存。",
+      });
+      focusProfileDraft();
+      return;
+    }
     if (focusedSkillIntegrityIssue) {
       setIsProfileEditorOpen(true);
       setProfileState({
@@ -418,6 +461,7 @@ export function ProfileEditor({
       }
       const saved = (await response.json()) as UserProfile;
       setProfileVersion(saved.version);
+      setEvidenceReferenceKeys(saved.evidence.map((item) => item.key));
       setProfileDirty(false);
       setIsProfileEditorOpen(false);
       setProfileState({
@@ -448,6 +492,7 @@ export function ProfileEditor({
     setHeadline(draft.headline);
     setYears(draft.years);
     setEvidence(draft.evidence);
+    setEvidenceReferenceKeys(draft.evidence.map((item) => item.key));
     setSkills(draft.skills);
     setProfileDirty(true);
     setIsProfileEditorOpen(false);
@@ -880,6 +925,7 @@ export function ProfileEditor({
             onClick={() => {
               markProfileDirty();
               setEvidence((items) => [...items, {...EMPTY_EVIDENCE}]);
+              setEvidenceReferenceKeys((keys) => [...keys, ""]);
             }}
           >
             + 添加经历
@@ -944,6 +990,23 @@ export function ProfileEditor({
                   </div>
                 </details>
               </div>
+              {renameImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>改名会影响已有技能关联</strong>
+                  <p>
+                    “{renameImpactByEvidenceIndex.get(index)?.previousKey}”当前被技能
+                    {renameImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用。
+                    直接保存新简称会让这些既有引用失效；这里只迁移已有引用，不会新增技能或能力判断。
+                  </p>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={() => migrateRenamedEvidenceReferences(index)}
+                  >
+                    将这些已有技能引用迁移到“{renameImpactByEvidenceIndex.get(index)?.nextKey}”
+                  </button>
+                </div>
+              ) : null}
               <button
                 className="danger-link"
                 type="button"
@@ -951,6 +1014,7 @@ export function ProfileEditor({
                 onClick={() => {
                   markProfileDirty();
                   setEvidence((items) => items.filter((_, i) => i !== index));
+                  setEvidenceReferenceKeys((keys) => keys.filter((_, i) => i !== index));
                 }}
               >
                 删除这段经历

@@ -19,6 +19,60 @@ export type FocusedSkillEvidenceIssue =
       missingEvidenceKeys: string[];
     };
 
+export type EvidenceRenameImpact = {
+  evidenceIndex: number;
+  previousKey: string;
+  nextKey: string;
+  affectedSkillNames: string[];
+};
+
+export function evidenceRenameImpacts({
+  originalEvidenceKeys,
+  evidence,
+  skills,
+}: {
+  originalEvidenceKeys: string[];
+  evidence: EvidenceDraftLike[];
+  skills: SkillDraftLike[];
+}): EvidenceRenameImpact[] {
+  return evidence.flatMap((item, evidenceIndex) => {
+    const previousKey = originalEvidenceKeys[evidenceIndex]?.trim() ?? "";
+    const nextKey = item.key.trim();
+    if (!previousKey || !nextKey || normalized(previousKey) === normalized(nextKey)) return [];
+
+    const affectedSkillNames = skills
+      .filter((skill) => skill.evidenceKeys.some((key) => normalized(key) === normalized(previousKey)))
+      .map((skill) => skill.name.trim())
+      .filter(Boolean);
+    if (affectedSkillNames.length === 0) return [];
+
+    return [{evidenceIndex, previousKey, nextKey, affectedSkillNames}];
+  });
+}
+
+export function migrateEvidenceKeyReferences({
+  currentEvidenceKeys,
+  previousEvidenceKey,
+  nextEvidenceKey,
+}: {
+  currentEvidenceKeys: string[];
+  previousEvidenceKey: string;
+  nextEvidenceKey: string;
+}): string[] {
+  const previous = previousEvidenceKey.trim();
+  const next = nextEvidenceKey.trim();
+  if (!previous || !next || normalized(previous) === normalized(next)) return currentEvidenceKeys;
+
+  const migrated: string[] = [];
+  for (const key of currentEvidenceKeys) {
+    const candidate = normalized(key) === normalized(previous) ? next : key.trim();
+    if (candidate && !migrated.some((existing) => normalized(existing) === normalized(candidate))) {
+      migrated.push(candidate);
+    }
+  }
+  return migrated;
+}
+
 export function repairFocusedSkillEvidenceKeys({
   currentEvidenceKeys,
   missingEvidenceKeys,

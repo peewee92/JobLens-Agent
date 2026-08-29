@@ -2,9 +2,56 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
+  migrateEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
 } from "../lib/profile-draft-integrity";
+
+test("evidence rename preview lists only skills that already reference the old key", () => {
+  const impacts = evidenceRenameImpacts({
+    originalEvidenceKeys: ["project-old", "work-a"],
+    evidence: [
+      {key: "project-renamed", summary: "Built a production feature."},
+      {key: "work-a", summary: "Worked on platform delivery."},
+    ],
+    skills: [
+      {name: "React", evidenceKeys: ["project-old", "work-a"]},
+      {name: "TypeScript", evidenceKeys: ["PROJECT-OLD"]},
+      {name: "Python", evidenceKeys: ["work-a"]},
+    ],
+  });
+
+  assert.deepEqual(impacts, [{
+    evidenceIndex: 0,
+    previousKey: "project-old",
+    nextKey: "project-renamed",
+    affectedSkillNames: ["React", "TypeScript"],
+  }]);
+});
+
+test("evidence rename preview ignores new evidence and cosmetic key changes", () => {
+  const impacts = evidenceRenameImpacts({
+    originalEvidenceKeys: ["Project-A"],
+    evidence: [
+      {key: " project-a ", summary: "Same evidence."},
+      {key: "brand-new", summary: "New evidence."},
+    ],
+    skills: [{name: "React", evidenceKeys: ["Project-A"]}],
+  });
+
+  assert.deepEqual(impacts, []);
+});
+
+test("evidence key migration changes only existing references and deduplicates the target", () => {
+  const migrated = migrateEvidenceKeyReferences({
+    currentEvidenceKeys: ["project-old", "work-a", "PROJECT-RENAMED"],
+    previousEvidenceKey: "project-old",
+    nextEvidenceKey: "project-renamed",
+  });
+
+  assert.deepEqual(migrated, ["project-renamed", "work-a"]);
+});
 
 test("focused skill remains valid when its linked evidence is still complete", () => {
   const issue = focusedSkillEvidenceIssue({

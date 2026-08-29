@@ -502,6 +502,7 @@ Profile 页面可以明确区分：
 - 2026-08-29：补齐“没有现成 Skill 时”的安全断点，但只对 `skill` Requirement 生效。用户必须先在当前 ActionItem 下填写真实 Evidence 的简称与内容，随后再次显式点击“我确认具备该技能”才会创建精确同名 Skill，并把刚填写的 Evidence 关联进去；系统不会因为岗位 Requirement 自动创建或自动声明能力。新 Skill 默认以 `unknown / 待确认` 熟练度进入草稿，用户仍可在“我的技能”中检查或调整；experience/domain 等其他 Requirement 不会借 capability 字段自动转成 Skill。最终这条 Skill/Evidence 是否真的支撑当前 Requirement，仍只由保存后的 Re-match 事实决定。本切片零 Provider、零 Backend 业务改动、零 migration。
 - 2026-08-29：补上当前 skill ActionItem 的保存前 Evidence 完整性门禁。若用户显式创建/关联了当前精确同名 Skill，随后又把被引用的 Evidence 改名、删除、清空内容，或手动移除了该 Skill 的全部 Evidence 关联，Profile 页面会在核实区与确认区同时提示“关联已失效”，并在真正发出保存请求前阻止提交，要求用户重新选择真实 Evidence 或删除尚未确认的 Skill；不会静默修复 key、不会自动替用户补证据。门禁只检查当前 focus capability，不扩大成新的能力推断，也不修改 Backend 事实模型、Match/Eligibility/Ranking/UserFeedback；纯 Web 草稿校验、零 Provider、零 DB migration。
 - 2026-08-30：把上述完整性门禁从“只阻止错误保存”推进为 ActionItem 内的显式修复动作。只有当前聚焦 Evidence 已填写完整、存在精确同名 Skill 且完整性检查已确认 `missing_links / dangling_links` 时，警告区才允许用户点击“用当前真实经历修复关联”；修复只移除已经确认失效的旧 Evidence key、保留其他仍有效引用，并显式加入用户当前选中的真实 Evidence，绝不根据岗位 Requirement 自动创建 Skill 或声明新能力。该切片仍是纯 Web 草稿修复，最终是否支撑 Requirement 继续只由保存后的 Re-match 验证；零 Provider、零 Backend 业务改动、零 migration。
+- 2026-08-30：补上 Evidence 改名对既有 Skill 关联的影响预览与显式迁移。用户修改一条已被 Skill 引用的 Evidence 简称时，Profile 编辑器会在该 Evidence 卡片内列出实际受影响的已有 Skill；直接保存不会静默改写引用，只有用户点击迁移动作后，系统才把这些**既有引用**从旧 key 更新到新 key，并去重保留其他有效 Evidence。迁移后的新 key 会成为后续再次改名的引用基线，因此连续改名仍能得到正确影响提示。该能力不新增 Skill、不推断新能力、不修改 Evidence 内容，也不涉及 Provider、Backend 业务写模型或 migration。
 
 ### 任务
 
