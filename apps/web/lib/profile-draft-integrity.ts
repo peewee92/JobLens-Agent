@@ -32,6 +32,36 @@ export type EvidenceDeleteImpact = {
   affectedSkillNames: string[];
 };
 
+export type SkillDanglingEvidenceIssue = {
+  skillName: string;
+  missingEvidenceKeys: string[];
+};
+
+export function skillDanglingEvidenceIssues({
+  evidence,
+  skills,
+}: {
+  evidence: EvidenceDraftLike[];
+  skills: SkillDraftLike[];
+}): SkillDanglingEvidenceIssue[] {
+  const completeEvidenceKeys = new Set(
+    evidence
+      .filter((item) => item.key.trim() && item.summary.trim())
+      .map((item) => normalized(item.key)),
+  );
+
+  return skills.flatMap((skill) => {
+    const skillName = skill.name.trim();
+    if (!skillName) return [];
+    const missingEvidenceKeys = skill.evidenceKeys
+      .map((key) => key.trim())
+      .filter(Boolean)
+      .filter((key) => !completeEvidenceKeys.has(normalized(key)));
+    if (missingEvidenceKeys.length === 0) return [];
+    return [{skillName, missingEvidenceKeys}];
+  });
+}
+
 export function evidenceRenameImpacts({
   originalEvidenceKeys,
   evidence,

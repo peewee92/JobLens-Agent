@@ -15,6 +15,7 @@ import {
   migrateEvidenceKeyReferences,
   removeEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
+  skillDanglingEvidenceIssues,
 } from "@/lib/profile-draft-integrity";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 import type {
@@ -294,6 +295,10 @@ export function ProfileEditor({
   const focusedSkillIntegrityIssue = activeRequirementFocus === "skill"
     ? focusedSkillEvidenceIssue({focusCapability, evidence, skills})
     : null;
+  const globalDanglingEvidenceIssues = useMemo(
+    () => skillDanglingEvidenceIssues({evidence, skills}),
+    [evidence, skills],
+  );
   const canRepairFocusedSkillWithCurrentEvidence = Boolean(
     focusedSkillIntegrityIssue
       && focusedExactSkillIndex >= 0
@@ -462,13 +467,20 @@ export function ProfileEditor({
       focusProfileDraft();
       return;
     }
+    if (globalDanglingEvidenceIssues.length > 0) {
+      setIsProfileEditorOpen(true);
+      setProfileState({
+        kind: "error",
+        message: `有 ${globalDanglingEvidenceIssues.length} 项技能仍引用已改名、删除或未填写完整的经历：${globalDanglingEvidenceIssues.map((issue) => `${issue.skillName}（${issue.missingEvidenceKeys.join("、")}）`).join("；")}。请先重新选择真实 Evidence 后再保存，或手动移除这些失效引用。`,
+      });
+      focusProfileDraft();
+      return;
+    }
     if (focusedSkillIntegrityIssue) {
       setIsProfileEditorOpen(true);
       setProfileState({
         kind: "error",
-        message: focusedSkillIntegrityIssue.kind === "dangling_links"
-          ? `“${focusedSkillIntegrityIssue.skillName}”仍引用已改名、删除或未填写完整的经历。请重新选择真实 Evidence 后再保存。`
-          : `“${focusedSkillIntegrityIssue.skillName}”当前没有真实 Evidence 支撑。请重新关联一段已填写完整的经历，或删除这项尚未确认的技能。`,
+        message: `“${focusedSkillIntegrityIssue.skillName}”当前没有真实 Evidence 支撑。请重新关联一段已填写完整的经历，或删除这项尚未确认的技能。`,
       });
       focusProfileDraft();
       return;
@@ -866,14 +878,24 @@ export function ProfileEditor({
               <span>职业定位是否像你 · 经历是否确实做过 · 技能是否有真实经历支撑</span>
             </div>
 
-            {focusedSkillIntegrityIssue ? (
+            {globalDanglingEvidenceIssues.length > 0 ? (
+              <div className="review-result review-pending" role="alert">
+                <strong>有技能引用了已经失效的 Evidence，暂不保存</strong>
+                <p>先打开详细编辑修复这些既有事实关联；JobLens 不会静默删除引用，也不会替你补造经历。</p>
+                <ul>
+                  {globalDanglingEvidenceIssues.map((issue) => (
+                    <li key={issue.skillName}>
+                      <strong>{issue.skillName}</strong>：{issue.missingEvidenceKeys.join("、")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {focusedSkillIntegrityIssue?.kind === "missing_links" ? (
               <div className="review-result review-pending" role="alert">
                 <strong>当前 Evidence 关联还没完整，暂不保存</strong>
-                <p>
-                  {focusedSkillIntegrityIssue.kind === "dangling_links"
-                    ? `“${focusedSkillIntegrityIssue.skillName}”引用的经历已经发生变化。先打开详细编辑重新关联真实 Evidence，再回来确认保存。`
-                    : `“${focusedSkillIntegrityIssue.skillName}”没有任何真实经历支撑。先补关联或删除这项尚未确认的技能，再回来确认保存。`}
-                </p>
+                <p>“{focusedSkillIntegrityIssue.skillName}”没有任何真实经历支撑。先补关联或删除这项尚未确认的技能，再回来确认保存。</p>
               </div>
             ) : null}
 

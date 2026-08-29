@@ -8,7 +8,40 @@ import {
   migrateEvidenceKeyReferences,
   removeEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
+  skillDanglingEvidenceIssues,
 } from "../lib/profile-draft-integrity";
+
+test("global integrity reports dangling evidence across all skills", () => {
+  const issues = skillDanglingEvidenceIssues({
+    evidence: [
+      {key: "project-a", summary: "Built a production feature."},
+      {key: "work-empty", summary: "   "},
+    ],
+    skills: [
+      {name: "React", evidenceKeys: ["project-a", "project-missing"]},
+      {name: "TypeScript", evidenceKeys: ["WORK-EMPTY"]},
+      {name: "Python", evidenceKeys: []},
+    ],
+  });
+
+  assert.deepEqual(issues, [
+    {skillName: "React", missingEvidenceKeys: ["project-missing"]},
+    {skillName: "TypeScript", missingEvidenceKeys: ["WORK-EMPTY"]},
+  ]);
+});
+
+test("global integrity allows skills without evidence but rejects only broken references", () => {
+  const issues = skillDanglingEvidenceIssues({
+    evidence: [{key: "project-a", summary: "Built a production feature."}],
+    skills: [
+      {name: "React", evidenceKeys: ["PROJECT-A"]},
+      {name: "Learning only", evidenceKeys: []},
+      {name: "", evidenceKeys: ["missing"]},
+    ],
+  });
+
+  assert.deepEqual(issues, []);
+});
 
 test("evidence rename preview lists only skills that already reference the old key", () => {
   const impacts = evidenceRenameImpacts({

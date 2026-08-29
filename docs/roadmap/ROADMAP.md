@@ -483,7 +483,7 @@ Profile 页面可以明确区分：
 
 目标：形成真正的 `Gap → Action → Evidence → Re-match`，并从“下载 JSON → 上传”升级为一键同步。
 
-### 当前进度（2026-08-29）
+### 当前进度（2026-08-30）
 
 - 已完成 Requirement 级 Evidence 核实后的连续下一步：用户从推荐页进入 Profile 核实具体 Requirement，保存并 Re-match 后若该 Requirement 已由真实 Evidence 解决，结果区会基于当前 blocker priority 直接给出下一个仍影响岗位最多的事实核对项及 Profile 入口；已解决的 Requirement ID 会从下一行动位排除。该选择只复用当前 Match/Blocker facts，不使用关键词、模糊匹配或 Provider 推断，也不会自动生成用户经历。
 - 已把 UserFeedback 接入下一 Evidence 行动选择：初版只在 `affectedJobCount / missingRequirementCount` 完全打平时用 latest `interested > maybe > rejected/无反馈` 做次级选择，并在 action 内优先带用户兴趣最强的 Job 进入 Profile；后续已进一步收敛为下面的“仍在考虑岗位集合”规则。反馈始终只影响下一步行动，不改变 Match、Eligibility、Ranking 或历史 blocker 事实；反馈不可读时退化为原顺序。
@@ -504,6 +504,7 @@ Profile 页面可以明确区分：
 - 2026-08-30：把上述完整性门禁从“只阻止错误保存”推进为 ActionItem 内的显式修复动作。只有当前聚焦 Evidence 已填写完整、存在精确同名 Skill 且完整性检查已确认 `missing_links / dangling_links` 时，警告区才允许用户点击“用当前真实经历修复关联”；修复只移除已经确认失效的旧 Evidence key、保留其他仍有效引用，并显式加入用户当前选中的真实 Evidence，绝不根据岗位 Requirement 自动创建 Skill 或声明新能力。该切片仍是纯 Web 草稿修复，最终是否支撑 Requirement 继续只由保存后的 Re-match 验证；零 Provider、零 Backend 业务改动、零 migration。
 - 2026-08-30：补上 Evidence 改名对既有 Skill 关联的影响预览与显式迁移。用户修改一条已被 Skill 引用的 Evidence 简称时，Profile 编辑器会在该 Evidence 卡片内列出实际受影响的已有 Skill；直接保存不会静默改写引用，只有用户点击迁移动作后，系统才把这些**既有引用**从旧 key 更新到新 key，并去重保留其他有效 Evidence。迁移后的新 key 会成为后续再次改名的引用基线，因此连续改名仍能得到正确影响提示。该能力不新增 Skill、不推断新能力、不修改 Evidence 内容，也不涉及 Provider、Backend 业务写模型或 migration。
 - 2026-08-30：补齐 Evidence 删除时的既有 Skill 引用保护。删除一条被技能引用的真实经历前，Profile 编辑器会明确列出实际受影响的 Skill，并把删除动作收敛为“同时移除这些技能引用并删除这段经历”；只有用户显式执行该动作才会删除 Evidence，同时仅移除指向该 Evidence 当前 key / 原始 key 的既有引用，其他 Evidence 和 Skill 关联保持不变。若经历曾改名但尚未迁移，删除保护也会同时覆盖旧、新 key，避免留下 dangling Evidence reference。该能力不创建新 Skill、不补造 Evidence、不改变 Match/Eligibility/Ranking/UserFeedback，也不涉及 Provider、Backend 写模型或 migration。
+- 2026-08-30：把 Evidence 完整性保护从当前 focused ActionItem 扩展到整个 Profile 草稿的保存边界。保存前会扫描所有已有 Skill → Evidence 引用；只要某个 Skill 仍指向不存在、已改名未迁移或内容为空的 Evidence，就在审核区直接列出具体 Skill 与失效 key，并阻止保存，直到用户显式修复或移除旧引用。全局校验**不会**把“Skill 暂时没有 Evidence”当作错误，因为 Profile 仍需表达“了解但缺少项目证据”的真实状态；它只拦截已经存在但失效的引用关系。该切片不自动修复、不新增 Skill/Evidence、不修改 Match/Eligibility/Ranking/UserFeedback，零 Provider、零 Backend 业务改动、零 migration。
 
 ### 任务
 
