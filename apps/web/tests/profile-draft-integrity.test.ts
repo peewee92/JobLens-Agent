@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {focusedSkillEvidenceIssue} from "../lib/profile-draft-integrity";
+import {
+  focusedSkillEvidenceIssue,
+  repairFocusedSkillEvidenceKeys,
+} from "../lib/profile-draft-integrity";
 
 test("focused skill remains valid when its linked evidence is still complete", () => {
   const issue = focusedSkillEvidenceIssue({
@@ -59,4 +62,34 @@ test("an empty evidence summary does not count as direct support", () => {
     skillName: "React",
     missingEvidenceKeys: ["project-a"],
   });
+});
+
+test("repair replaces only confirmed dangling links and preserves valid evidence", () => {
+  const repaired = repairFocusedSkillEvidenceKeys({
+    currentEvidenceKeys: ["project-old", "work-still-valid"],
+    missingEvidenceKeys: ["project-old"],
+    replacementEvidenceKey: "project-renamed",
+  });
+
+  assert.deepEqual(repaired, ["work-still-valid", "project-renamed"]);
+});
+
+test("repair can attach current evidence when the focused skill has no links", () => {
+  const repaired = repairFocusedSkillEvidenceKeys({
+    currentEvidenceKeys: [],
+    missingEvidenceKeys: [],
+    replacementEvidenceKey: "project-a",
+  });
+
+  assert.deepEqual(repaired, ["project-a"]);
+});
+
+test("repair does not duplicate an already linked replacement", () => {
+  const repaired = repairFocusedSkillEvidenceKeys({
+    currentEvidenceKeys: ["Project-A", "project-old"],
+    missingEvidenceKeys: ["project-old"],
+    replacementEvidenceKey: "project-a",
+  });
+
+  assert.deepEqual(repaired, ["Project-A"]);
 });

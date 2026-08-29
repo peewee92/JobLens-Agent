@@ -298,6 +298,10 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /当前 Evidence 关联还没完整，暂不保存/);
   assert.match(editor, /JobLens 不会静默改写关联/);
   assert.match(editor, /重新选择真实 Evidence 后再保存/);
+  assert.match(editor, /用当前真实经历“\{focusedEvidenceDraft\.key\.trim\(\)\}”修复关联/);
+  assert.match(editor, /只会移除已确认失效的旧引用/);
+  assert.match(editor, /不会自动创建新能力/);
+  assert.match(editor, /repairFocusedSkillWithCurrentEvidence/);
 });
 
 test("focused evidence action returns with exact requirement identity and reports rematch outcome", async () => {

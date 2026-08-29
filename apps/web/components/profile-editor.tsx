@@ -8,7 +8,10 @@ import {
   isBlankProfileDraft,
   proposalToProfileDraft,
 } from "@/lib/profile-proposal";
-import {focusedSkillEvidenceIssue} from "@/lib/profile-draft-integrity";
+import {
+  focusedSkillEvidenceIssue,
+  repairFocusedSkillEvidenceKeys,
+} from "@/lib/profile-draft-integrity";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 import type {
   ApiErrorBody,
@@ -265,6 +268,12 @@ export function ProfileEditor({
   const focusedSkillIntegrityIssue = activeRequirementFocus === "skill"
     ? focusedSkillEvidenceIssue({focusCapability, evidence, skills})
     : null;
+  const canRepairFocusedSkillWithCurrentEvidence = Boolean(
+    focusedSkillIntegrityIssue
+      && focusedExactSkillIndex >= 0
+      && focusedEvidenceDraft?.key.trim()
+      && focusedEvidenceDraft.summary.trim(),
+  );
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
   const profileStatusLabel = profileDraftBlank
     ? "尚未填写"
@@ -333,6 +342,27 @@ export function ProfileEditor({
       return reusableBlankIndex >= 0
         ? items.map((item, index) => index === reusableBlankIndex ? confirmedSkill : item)
         : [...items, confirmedSkill];
+    });
+  }
+
+  function repairFocusedSkillWithCurrentEvidence() {
+    if (
+      !canRepairFocusedSkillWithCurrentEvidence
+      || !focusedSkillIntegrityIssue
+      || !focusedEvidenceDraft
+      || focusedExactSkillIndex < 0
+    ) return;
+
+    const currentKeys = skills[focusedExactSkillIndex].evidenceKeys;
+    const missingKeys = focusedSkillIntegrityIssue.kind === "dangling_links"
+      ? focusedSkillIntegrityIssue.missingEvidenceKeys
+      : [];
+    updateSkill(focusedExactSkillIndex, {
+      evidenceKeys: repairFocusedSkillEvidenceKeys({
+        currentEvidenceKeys: currentKeys,
+        missingEvidenceKeys: missingKeys,
+        replacementEvidenceKey: focusedEvidenceDraft.key,
+      }),
     });
   }
 
@@ -570,9 +600,17 @@ export function ProfileEditor({
                 <strong>保存前需要修复当前技能的 Evidence 关联</strong>
                 <p>
                   {focusedSkillIntegrityIssue.kind === "dangling_links"
-                    ? `“${focusedSkillIntegrityIssue.skillName}”还引用了已改名、删除或未填写完整的经历：${focusedSkillIntegrityIssue.missingEvidenceKeys.join("、")}。请在详细编辑里重新选择真实经历；JobLens 不会静默改写关联。`
+                    ? `“${focusedSkillIntegrityIssue.skillName}”还引用了已改名、删除或未填写完整的经历：${focusedSkillIntegrityIssue.missingEvidenceKeys.join("、")}。请重新选择真实经历；JobLens 不会静默改写关联。`
                     : `“${focusedSkillIntegrityIssue.skillName}”现在没有真实 Evidence 支撑。请重新关联一段已填写完整的经历，或删除这项尚未确认的技能。`}
                 </p>
+                {canRepairFocusedSkillWithCurrentEvidence && focusedEvidenceDraft ? (
+                  <>
+                    <button className="button-secondary" type="button" onClick={repairFocusedSkillWithCurrentEvidence}>
+                      用当前真实经历“{focusedEvidenceDraft.key.trim()}”修复关联
+                    </button>
+                    <p className="muted">只会移除已确认失效的旧引用，并保留其他仍有效的 Evidence。点击表示你确认当前这段经历确实能证明该技能；不会自动创建新能力。</p>
+                  </>
+                ) : null}
               </div>
             ) : null}
             {focusJobId ? (

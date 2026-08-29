@@ -19,6 +19,26 @@ export type FocusedSkillEvidenceIssue =
       missingEvidenceKeys: string[];
     };
 
+export function repairFocusedSkillEvidenceKeys({
+  currentEvidenceKeys,
+  missingEvidenceKeys,
+  replacementEvidenceKey,
+}: {
+  currentEvidenceKeys: string[];
+  missingEvidenceKeys: string[];
+  replacementEvidenceKey: string;
+}): string[] {
+  const replacement = replacementEvidenceKey.trim();
+  if (!replacement) return currentEvidenceKeys;
+
+  const missing = new Set(missingEvidenceKeys.map(normalized));
+  const repaired = currentEvidenceKeys.filter((key) => !missing.has(normalized(key)));
+  if (!repaired.some((key) => normalized(key) === normalized(replacement))) {
+    repaired.push(replacement);
+  }
+  return repaired;
+}
+
 function normalized(value: string): string {
   return value.trim().toLocaleLowerCase();
 }
