@@ -151,8 +151,10 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /focusRequirementText=/);
   assert.match(page, /focusImpactJobs=/);
   assert.match(page, /行动前预期影响 vs\. 这次重算结果/);
-  assert.match(page, /这次资料更新后，其中 .* 个出现了可验证改善/);
-  assert.match(page, /未改善不代表这项经历无价值/);
+  assert.match(page, /拿到了可比较的前后 MatchReport，其中 .* 个出现可验证改善/);
+  assert.match(page, /当前缺少可比较的前后 MatchReport，暂不下结论/);
+  assert.match(page, /不会冒充“没有改善”/);
+  assert.match(page, /未改善也不代表这项经历无价值/);
   assert.match(page, /nextEvidencePriority\.examples\[0\]/);
   assert.match(page, /nextEvidenceJobId/);
   assert.match(page, /当前 Profile 没有足够证据支撑这些硬条件/);

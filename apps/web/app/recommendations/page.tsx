@@ -23,6 +23,7 @@ import {
   selectNextEvidencePriority,
 } from "@/lib/evidence-priority";
 import {formatSalary} from "@/lib/format";
+import {classifyMatchImprovementOutcome} from "@/lib/match-improvement-outcome";
 import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
@@ -349,19 +350,29 @@ export default async function RecommendationsPage({
   const recommendationJobTitleById = new Map(
     jobs.items.map((job) => [job.id, job.title] as const),
   );
-  const improvedJobIds = new Set([
-    ...(focusImprovement?.comparable && (
-      focusImprovement.resolvedRequirementIds.length > 0
-      || focusImprovement.previousRecommendation !== focusImprovement.currentRecommendation
-    ) && focusJobId ? [focusJobId] : []),
-    ...otherImprovedJobs.map(({job}) => job?.id).filter((jobId): jobId is string => Boolean(jobId)),
-  ]);
-  const expectedImpactResults = focusImpactJobIds.map((jobId) => ({
-    jobId,
-    title: recommendationJobTitleById.get(jobId) ?? jobId,
-    improved: improvedJobIds.has(jobId),
-  }));
-  const expectedImpactImprovedCount = expectedImpactResults.filter((item) => item.improved).length;
+  const currentReportByJobId = new Map(
+    availableReports.map(({report}) => [report.jobId, report] as const),
+  );
+  const expectedImpactResults = await Promise.all(
+    focusImpactJobIds.map(async (jobId) => {
+      const currentReport = currentReportByJobId.get(jobId);
+      let improvement = jobId === focusJobId ? focusImprovement : null;
+      if (!improvement && currentReport) {
+        try {
+          improvement = await fetchMatchImprovement(jobId, currentReport.reportId);
+        } catch {
+          // Missing comparison evidence must stay unknown instead of being mislabeled as no improvement.
+        }
+      }
+      return {
+        jobId,
+        title: recommendationJobTitleById.get(jobId) ?? jobId,
+        outcome: classifyMatchImprovementOutcome(improvement),
+      };
+    }),
+  );
+  const expectedImpactImprovedCount = expectedImpactResults.filter((item) => item.outcome === "improved").length;
+  const expectedImpactVerifiedCount = expectedImpactResults.filter((item) => item.outcome !== "unverifiable").length;
 
   return (
     <>
@@ -439,18 +450,22 @@ export default async function RecommendationsPage({
             <div className="focus-improvement-facts">
               <strong>行动前预期影响 vs. 这次重算结果</strong>
               <p>
-                行动前你优先核实了 {expectedImpactResults.length} 个仍在考虑岗位；这次资料更新后，其中 {expectedImpactImprovedCount} 个出现了可验证改善。
+                行动前你优先核实了 {expectedImpactResults.length} 个仍在考虑岗位；目前有 {expectedImpactVerifiedCount} 个拿到了可比较的前后 MatchReport，其中 {expectedImpactImprovedCount} 个出现可验证改善。
               </p>
               <ul>
                 {expectedImpactResults.map((item) => (
                   <li key={item.jobId}>
                     <Link href={`/jobs/${item.jobId}`}>{item.title}</Link>
-                    {item.improved ? "：这次有可验证改善" : "：这次暂未观察到可验证改善"}
+                    {item.outcome === "improved"
+                      ? "：这次有可验证改善"
+                      : item.outcome === "unchanged"
+                        ? "：已完成前后比较，这次暂未观察到可验证改善"
+                        : "：当前缺少可比较的前后 MatchReport，暂不下结论"}
                   </li>
                 ))}
               </ul>
               <p className="muted">
-                这里比较的是同一次 Profile 更新前后的 MatchReport 事实；未改善不代表这项经历无价值，也不会把相关性强行归因给某一条 Evidence。
+                每个行动前记录的目标岗位都会单独读取这次 Profile 更新前后的 MatchReport；读取失败或历史不足时保持“暂不下结论”，不会冒充“没有改善”。已确认未改善也不代表这项经历无价值，更不会把相关性强行归因给某一条 Evidence。
               </p>
             </div>
           ) : null}
