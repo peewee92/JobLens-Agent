@@ -32,6 +32,12 @@ export type EvidenceDeleteImpact = {
   affectedSkillNames: string[];
 };
 
+export type EvidenceContentImpact = {
+  evidenceIndex: number;
+  evidenceKeys: string[];
+  affectedSkillNames: string[];
+};
+
 export type SkillDanglingEvidenceIssue = {
   skillIndex: number;
   skillName: string;
@@ -85,6 +91,38 @@ export function evidenceRenameImpacts({
 
     return [{evidenceIndex, previousKey, nextKey, affectedSkillNames}];
   });
+}
+
+export function evidenceContentImpact({
+  evidenceIndex,
+  originalEvidenceKeys,
+  evidence,
+  skills,
+}: {
+  evidenceIndex: number;
+  originalEvidenceKeys: string[];
+  evidence: EvidenceDraftLike[];
+  skills: SkillDraftLike[];
+}): EvidenceContentImpact | null {
+  const item = evidence[evidenceIndex];
+  if (!item || item.summary.trim()) return null;
+
+  const currentKey = item.key.trim();
+  const originalKey = originalEvidenceKeys[evidenceIndex]?.trim() ?? "";
+  const evidenceKeys = [currentKey, originalKey]
+    .filter(Boolean)
+    .filter((key, index, keys) => keys.findIndex((candidate) => normalized(candidate) === normalized(key)) === index);
+  if (evidenceKeys.length === 0) return null;
+
+  const affectedSkillNames = skills
+    .filter((skill) => skill.evidenceKeys.some((key) =>
+      evidenceKeys.some((evidenceKey) => normalized(evidenceKey) === normalized(key)),
+    ))
+    .map((skill) => skill.name.trim())
+    .filter(Boolean);
+  if (affectedSkillNames.length === 0) return null;
+
+  return {evidenceIndex, evidenceKeys, affectedSkillNames};
 }
 
 export function evidenceDeleteImpact({

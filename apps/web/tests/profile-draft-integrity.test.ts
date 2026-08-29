@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  evidenceContentImpact,
   evidenceDeleteImpact,
   evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
@@ -86,6 +87,36 @@ test("evidence key migration changes only existing references and deduplicates t
   });
 
   assert.deepEqual(migrated, ["project-renamed", "work-a"]);
+});
+
+test("empty evidence content preview lists every skill that still references the evidence", () => {
+  const impact = evidenceContentImpact({
+    evidenceIndex: 0,
+    originalEvidenceKeys: ["project-old"],
+    evidence: [{key: "project-renamed", summary: "   "}],
+    skills: [
+      {name: "React", evidenceKeys: ["project-old"]},
+      {name: "TypeScript", evidenceKeys: ["PROJECT-RENAMED"]},
+      {name: "Python", evidenceKeys: ["work-a"]},
+    ],
+  });
+
+  assert.deepEqual(impact, {
+    evidenceIndex: 0,
+    evidenceKeys: ["project-renamed", "project-old"],
+    affectedSkillNames: ["React", "TypeScript"],
+  });
+});
+
+test("complete evidence content does not produce an empty-content impact", () => {
+  const impact = evidenceContentImpact({
+    evidenceIndex: 0,
+    originalEvidenceKeys: ["project-a"],
+    evidence: [{key: "project-a", summary: "Built a production feature."}],
+    skills: [{name: "React", evidenceKeys: ["project-a"]}],
+  });
+
+  assert.equal(impact, null);
 });
 
 test("evidence delete preview lists every skill that references the current or original key", () => {

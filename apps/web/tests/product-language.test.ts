@@ -446,6 +446,15 @@ test("career background defaults to card review and only expands the detailed ed
   assert.match(editor, /完成编辑，返回审核/);
 });
 
+test("empty evidence content warns about affected skills before final review", async () => {
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(editor, /清空内容会让已有技能失去证据/);
+  assert.match(editor, /只移除这些技能引用/);
+  assert.match(editor, /detachEmptyEvidenceReferences/);
+  assert.match(editor, /不会自动替你补事实/);
+});
+
 test("global dangling evidence issues offer explicit locate and remove actions", async () => {
   const editor = await source("components/profile-editor.tsx");
 

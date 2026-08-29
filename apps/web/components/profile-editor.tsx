@@ -9,6 +9,7 @@ import {
   proposalToProfileDraft,
 } from "@/lib/profile-proposal";
 import {
+  evidenceContentImpact,
   evidenceDeleteImpact,
   evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
@@ -281,6 +282,17 @@ export function ProfileEditor({
     () => new Map(renameImpacts.map((impact) => [impact.evidenceIndex, impact])),
     [renameImpacts],
   );
+  const contentImpactByEvidenceIndex = useMemo(() => new Map(
+    evidence.flatMap((_, evidenceIndex) => {
+      const impact = evidenceContentImpact({
+        evidenceIndex,
+        originalEvidenceKeys: evidenceReferenceKeys,
+        evidence,
+        skills,
+      });
+      return impact ? [[evidenceIndex, impact] as const] : [];
+    }),
+  ), [evidence, evidenceReferenceKeys, skills]);
   const deleteImpactByEvidenceIndex = useMemo(() => new Map(
     evidence.flatMap((_, evidenceIndex) => {
       const impact = evidenceDeleteImpact({
@@ -416,6 +428,19 @@ export function ProfileEditor({
     setEvidenceReferenceKeys((keys) => keys.map(
       (key, index) => index === evidenceIndex ? impact.nextKey : key,
     ));
+  }
+
+  function detachEmptyEvidenceReferences(evidenceIndex: number) {
+    const impact = contentImpactByEvidenceIndex.get(evidenceIndex);
+    if (!impact) return;
+    markProfileDirty();
+    setSkills((items) => items.map((skill) => ({
+      ...skill,
+      evidenceKeys: removeEvidenceKeyReferences({
+        currentEvidenceKeys: skill.evidenceKeys,
+        deletedEvidenceKeys: impact.evidenceKeys,
+      }),
+    })));
   }
 
   function deleteEvidenceAndRemoveReferences(evidenceIndex: number) {
@@ -1101,6 +1126,23 @@ export function ProfileEditor({
                     onClick={() => migrateRenamedEvidenceReferences(index)}
                   >
                     将这些已有技能引用迁移到“{renameImpactByEvidenceIndex.get(index)?.nextKey}”
+                  </button>
+                </div>
+              ) : null}
+              {contentImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>清空内容会让已有技能失去证据</strong>
+                  <p>
+                    这段经历仍被技能
+                    {contentImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用，但“我做了什么”已经为空。
+                    你可以补回真实经历内容，或显式移除这些既有引用；JobLens 不会自动替你补事实。
+                  </p>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={() => detachEmptyEvidenceReferences(index)}
+                  >
+                    只移除这些技能引用
                   </button>
                 </div>
               ) : null}
