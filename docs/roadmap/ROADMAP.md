@@ -503,6 +503,7 @@ Profile 页面可以明确区分：
 - 2026-08-29：补上当前 skill ActionItem 的保存前 Evidence 完整性门禁。若用户显式创建/关联了当前精确同名 Skill，随后又把被引用的 Evidence 改名、删除、清空内容，或手动移除了该 Skill 的全部 Evidence 关联，Profile 页面会在核实区与确认区同时提示“关联已失效”，并在真正发出保存请求前阻止提交，要求用户重新选择真实 Evidence 或删除尚未确认的 Skill；不会静默修复 key、不会自动替用户补证据。门禁只检查当前 focus capability，不扩大成新的能力推断，也不修改 Backend 事实模型、Match/Eligibility/Ranking/UserFeedback；纯 Web 草稿校验、零 Provider、零 DB migration。
 - 2026-08-30：把上述完整性门禁从“只阻止错误保存”推进为 ActionItem 内的显式修复动作。只有当前聚焦 Evidence 已填写完整、存在精确同名 Skill 且完整性检查已确认 `missing_links / dangling_links` 时，警告区才允许用户点击“用当前真实经历修复关联”；修复只移除已经确认失效的旧 Evidence key、保留其他仍有效引用，并显式加入用户当前选中的真实 Evidence，绝不根据岗位 Requirement 自动创建 Skill 或声明新能力。该切片仍是纯 Web 草稿修复，最终是否支撑 Requirement 继续只由保存后的 Re-match 验证；零 Provider、零 Backend 业务改动、零 migration。
 - 2026-08-30：补上 Evidence 改名对既有 Skill 关联的影响预览与显式迁移。用户修改一条已被 Skill 引用的 Evidence 简称时，Profile 编辑器会在该 Evidence 卡片内列出实际受影响的已有 Skill；直接保存不会静默改写引用，只有用户点击迁移动作后，系统才把这些**既有引用**从旧 key 更新到新 key，并去重保留其他有效 Evidence。迁移后的新 key 会成为后续再次改名的引用基线，因此连续改名仍能得到正确影响提示。该能力不新增 Skill、不推断新能力、不修改 Evidence 内容，也不涉及 Provider、Backend 业务写模型或 migration。
+- 2026-08-30：补齐 Evidence 删除时的既有 Skill 引用保护。删除一条被技能引用的真实经历前，Profile 编辑器会明确列出实际受影响的 Skill，并把删除动作收敛为“同时移除这些技能引用并删除这段经历”；只有用户显式执行该动作才会删除 Evidence，同时仅移除指向该 Evidence 当前 key / 原始 key 的既有引用，其他 Evidence 和 Skill 关联保持不变。若经历曾改名但尚未迁移，删除保护也会同时覆盖旧、新 key，避免留下 dangling Evidence reference。该能力不创建新 Skill、不补造 Evidence、不改变 Match/Eligibility/Ranking/UserFeedback，也不涉及 Provider、Backend 写模型或 migration。
 
 ### 任务
 

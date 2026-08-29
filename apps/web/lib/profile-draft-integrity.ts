@@ -26,6 +26,12 @@ export type EvidenceRenameImpact = {
   affectedSkillNames: string[];
 };
 
+export type EvidenceDeleteImpact = {
+  evidenceIndex: number;
+  evidenceKeys: string[];
+  affectedSkillNames: string[];
+};
+
 export function evidenceRenameImpacts({
   originalEvidenceKeys,
   evidence,
@@ -48,6 +54,46 @@ export function evidenceRenameImpacts({
 
     return [{evidenceIndex, previousKey, nextKey, affectedSkillNames}];
   });
+}
+
+export function evidenceDeleteImpact({
+  evidenceIndex,
+  originalEvidenceKeys,
+  evidence,
+  skills,
+}: {
+  evidenceIndex: number;
+  originalEvidenceKeys: string[];
+  evidence: EvidenceDraftLike[];
+  skills: SkillDraftLike[];
+}): EvidenceDeleteImpact | null {
+  const currentKey = evidence[evidenceIndex]?.key.trim() ?? "";
+  const originalKey = originalEvidenceKeys[evidenceIndex]?.trim() ?? "";
+  const evidenceKeys = [currentKey, originalKey]
+    .filter(Boolean)
+    .filter((key, index, keys) => keys.findIndex((candidate) => normalized(candidate) === normalized(key)) === index);
+  if (evidenceKeys.length === 0) return null;
+
+  const affectedSkillNames = skills
+    .filter((skill) => skill.evidenceKeys.some((key) =>
+      evidenceKeys.some((evidenceKey) => normalized(evidenceKey) === normalized(key)),
+    ))
+    .map((skill) => skill.name.trim())
+    .filter(Boolean);
+  if (affectedSkillNames.length === 0) return null;
+
+  return {evidenceIndex, evidenceKeys, affectedSkillNames};
+}
+
+export function removeEvidenceKeyReferences({
+  currentEvidenceKeys,
+  deletedEvidenceKeys,
+}: {
+  currentEvidenceKeys: string[];
+  deletedEvidenceKeys: string[];
+}): string[] {
+  const deleted = new Set(deletedEvidenceKeys.map(normalized));
+  return currentEvidenceKeys.filter((key) => !deleted.has(normalized(key)));
 }
 
 export function migrateEvidenceKeyReferences({

@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  evidenceDeleteImpact,
   evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
   migrateEvidenceKeyReferences,
+  removeEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
 } from "../lib/profile-draft-integrity";
 
@@ -51,6 +53,45 @@ test("evidence key migration changes only existing references and deduplicates t
   });
 
   assert.deepEqual(migrated, ["project-renamed", "work-a"]);
+});
+
+test("evidence delete preview lists every skill that references the current or original key", () => {
+  const impact = evidenceDeleteImpact({
+    evidenceIndex: 0,
+    originalEvidenceKeys: ["project-old"],
+    evidence: [{key: "project-renamed", summary: "Built a production feature."}],
+    skills: [
+      {name: "React", evidenceKeys: ["project-old"]},
+      {name: "TypeScript", evidenceKeys: ["PROJECT-RENAMED"]},
+      {name: "Python", evidenceKeys: ["work-a"]},
+    ],
+  });
+
+  assert.deepEqual(impact, {
+    evidenceIndex: 0,
+    evidenceKeys: ["project-renamed", "project-old"],
+    affectedSkillNames: ["React", "TypeScript"],
+  });
+});
+
+test("evidence delete preview is empty when no skill references the evidence", () => {
+  const impact = evidenceDeleteImpact({
+    evidenceIndex: 0,
+    originalEvidenceKeys: ["project-a"],
+    evidence: [{key: "project-a", summary: "Built a production feature."}],
+    skills: [{name: "Python", evidenceKeys: ["work-a"]}],
+  });
+
+  assert.equal(impact, null);
+});
+
+test("deleting evidence references removes only matching keys", () => {
+  const remaining = removeEvidenceKeyReferences({
+    currentEvidenceKeys: ["project-old", "work-a", "PROJECT-RENAMED"],
+    deletedEvidenceKeys: ["project-old", "project-renamed"],
+  });
+
+  assert.deepEqual(remaining, ["work-a"]);
 });
 
 test("focused skill remains valid when its linked evidence is still complete", () => {

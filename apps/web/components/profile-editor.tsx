@@ -9,9 +9,11 @@ import {
   proposalToProfileDraft,
 } from "@/lib/profile-proposal";
 import {
+  evidenceDeleteImpact,
   evidenceRenameImpacts,
   focusedSkillEvidenceIssue,
   migrateEvidenceKeyReferences,
+  removeEvidenceKeyReferences,
   repairFocusedSkillEvidenceKeys,
 } from "@/lib/profile-draft-integrity";
 import {userFacingApiError} from "@/lib/user-facing-errors";
@@ -278,6 +280,17 @@ export function ProfileEditor({
     () => new Map(renameImpacts.map((impact) => [impact.evidenceIndex, impact])),
     [renameImpacts],
   );
+  const deleteImpactByEvidenceIndex = useMemo(() => new Map(
+    evidence.flatMap((_, evidenceIndex) => {
+      const impact = evidenceDeleteImpact({
+        evidenceIndex,
+        originalEvidenceKeys: evidenceReferenceKeys,
+        evidence,
+        skills,
+      });
+      return impact ? [[evidenceIndex, impact] as const] : [];
+    }),
+  ), [evidence, evidenceReferenceKeys, skills]);
   const focusedSkillIntegrityIssue = activeRequirementFocus === "skill"
     ? focusedSkillEvidenceIssue({focusCapability, evidence, skills})
     : null;
@@ -398,6 +411,26 @@ export function ProfileEditor({
     setEvidenceReferenceKeys((keys) => keys.map(
       (key, index) => index === evidenceIndex ? impact.nextKey : key,
     ));
+  }
+
+  function deleteEvidenceAndRemoveReferences(evidenceIndex: number) {
+    const impact = deleteImpactByEvidenceIndex.get(evidenceIndex);
+    markProfileDirty();
+    if (impact) {
+      setSkills((items) => items.map((skill) => ({
+        ...skill,
+        evidenceKeys: removeEvidenceKeyReferences({
+          currentEvidenceKeys: skill.evidenceKeys,
+          deletedEvidenceKeys: impact.evidenceKeys,
+        }),
+      })));
+    }
+    setEvidence((items) => items.filter((_, index) => index !== evidenceIndex));
+    setEvidenceReferenceKeys((keys) => keys.filter((_, index) => index !== evidenceIndex));
+    if (focusedEvidenceIndex === evidenceIndex) setFocusedEvidenceIndex(null);
+    else if (focusedEvidenceIndex !== null && focusedEvidenceIndex > evidenceIndex) {
+      setFocusedEvidenceIndex(focusedEvidenceIndex - 1);
+    }
   }
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
@@ -1007,18 +1040,33 @@ export function ProfileEditor({
                   </button>
                 </div>
               ) : null}
-              <button
-                className="danger-link"
-                type="button"
-                disabled={evidence.length === 1}
-                onClick={() => {
-                  markProfileDirty();
-                  setEvidence((items) => items.filter((_, i) => i !== index));
-                  setEvidenceReferenceKeys((keys) => keys.filter((_, i) => i !== index));
-                }}
-              >
-                删除这段经历
-              </button>
+              {deleteImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>删除会影响已有技能关联</strong>
+                  <p>
+                    这段经历当前被技能
+                    {deleteImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用。
+                    删除时必须同时移除这些既有引用；JobLens 不会把失效 Evidence key 留在技能中，也不会替你补造新的证据。
+                  </p>
+                  <button
+                    className="danger-link"
+                    type="button"
+                    disabled={evidence.length === 1}
+                    onClick={() => deleteEvidenceAndRemoveReferences(index)}
+                  >
+                    同时移除这些技能引用并删除这段经历
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="danger-link"
+                  type="button"
+                  disabled={evidence.length === 1}
+                  onClick={() => deleteEvidenceAndRemoveReferences(index)}
+                >
+                  删除这段经历
+                </button>
+              )}
             </article>
           ))}
         </div>
