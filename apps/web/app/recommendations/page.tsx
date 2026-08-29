@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import {EvidenceActionProgress} from "@/components/evidence-action-progress";
 import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {RecommendationRefresh} from "@/components/recommendation-refresh";
 import {RecommendationRequirementAnalysis} from "@/components/recommendation-requirement-analysis";
@@ -416,6 +417,15 @@ export default async function RecommendationsPage({
           基于你确认过的经历、当前求职偏好和已经生成的完整匹配结果排序。这里只比较有可追溯依据的岗位，不把“匹配分数”当成功概率。
         </p>
       </section>
+
+      <EvidenceActionProgress
+        requirementId={focusRequirementId}
+        jobId={focusJobId}
+        capability={focusCapability}
+        requirementText={focusRequirementText}
+        stage={focusRequirementId ? (focusImprovement?.comparable ? "rematch_verified" : "evidence_saved") : null}
+        compact
+      />
 
       {focusJobId && focusJobTitle ? (
         <section className="notice focus-return-banner">

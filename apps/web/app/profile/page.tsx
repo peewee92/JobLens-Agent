@@ -1,3 +1,4 @@
+import {EvidenceActionProgress} from "@/components/evidence-action-progress";
 import {ProfileEditor} from "@/components/profile-editor";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -230,6 +231,16 @@ export default async function ProfilePage({
           </div>
         ) : null}
       </section>
+
+      {focusRequirementId ? (
+        <EvidenceActionProgress
+          requirementId={focusRequirementId}
+          jobId={requestedFocusJob}
+          capability={focusCapability}
+          requirementText={focusRequirementText}
+          stage="pending"
+        />
+      ) : null}
 
       <ProfileEditor
         initialProfile={profile}
