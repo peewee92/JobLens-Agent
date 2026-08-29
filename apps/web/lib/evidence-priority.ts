@@ -1,4 +1,9 @@
-import type {MatchBlockerPriorityAction, UserFeedbackRecord} from "./contracts";
+import type {MatchBlockerJob, MatchBlockerPriorityAction, UserFeedbackRecord} from "./contracts";
+
+export interface EvidencePriorityImpactTarget {
+  jobId: string;
+  requirementTexts: string[];
+}
 
 function feedbackWeight(decision: UserFeedbackRecord["decision"]): number {
   if (decision === "interested") return 2;
@@ -40,6 +45,31 @@ export function selectEvidenceFocusJobId(
     }
   }
   return bestJobId;
+}
+
+export function listEvidencePriorityImpactTargets(
+  action: MatchBlockerPriorityAction | null,
+  jobBlockers: MatchBlockerJob[],
+  feedbackByJobId: ReadonlyMap<string, UserFeedbackRecord>,
+): EvidencePriorityImpactTarget[] {
+  if (!action) return [];
+
+  const affectedJobOrder = new Map(action.affectedJobIds.map((jobId, index) => [jobId, index]));
+  return jobBlockers
+    .filter((job) => affectedJobOrder.has(job.jobId) && isStillConsidered(job.jobId, feedbackByJobId))
+    .map((job) => ({
+      jobId: job.jobId,
+      requirementTexts: job.requirements
+        .filter((requirement) => action.requirementIds.includes(requirement.requirementId))
+        .map((requirement) => requirement.originalText),
+    }))
+    .filter((target) => target.requirementTexts.length > 0)
+    .sort((left, right) => {
+      const feedbackDelta = feedbackWeight(feedbackByJobId.get(right.jobId)?.decision ?? "rejected")
+        - feedbackWeight(feedbackByJobId.get(left.jobId)?.decision ?? "rejected");
+      if (feedbackDelta !== 0) return feedbackDelta;
+      return (affectedJobOrder.get(left.jobId) ?? 0) - (affectedJobOrder.get(right.jobId) ?? 0);
+    });
 }
 
 export function selectNextEvidencePriority(

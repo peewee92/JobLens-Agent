@@ -18,6 +18,7 @@ import {
 import type {RequirementType, SearchParams, UserFeedbackRecord} from "@/lib/contracts";
 import {
   consideredAffectedJobCount,
+  listEvidencePriorityImpactTargets,
   selectEvidenceFocusJobId,
   selectNextEvidencePriority,
 } from "@/lib/evidence-priority";
@@ -335,6 +336,16 @@ export default async function RecommendationsPage({
   const nextEvidenceProfileHref = nextEvidencePriority
     ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
     : null;
+  const nextEvidenceImpactTargets = blockerSummary
+    ? listEvidencePriorityImpactTargets(
+      nextEvidencePriority,
+      blockerSummary.jobBlockers,
+      evidenceFeedbackByJobId,
+    )
+    : [];
+  const recommendationJobTitleById = new Map(
+    jobs.items.map((job) => [job.id, job.title] as const),
+  );
 
   return (
     <>
@@ -632,6 +643,29 @@ export default async function RecommendationsPage({
                 <ul>
                   {nextEvidencePriority.examples.slice(0, 2).map((example) => <li key={example}>{example}</li>)}
                 </ul>
+              ) : null}
+              {nextEvidenceImpactTargets.length > 0 ? (
+                <div className="focus-improvement-facts">
+                  <strong>这一步会优先帮助你核实这些仍在考虑的岗位</strong>
+                  <ul>
+                    {nextEvidenceImpactTargets.slice(0, 3).map((target) => (
+                      <li key={target.jobId}>
+                        <Link href={`/jobs/${target.jobId}`}>
+                          {recommendationJobTitleById.get(target.jobId) ?? target.jobId}
+                        </Link>
+                        {target.requirementTexts.length > 0
+                          ? `：${target.requirementTexts.slice(0, 2).join("；")}`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                  {nextEvidenceImpactTargets.length > 3 ? (
+                    <p className="muted">另有 {nextEvidenceImpactTargets.length - 3} 个仍在考虑的岗位受同一证据行动影响。</p>
+                  ) : null}
+                  <p className="muted">
+                    这里只展示当前 Match blocker 的真实岗位和 Requirement。它表示“这项事实值得先核实”，不承诺补充后一定能解锁这些岗位；最终仍以真实 Evidence 保存后的 Re-match 为准。
+                  </p>
+                </div>
               ) : null}
               <div className="actions">
                 <Link

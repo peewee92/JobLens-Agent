@@ -488,6 +488,7 @@ Profile 页面可以明确区分：
 - 已完成 Requirement 级 Evidence 核实后的连续下一步：用户从推荐页进入 Profile 核实具体 Requirement，保存并 Re-match 后若该 Requirement 已由真实 Evidence 解决，结果区会基于当前 blocker priority 直接给出下一个仍影响岗位最多的事实核对项及 Profile 入口；已解决的 Requirement ID 会从下一行动位排除。该选择只复用当前 Match/Blocker facts，不使用关键词、模糊匹配或 Provider 推断，也不会自动生成用户经历。
 - 已把 UserFeedback 接入下一 Evidence 行动选择：初版只在 `affectedJobCount / missingRequirementCount` 完全打平时用 latest `interested > maybe > rejected/无反馈` 做次级选择，并在 action 内优先带用户兴趣最强的 Job 进入 Profile；后续已进一步收敛为下面的“仍在考虑岗位集合”规则。反馈始终只影响下一步行动，不改变 Match、Eligibility、Ranking 或历史 blocker 事实；反馈不可读时退化为原顺序。
 - 2026-08-29：进一步把下一 Evidence 行动收敛到“用户仍在考虑的岗位集合”。只有用户明确标记为 `rejected` 的当前 Job 会从下一行动的有效覆盖数中排除；未反馈 Job 继续视为仍可能考虑，避免系统擅自替用户做决定。若某个 blocker 只影响已明确“不考虑”的岗位，它不会继续驱动新的 Profile 补证据任务；同一 blocker 内选择 focus Job 时也优先跳过 rejected Job。页面仍展示原始 `affectedJobCount / missingRequirementCount`，并同时显示其中仍在考虑的 Job 数，因此 Match、Eligibility、Ranking 和历史 blocker 事实都保持原样。反馈读取失败时完全退回原 blocker 顺序；全程零 Provider、零 migration、无自动用户判断。
+- 2026-08-29：把下一 Evidence 行动的“预期收益”从聚合数字落到可追溯事实。推荐页在进入 Profile 前直接列出最多 3 个仍在考虑、且被该 action 的真实 `Requirement ID` 命中的岗位及 Requirement 原文；`interested / maybe` 只影响展示顺序，`rejected` 岗位不进入预览。页面明确声明这只是当前 blocker 的核实优先级，不承诺补证据后一定解锁岗位，最终结果仍以保存真实 Evidence 后的 Re-match 为准。该切片只读复用现有 Match blocker + UserFeedback，零 Provider、零 DB 写入、零 migration。
 
 ### 任务
 

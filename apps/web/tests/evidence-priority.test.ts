@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type {MatchBlockerPriorityAction, UserFeedbackRecord} from "../lib/contracts";
-import {consideredAffectedJobCount, selectEvidenceFocusJobId, selectNextEvidencePriority} from "../lib/evidence-priority";
+import type {MatchBlockerJob, MatchBlockerPriorityAction, UserFeedbackRecord} from "../lib/contracts";
+import {
+  consideredAffectedJobCount,
+  listEvidencePriorityImpactTargets,
+  selectEvidenceFocusJobId,
+  selectNextEvidencePriority,
+} from "../lib/evidence-priority";
 
 function action(
   id: string,
@@ -122,5 +127,59 @@ test("resolved requirement is excluded before feedback tie-breaking", () => {
   assert.equal(
     selectNextEvidencePriority([resolved, next], feedbackByJobId, "req-python"),
     next,
+  );
+});
+
+test("impact preview lists only still-considered jobs with exact requirement text", () => {
+  const selected = {
+    ...action("agent", 3, 3, ["job-open", "job-rejected", "job-favorite"]),
+    requirementIds: ["req-open", "req-rejected", "req-favorite"],
+  };
+  const blockers: MatchBlockerJob[] = [
+    {
+      jobId: "job-open",
+      missingRequirementCount: 1,
+      requirements: [{
+        requirementId: "req-open",
+        requirementType: "skill",
+        originalText: "熟悉 Agent 工作流",
+        normalizedCapability: "agent",
+      }],
+      unresolvedMissingRequirementIds: ["req-open"],
+    },
+    {
+      jobId: "job-rejected",
+      missingRequirementCount: 1,
+      requirements: [{
+        requirementId: "req-rejected",
+        requirementType: "skill",
+        originalText: "具备 Agent 项目经验",
+        normalizedCapability: "agent",
+      }],
+      unresolvedMissingRequirementIds: ["req-rejected"],
+    },
+    {
+      jobId: "job-favorite",
+      missingRequirementCount: 1,
+      requirements: [{
+        requirementId: "req-favorite",
+        requirementType: "skill",
+        originalText: "有智能体落地经验",
+        normalizedCapability: "agent",
+      }],
+      unresolvedMissingRequirementIds: ["req-favorite"],
+    },
+  ];
+  const feedbackByJobId = new Map([
+    ["job-rejected", feedback("job-rejected", "rejected")],
+    ["job-favorite", feedback("job-favorite", "interested")],
+  ]);
+
+  assert.deepEqual(
+    listEvidencePriorityImpactTargets(selected, blockers, feedbackByJobId),
+    [
+      {jobId: "job-favorite", requirementTexts: ["有智能体落地经验"]},
+      {jobId: "job-open", requirementTexts: ["熟悉 Agent 工作流"]},
+    ],
   );
 });
