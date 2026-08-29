@@ -293,6 +293,11 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /level: "unknown"/);
   assert.match(editor, /linkFocusedEvidenceToExistingSkill/);
   assert.match(editor, /focusedExactSkillIndex >= 0/);
+  assert.match(editor, /focusedSkillEvidenceIssue/);
+  assert.match(editor, /保存前需要修复当前技能的 Evidence 关联/);
+  assert.match(editor, /当前 Evidence 关联还没完整，暂不保存/);
+  assert.match(editor, /JobLens 不会静默改写关联/);
+  assert.match(editor, /重新选择真实 Evidence 后再保存/);
 });
 
 test("focused evidence action returns with exact requirement identity and reports rematch outcome", async () => {

@@ -8,6 +8,7 @@ import {
   isBlankProfileDraft,
   proposalToProfileDraft,
 } from "@/lib/profile-proposal";
+import {focusedSkillEvidenceIssue} from "@/lib/profile-draft-integrity";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 import type {
   ApiErrorBody,
@@ -261,6 +262,9 @@ export function ProfileEditor({
       && focusedEvidenceDraft.summary.trim()
       && focusedExactSkillIndex < 0,
   );
+  const focusedSkillIntegrityIssue = activeRequirementFocus === "skill"
+    ? focusedSkillEvidenceIssue({focusCapability, evidence, skills})
+    : null;
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
   const profileStatusLabel = profileDraftBlank
     ? "尚未填写"
@@ -352,6 +356,17 @@ export function ProfileEditor({
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (focusedSkillIntegrityIssue) {
+      setIsProfileEditorOpen(true);
+      setProfileState({
+        kind: "error",
+        message: focusedSkillIntegrityIssue.kind === "dangling_links"
+          ? `“${focusedSkillIntegrityIssue.skillName}”仍引用已改名、删除或未填写完整的经历。请重新选择真实 Evidence 后再保存。`
+          : `“${focusedSkillIntegrityIssue.skillName}”当前没有真实 Evidence 支撑。请重新关联一段已填写完整的经历，或删除这项尚未确认的技能。`,
+      });
+      focusProfileDraft();
+      return;
+    }
     setProfileState({kind: "saving", message: "正在保存你的职业背景…"});
     const payload: SaveProfilePayload = {
       expectedVersion: profileVersion,
@@ -550,6 +565,16 @@ export function ProfileEditor({
                 )}
               </div>
             ) : null}
+            {focusedSkillIntegrityIssue ? (
+              <div className="review-result review-pending" role="alert">
+                <strong>保存前需要修复当前技能的 Evidence 关联</strong>
+                <p>
+                  {focusedSkillIntegrityIssue.kind === "dangling_links"
+                    ? `“${focusedSkillIntegrityIssue.skillName}”还引用了已改名、删除或未填写完整的经历：${focusedSkillIntegrityIssue.missingEvidenceKeys.join("、")}。请在详细编辑里重新选择真实经历；JobLens 不会静默改写关联。`
+                    : `“${focusedSkillIntegrityIssue.skillName}”现在没有真实 Evidence 支撑。请重新关联一段已填写完整的经历，或删除这项尚未确认的技能。`}
+                </p>
+              </div>
+            ) : null}
             {focusJobId ? (
               <p className="muted">
                 保存后会回到优先投递页，并优先重新计算你正在处理的这个岗位，再处理其余已准备好的岗位。
@@ -724,6 +749,17 @@ export function ProfileEditor({
               <strong>确认前重点看 3 件事</strong>
               <span>职业定位是否像你 · 经历是否确实做过 · 技能是否有真实经历支撑</span>
             </div>
+
+            {focusedSkillIntegrityIssue ? (
+              <div className="review-result review-pending" role="alert">
+                <strong>当前 Evidence 关联还没完整，暂不保存</strong>
+                <p>
+                  {focusedSkillIntegrityIssue.kind === "dangling_links"
+                    ? `“${focusedSkillIntegrityIssue.skillName}”引用的经历已经发生变化。先打开详细编辑重新关联真实 Evidence，再回来确认保存。`
+                    : `“${focusedSkillIntegrityIssue.skillName}”没有任何真实经历支撑。先补关联或删除这项尚未确认的技能，再回来确认保存。`}
+                </p>
+              </div>
+            ) : null}
 
             <div className="actions profile-review-actions">
               {profileDirty || profileVersion === 0 ? (
