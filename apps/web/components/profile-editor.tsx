@@ -254,6 +254,13 @@ export function ProfileEditor({
   );
   const activeRequirementFocus = focusRequirementType
     ?? (focusEvidenceType === "education" ? "education" : null);
+  const canCreateFocusedSkillFromEvidence = Boolean(
+    activeRequirementFocus === "skill"
+      && focusCapability?.trim()
+      && focusedEvidenceDraft?.key.trim()
+      && focusedEvidenceDraft.summary.trim()
+      && focusedExactSkillIndex < 0,
+  );
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
   const profileStatusLabel = profileDraftBlank
     ? "尚未填写"
@@ -301,6 +308,28 @@ export function ProfileEditor({
     const current = skills[focusedExactSkillIndex].evidenceKeys;
     if (current.includes(evidenceKey)) return;
     updateSkill(focusedExactSkillIndex, {evidenceKeys: [...current, evidenceKey]});
+  }
+
+  function createFocusedSkillAndLinkEvidence() {
+    if (!canCreateFocusedSkillFromEvidence || !focusedEvidenceDraft || !focusCapability) return;
+    const evidenceKey = focusedEvidenceDraft.key.trim();
+    const capability = focusCapability.trim();
+    if (!evidenceKey || !capability) return;
+
+    markProfileDirty();
+    setSkills((items) => {
+      const reusableBlankIndex = items.findIndex(
+        (item) => !item.name.trim() && item.evidenceKeys.length === 0,
+      );
+      const confirmedSkill: SkillDraft = {
+        name: capability,
+        level: "unknown",
+        evidenceKeys: [evidenceKey],
+      };
+      return reusableBlankIndex >= 0
+        ? items.map((item, index) => index === reusableBlankIndex ? confirmedSkill : item)
+        : [...items, confirmedSkill];
+    });
   }
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
@@ -571,9 +600,25 @@ export function ProfileEditor({
                             : "先填写这段经历的简称和真实内容；填写完整后，才可以把它显式关联到现有同名技能。"}
                         </p>
                       )
+                    ) : activeRequirementFocus === "skill" ? (
+                      canCreateFocusedSkillFromEvidence ? (
+                        <>
+                          <p>
+                            当前 Profile 没有精确同名技能“{focusCapability}”。只有你确认自己确实具备这项技能、且刚填写的经历能证明它时，才可以由你显式创建；JobLens 不会因为岗位要求自动替你声明能力。
+                          </p>
+                          <button className="button-secondary" type="button" onClick={createFocusedSkillAndLinkEvidence}>
+                            我确认具备“{focusCapability}”，新增技能并关联这条经历
+                          </button>
+                          <p className="muted">新技能会以“待确认”熟练度加入草稿，你仍可在“我的技能”中检查或调整；最终是否支撑当前 Requirement 只以保存后的 Re-match 为准。</p>
+                        </>
+                      ) : (
+                        <p>
+                          当前 Profile 没有精确同名技能“{focusCapability}”。先填写这段经历的简称和真实内容；只有你确认确实具备该技能时，才会出现显式创建入口，否则保留缺口。
+                        </p>
+                      )
                     ) : (
                       <p>
-                        当前 Profile 没有精确同名技能“{focusCapability}”。本轮不会根据岗位要求自动创建 Skill；如果你确实具备这项能力，请在“我的技能”中由你显式新增并选择真实 Evidence，否则保留缺口。
+                        当前 Profile 没有精确同名技能“{focusCapability}”。本轮不会根据岗位要求自动创建 Skill；如果你确实具备相关能力，请在“我的技能”中基于真实经历自行补充，否则保留缺口。
                       </p>
                     )}
                   </div>

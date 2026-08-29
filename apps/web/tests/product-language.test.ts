@@ -285,6 +285,12 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(editor, /把这条新经历连接到当前技能/);
   assert.match(editor, /JobLens 不会自动替你关联/);
   assert.match(editor, /本轮不会根据岗位要求自动创建 Skill/);
+  assert.match(editor, /我确认具备“\{focusCapability\}”，新增技能并关联这条经历/);
+  assert.match(editor, /新技能会以“待确认”熟练度加入草稿/);
+  assert.match(editor, /最终是否支撑当前 Requirement 只以保存后的 Re-match 为准/);
+  assert.match(editor, /createFocusedSkillAndLinkEvidence/);
+  assert.match(editor, /activeRequirementFocus === "skill"/);
+  assert.match(editor, /level: "unknown"/);
   assert.match(editor, /linkFocusedEvidenceToExistingSkill/);
   assert.match(editor, /focusedExactSkillIndex >= 0/);
 });
