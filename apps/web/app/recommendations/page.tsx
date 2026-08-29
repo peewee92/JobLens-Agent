@@ -16,7 +16,11 @@ import {
   fetchRecommendationCoverage,
 } from "@/lib/backend";
 import type {RequirementType, SearchParams, UserFeedbackRecord} from "@/lib/contracts";
-import {selectEvidenceFocusJobId, selectNextEvidencePriority} from "@/lib/evidence-priority";
+import {
+  consideredAffectedJobCount,
+  selectEvidenceFocusJobId,
+  selectNextEvidencePriority,
+} from "@/lib/evidence-priority";
 import {formatSalary} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -315,9 +319,13 @@ export default async function RecommendationsPage({
       resolvedRequirementToExclude,
     )
     : null;
+  const evidenceFeedbackByJobId = feedbackStateAvailable ? feedbackByJobId : new Map<string, UserFeedbackRecord>();
+  const nextEvidenceConsideredJobCount = nextEvidencePriority
+    ? consideredAffectedJobCount(nextEvidencePriority, evidenceFeedbackByJobId)
+    : 0;
   const nextEvidenceJobId = selectEvidenceFocusJobId(
     nextEvidencePriority,
-    feedbackStateAvailable ? feedbackByJobId : new Map(),
+    evidenceFeedbackByJobId,
   );
   const nextEvidenceRequirement = nextEvidencePriority && nextEvidenceJobId
     ? blockerSummary?.jobBlockers
@@ -388,8 +396,8 @@ export default async function RecommendationsPage({
                     下一项最值得核实：{nextEvidencePriority.normalizedCapability ?? `${blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类事实`}
                   </strong>
                   <p>
-                    当前仍影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共对应 {nextEvidencePriority.missingRequirementCount} 条硬条件缺口。
-                    已解决的 Requirement 不会继续占用下一步行动位。
+                    当前仍影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，其中 {nextEvidenceConsideredJobCount} 个没有被你明确标记为“不考虑”，共对应 {nextEvidencePriority.missingRequirementCount} 条硬条件缺口。
+                    已解决的 Requirement 和只影响“不考虑”岗位的行动都不会继续占用下一步行动位。
                   </p>
                   <div className="actions">
                     <Link className="button" href={nextEvidenceProfileHref}>
@@ -616,8 +624,8 @@ export default async function RecommendationsPage({
                 下一步最值得先核实：{nextEvidencePriority.normalizedCapability ?? `${blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类事实`}
               </strong>
               <p>
-                这个具体要求目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，共对应 {nextEvidencePriority.missingRequirementCount} 条当前硬条件。
-                如果多个行动的影响范围和缺口数完全相同，会优先你明确标记为“感兴趣 / 再看看”的岗位；不会让反馈越过更重要的硬缺口事实排序。
+                这个具体要求目前影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，其中 {nextEvidenceConsideredJobCount} 个没有被你明确标记为“不考虑”，共对应 {nextEvidencePriority.missingRequirementCount} 条当前硬条件。
+                下一步会先围绕仍在考虑的岗位收敛；只影响“不考虑”岗位的缺口不会继续驱动你补证据。范围相同时，再优先你明确标记为“感兴趣 / 再看看”的岗位。Match、Eligibility 和历史 blocker 事实不会因此被改写。
                 如果你确实有对应经历，优先把真实证据补进 Profile，再回来重算；如果没有，就保留缺口，不要为了排名补造经历。
               </p>
               {nextEvidencePriority.examples.length > 0 ? (

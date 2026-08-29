@@ -6,17 +6,33 @@ function feedbackWeight(decision: UserFeedbackRecord["decision"]): number {
   return 0;
 }
 
+function isStillConsidered(
+  jobId: string,
+  feedbackByJobId: ReadonlyMap<string, UserFeedbackRecord>,
+): boolean {
+  return feedbackByJobId.get(jobId)?.decision !== "rejected";
+}
+
+export function consideredAffectedJobCount(
+  action: MatchBlockerPriorityAction,
+  feedbackByJobId: ReadonlyMap<string, UserFeedbackRecord>,
+): number {
+  return action.affectedJobIds.filter((jobId) => isStillConsidered(jobId, feedbackByJobId)).length;
+}
+
 export function selectEvidenceFocusJobId(
   action: MatchBlockerPriorityAction | null,
   feedbackByJobId: ReadonlyMap<string, UserFeedbackRecord>,
 ): string | null {
   if (!action) return null;
-  let bestJobId = action.affectedJobIds[0] ?? null;
+  const consideredJobIds = action.affectedJobIds.filter((jobId) => isStillConsidered(jobId, feedbackByJobId));
+  const candidates = consideredJobIds.length > 0 ? consideredJobIds : action.affectedJobIds;
+  let bestJobId = candidates[0] ?? null;
   let bestWeight = bestJobId
     ? feedbackWeight(feedbackByJobId.get(bestJobId)?.decision ?? "rejected")
     : 0;
 
-  for (const jobId of action.affectedJobIds.slice(1)) {
+  for (const jobId of candidates.slice(1)) {
     const weight = feedbackWeight(feedbackByJobId.get(jobId)?.decision ?? "rejected");
     if (weight > bestWeight) {
       bestJobId = jobId;
@@ -39,14 +55,22 @@ export function selectNextEvidencePriority(
   );
   const first = eligible[0];
   if (!first) return null;
+  if (feedbackByJobId.size === 0) return first;
 
-  const tied = eligible.filter((action) =>
-    action.affectedJobCount === first.affectedJobCount
-    && action.missingRequirementCount === first.missingRequirementCount,
+  const stillRelevant = eligible.filter((action) => consideredAffectedJobCount(action, feedbackByJobId) > 0);
+  if (stillRelevant.length === 0) return null;
+
+  const maxConsideredJobs = Math.max(
+    ...stillRelevant.map((action) => consideredAffectedJobCount(action, feedbackByJobId)),
   );
-  if (tied.length === 1 || feedbackByJobId.size === 0) return first;
+  const highestReach = stillRelevant.filter(
+    (action) => consideredAffectedJobCount(action, feedbackByJobId) === maxConsideredJobs,
+  );
+  const maxMissingRequirements = Math.max(...highestReach.map((action) => action.missingRequirementCount));
+  const tied = highestReach.filter((action) => action.missingRequirementCount === maxMissingRequirements);
+  if (tied.length === 1) return tied[0];
 
-  let best = first;
+  let best = tied[0];
   let bestWeight = best.affectedJobIds.reduce(
     (total, jobId) => total + feedbackWeight(feedbackByJobId.get(jobId)?.decision ?? "rejected"),
     0,

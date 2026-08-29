@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {MatchBlockerPriorityAction, UserFeedbackRecord} from "../lib/contracts";
-import {selectEvidenceFocusJobId, selectNextEvidencePriority} from "../lib/evidence-priority";
+import {consideredAffectedJobCount, selectEvidenceFocusJobId, selectNextEvidencePriority} from "../lib/evidence-priority";
 
 function action(
   id: string,
@@ -73,6 +73,43 @@ test("focus job prefers the user's strongest explicit interest within the select
 
   assert.equal(selectEvidenceFocusJobId(selected, feedbackByJobId), "job-c");
   assert.equal(selectEvidenceFocusJobId(selected, new Map()), "job-a");
+});
+
+test("explicitly rejected jobs no longer dominate the next evidence action", () => {
+  const rejectedHeavy = action("python", 4, 6, ["job-a", "job-b", "job-c", "job-d"]);
+  const activeTargets = action("agent", 2, 3, ["job-e", "job-f"]);
+  const feedbackByJobId = new Map([
+    ["job-a", feedback("job-a", "rejected")],
+    ["job-b", feedback("job-b", "rejected")],
+    ["job-c", feedback("job-c", "rejected")],
+    ["job-e", feedback("job-e", "interested")],
+  ]);
+
+  assert.equal(consideredAffectedJobCount(rejectedHeavy, feedbackByJobId), 1);
+  assert.equal(consideredAffectedJobCount(activeTargets, feedbackByJobId), 2);
+  assert.equal(
+    selectNextEvidencePriority([rejectedHeavy, activeTargets], feedbackByJobId, null),
+    activeTargets,
+  );
+});
+
+test("focus job skips rejected jobs when the blocker also affects a still-considered job", () => {
+  const selected = action("agent", 2, 3, ["job-rejected", "job-open"]);
+  const feedbackByJobId = new Map([
+    ["job-rejected", feedback("job-rejected", "rejected")],
+  ]);
+
+  assert.equal(selectEvidenceFocusJobId(selected, feedbackByJobId), "job-open");
+});
+
+test("all-rejected actions produce no new evidence task", () => {
+  const selected = action("python", 2, 3, ["job-a", "job-b"]);
+  const feedbackByJobId = new Map([
+    ["job-a", feedback("job-a", "rejected")],
+    ["job-b", feedback("job-b", "rejected")],
+  ]);
+
+  assert.equal(selectNextEvidencePriority([selected], feedbackByJobId, null), null);
 });
 
 test("resolved requirement is excluded before feedback tie-breaking", () => {
