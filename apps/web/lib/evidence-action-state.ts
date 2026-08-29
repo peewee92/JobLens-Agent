@@ -1,4 +1,4 @@
-export type EvidenceActionStage = "pending" | "evidence_saved" | "rematch_verified";
+export type EvidenceActionStage = "pending" | "evidence_saved" | "rematch_verified" | "completed";
 
 export interface EvidenceActionSnapshot {
   requirementId: string;
@@ -9,8 +9,14 @@ export interface EvidenceActionSnapshot {
   updatedAt: number;
 }
 
+export interface EvidenceActionState {
+  current: EvidenceActionSnapshot | null;
+  recentCompleted: EvidenceActionSnapshot[];
+}
+
 export const EVIDENCE_ACTION_STORAGE_KEY = "joblens:evidence-action:v1";
 export const EVIDENCE_ACTION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+export const EVIDENCE_ACTION_COMPLETED_LIMIT = 3;
 
 export function parseEvidenceActionSnapshot(
   raw: string | null,
@@ -23,7 +29,7 @@ export function parseEvidenceActionSnapshot(
     if (
       typeof parsed.requirementId !== "string"
       || !parsed.requirementId.trim()
-      || !["pending", "evidence_saved", "rematch_verified"].includes(parsed.stage ?? "")
+      || !["pending", "evidence_saved", "rematch_verified", "completed"].includes(parsed.stage ?? "")
       || typeof parsed.updatedAt !== "number"
       || !Number.isFinite(parsed.updatedAt)
       || now - parsed.updatedAt > EVIDENCE_ACTION_MAX_AGE_MS
@@ -47,6 +53,41 @@ export function parseEvidenceActionSnapshot(
   }
 }
 
+export function parseEvidenceActionState(raw: string | null, now = Date.now()): EvidenceActionState | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<EvidenceActionState & EvidenceActionSnapshot>;
+    const legacyCurrent = typeof parsed.requirementId === "string"
+      ? parseEvidenceActionSnapshot(raw, now)
+      : null;
+    const current = parsed.current ? parseEvidenceActionSnapshot(JSON.stringify(parsed.current), now) : legacyCurrent;
+    const recentCompleted = Array.isArray(parsed.recentCompleted)
+      ? parsed.recentCompleted
+        .map((item) => parseEvidenceActionSnapshot(JSON.stringify(item), now))
+        .filter((item): item is EvidenceActionSnapshot => item?.stage === "completed")
+        .slice(0, EVIDENCE_ACTION_COMPLETED_LIMIT)
+      : [];
+    if (!current && recentCompleted.length === 0) return null;
+    return {current, recentCompleted};
+  } catch {
+    return null;
+  }
+}
+
+export function transitionEvidenceActionState(
+  previous: EvidenceActionState | null,
+  nextCurrent: EvidenceActionSnapshot | null,
+  completeCurrent = false,
+): EvidenceActionState {
+  const completed = completeCurrent && previous?.current
+    ? [{...previous.current, stage: "completed" as const, updatedAt: nextCurrent?.updatedAt ?? Date.now()}]
+    : [];
+  return {
+    current: nextCurrent,
+    recentCompleted: [...completed, ...(previous?.recentCompleted ?? [])].slice(0, EVIDENCE_ACTION_COMPLETED_LIMIT),
+  };
+}
+
 export function evidenceActionStageLabel(stage: EvidenceActionStage): string {
   switch (stage) {
     case "pending":
@@ -55,5 +96,7 @@ export function evidenceActionStageLabel(stage: EvidenceActionStage): string {
       return "已核实，等待可比较的 Re-match";
     case "rematch_verified":
       return "Re-match 已验证";
+    case "completed":
+      return "已完成";
   }
 }

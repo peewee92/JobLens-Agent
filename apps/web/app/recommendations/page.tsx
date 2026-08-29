@@ -407,6 +407,17 @@ export default async function RecommendationsPage({
   );
   const expectedImpactImprovedCount = expectedImpactResults.filter((item) => item.outcome === "improved").length;
   const expectedImpactVerifiedCount = expectedImpactResults.filter((item) => item.outcome !== "unverifiable").length;
+  const evidenceActionHasSuccessor = Boolean(
+    focusRequirementId
+    && focusImprovement?.comparable
+    && nextEvidenceRequirement
+    && nextEvidenceRequirement.requirementId !== focusRequirementId,
+  );
+  const evidenceActionCompleted = Boolean(
+    focusRequirementId
+    && focusImprovement?.comparable
+    && (focusedRequirementResolved || evidenceActionHasSuccessor),
+  );
 
   return (
     <>
@@ -424,6 +435,13 @@ export default async function RecommendationsPage({
         capability={focusCapability}
         requirementText={focusRequirementText}
         stage={focusRequirementId ? (focusImprovement?.comparable ? "rematch_verified" : "evidence_saved") : null}
+        completeCurrent={evidenceActionCompleted}
+        successor={evidenceActionHasSuccessor && nextEvidenceRequirement ? {
+          requirementId: nextEvidenceRequirement.requirementId,
+          jobId: nextEvidenceJobId,
+          capability: nextEvidencePriority?.normalizedCapability ?? null,
+          requirementText: nextEvidenceRequirement.originalText,
+        } : null}
         compact
       />
 
