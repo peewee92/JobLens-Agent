@@ -315,6 +315,29 @@ el('downloadJson').addEventListener('click', async () => {
   await downloadData(lastRun.jsonFilename || 'boss-job-filter-report.json', 'application/json', lastRun.json);
 });
 
+el('syncJobLens').addEventListener('click', async () => {
+  const button = el('syncJobLens');
+  const { lastRun } = await chrome.storage.local.get('lastRun');
+  let report;
+  try {
+    report = JobLensSync.parseReport(lastRun);
+  } catch (error) {
+    el('status').textContent = error?.message || '还没有可同步的完整报告。';
+    return;
+  }
+
+  button.disabled = true;
+  el('status').textContent = '正在同步到本机 JobLens…';
+  try {
+    const result = await JobLensSync.syncReport(report);
+    el('status').textContent = JobLensSync.formatSyncResult(result);
+  } catch (error) {
+    el('status').textContent = `${error?.message || '同步失败。'} 可继续使用“完整报告”JSON 手工导入。`;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 el('downloadDiagnostics').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.diagnosticJson) return void (el('status').textContent = '还没有诊断文件。');

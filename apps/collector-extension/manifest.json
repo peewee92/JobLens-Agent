@@ -4,7 +4,11 @@
   "version": "1.4.6",
   "description": "通用 BOSS 岗位搜索、采集与筛选工具；支持完整 JD 质量标记、JobLens Requirement 验收数据、多城市、全国远程和 CSV/JSON 导出。",
   "permissions": ["tabs", "storage", "downloads"],
-  "host_permissions": ["https://www.zhipin.com/*"],
+  "host_permissions": [
+    "https://www.zhipin.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
   "action": {
     "default_title": "岗位筛选 v1.4.6",
     "default_popup": "popup.html"

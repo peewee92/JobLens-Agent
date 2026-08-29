@@ -8,10 +8,15 @@ This directory contains JobLens Collector v1.4.6, derived from the standalone `�
 
 ## Normal import
 
-Upload the full report to:
+The popup now supports **同步到 JobLens** for the latest full report. It POSTs the same report payload directly to the local Backend endpoint:
 
 ```text
-POST /api/v1/job-imports
+POST http://127.0.0.1:8000/api/v1/job-imports
+```
+
+The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
+
+```text
 boss-job-filter-report-v1.4.6-*.json
 ```
 
@@ -45,4 +50,4 @@ In `matched` detail mode, v1.4.6 keeps the v1.4.3 allocation policy and plans up
 
 When a Collector v1.4.x job is imported from the full report, the backend checks the persisted quality evidence before invoking the Requirement Extractor. `card_only`, `partial_jd` and `unavailable` inputs return `job_description_not_extractable` before a model call or Trace run is created.
 
-Future P1 integration may add optional API sync while preserving offline JSON export.
+API sync is intentionally local-only in this first P1 slice (`127.0.0.1` / `localhost`). It does not carry API keys, does not invoke Requirement extraction, and does not replace offline JSON export.
