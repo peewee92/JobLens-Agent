@@ -29,6 +29,7 @@ import {formatSalary} from "@/lib/format";
 import {
   classifyMatchImprovementOutcome,
   diagnoseFocusedRequirementOutcome,
+  listNewlySupportedRequirements,
   shouldDeferImmediateEvidenceRepeat,
 } from "@/lib/match-improvement-outcome";
 import {
@@ -328,6 +329,10 @@ export default async function RecommendationsPage({
     focusRequirementId,
     focusedRequirementStillMissing,
   );
+  const newlySupportedOtherRequirements = listNewlySupportedRequirements(
+    focusImprovement,
+    focusRequirementId,
+  );
   const focusedRequirementShouldPause = shouldDeferImmediateEvidenceRepeat(
     focusImprovement,
     focusRequirementId,
@@ -457,8 +462,32 @@ export default async function RecommendationsPage({
                             ? "这次 Profile 确实新增了可用于匹配的真实 Evidence，但它没有进入刚核实的这条 Requirement；新增依据改善的是其他要求，因此这条硬缺口保持不变。"
                             : "这次可比较的 Profile 更新没有产生进入任何 Requirement 的新增匹配 Evidence；刚核实的硬缺口因此保持不变。"}
                   </p>
+                  <div className="focus-improvement-next-step">
+                    <strong>下一步怎么做</strong>
+                    <p>
+                      {focusedRequirementOutcomeReason === "resolved"
+                        ? "这条硬条件已经解除；回到当前排序继续比较岗位优先级，不需要再围绕同一要求补资料。"
+                        : focusedRequirementOutcomeReason === "resolved_with_other_hard_gaps"
+                          ? "不要继续补同一条要求；优先处理下面系统选出的剩余最高价值 blocker，或接受该岗位暂时仍不满足硬条件。"
+                          : focusedRequirementOutcomeReason === "evidence_reached_requirement_but_still_missing"
+                            ? "只有在你确实还有更直接、更强的真实经历时才继续补这条要求；否则保留缺口并转向下一 blocker，不要为了通过匹配而改写事实。"
+                            : focusedRequirementOutcomeReason === "evidence_added_elsewhere"
+                              ? "这次新增经历有价值，但没有命中刚核实的要求；先看它实际进入了哪些 Requirement，再按下一 blocker 决定是否继续补资料。"
+                              : "先检查刚保存的经历是否包含可追溯的项目、职责或结果事实；如果没有更多真实证据，就保留当前缺口并转向下一 blocker。"}
+                    </p>
+                    {focusedRequirementOutcomeReason === "evidence_added_elsewhere" && newlySupportedOtherRequirements.length > 0 ? (
+                      <>
+                        <p>这次新增 Evidence 实际进入了：</p>
+                        <ul>
+                          {newlySupportedOtherRequirements.slice(0, 3).map((requirement) => (
+                            <li key={requirement.requirementId}>{requirement.originalText}</li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : null}
+                  </div>
                   <p className="muted">
-                    这里只使用前后 MatchReport 的 Requirement ID 与 Evidence provenance 解释结果，不根据关键词或模型猜测补原因。
+                    这里只使用前后 MatchReport 的 Requirement ID 与 Evidence provenance 解释结果和下一动作，不根据关键词或模型猜测补原因。
                   </p>
                 </div>
               ) : null}

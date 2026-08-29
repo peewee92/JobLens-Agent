@@ -5,6 +5,7 @@ import type {MatchImprovement} from "../lib/contracts";
 import {
   classifyMatchImprovementOutcome,
   diagnoseFocusedRequirementOutcome,
+  listNewlySupportedRequirements,
   shouldDeferImmediateEvidenceRepeat,
 } from "../lib/match-improvement-outcome";
 
@@ -105,6 +106,50 @@ test("diagnoses focused requirement outcomes only from comparable requirement an
   assert.equal(
     diagnoseFocusedRequirementOutcome(improvement(), "req-focus", true),
     "no_new_matching_evidence",
+  );
+});
+
+test("lists the concrete other requirements reached by newly supporting evidence", () => {
+  const result = listNewlySupportedRequirements(
+    improvement({
+      newlySupportingEvidence: [
+        {
+          evidenceId: "ev-1",
+          evidenceType: "project",
+          summary: "Built a production workflow",
+          supportingRequirements: [
+            {requirementId: "req-focus", originalText: "Production workflow experience"},
+            {requirementId: "req-other", originalText: "Own production delivery"},
+          ],
+        },
+        {
+          evidenceId: "ev-2",
+          evidenceType: "work",
+          summary: "Led frontend delivery",
+          supportingRequirements: [{requirementId: "req-other", originalText: "Own production delivery"}],
+        },
+      ],
+    }),
+    "req-focus",
+  );
+
+  assert.deepEqual(result, [{requirementId: "req-other", originalText: "Own production delivery"}]);
+});
+
+test("does not list evidence impact when comparison history is unverifiable", () => {
+  assert.deepEqual(
+    listNewlySupportedRequirements(
+      improvement({
+        comparable: false,
+        newlySupportingEvidence: [{
+          evidenceId: "ev-1",
+          evidenceType: "project",
+          summary: "Built a production workflow",
+          supportingRequirements: [{requirementId: "req-other", originalText: "Own production delivery"}],
+        }],
+      }),
+    ),
+    [],
   );
 });
 

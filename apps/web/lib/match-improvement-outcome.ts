@@ -10,6 +10,22 @@ export type FocusedRequirementOutcomeReason =
   | "evidence_added_elsewhere"
   | "no_new_matching_evidence";
 
+export function listNewlySupportedRequirements(
+  improvement: MatchImprovement | null,
+  excludedRequirementId: string | null = null,
+): MatchImprovement["resolvedRequirements"] {
+  if (!improvement || classifyMatchImprovementOutcome(improvement) === "unverifiable") return [];
+
+  const byRequirementId = new Map<string, MatchImprovement["resolvedRequirements"][number]>();
+  for (const evidence of improvement.newlySupportingEvidence) {
+    for (const requirement of evidence.supportingRequirements) {
+      if (requirement.requirementId === excludedRequirementId) continue;
+      byRequirementId.set(requirement.requirementId, requirement);
+    }
+  }
+  return [...byRequirementId.values()];
+}
+
 export function classifyMatchImprovementOutcome(
   improvement: MatchImprovement | null,
 ): MatchImprovementOutcome {
