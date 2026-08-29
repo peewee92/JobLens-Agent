@@ -65,6 +65,9 @@ export default async function RecommendationsPage({
   const focusRequirementText = typeof params.focusRequirementText === "string"
     ? params.focusRequirementText.trim().slice(0, 300) || null
     : null;
+  const focusImpactJobIds = typeof params.focusImpactJobs === "string"
+    ? params.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
+    : [];
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -333,9 +336,6 @@ export default async function RecommendationsPage({
       .find((item) => item.jobId === nextEvidenceJobId)
       ?.requirements.find((requirement) => nextEvidencePriority.requirementIds.includes(requirement.requirementId)) ?? null
     : null;
-  const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}#profile-evidence-focus`
-    : null;
   const nextEvidenceImpactTargets = blockerSummary
     ? listEvidencePriorityImpactTargets(
       nextEvidencePriority,
@@ -343,9 +343,25 @@ export default async function RecommendationsPage({
       evidenceFeedbackByJobId,
     )
     : [];
+  const nextEvidenceProfileHref = nextEvidencePriority
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}${nextEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(nextEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}#profile-evidence-focus`
+    : null;
   const recommendationJobTitleById = new Map(
     jobs.items.map((job) => [job.id, job.title] as const),
   );
+  const improvedJobIds = new Set([
+    ...(focusImprovement?.comparable && (
+      focusImprovement.resolvedRequirementIds.length > 0
+      || focusImprovement.previousRecommendation !== focusImprovement.currentRecommendation
+    ) && focusJobId ? [focusJobId] : []),
+    ...otherImprovedJobs.map(({job}) => job?.id).filter((jobId): jobId is string => Boolean(jobId)),
+  ]);
+  const expectedImpactResults = focusImpactJobIds.map((jobId) => ({
+    jobId,
+    title: recommendationJobTitleById.get(jobId) ?? jobId,
+    improved: improvedJobIds.has(jobId),
+  }));
+  const expectedImpactImprovedCount = expectedImpactResults.filter((item) => item.improved).length;
 
   return (
     <>
@@ -417,6 +433,25 @@ export default async function RecommendationsPage({
                   </div>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {expectedImpactResults.length > 0 ? (
+            <div className="focus-improvement-facts">
+              <strong>行动前预期影响 vs. 这次重算结果</strong>
+              <p>
+                行动前你优先核实了 {expectedImpactResults.length} 个仍在考虑岗位；这次资料更新后，其中 {expectedImpactImprovedCount} 个出现了可验证改善。
+              </p>
+              <ul>
+                {expectedImpactResults.map((item) => (
+                  <li key={item.jobId}>
+                    <Link href={`/jobs/${item.jobId}`}>{item.title}</Link>
+                    {item.improved ? "：这次有可验证改善" : "：这次暂未观察到可验证改善"}
+                  </li>
+                ))}
+              </ul>
+              <p className="muted">
+                这里比较的是同一次 Profile 更新前后的 MatchReport 事实；未改善不代表这项经历无价值，也不会把相关性强行归因给某一条 Evidence。
+              </p>
             </div>
           ) : null}
           {focusImprovement?.comparable ? (
