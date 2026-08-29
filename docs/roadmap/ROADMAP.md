@@ -509,6 +509,7 @@ Profile 页面可以明确区分：
 - 2026-08-30：补上 Evidence 内容被清空时的即时影响预览。只要一条已有简称的 Evidence 的“我做了什么”被清空，且仍被一个或多个 Skill 引用，编辑卡片会在离开当前输入上下文前直接列出受影响 Skill；用户可以补回真实内容，或显式选择“只移除这些技能引用”。移除动作只删除指向该 Evidence 当前/原始 key 的既有引用，Evidence 草稿本身仍保留，方便用户继续补事实；系统不会自动补写经历、迁移到其他 Evidence 或推断新能力。该切片继续只维护 Web 草稿事实完整性，不改 Match/Eligibility/Ranking/UserFeedback，零 Provider、零 Backend 业务改动、零 migration。
 
 - 2026-08-30：开始落地 Collector → JobLens 一键同步的最小本地闭环。Collector popup 可把最近一次完整 report 直接 POST 到本机 `http://127.0.0.1:8000/api/v1/job-imports`；后端继续复用既有 Job identity / dedupe / import audit，因此重复同步不会重复创建 Job，而是按真实差异返回 created / updated / skipped。同步失败不会删除或覆盖采集结果，既有“完整报告”JSON 下载继续作为离线兜底。首切片只开放 localhost/127.0.0.1 host permission，不携带 API key、不调用 Requirement Provider、不新增 Backend 表或 migration；后续再基于真实使用验证是否需要可配置 endpoint / 自动增量触发。
+- 2026-08-30：补齐 Collector 同步后的可见结果 handoff。同步成功后 popup 校验 Backend 返回的 immutable `importId`，仅持久化最近一次成功批次 ID，并提供“查看本次导入”直接打开既有 `/imports/{importId}` 审计页；重开 popup 后入口仍可恢复，后续同步失败也不会覆盖上一次成功入口。该 handoff 只复用既有 Import Detail Web/API，不自动启动 Requirement Extraction、Match 或 Provider 调用，不新增 Backend 写模型或 migration。
 
 ### 任务
 

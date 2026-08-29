@@ -1,5 +1,6 @@
 (() => {
   const DEFAULT_ENDPOINT = 'http://127.0.0.1:8000/api/v1/job-imports';
+  const DEFAULT_WEB_ORIGIN = 'http://127.0.0.1:3000';
 
   function parseReport(lastRun) {
     if (lastRun?.report && typeof lastRun.report === 'object' && !Array.isArray(lastRun.report)) {
@@ -33,6 +34,13 @@
     return body;
   }
 
+  function buildImportDetailUrl(importId, { webOrigin = DEFAULT_WEB_ORIGIN } = {}) {
+    if (typeof importId !== 'string' || !/^imp_[A-Za-z0-9_-]+$/.test(importId)) {
+      throw new Error('JobLens 没有返回可打开的导入批次。');
+    }
+    return `${webOrigin.replace(/\/$/, '')}/imports/${encodeURIComponent(importId)}`;
+  }
+
   function formatSyncResult(result) {
     const created = Number(result?.created || 0);
     const updated = Number(result?.updated || 0);
@@ -45,8 +53,10 @@
 
   globalThis.JobLensSync = {
     DEFAULT_ENDPOINT,
+    DEFAULT_WEB_ORIGIN,
     parseReport,
     syncReport,
+    buildImportDetailUrl,
     formatSyncResult
   };
 })();

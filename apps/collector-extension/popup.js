@@ -27,6 +27,12 @@ const el = id => document.getElementById(id);
 const selectedCities = new Map();
 let activeProvince = '湖北';
 let recentCityCodes = [];
+let lastJobLensImportId = null;
+
+function renderJobLensImportLink(importId) {
+  lastJobLensImportId = typeof importId === 'string' && importId ? importId : null;
+  el('openJobLensImport').hidden = !lastJobLensImportId;
+}
 
 function canonicalCity(raw) {
   if (!raw) return null;
@@ -211,8 +217,8 @@ function migratedCities(config) {
 }
 
 async function loadState() {
-  const { lastConfig, lastRun, recentCityCodes: storedRecent } = await chrome.storage.local.get([
-    'lastConfig', 'lastRun', 'recentCityCodes'
+  const { lastConfig, lastRun, recentCityCodes: storedRecent, lastJobLensImportId: storedImportId } = await chrome.storage.local.get([
+    'lastConfig', 'lastRun', 'recentCityCodes', 'lastJobLensImportId'
   ]);
   const config = lastConfig || {};
   recentCityCodes = Array.isArray(storedRecent) ? storedRecent.filter(code => CITY_DATA.byCode[code]) : [];
@@ -232,6 +238,7 @@ async function loadState() {
   el('excludeAssistant').checked = config.excludeAssistant ?? false;
   activeProvince = [...selectedCities.values()][0]?.province || '湖北';
   renderAllCityUi();
+  renderJobLensImportLink(storedImportId);
 
   if (lastRun?.jobs) {
     const counts = lastRun.diagnostics?.counts;
@@ -330,12 +337,21 @@ el('syncJobLens').addEventListener('click', async () => {
   el('status').textContent = '正在同步到本机 JobLens…';
   try {
     const result = await JobLensSync.syncReport(report);
-    el('status').textContent = JobLensSync.formatSyncResult(result);
+    const importId = result?.importId;
+    JobLensSync.buildImportDetailUrl(importId);
+    await chrome.storage.local.set({ lastJobLensImportId: importId });
+    renderJobLensImportLink(importId);
+    el('status').textContent = `${JobLensSync.formatSyncResult(result)} 可直接查看这次导入。`;
   } catch (error) {
     el('status').textContent = `${error?.message || '同步失败。'} 可继续使用“完整报告”JSON 手工导入。`;
   } finally {
     button.disabled = false;
   }
+});
+
+el('openJobLensImport').addEventListener('click', async () => {
+  if (!lastJobLensImportId) return;
+  await chrome.tabs.create({ url: JobLensSync.buildImportDetailUrl(lastJobLensImportId), active: true });
 });
 
 el('downloadDiagnostics').addEventListener('click', async () => {

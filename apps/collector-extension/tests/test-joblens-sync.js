@@ -9,6 +9,16 @@ vm.runInContext(fs.readFileSync(require.resolve('../joblens-sync.js'), 'utf8'), 
 const sync = context.JobLensSync;
 
 assert.strictEqual(sync.DEFAULT_ENDPOINT, 'http://127.0.0.1:8000/api/v1/job-imports');
+assert.strictEqual(sync.DEFAULT_WEB_ORIGIN, 'http://127.0.0.1:3000');
+assert.strictEqual(
+  sync.buildImportDetailUrl('imp_abc-123'),
+  'http://127.0.0.1:3000/imports/imp_abc-123'
+);
+assert.strictEqual(
+  sync.buildImportDetailUrl('imp_abc', { webOrigin: 'http://localhost:3000/' }),
+  'http://localhost:3000/imports/imp_abc'
+);
+assert.throws(() => sync.buildImportDetailUrl('job_not_import'), /没有返回可打开的导入批次/);
 
 const report = { version: '1.4.6', jobs: [{ title: 'AI Engineer' }] };
 assert.deepStrictEqual(JSON.parse(JSON.stringify(sync.parseReport({ report }))), report);
@@ -27,7 +37,7 @@ assert.throws(() => sync.parseReport({}), /还没有可同步的完整报告/);
         ok: true,
         status: 201,
         async json() {
-          return { created: 1, updated: 2, skipped: 3, errors: [] };
+          return { importId: 'imp_test123', created: 1, updated: 2, skipped: 3, errors: [] };
         }
       };
     }
@@ -37,6 +47,7 @@ assert.throws(() => sync.parseReport({}), /还没有可同步的完整报告/);
   assert.strictEqual(request.options.method, 'POST');
   assert.strictEqual(request.options.headers['Content-Type'], 'application/json');
   assert.deepStrictEqual(JSON.parse(request.options.body), report);
+  assert.strictEqual(result.importId, 'imp_test123');
   assert.strictEqual(result.created, 1);
   assert.strictEqual(
     sync.formatSyncResult(result),

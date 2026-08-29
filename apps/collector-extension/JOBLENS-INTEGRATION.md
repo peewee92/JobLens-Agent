@@ -14,7 +14,7 @@ The popup now supports **同步到 JobLens** for the latest full report. It POST
 POST http://127.0.0.1:8000/api/v1/job-imports
 ```
 
-The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
+The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. On success the popup stores only the returned immutable `importId` and exposes **查看本次导入**, which opens the existing JobLens Web audit page at `http://127.0.0.1:3000/imports/{importId}`. Reopening the popup restores the most recent successful import link; a later failed sync does not erase that link. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
 
 ```text
 boss-job-filter-report-v1.4.6-*.json
