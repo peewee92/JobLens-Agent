@@ -491,6 +491,7 @@ Profile 页面可以明确区分：
 - 2026-08-29：把下一 Evidence 行动的“预期收益”从聚合数字落到可追溯事实。推荐页在进入 Profile 前直接列出最多 3 个仍在考虑、且被该 action 的真实 `Requirement ID` 命中的岗位及 Requirement 原文；`interested / maybe` 只影响展示顺序，`rejected` 岗位不进入预览。页面明确声明这只是当前 blocker 的核实优先级，不承诺补证据后一定解锁岗位，最终结果仍以保存真实 Evidence 后的 Re-match 为准。该切片只读复用现有 Match blocker + UserFeedback，零 Provider、零 DB 写入、零 migration。
 - 2026-08-29：补上“行动前预期 → 行动后校准”最小闭环。进入 Profile 时只携带最多 3 个仍在考虑岗位的 immutable Job ID 作为本次核实的预期观察集合，Profile 保存返回时原样保留；Re-match 后推荐页用现有同一 Profile 更新前后 `MatchReport` 对比，逐个显示这些岗位本轮是否出现可验证改善，并汇总“预期观察 N 个 / 实际改善 M 个”。这里不把未改善解释为 Evidence 无价值，也不把任意改善强行归因给某一条 Evidence；只是帮助用户校准下一次补证据行动。全程零 Provider、零 DB 写入、零 migration。
 - 2026-08-29：修正上述校准闭环中的“未知被误报为未改善”问题。此前只对页面当前可见的一小组岗位读取 improvement 历史，若行动前记录的目标岗位恰好不在该集合中，会被错误显示为“暂未改善”。现在对最多 3 个行动前目标逐个读取其当前 MatchReport 的 improvement，并明确区分 `improved / unchanged / unverifiable`；读取失败、历史不足或 Profile version 不可比较时统一展示“暂不下结论”，只有真正拿到可比较的前后报告后才允许显示“暂未改善”。该修复不改变 Match/Ranking/Eligibility 事实，不新增 Provider、DB 写入或 migration。
+- 2026-08-29：开始把可验证校准结果用于下一行动节奏，但只做最小、可逆的“避免立即机械重复”。若用户刚核实的具体 Requirement 在**可比较**的前后 MatchReport 中仍处于 hard missing，且整个比较结果为 `unchanged`，下一 Evidence action 本轮会暂时跳过包含该 Requirement ID 的 blocker，转向其他仍有价值的真实事实；这不把 `unchanged` 解释为用户没有能力，也不永久降权。`unverifiable`（历史不足、读取失败、Profile version 不可比）绝不会触发跳过，避免把未知当失败信号。该切片只影响推荐页下一步行动选择，不改 Match / Eligibility / Ranking / UserFeedback，不新增 Provider、DB 写入或 migration。
 
 ### 任务
 

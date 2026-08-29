@@ -23,3 +23,12 @@ export function classifyMatchImprovementOutcome(
 
   return "unchanged";
 }
+
+export function shouldDeferImmediateEvidenceRepeat(
+  improvement: MatchImprovement | null,
+  requirementId: string | null,
+  stillMissing: boolean,
+): boolean {
+  if (!requirementId || !stillMissing) return false;
+  return classifyMatchImprovementOutcome(improvement) === "unchanged";
+}

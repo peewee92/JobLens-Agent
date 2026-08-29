@@ -293,7 +293,9 @@ test("focused evidence action returns with exact requirement identity and report
   assert.match(recommendations, /首次进入这条 Requirement ID 的 Evidence/);
   assert.match(recommendations, /历史比较不足以证明一定是新增 Evidence 造成的/);
   assert.match(recommendations, /selectNextEvidencePriority/);
-  assert.match(recommendations, /resolvedRequirementToExclude/);
+  assert.match(recommendations, /recentlyVerifiedRequirementToExclude/);
+  assert.match(recommendations, /shouldDeferImmediateEvidenceRepeat/);
+  assert.match(recommendations, /不会立刻重复推荐/);
   assert.match(recommendations, /下一项最值得核实/);
   assert.match(recommendations, /已解决的 Requirement 和只影响“不考虑”岗位的行动都不会继续占用下一步行动位/);
   assert.match(recommendations, /继续核实下一项真实证据/);

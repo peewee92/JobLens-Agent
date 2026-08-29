@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type {MatchImprovement} from "../lib/contracts";
-import {classifyMatchImprovementOutcome} from "../lib/match-improvement-outcome";
+import {
+  classifyMatchImprovementOutcome,
+  shouldDeferImmediateEvidenceRepeat,
+} from "../lib/match-improvement-outcome";
 
 function improvement(overrides: Partial<MatchImprovement> = {}): MatchImprovement {
   return {
@@ -44,6 +47,19 @@ test("reports improved when recommendation changes", () => {
 
 test("reports unchanged only after a comparable profile-version change", () => {
   assert.equal(classifyMatchImprovementOutcome(improvement()), "unchanged");
+});
+
+test("verified unchanged focused requirement pauses immediate repeat", () => {
+  assert.equal(shouldDeferImmediateEvidenceRepeat(improvement(), "req-focus", true), true);
+  assert.equal(shouldDeferImmediateEvidenceRepeat(improvement(), "req-focus", false), false);
+});
+
+test("unverifiable history never becomes a repeat-suppression signal", () => {
+  assert.equal(shouldDeferImmediateEvidenceRepeat(null, "req-focus", true), false);
+  assert.equal(
+    shouldDeferImmediateEvidenceRepeat(improvement({comparable: false}), "req-focus", true),
+    false,
+  );
 });
 
 test("does not turn missing or incomparable comparison evidence into no improvement", () => {

@@ -23,7 +23,10 @@ import {
   selectNextEvidencePriority,
 } from "@/lib/evidence-priority";
 import {formatSalary} from "@/lib/format";
-import {classifyMatchImprovementOutcome} from "@/lib/match-improvement-outcome";
+import {
+  classifyMatchImprovementOutcome,
+  shouldDeferImmediateEvidenceRepeat,
+} from "@/lib/match-improvement-outcome";
 import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
@@ -313,15 +316,20 @@ export default async function RecommendationsPage({
       return feedback ? [[report.jobId, feedback] as const] : [];
     }),
   );
-  const resolvedRequirementToExclude = focusRequirementId
-    && focusImprovement?.resolvedRequirementIds.includes(focusRequirementId)
+  const focusedRequirementShouldPause = shouldDeferImmediateEvidenceRepeat(
+    focusImprovement,
+    focusRequirementId,
+    focusedRequirementStillMissing,
+  );
+  const recentlyVerifiedRequirementToExclude = focusRequirementId
+    && (focusImprovement?.resolvedRequirementIds.includes(focusRequirementId) || focusedRequirementShouldPause)
     ? focusRequirementId
     : null;
   const nextEvidencePriority = blockerSummary
     ? selectNextEvidencePriority(
       blockerSummary.priorityActions,
       feedbackStateAvailable ? feedbackByJobId : new Map(),
-      resolvedRequirementToExclude,
+      recentlyVerifiedRequirementToExclude,
     )
     : null;
   const evidenceFeedbackByJobId = feedbackStateAvailable ? feedbackByJobId : new Map<string, UserFeedbackRecord>();
@@ -428,14 +436,16 @@ export default async function RecommendationsPage({
                   </p>
                 </div>
               ) : null}
-              {focusedRequirementResolved && nextEvidencePriority && nextEvidenceProfileHref ? (
+              {(focusedRequirementResolved || focusedRequirementShouldPause) && nextEvidencePriority && nextEvidenceProfileHref ? (
                 <div className="focus-improvement-facts">
                   <strong>
                     下一项最值得核实：{nextEvidencePriority.normalizedCapability ?? `${blockerRequirementTypeLabel(nextEvidencePriority.requirementType)}类事实`}
                   </strong>
                   <p>
                     当前仍影响 {nextEvidencePriority.affectedJobCount} 个已分析岗位，其中 {nextEvidenceConsideredJobCount} 个没有被你明确标记为“不考虑”，共对应 {nextEvidencePriority.missingRequirementCount} 条硬条件缺口。
-                    已解决的 Requirement 和只影响“不考虑”岗位的行动都不会继续占用下一步行动位。
+                    {focusedRequirementShouldPause
+                      ? "刚核实但可比较结果仍未改善的 Requirement 本轮不会立刻重复推荐；这只是避免机械重复，不代表你没有这项能力。"
+                      : "已解决的 Requirement 和只影响“不考虑”岗位的行动都不会继续占用下一步行动位。"}
                   </p>
                   <div className="actions">
                     <Link className="button" href={nextEvidenceProfileHref}>
