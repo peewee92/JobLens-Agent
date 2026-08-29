@@ -28,6 +28,7 @@ import {
 import {formatSalary} from "@/lib/format";
 import {
   classifyMatchImprovementOutcome,
+  diagnoseFocusedRequirementOutcome,
   shouldDeferImmediateEvidenceRepeat,
 } from "@/lib/match-improvement-outcome";
 import {
@@ -322,6 +323,11 @@ export default async function RecommendationsPage({
       return feedback ? [[report.jobId, feedback] as const] : [];
     }),
   );
+  const focusedRequirementOutcomeReason = diagnoseFocusedRequirementOutcome(
+    focusImprovement,
+    focusRequirementId,
+    focusedRequirementStillMissing,
+  );
   const focusedRequirementShouldPause = shouldDeferImmediateEvidenceRepeat(
     focusImprovement,
     focusRequirementId,
@@ -437,6 +443,25 @@ export default async function RecommendationsPage({
                     ? "这次保存后该 Requirement ID 仍在当前 MatchReport 的硬缺口里；如果没有真实经历可以证明，就继续保留缺口。"
                     : "当前报告已不把这条 Requirement ID 作为硬缺口，但历史比较不足以证明一定是新增 Evidence 造成的，因此这里只报告当前事实。"}
               </p>
+              {focusedRequirementOutcomeReason !== "unverifiable" ? (
+                <div className="focus-improvement-facts">
+                  <strong>这次重算为什么是这个结果</strong>
+                  <p>
+                    {focusedRequirementOutcomeReason === "resolved"
+                      ? "这条 Requirement 已经由当前 Profile 的真实依据解除，并且当前岗位没有剩余硬条件缺口。"
+                      : focusedRequirementOutcomeReason === "resolved_with_other_hard_gaps"
+                        ? `这条 Requirement 已经解除，但当前岗位仍有 ${focusImprovement?.currentMissingRequirementCount ?? 0} 条其他硬条件缺口；下一步应处理剩余 blocker，而不是继续补同一条证据。`
+                        : focusedRequirementOutcomeReason === "evidence_reached_requirement_but_still_missing"
+                          ? "这次新增的真实 Evidence 已经进入这条 Requirement 的匹配依据，但当前 MatchReport 仍把它保留为硬缺口；说明现有证据尚不足以解除该条件，不应把“有相关经历”误报成“已满足”。"
+                          : focusedRequirementOutcomeReason === "evidence_added_elsewhere"
+                            ? "这次 Profile 确实新增了可用于匹配的真实 Evidence，但它没有进入刚核实的这条 Requirement；新增依据改善的是其他要求，因此这条硬缺口保持不变。"
+                            : "这次可比较的 Profile 更新没有产生进入任何 Requirement 的新增匹配 Evidence；刚核实的硬缺口因此保持不变。"}
+                  </p>
+                  <p className="muted">
+                    这里只使用前后 MatchReport 的 Requirement ID 与 Evidence provenance 解释结果，不根据关键词或模型猜测补原因。
+                  </p>
+                </div>
+              ) : null}
               {focusedRequirementResolved && focusedRequirementEvidence.length > 0 ? (
                 <div className="focus-improvement-facts">
                   <strong>这次直接进入该要求匹配依据的真实经历</strong>

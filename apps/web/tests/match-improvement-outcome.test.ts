@@ -4,6 +4,7 @@ import test from "node:test";
 import type {MatchImprovement} from "../lib/contracts";
 import {
   classifyMatchImprovementOutcome,
+  diagnoseFocusedRequirementOutcome,
   shouldDeferImmediateEvidenceRepeat,
 } from "../lib/match-improvement-outcome";
 
@@ -60,6 +61,59 @@ test("unverifiable history never becomes a repeat-suppression signal", () => {
     shouldDeferImmediateEvidenceRepeat(improvement({comparable: false}), "req-focus", true),
     false,
   );
+});
+
+test("diagnoses focused requirement outcomes only from comparable requirement and evidence facts", () => {
+  assert.equal(
+    diagnoseFocusedRequirementOutcome(
+      improvement({resolvedRequirementIds: ["req-focus"], currentMissingRequirementCount: 1}),
+      "req-focus",
+      false,
+    ),
+    "resolved_with_other_hard_gaps",
+  );
+  assert.equal(
+    diagnoseFocusedRequirementOutcome(
+      improvement({
+        newlySupportingEvidence: [{
+          evidenceId: "ev-1",
+          evidenceType: "project",
+          summary: "Built a production workflow",
+          supportingRequirements: [{requirementId: "req-focus", originalText: "Production workflow experience"}],
+        }],
+      }),
+      "req-focus",
+      true,
+    ),
+    "evidence_reached_requirement_but_still_missing",
+  );
+  assert.equal(
+    diagnoseFocusedRequirementOutcome(
+      improvement({
+        newlySupportingEvidence: [{
+          evidenceId: "ev-2",
+          evidenceType: "work",
+          summary: "Led frontend delivery",
+          supportingRequirements: [{requirementId: "req-other", originalText: "Frontend leadership"}],
+        }],
+      }),
+      "req-focus",
+      true,
+    ),
+    "evidence_added_elsewhere",
+  );
+  assert.equal(
+    diagnoseFocusedRequirementOutcome(improvement(), "req-focus", true),
+    "no_new_matching_evidence",
+  );
+});
+
+test("does not diagnose incomparable history as a failure reason", () => {
+  assert.equal(
+    diagnoseFocusedRequirementOutcome(improvement({comparable: false}), "req-focus", true),
+    "unverifiable",
+  );
+  assert.equal(diagnoseFocusedRequirementOutcome(null, "req-focus", true), "unverifiable");
 });
 
 test("does not turn missing or incomparable comparison evidence into no improvement", () => {
