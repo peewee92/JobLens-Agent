@@ -17,8 +17,11 @@ import {
 } from "@/lib/backend";
 import type {RequirementType, SearchParams, UserFeedbackRecord} from "@/lib/contracts";
 import {
+  appendEvidenceActionHistory,
   consideredAffectedJobCount,
   listEvidencePriorityImpactTargets,
+  parseEvidenceActionHistory,
+  repeatedEvidenceActionKeys,
   selectEvidenceFocusJobId,
   selectNextEvidencePriority,
 } from "@/lib/evidence-priority";
@@ -72,6 +75,9 @@ export default async function RecommendationsPage({
   const focusImpactJobIds = typeof params.focusImpactJobs === "string"
     ? params.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
+  const previousEvidenceActionHistory = parseEvidenceActionHistory(
+    typeof params.evidenceActionHistory === "string" ? params.evidenceActionHistory : null,
+  );
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -325,11 +331,19 @@ export default async function RecommendationsPage({
     && (focusImprovement?.resolvedRequirementIds.includes(focusRequirementId) || focusedRequirementShouldPause)
     ? focusRequirementId
     : null;
+  const currentEvidenceActionKey = focusRequirementId && focusCapability
+    ? `${typeof params.focusRequirement === "string" ? params.focusRequirement : "skill"}:${focusCapability.trim().toLowerCase()}`
+    : null;
+  const evidenceActionHistory = focusedRequirementShouldPause
+    ? appendEvidenceActionHistory(previousEvidenceActionHistory, currentEvidenceActionKey)
+    : [];
+  const deprioritizedEvidenceActionKeys = repeatedEvidenceActionKeys(evidenceActionHistory);
   const nextEvidencePriority = blockerSummary
     ? selectNextEvidencePriority(
       blockerSummary.priorityActions,
       feedbackStateAvailable ? feedbackByJobId : new Map(),
       recentlyVerifiedRequirementToExclude,
+      deprioritizedEvidenceActionKeys,
     )
     : null;
   const evidenceFeedbackByJobId = feedbackStateAvailable ? feedbackByJobId : new Map<string, UserFeedbackRecord>();
@@ -353,7 +367,7 @@ export default async function RecommendationsPage({
     )
     : [];
   const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}${nextEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(nextEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}#profile-evidence-focus`
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}${nextEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(nextEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${evidenceActionHistory.length > 0 ? `&evidenceActionHistory=${encodeURIComponent(evidenceActionHistory.join(","))}` : ""}#profile-evidence-focus`
     : null;
   const recommendationJobTitleById = new Map(
     jobs.items.map((job) => [job.id, job.title] as const),
@@ -699,6 +713,11 @@ export default async function RecommendationsPage({
                 下一步会先围绕仍在考虑的岗位收敛；只影响“不考虑”岗位的缺口不会继续驱动你补证据。范围相同时，再优先你明确标记为“感兴趣 / 再看看”的岗位。Match、Eligibility 和历史 blocker 事实不会因此被改写。
                 如果你确实有对应经历，优先把真实证据补进 Profile，再回来重算；如果没有，就保留缺口，不要为了排名补造经历。
               </p>
+              {deprioritizedEvidenceActionKeys.size > 0 ? (
+                <p className="muted">
+                  最近连续两次核实同类事实后都拿到了可比较但未改善的结果，所以本轮优先换一个仍有价值的 blocker；如果它仍是唯一真实缺口，系统不会永久隐藏它。读取不到可比较结果时不会记入这段历史。
+                </p>
+              ) : null}
               {nextEvidencePriority.examples.length > 0 ? (
                 <ul>
                   {nextEvidencePriority.examples.slice(0, 2).map((example) => <li key={example}>{example}</li>)}

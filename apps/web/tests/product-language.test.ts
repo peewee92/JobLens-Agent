@@ -150,6 +150,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /focusCapability=/);
   assert.match(page, /focusRequirementText=/);
   assert.match(page, /focusImpactJobs=/);
+  assert.match(page, /evidenceActionHistory=/);
+  assert.match(page, /最近连续两次核实同类事实后都拿到了可比较但未改善的结果/);
   assert.match(page, /行动前预期影响 vs\. 这次重算结果/);
   assert.match(page, /拿到了可比较的前后 MatchReport，其中 .* 个出现可验证改善/);
   assert.match(page, /当前缺少可比较的前后 MatchReport，暂不下结论/);
@@ -250,6 +252,8 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(page, /requestedFocusRequirementText/);
   assert.match(page, /requestedFocusImpactJobs/);
   assert.match(page, /query\.set\("focusImpactJobs", focusImpactJobs\)/);
+  assert.match(page, /requestedEvidenceActionHistory/);
+  assert.match(page, /query\.set\("evidenceActionHistory", evidenceActionHistory\)/);
   assert.match(page, /split\(","\)/);
   assert.match(page, /slice\(0, 3\)/);
   assert.match(page, /slice\(0, 120\)/);

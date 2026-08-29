@@ -72,10 +72,35 @@ export function listEvidencePriorityImpactTargets(
     });
 }
 
+export function evidencePriorityActionKey(action: Pick<MatchBlockerPriorityAction, "requirementType" | "normalizedCapability">): string {
+  return `${action.requirementType}:${action.normalizedCapability?.trim().toLowerCase() || "_"}`;
+}
+
+export function parseEvidenceActionHistory(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim().slice(0, 160))
+    .filter(Boolean)
+    .slice(-4);
+}
+
+export function appendEvidenceActionHistory(history: string[], actionKey: string | null): string[] {
+  if (!actionKey) return [];
+  return [...history.slice(-3), actionKey].slice(-4);
+}
+
+export function repeatedEvidenceActionKeys(history: string[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const key of history) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return new Set([...counts.entries()].filter(([, count]) => count >= 2).map(([key]) => key));
+}
+
 export function selectNextEvidencePriority(
   actions: MatchBlockerPriorityAction[],
   feedbackByJobId: ReadonlyMap<string, UserFeedbackRecord>,
   excludedRequirementId: string | null,
+  deprioritizedActionKeys: ReadonlySet<string> = new Set(),
 ): MatchBlockerPriorityAction | null {
   const eligible = actions.filter((action) =>
     !(
@@ -83,12 +108,17 @@ export function selectNextEvidencePriority(
       && action.requirementIds.includes(excludedRequirementId)
     ),
   );
-  const first = eligible[0];
+  const fresh = eligible.filter((action) => !deprioritizedActionKeys.has(evidencePriorityActionKey(action)));
+  const first = (fresh.length > 0 ? fresh : eligible)[0];
   if (!first) return null;
   if (feedbackByJobId.size === 0) return first;
 
-  const stillRelevant = eligible.filter((action) => consideredAffectedJobCount(action, feedbackByJobId) > 0);
-  if (stillRelevant.length === 0) return null;
+  const stillRelevantEligible = eligible.filter((action) => consideredAffectedJobCount(action, feedbackByJobId) > 0);
+  if (stillRelevantEligible.length === 0) return null;
+  const freshRelevant = stillRelevantEligible.filter(
+    (action) => !deprioritizedActionKeys.has(evidencePriorityActionKey(action)),
+  );
+  const stillRelevant = freshRelevant.length > 0 ? freshRelevant : stillRelevantEligible;
 
   const maxConsideredJobs = Math.max(
     ...stillRelevant.map((action) => consideredAffectedJobCount(action, feedbackByJobId)),

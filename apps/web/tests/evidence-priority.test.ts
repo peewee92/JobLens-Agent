@@ -3,8 +3,12 @@ import test from "node:test";
 
 import type {MatchBlockerJob, MatchBlockerPriorityAction, UserFeedbackRecord} from "../lib/contracts";
 import {
+  appendEvidenceActionHistory,
   consideredAffectedJobCount,
+  evidencePriorityActionKey,
   listEvidencePriorityImpactTargets,
+  parseEvidenceActionHistory,
+  repeatedEvidenceActionKeys,
   selectEvidenceFocusJobId,
   selectNextEvidencePriority,
 } from "../lib/evidence-priority";
@@ -128,6 +132,55 @@ test("resolved requirement is excluded before feedback tie-breaking", () => {
     selectNextEvidencePriority([resolved, next], feedbackByJobId, "req-python"),
     next,
   );
+});
+
+test("verified unchanged action history stays bounded and only repeats become a deprioritization signal", () => {
+  const python = action("Python", 3, 4, ["job-a", "job-b", "job-c"]);
+  const agent = action("Agent", 2, 3, ["job-d", "job-e"]);
+  const pythonKey = evidencePriorityActionKey(python);
+
+  const once = appendEvidenceActionHistory([], pythonKey);
+  assert.deepEqual(once, ["skill:python"]);
+  assert.equal(repeatedEvidenceActionKeys(once).size, 0);
+  assert.equal(selectNextEvidencePriority([python, agent], new Map(), null, repeatedEvidenceActionKeys(once)), python);
+
+  const twice = appendEvidenceActionHistory(once, pythonKey);
+  assert.deepEqual(twice, ["skill:python", "skill:python"]);
+  assert.deepEqual([...repeatedEvidenceActionKeys(twice)], ["skill:python"]);
+  assert.equal(selectNextEvidencePriority([python, agent], new Map(), null, repeatedEvidenceActionKeys(twice)), agent);
+});
+
+test("deprioritized evidence action remains available when it is the only real blocker", () => {
+  const python = action("python", 3, 4, ["job-a", "job-b", "job-c"]);
+  assert.equal(
+    selectNextEvidencePriority([python], new Map(), null, new Set(["skill:python"])),
+    python,
+  );
+});
+
+test("deprioritized considered blocker is restored when every fresh blocker only affects rejected jobs", () => {
+  const python = action("python", 1, 1, ["job-open"]);
+  const staleFresh = action("agent", 2, 2, ["job-no-a", "job-no-b"]);
+  const feedbackByJobId = new Map([
+    ["job-no-a", feedback("job-no-a", "rejected")],
+    ["job-no-b", feedback("job-no-b", "rejected")],
+  ]);
+
+  assert.equal(
+    selectNextEvidencePriority([python, staleFresh], feedbackByJobId, null, new Set(["skill:python"])),
+    python,
+  );
+});
+
+test("evidence action history parsing is bounded and ignores empty values", () => {
+  assert.deepEqual(
+    parseEvidenceActionHistory("skill:a,,skill:b,skill:c,skill:d,skill:e"),
+    ["skill:b", "skill:c", "skill:d", "skill:e"],
+  );
+  assert.deepEqual(appendEvidenceActionHistory(["skill:a", "skill:b", "skill:c", "skill:d"], "skill:e"), [
+    "skill:b", "skill:c", "skill:d", "skill:e",
+  ]);
+  assert.deepEqual(appendEvidenceActionHistory(["skill:a"], null), []);
 });
 
 test("impact preview lists only still-considered jobs with exact requirement text", () => {

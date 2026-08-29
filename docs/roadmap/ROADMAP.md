@@ -492,6 +492,7 @@ Profile 页面可以明确区分：
 - 2026-08-29：补上“行动前预期 → 行动后校准”最小闭环。进入 Profile 时只携带最多 3 个仍在考虑岗位的 immutable Job ID 作为本次核实的预期观察集合，Profile 保存返回时原样保留；Re-match 后推荐页用现有同一 Profile 更新前后 `MatchReport` 对比，逐个显示这些岗位本轮是否出现可验证改善，并汇总“预期观察 N 个 / 实际改善 M 个”。这里不把未改善解释为 Evidence 无价值，也不把任意改善强行归因给某一条 Evidence；只是帮助用户校准下一次补证据行动。全程零 Provider、零 DB 写入、零 migration。
 - 2026-08-29：修正上述校准闭环中的“未知被误报为未改善”问题。此前只对页面当前可见的一小组岗位读取 improvement 历史，若行动前记录的目标岗位恰好不在该集合中，会被错误显示为“暂未改善”。现在对最多 3 个行动前目标逐个读取其当前 MatchReport 的 improvement，并明确区分 `improved / unchanged / unverifiable`；读取失败、历史不足或 Profile version 不可比较时统一展示“暂不下结论”，只有真正拿到可比较的前后报告后才允许显示“暂未改善”。该修复不改变 Match/Ranking/Eligibility 事实，不新增 Provider、DB 写入或 migration。
 - 2026-08-29：开始把可验证校准结果用于下一行动节奏，但只做最小、可逆的“避免立即机械重复”。若用户刚核实的具体 Requirement 在**可比较**的前后 MatchReport 中仍处于 hard missing，且整个比较结果为 `unchanged`，下一 Evidence action 本轮会暂时跳过包含该 Requirement ID 的 blocker，转向其他仍有价值的真实事实；这不把 `unchanged` 解释为用户没有能力，也不永久降权。`unverifiable`（历史不足、读取失败、Profile version 不可比）绝不会触发跳过，避免把未知当失败信号。该切片只影响推荐页下一步行动选择，不改 Match / Eligibility / Ranking / UserFeedback，不新增 Provider、DB 写入或 migration。
+- 2026-08-29：把上述一次性跳过扩成**有限、可追溯且不会永久压制 blocker 的短期行动历史**。推荐页只在当前核实得到可比较 `unchanged` 时，按 `requirementType + normalizedCapability` 记录最多 4 个最近行动 key，并通过 Profile → Recommendations 返回参数原样带回；只有同类行动在这段连续历史里至少出现 2 次时，下一轮才把该类 blocker 暂时后移，优先尝试其他真实 blocker。若没有其他 blocker，它仍会继续出现；一旦当前结果不是 verified `unchanged`（包括 `improved` 或 `unverifiable`），这段连续历史立即清空，因此未知结果绝不会被当失败信号，也不会形成永久降权。实现只影响 Web 端下一 Evidence action 选择，不修改 Match / Eligibility / Ranking / UserFeedback，不新增 Provider、DB 写入或 migration。
 
 ### 任务
 
