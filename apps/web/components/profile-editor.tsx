@@ -159,6 +159,7 @@ export function ProfileEditor({
     message: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
+  const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
     Boolean(focusEvidenceType || focusRequirementType),
   );
@@ -235,6 +236,22 @@ export function ProfileEditor({
 
     return {matchingSkills, linkedEvidence, status};
   }, [evidence, focusCapability, skills]);
+  const focusedEvidenceDraft = focusedEvidenceIndex === null
+    ? null
+    : evidence[focusedEvidenceIndex] ?? null;
+  const focusedExactSkillIndex = useMemo(() => {
+    const normalizedCapability = focusCapability?.trim().toLocaleLowerCase();
+    if (!normalizedCapability) return -1;
+    return skills.findIndex(
+      (item) => item.name.trim().toLocaleLowerCase() === normalizedCapability,
+    );
+  }, [focusCapability, skills]);
+  const canLinkFocusedEvidenceToExistingSkill = Boolean(
+    focusedEvidenceDraft?.key.trim()
+      && focusedEvidenceDraft.summary.trim()
+      && focusedExactSkillIndex >= 0
+      && !skills[focusedExactSkillIndex].evidenceKeys.includes(focusedEvidenceDraft.key.trim()),
+  );
   const activeRequirementFocus = focusRequirementType
     ?? (focusEvidenceType === "education" ? "education" : null);
   const profileDraftBlank = isBlankProfileDraft({headline, years, evidence, skills});
@@ -262,18 +279,28 @@ export function ProfileEditor({
 
   function addEvidenceForCurrentRequirement(type: EvidenceType) {
     markProfileDirty();
-    setEvidence((items) => {
-      const blankIndex = items.findIndex(
-        (item) => !item.key.trim() && !item.summary.trim(),
-      );
-      if (blankIndex >= 0) {
-        return items.map((item, index) =>
+    const blankIndex = evidence.findIndex(
+      (item) => !item.key.trim() && !item.summary.trim(),
+    );
+    const targetIndex = blankIndex >= 0 ? blankIndex : evidence.length;
+    setFocusedEvidenceIndex(targetIndex);
+    setEvidence((items) =>
+      blankIndex >= 0
+        ? items.map((item, index) =>
           index === blankIndex ? {...item, type} : item,
-        );
-      }
-      return [...items, {...EMPTY_EVIDENCE, type}];
-    });
+        )
+        : [...items, {...EMPTY_EVIDENCE, type}],
+    );
     setIsProfileEditorOpen(true);
+  }
+
+  function linkFocusedEvidenceToExistingSkill() {
+    if (!focusedEvidenceDraft || focusedExactSkillIndex < 0) return;
+    const evidenceKey = focusedEvidenceDraft.key.trim();
+    if (!evidenceKey || !focusedEvidenceDraft.summary.trim()) return;
+    const current = skills[focusedExactSkillIndex].evidenceKeys;
+    if (current.includes(evidenceKey)) return;
+    updateSkill(focusedExactSkillIndex, {evidenceKeys: [...current, evidenceKey]});
   }
 
   function updateSkill(index: number, patch: Partial<SkillDraft>) {
@@ -524,6 +551,33 @@ export function ProfileEditor({
                   </button>
                 </div>
                 <p className="muted">详细编辑已为你展开；填写真实的项目、职责和结果后保存，再回到岗位优先级验证这条 Evidence 是否真的改变匹配结果。</p>
+                {focusedEvidenceDraft && focusCapability ? (
+                  <div className="readiness-blocker-item focus-evidence-link-helper">
+                    <strong>把这条新经历连接到当前技能</strong>
+                    {focusedExactSkillIndex >= 0 ? (
+                      canLinkFocusedEvidenceToExistingSkill ? (
+                        <>
+                          <p>
+                            已找到 Profile 里的精确同名技能“{skills[focusedExactSkillIndex].name}”。确认这条经历确实能证明该技能后，再显式建立关联；JobLens 不会自动替你关联。
+                          </p>
+                          <button className="button-secondary" type="button" onClick={linkFocusedEvidenceToExistingSkill}>
+                            将这条真实经历关联到“{skills[focusedExactSkillIndex].name}”
+                          </button>
+                        </>
+                      ) : (
+                        <p>
+                          {focusedEvidenceDraft.key.trim() && focusedEvidenceDraft.summary.trim()
+                            ? `这条经历已经关联到“${skills[focusedExactSkillIndex].name}”，保存后再用 Re-match 验证是否真的支撑当前岗位要求。`
+                            : "先填写这段经历的简称和真实内容；填写完整后，才可以把它显式关联到现有同名技能。"}
+                        </p>
+                      )
+                    ) : (
+                      <p>
+                        当前 Profile 没有精确同名技能“{focusCapability}”。本轮不会根据岗位要求自动创建 Skill；如果你确实具备这项能力，请在“我的技能”中由你显式新增并选择真实 Evidence，否则保留缺口。
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </>
             )}
           </section>
