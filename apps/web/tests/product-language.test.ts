@@ -47,6 +47,11 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /去核实这项真实经历/);
   assert.match(page, /focusRequirementId=/);
   assert.match(page, /focusImpactJobs=/);
+  assert.match(page, /returnImport=/);
+  assert.match(page, /showImprovement/);
+  assert.match(page, /fetchMatchImprovement/);
+  assert.match(page, /这次补证据后，本批哪些岗位改善了/);
+  assert.match(page, /不会在打开页面时重新匹配或调用 Provider/);
   assert.match(page, /当前无法可靠读取反馈或硬条件缺口/);
   assert.match(page, /matchRecommendationLabels\[report\.recommendation\]/);
   assert.match(page, /有依据要求 \{report\.evidenceLinks\.length\} 条/);
@@ -59,6 +64,20 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
   assert.match(page, /真正的匹配仍必须由你显式点击发起/);
   assert.match(page, /不会被误报为“尚未准备”/);
+});
+
+test("import evidence continuation returns to the batch only after explicit rematch", async () => {
+  const profile = await source("app/profile/page.tsx");
+  const recommendations = await source("app/recommendations/page.tsx");
+  const refresh = await source("components/recommendation-refresh.tsx");
+
+  assert.match(profile, /returnImport/);
+  assert.match(profile, /\^\[A-Za-z0-9_-\]\{1,120\}\$/);
+  assert.match(recommendations, /returnImportId/);
+  assert.match(recommendations, /showImprovement=1/);
+  assert.match(refresh, /returnHref/);
+  assert.match(refresh, /state\.kind === "success" && pendingJobIds\.length === 0/);
+  assert.match(refresh, /回到这批岗位看改善结果/);
 });
 
 test("import batch matching is explicit, bounded, and never auto-resumes", async () => {

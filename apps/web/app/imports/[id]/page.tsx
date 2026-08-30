@@ -12,6 +12,7 @@ import {
   fetchJobRequirementReleaseReadiness,
   fetchLatestUserFeedback,
   fetchMatchBlockerSummary,
+  fetchMatchImprovement,
   fetchMatchRanking,
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
@@ -33,10 +34,14 @@ export const dynamic = "force-dynamic";
 
 export default async function ImportDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{id: string}>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const {id} = await params;
+  const query = await searchParams;
+  const showImprovement = query.showImprovement === "1";
   let detail;
   try {
     detail = await fetchImportDetail(id);
@@ -101,6 +106,22 @@ export default async function ImportDetailPage({
       : [],
   );
   const feedbackCoveredCount = feedbackAvailable ? latestFeedbackByReportId.size : 0;
+  const improvementResults = showImprovement && matchedReports.length > 0
+    ? await Promise.allSettled(
+        matchedReports.map(async (report) => ({
+          report,
+          improvement: await fetchMatchImprovement(report.jobId, report.reportId),
+        })),
+      )
+    : [];
+  const improvedBatchJobs = improvementResults.flatMap((result) => {
+    if (result.status !== "fulfilled") return [];
+    const {report, improvement} = result.value;
+    if (!improvement.comparable || improvement.previousProfileVersion === improvement.currentProfileVersion) return [];
+    const improved = improvement.resolvedRequirementIds.length > 0
+      || improvement.previousRecommendation !== improvement.currentRecommendation;
+    return improved ? [{report, improvement}] : [];
+  });
   const feedbackByJobId = new Map(
     matchedReports.flatMap((report) => {
       const feedback = latestFeedbackByReportId.get(report.reportId);
@@ -128,7 +149,7 @@ export default async function ImportDetailPage({
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
   const batchEvidenceProfileHref = batchEvidenceAction
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}#profile-evidence-focus`
+    ? `/profile?next=/recommendations&returnImport=${encodeURIComponent(id)}&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}#profile-evidence-focus`
     : null;
   const matchReadyCount = importedJobIds.filter(
     (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
@@ -190,6 +211,30 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {showImprovement ? (
+            <section className="detail-section">
+              <h3>这次补证据后，本批哪些岗位改善了</h3>
+              {improvedBatchJobs.length > 0 ? (
+                <ul>
+                  {improvedBatchJobs.map(({report, improvement}) => (
+                    <li key={report.reportId}>
+                      <strong>{jobLabel(report.jobId)}</strong>：
+                      {improvement.resolvedRequirementIds.length > 0
+                        ? `少了 ${improvement.resolvedRequirementIds.length} 条硬条件缺口`
+                        : "硬条件缺口数量未减少"}
+                      {improvement.previousRecommendation !== improvement.currentRecommendation
+                        ? `，推荐结果从 ${improvement.previousRecommendation ?? "无"} 变为 ${improvement.currentRecommendation ?? "无"}`
+                        : ""}。
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="notice">当前还没有可确认的批次改善。只有存在同一岗位、同一 Requirement 事实集且 Profile 版本不同的前后 MatchReport 时，系统才会把变化归因给这次资料更新。</p>
+              )}
+              <p className="muted">这里只比较已经存在的 immutable MatchReport，不会在打开页面时重新匹配或调用 Provider。</p>
+            </section>
+          ) : null}
+
           {matchedReports.length > 0 ? (
             <section className="detail-section">
               <h3>这批岗位当前的匹配结果</h3>

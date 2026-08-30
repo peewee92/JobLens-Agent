@@ -81,6 +81,9 @@ export default async function RecommendationsPage({
   const previousEvidenceActionHistory = parseEvidenceActionHistory(
     typeof params.evidenceActionHistory === "string" ? params.evidenceActionHistory : null,
   );
+  const returnImportId = typeof params.returnImport === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(params.returnImport)
+    ? params.returnImport
+    : null;
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -704,6 +707,7 @@ export default async function RecommendationsPage({
         focusJobId={focusJobId}
         focusJobTitle={focusJobTitle}
         focusReportId={focusJobReport?.report.reportId ?? null}
+        returnHref={returnImportId ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1` : null}
       />
 
       {rankedItems.length > 0 ? (
