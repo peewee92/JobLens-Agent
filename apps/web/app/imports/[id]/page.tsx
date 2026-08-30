@@ -117,9 +117,9 @@ export default async function ImportDetailPage({
         {interested: 0, maybe: 0, rejected: 0, pending: 0},
       )
     : null;
-  const nextUndecidedReport = feedbackAvailable
-    ? matchedReports.find((report) => !latestFeedbackByReportId.has(report.reportId)) ?? null
-    : null;
+  const pendingFeedbackReports = feedbackAvailable
+    ? matchedReports.filter((report) => !latestFeedbackByReportId.has(report.reportId))
+    : [];
   const improvementResults = showImprovement && matchedReports.length > 0
     ? await Promise.allSettled(
         matchedReports.map(async (report) => ({
@@ -155,6 +155,16 @@ export default async function ImportDetailPage({
       ? blockerSummaryResult.value.jobBlockers.map((item) => [item.jobId, item] as const)
       : [],
   );
+  const feedbackQueueAvailable = feedbackAvailable
+    && blockerSummaryResult.status === "fulfilled"
+    && Boolean(blockerSummaryResult.value);
+  const pendingClearedReports = feedbackQueueAvailable
+    ? pendingFeedbackReports.filter((report) => !blockerByJobId.has(report.jobId))
+    : [];
+  const pendingBlockedReports = feedbackQueueAvailable
+    ? pendingFeedbackReports.filter((report) => blockerByJobId.has(report.jobId))
+    : [];
+  const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
   const rawBatchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
     : null;
@@ -368,13 +378,31 @@ export default async function ImportDetailPage({
                     <div className="summary-card"><span>不考虑</span><strong>{feedbackDecisionCounts.rejected}</strong></div>
                     <div className="summary-card"><span>尚未判断</span><strong>{feedbackDecisionCounts.pending}</strong></div>
                   </div>
-                  {nextUndecidedReport ? (
-                    <p className="notice">
-                      还差 {feedbackDecisionCounts.pending} 个岗位完成投递判断。
-                      <Link href={`#feedback-${nextUndecidedReport.reportId}`}> 去看下一条尚未判断的岗位</Link>
-                    </p>
-                  ) : (
+                  {feedbackDecisionCounts.pending === 0 ? (
                     <p className="notice">这批已有 MatchReport 的岗位都已经记录了投递判断；你可以继续处理 Evidence、投递准备或下一批岗位。</p>
+                  ) : !feedbackQueueAvailable ? (
+                    <p className="notice">还有 {feedbackDecisionCounts.pending} 个岗位尚未判断，但当前 hard blocker 状态暂时无法可靠读取，因此这里不猜测哪个岗位应该先投、哪个应该先补证据。</p>
+                  ) : nextApplyDecisionReport ? (
+                    <div className="notice">
+                      <strong>下一岗位：</strong>{jobLabel(nextApplyDecisionReport.jobId)} 当前没有 hard blocker，先完成它的投递判断最省步骤。
+                      <div className="actions">
+                        <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                          先完成这个岗位的投递判断
+                        </Link>
+                      </div>
+                      {pendingBlockedReports.length > 0 ? (
+                        <p className="muted">另外还有 {pendingBlockedReports.length} 个尚未判断岗位仍有 hard blocker；它们继续留在 Evidence Loop，不会被误报成可直接投递。</p>
+                      ) : null}
+                    </div>
+                  ) : batchEvidenceAction && batchEvidenceProfileHref ? (
+                    <div className="notice">
+                      还差 {feedbackDecisionCounts.pending} 个岗位完成投递判断，但这些岗位当前都有 hard blocker。先处理本批最高价值的 Evidence 行动，再 Re-match 后继续判断。
+                      <div className="actions">
+                        <Link className="button" href={batchEvidenceProfileHref}>先处理下一项真实证据</Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="notice">还有 {feedbackDecisionCounts.pending} 个岗位尚未判断，且当前仍有 hard blocker；但本页暂时无法可靠生成下一 Evidence 行动，因此先不替你猜下一步。</p>
                   )}
                 </>
               ) : (
