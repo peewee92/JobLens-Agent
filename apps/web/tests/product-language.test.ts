@@ -33,13 +33,28 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /fetchJobRequirementReleaseReadiness/);
   assert.match(page, /fetchJobDetail/);
   assert.match(page, /fetchMatchRanking/);
+  assert.match(page, /fetchMatchReviewReadiness/);
+  assert.match(page, /ImportBatchMatch jobIds=\{matchReadyJobs\}/);
   assert.match(page, /还需处理岗位要求/);
   assert.match(page, /Requirement 已准备、等待匹配/);
   assert.match(page, /暂时无法确认的岗位/);
   assert.match(page, /blockers\.slice\(0, 2\)/);
   assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
-  assert.match(page, /真正的匹配仍由你在 JobLens 中显式发起/);
+  assert.match(page, /真正的匹配仍必须由你显式点击发起/);
   assert.match(page, /不会被误报为“尚未准备”/);
+});
+
+test("import batch matching is explicit, bounded, and never auto-resumes", async () => {
+  const component = await source("components/import-batch-match.tsx");
+
+  assert.match(component, /fetch\("\/api\/match-batch"/);
+  assert.match(component, /maxReadyJobs: 10/);
+  assert.match(component, /onClick=\{run\}/);
+  assert.match(component, /只有你点击后才会执行/);
+  assert.match(component, /可能调用已配置的模型/);
+  assert.match(component, /setPendingJobIds\(result\.resumeJobIds\)/);
+  assert.doesNotMatch(component, /setTimeout\([^)]*run/);
+  assert.doesNotMatch(component, /await run\(\)/);
 });
 
 test("profile primary copy uses user language and keeps implementation facts in technical details", async () => {

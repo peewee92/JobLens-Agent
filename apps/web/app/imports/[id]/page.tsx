@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
+import {ImportBatchMatch} from "@/components/import-batch-match";
 import {ImportOutcomePill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -9,6 +10,7 @@ import {
   fetchJobDetail,
   fetchJobRequirementReleaseReadiness,
   fetchMatchRanking,
+  fetchMatchReviewReadiness,
 } from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
@@ -36,7 +38,7 @@ export default async function ImportDetailPage({
   }
 
   const importedJobIds = detail.items.flatMap((item) => (item.jobId ? [item.jobId] : []));
-  const [rankingResult, jobDetailResults, readinessResults] = await Promise.all([
+  const [rankingResult, matchReviewReadinessResult, jobDetailResults, readinessResults] = await Promise.all([
     importedJobIds.length > 0
       ? fetchMatchRanking(importedJobIds, {includeBlocked: true})
           .then((value) => ({status: "fulfilled" as const, value}))
@@ -45,12 +47,19 @@ export default async function ImportDetailPage({
           status: "fulfilled" as const,
           value: {items: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0},
         }),
+    fetchMatchReviewReadiness()
+      .then((value) => ({status: "fulfilled" as const, value}))
+      .catch((reason) => ({status: "rejected" as const, reason})),
     Promise.allSettled(importedJobIds.map((jobId) => fetchJobDetail(jobId))),
     Promise.allSettled(importedJobIds.map((jobId) => fetchJobRequirementReleaseReadiness(jobId))),
   ]);
   const rankingAvailable = rankingResult.status === "fulfilled";
   const rankedJobIds = new Set(
     rankingAvailable ? rankingResult.value.items.map((item) => item.jobId) : [],
+  );
+  const matchInputReadinessAvailable = matchReviewReadinessResult.status === "fulfilled";
+  const matchInputReadyJobIds = new Set(
+    matchInputReadinessAvailable ? matchReviewReadinessResult.value.reviewableJobIds : [],
   );
   const jobDetailById = new Map(
     jobDetailResults.flatMap((result) =>
@@ -63,29 +72,29 @@ export default async function ImportDetailPage({
     ),
   );
   const matchedCount = importedJobIds.filter((jobId) => rankedJobIds.has(jobId)).length;
-  const matchReadyCount = importedJobIds.filter((jobId) => {
-    const readiness = readinessByJobId.get(jobId);
-    return rankingAvailable && !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
-  }).length;
+  const matchReadyCount = importedJobIds.filter(
+    (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
+  ).length;
   const requirementBlockedCount = importedJobIds.filter((jobId) => {
     const readiness = readinessByJobId.get(jobId);
-    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === false;
+    return !rankedJobIds.has(jobId) && !matchInputReadyJobIds.has(jobId) && readiness?.releaseEligible === false;
   }).length;
   const unknownReadinessCount = importedJobIds.length - matchedCount - matchReadyCount - requirementBlockedCount;
-  const matchReadyJobs = importedJobIds.filter((jobId) => {
-    const readiness = readinessByJobId.get(jobId);
-    return rankingAvailable && !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
-  });
+  const matchReadyJobs = importedJobIds.filter(
+    (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
+  );
   const requirementBlockedJobs = importedJobIds.filter((jobId) => {
     const readiness = readinessByJobId.get(jobId);
-    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === false;
+    return !rankedJobIds.has(jobId) && !matchInputReadyJobIds.has(jobId) && readiness?.releaseEligible === false;
   });
   const unknownReadinessJobs = importedJobIds.filter((jobId) => {
     if (rankedJobIds.has(jobId)) {
       return false;
     }
     const readiness = readinessByJobId.get(jobId);
-    return !readiness || (!rankingAvailable && readiness.releaseEligible);
+    return !readiness || (
+      readiness.releaseEligible && (!rankingAvailable || !matchInputReadinessAvailable)
+    );
   });
   const jobLabel = (jobId: string) => {
     const job = jobDetailById.get(jobId);
@@ -157,6 +166,7 @@ export default async function ImportDetailPage({
                   <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>
                 ))}
               </ul>
+              <ImportBatchMatch jobIds={matchReadyJobs} />
             </section>
           ) : null}
 
@@ -181,7 +191,7 @@ export default async function ImportDetailPage({
             ) : null}
           </div>
           <p className="muted">
-            “要求已准备，可进入匹配”只表示岗位 Requirement 事实链已放行，不代表已经生成 MatchReport；真正的匹配仍由你在 JobLens 中显式发起。
+            “要求已准备，可进入匹配”表示这批岗位已经通过当前 Match Input Readiness，不代表已经生成 MatchReport；真正的匹配仍必须由你显式点击发起。
           </p>
         </section>
       ) : null}
