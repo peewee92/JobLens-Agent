@@ -23,6 +23,20 @@ test("main navigation is organized around job seeker tasks instead of eval modul
   assert.doesNotMatch(layout, />要求评测</);
 });
 
+test("prepare keeps imported-batch feedback handoff grounded in the current match report", async () => {
+  const page = await source("app/jobs/[id]/prepare/page.tsx");
+
+  assert.match(page, /returnImport/);
+  assert.match(page, /返回本次导入/);
+  assert.match(page, /fetchMatchRanking/);
+  assert.match(page, /fetchLatestUserFeedback/);
+  assert.match(page, /RecommendationFeedback/);
+  assert.match(page, /记录你的投递判断/);
+  assert.match(page, /不会改写 MatchReport 或自动投递/);
+  assert.match(page, /暂不开放反馈，避免覆盖未知历史判断/);
+  assert.match(page, /返回本次导入查看反馈进度/);
+});
+
 test("import detail summarizes zero-provider next steps for the imported batch", async () => {
   const page = await source("app/imports/[id]/page.tsx");
 

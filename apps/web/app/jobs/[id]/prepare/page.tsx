@@ -1,27 +1,52 @@
 import Link from "next/link";
 
+import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ServiceError} from "@/components/service-error";
-import {BackendApiError, fetchJobDetail, fetchJobPreparation} from "@/lib/backend";
+import {
+  BackendApiError,
+  fetchJobDetail,
+  fetchJobPreparation,
+  fetchLatestUserFeedback,
+  fetchMatchRanking,
+} from "@/lib/backend";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
 export default async function JobPreparationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{id: string}>;
+  searchParams?: Promise<{returnImport?: string | string[]}>;
 }) {
   const {id} = await params;
+  const query = searchParams ? await searchParams : {};
+  const requestedReturnImport = Array.isArray(query.returnImport) ? query.returnImport[0] : query.returnImport;
+  const returnImportId = typeof requestedReturnImport === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(requestedReturnImport)
+    ? requestedReturnImport
+    : null;
 
   try {
     const [job, preparation] = await Promise.all([
       fetchJobDetail(id),
       fetchJobPreparation(id),
     ]);
+    const rankingResult = await fetchMatchRanking([id], {includeBlocked: true}).catch(() => null);
+    const currentReport = rankingResult?.items.find((item) => item.jobId === id) ?? null;
+    const feedbackResult = currentReport
+      ? await fetchLatestUserFeedback([currentReport.reportId]).catch(() => null)
+      : null;
+    const latestFeedback = feedbackResult?.feedback[0] ?? null;
 
     return (
       <>
         <div className="actions" style={{marginBottom: 18}}>
+          {returnImportId ? (
+            <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1`}>
+              ← 返回本次导入
+            </Link>
+          ) : null}
           <Link className="button-ghost" href={`/jobs/${encodeURIComponent(id)}`}>
             ← 返回岗位详情
           </Link>
@@ -34,6 +59,33 @@ export default async function JobPreparationPage({
           <p className="lede">
             这里只展示已确认职业事实与已放行岗位要求之间的确定性准备依据，不补写不存在的经历、成绩或指标。
           </p>
+
+          {currentReport ? (
+            <section className="detail-section">
+              <h2>记录你的投递判断</h2>
+              <p className="muted">看完完整依据后，在这里记录“感兴趣 / 再看看 / 不考虑”。反馈只更新你的判断，不会改写 MatchReport 或自动投递。</p>
+              {feedbackResult ? (
+                <RecommendationFeedback
+                  matchReportId={currentReport.reportId}
+                  jobId={currentReport.jobId}
+                  initialDecision={latestFeedback?.decision ?? null}
+                  initialReasons={latestFeedback?.reasons ?? []}
+                  initialNote={latestFeedback?.note ?? null}
+                />
+              ) : (
+                <p className="notice">当前无法可靠读取最新反馈状态，因此这里暂不开放反馈，避免覆盖未知历史判断。</p>
+              )}
+              {returnImportId ? (
+                <div className="actions">
+                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1`}>
+                    返回本次导入查看反馈进度
+                  </Link>
+                </div>
+              ) : null}
+            </section>
+          ) : (
+            <p className="notice">当前没有可用的最新 MatchReport，因此这里不能记录投递判断；请先完成该岗位的显式匹配。</p>
+          )}
 
           {!preparation.factsUsable ? (
             <div className="review-result review-pending">

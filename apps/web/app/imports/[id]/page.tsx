@@ -284,7 +284,7 @@ export default async function ImportDetailPage({
                                 <p className="muted">这只是基于当前 MatchReport、hard blocker 与你的反馈做的决策摘要，不代表系统替你决定投递。</p>
                               </div>
                               <div className="actions">
-                                <Link className="button" href={`/jobs/${report.jobId}/prepare`}>查看完整依据并进入投递判断</Link>
+                                <Link className="button" href={`/jobs/${report.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>查看完整依据并进入投递判断</Link>
                               </div>
                             </div>
                           );
