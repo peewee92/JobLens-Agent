@@ -36,6 +36,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /fetchMatchReviewReadiness/);
   assert.match(page, /ImportBatchMatch jobIds=\{matchReadyJobs\}/);
   assert.match(page, /这批岗位当前的匹配结果/);
+  assert.match(page, /fetchLatestUserFeedback/);
+  assert.match(page, /RecommendationFeedback/);
+  assert.match(page, /已反馈 \{feedbackCoveredCount\}\/\{matchedCount\}/);
+  assert.match(page, /当前反馈状态暂时读取失败/);
   assert.match(page, /matchRecommendationLabels\[report\.recommendation\]/);
   assert.match(page, /有依据要求 \{report\.evidenceLinks\.length\} 条/);
   assert.match(page, /report\.summary \|\| matchRecommendationDescriptions/);

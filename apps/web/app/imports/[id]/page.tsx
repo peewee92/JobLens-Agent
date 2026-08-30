@@ -2,6 +2,7 @@ import Link from "next/link";
 import {notFound} from "next/navigation";
 
 import {ImportBatchMatch} from "@/components/import-batch-match";
+import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ImportOutcomePill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -9,6 +10,7 @@ import {
   fetchImportDetail,
   fetchJobDetail,
   fetchJobRequirementReleaseReadiness,
+  fetchLatestUserFeedback,
   fetchMatchRanking,
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
@@ -80,6 +82,18 @@ export default async function ImportDetailPage({
     ? rankingResult.value.items.filter((item) => importedJobIds.includes(item.jobId))
     : [];
   const matchedCount = matchedReports.length;
+  const latestFeedbackResult = matchedReports.length > 0
+    ? await fetchLatestUserFeedback(matchedReports.map((report) => report.reportId))
+        .then((value) => ({status: "fulfilled" as const, value}))
+        .catch((reason) => ({status: "rejected" as const, reason}))
+    : {status: "fulfilled" as const, value: {feedback: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0}};
+  const feedbackAvailable = latestFeedbackResult.status === "fulfilled";
+  const latestFeedbackByReportId = new Map(
+    feedbackAvailable
+      ? latestFeedbackResult.value.feedback.map((item) => [item.matchReportId, item] as const)
+      : [],
+  );
+  const feedbackCoveredCount = feedbackAvailable ? latestFeedbackByReportId.size : 0;
   const matchReadyCount = importedJobIds.filter(
     (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
   ).length;
@@ -144,6 +158,11 @@ export default async function ImportDetailPage({
             <section className="detail-section">
               <h3>这批岗位当前的匹配结果</h3>
               <p className="muted">按当前 Ranking 顺序展示，只读取已经存在的 MatchReport；这里不会重新匹配。</p>
+              {feedbackAvailable ? (
+                <p className="muted">已反馈 {feedbackCoveredCount}/{matchedCount}。你可以直接在这批结果里记录真实判断。</p>
+              ) : (
+                <p className="notice">当前反馈状态暂时读取失败。匹配结果仍可查看，但这里暂不开放反馈，避免覆盖未知状态。</p>
+              )}
               <div className="recommendation-grid">
                 {matchedReports.map((report, index) => (
                   <article className={`match-recommendation-card ${matchRecommendationClasses[report.recommendation]}`} key={report.reportId}>
@@ -156,6 +175,18 @@ export default async function ImportDetailPage({
                       <span className="tag">有依据要求 {report.evidenceLinks.length} 条</span>
                     </div>
                     <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
+                    {feedbackAvailable ? (() => {
+                      const latestFeedback = latestFeedbackByReportId.get(report.reportId);
+                      return (
+                        <RecommendationFeedback
+                          matchReportId={report.reportId}
+                          jobId={report.jobId}
+                          initialDecision={latestFeedback?.decision ?? null}
+                          initialReasons={latestFeedback?.reasons ?? []}
+                          initialNote={latestFeedback?.note ?? null}
+                        />
+                      );
+                    })() : null}
                   </article>
                 ))}
               </div>
