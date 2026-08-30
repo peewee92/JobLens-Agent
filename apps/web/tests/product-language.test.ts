@@ -55,7 +55,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /已支撑岗位要求/);
   assert.match(page, /这个岗位现在还差什么/);
   assert.match(page, /下一条先看/);
-  assert.match(page, /可以转向投递判断或反馈/);
+  assert.match(page, /转向投递判断/);
+  assert.match(page, /查看完整依据并进入投递判断/);
+  assert.match(page, /已经明确标记为“不考虑”/);
+  assert.match(page, /不会继续推动投递，也不会再要求为它补证据/);
   assert.match(page, /不判断它是否已经没有硬缺口/);
   assert.match(page, /现有 provenance 没有精确指出是哪条新增 Evidence/);
   assert.match(page, /这些已解决 Requirement 不会继续驱动下一证据行动/);

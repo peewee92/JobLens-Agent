@@ -252,6 +252,7 @@ export default async function ImportDetailPage({
                         {blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value ? (() => {
                           const currentBlocker = blockerByJobId.get(report.jobId);
                           const nextRequirement = currentBlocker?.requirements[0] ?? null;
+                          const latestFeedback = latestFeedbackByReportId.get(report.reportId);
                           return currentBlocker ? (
                             <div className="notice">
                               <strong>这个岗位现在还差什么：</strong>
@@ -259,9 +260,16 @@ export default async function ImportDetailPage({
                                 ? `虽然已经改善，但当前仍有 ${currentBlocker.missingRequirementCount} 条硬条件缺口；下一条先看“${nextRequirement.originalText}”。`
                                 : `虽然已经改善，但仍有 ${currentBlocker.missingRequirementCount} 条硬条件缺口；当前 Requirement 事实无法解析出具体原文，因此这里不猜测下一项。`}
                             </div>
+                          ) : latestFeedback?.decision === "rejected" ? (
+                            <div className="notice">
+                              <strong>这个岗位现在还差什么：</strong>当前 Match blocker 事实里已没有硬条件缺口，但你已经明确标记为“不考虑”，因此这里不会继续推动投递，也不会再要求为它补证据。
+                            </div>
                           ) : (
                             <div className="notice">
-                              <strong>这个岗位现在还差什么：</strong>当前 Match blocker 事实里已没有硬条件缺口，可以转向投递判断或反馈，不必继续为这个岗位机械补证据。
+                              <strong>这个岗位现在还差什么：</strong>当前 Match blocker 事实里已没有硬条件缺口，可以停止机械补证据，转向投递判断。
+                              <div className="actions">
+                                <Link className="button" href={`/jobs/${report.jobId}/prepare`}>查看完整依据并进入投递判断</Link>
+                              </div>
                             </div>
                           );
                         })() : (
