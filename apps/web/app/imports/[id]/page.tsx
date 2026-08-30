@@ -42,6 +42,9 @@ export default async function ImportDetailPage({
   const {id} = await params;
   const query = await searchParams;
   const showImprovement = query.showImprovement === "1";
+  const requestedAfterFeedbackJobId = typeof query.afterFeedback === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterFeedback)
+    ? query.afterFeedback
+    : null;
   const focusImpactJobIds = typeof query.focusImpactJobs === "string"
     ? query.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
@@ -185,6 +188,13 @@ export default async function ImportDetailPage({
       })
     : [];
   const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
+  const afterFeedbackReport = requestedAfterFeedbackJobId
+    ? matchedReports.find((report) => report.jobId === requestedAfterFeedbackJobId) ?? null
+    : null;
+  const afterFeedbackDecision = feedbackAvailable && afterFeedbackReport
+    ? latestFeedbackByReportId.get(afterFeedbackReport.reportId)?.decision ?? null
+    : null;
+  const afterFeedbackConfirmed = Boolean(afterFeedbackReport && afterFeedbackDecision);
   const rawBatchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
     : null;
@@ -325,6 +335,30 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {requestedAfterFeedbackJobId ? (
+            afterFeedbackConfirmed ? (
+              <div className="notice">
+                <strong>刚完成一项投递判断：</strong>{jobLabel(requestedAfterFeedbackJobId)} 已记录为“{feedbackDecisionShortLabel(afterFeedbackDecision ?? undefined)}”。本页已经按更新后的 latest UserFeedback、当前 Ranking 与 hard blocker 重新计算下一步。
+                {nextApplyDecisionReport ? (
+                  <div className="actions">
+                    <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                      下一步：判断 {jobLabel(nextApplyDecisionReport.jobId)}
+                    </Link>
+                  </div>
+                ) : batchEvidenceAction && batchEvidenceProfileHref ? (
+                  <div className="actions">
+                    <Link className="button" href={batchEvidenceProfileHref}>下一步：处理真实 Evidence</Link>
+                  </div>
+                ) : feedbackDecisionCounts?.pending === 0 ? (
+                  <p className="muted">这批已有 MatchReport 的岗位都已记录投递判断；当前没有新的可靠主行动。</p>
+                ) : (
+                  <p className="muted">当前没有可以基于可靠事实自动推荐的下一主行动；不会用未知 blocker 状态替你猜。</p>
+                )}
+              </div>
+            ) : (
+              <div className="notice">返回批次时没有读到这次岗位判断对应的 current MatchReport + latest UserFeedback，因此这里不声称反馈已完成，也不据此改变下一步。</div>
+            )
+          ) : null}
           {showImprovement ? (
             <section className="detail-section">
               {previousEvidenceQueueResults.length > 0 ? (

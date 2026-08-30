@@ -71,6 +71,10 @@ export default async function JobPreparationPage({
                   initialDecision={latestFeedback?.decision ?? null}
                   initialReasons={latestFeedback?.reasons ?? []}
                   initialNote={latestFeedback?.note ?? null}
+                  successHref={returnImportId
+                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}`
+                    : undefined}
+                  successLabel="返回本次导入继续下一步"
                 />
               ) : (
                 <p className="notice">当前无法可靠读取最新反馈状态，因此这里暂不开放反馈，避免覆盖未知历史判断。</p>

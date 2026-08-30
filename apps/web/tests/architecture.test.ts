@@ -193,7 +193,9 @@ test("recommendation feedback refreshes server coverage after a successful save"
   );
 
   assert.match(client, /useRouter/);
-  assert.match(client, /setSavedDecision\(decision\);\s*setSavedReasons\(normalizedReasons\);\s*setSavedNote\(note\);\s*setSelectedReasons\(decision === "rejected" \? normalizedReasons : \[\]\);\s*router\.refresh\(\);/s);
+  assert.match(client, /setSavedDecision\(decision\);\s*setSavedReasons\(normalizedReasons\);\s*setSavedNote\(note\);\s*setSelectedReasons\(decision === "rejected" \? normalizedReasons : \[\]\);\s*setSavedThisSession\(true\);\s*router\.refresh\(\);/s);
+  assert.match(client, /savedThisSession && successHref/);
+  assert.match(client, /successLabel/);
   assert.doesNotMatch(client, /window\.location\.reload/);
 });
 

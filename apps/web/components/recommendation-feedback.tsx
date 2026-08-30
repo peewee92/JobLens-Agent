@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 
@@ -35,12 +36,16 @@ export function RecommendationFeedback({
   initialDecision,
   initialReasons,
   initialNote,
+  successHref,
+  successLabel = "继续下一步",
 }: {
   matchReportId: string;
   jobId: string;
   initialDecision: FeedbackDecision | null;
   initialReasons: FeedbackReason[];
   initialNote: string | null;
+  successHref?: string;
+  successLabel?: string;
 }) {
   const router = useRouter();
   const [savedDecision, setSavedDecision] = useState<FeedbackDecision | null>(initialDecision);
@@ -50,6 +55,7 @@ export function RecommendationFeedback({
   const [selectedReasons, setSelectedReasons] = useState<FeedbackReason[]>(normalizeReasons(initialReasons));
   const [feedbackNote, setFeedbackNote] = useState(initialNote ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [savedThisSession, setSavedThisSession] = useState(false);
 
   function isSameFeedback(
     decision: FeedbackDecision,
@@ -109,6 +115,7 @@ export function RecommendationFeedback({
       setSavedReasons(normalizedReasons);
       setSavedNote(note);
       setSelectedReasons(decision === "rejected" ? normalizedReasons : []);
+      setSavedThisSession(true);
       router.refresh();
     } catch {
       setError("反馈暂时保存失败，请稍后再试。");
@@ -207,6 +214,11 @@ export function RecommendationFeedback({
           </button>
         </div>
       </fieldset>
+      {savedThisSession && successHref ? (
+        <div className="actions">
+          <Link className="button" href={successHref}>{successLabel}</Link>
+        </div>
+      ) : null}
       {error ? <p className="error-text" role="alert">{error}</p> : null}
     </div>
   );

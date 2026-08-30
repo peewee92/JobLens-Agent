@@ -35,6 +35,9 @@ test("prepare keeps imported-batch feedback handoff grounded in the current matc
   assert.match(page, /不会改写 MatchReport 或自动投递/);
   assert.match(page, /暂不开放反馈，避免覆盖未知历史判断/);
   assert.match(page, /返回本次导入查看反馈进度/);
+  assert.match(page, /successHref=/);
+  assert.match(page, /afterFeedback=/);
+  assert.match(page, /返回本次导入继续下一步/);
 });
 
 test("import detail summarizes zero-provider next steps for the imported batch", async () => {
@@ -55,6 +58,12 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /已反馈 \{feedbackCoveredCount\}\/\{matchedCount\}/);
   assert.match(page, /feedbackDecisionCounts/);
   assert.match(page, /尚未判断/);
+  assert.match(page, /requestedAfterFeedbackJobId/);
+  assert.match(page, /刚完成一项投递判断/);
+  assert.match(page, /已经按更新后的 latest UserFeedback、当前 Ranking 与 hard blocker 重新计算下一步/);
+  assert.match(page, /下一步：判断/);
+  assert.match(page, /下一步：处理真实 Evidence/);
+  assert.match(page, /不声称反馈已完成，也不据此改变下一步/);
   assert.match(page, /pendingClearedReports/);
   assert.match(page, /pendingBlockedReports/);
   assert.match(page, /下一岗位：/);
