@@ -187,6 +187,14 @@ export default async function ImportDetailPage({
         return Boolean(feedback) && (feedback?.decision === "rejected" || !blockerByJobId.has(report.jobId));
       })
     : [];
+  const batchProcessingTotal = importedJobIds.length;
+  const batchProcessedCount = feedbackQueueAvailable ? completedDecisionReports.length : null;
+  const batchProcessingRemaining = batchProcessedCount === null
+    ? null
+    : Math.max(batchProcessingTotal - batchProcessedCount, 0);
+  const batchProcessingComplete = feedbackQueueAvailable
+    && matchedCount === batchProcessingTotal
+    && completedDecisionReports.length === batchProcessingTotal;
   const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
   const afterFeedbackReport = requestedAfterFeedbackJobId
     ? matchedReports.find((report) => report.jobId === requestedAfterFeedbackJobId) ?? null
@@ -335,6 +343,24 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {feedbackQueueAvailable && batchProcessedCount !== null && batchProcessingRemaining !== null ? (
+            <div className="notice">
+              <strong>本批处理进度：已处理 {batchProcessedCount}/{batchProcessingTotal}</strong>
+              {batchProcessingComplete ? (
+                <p className="muted">这批岗位已经全部形成 current MatchReport，并且每个岗位都完成了当前所需处理：无 hard blocker 的岗位已有投递判断，明确“不考虑”的岗位已退出后续 Evidence 待办。当前批次可以视为处理完成。</p>
+              ) : (
+                <p className="muted">
+                  还剩 {batchProcessingRemaining} 个岗位没有完成当前处理。
+                  {matchedCount < batchProcessingTotal
+                    ? `其中 ${batchProcessingTotal - matchedCount} 个还没有 current MatchReport，需要先完成 Requirement / Match 流程；`
+                    : ""}
+                  已有 MatchReport 的岗位则继续按“无 hard blocker → 投递判断；有 hard blocker → Evidence Loop”推进。
+                </p>
+              )}
+            </div>
+          ) : matchedReports.length > 0 ? (
+            <div className="notice">当前无法可靠读取 latest UserFeedback 或 hard blocker，因此这里不计算批次完成进度，也不会把未知状态误报成“已处理”。</div>
+          ) : null}
           {requestedAfterFeedbackJobId ? (
             afterFeedbackConfirmed ? (
               <div className="notice">

@@ -90,6 +90,12 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /这批已有 MatchReport 的岗位都已经记录了投递判断/);
   assert.match(page, /id=\{`feedback-\$\{report\.reportId\}`\}/);
   assert.match(page, /投递判断：\{feedbackDecisionShortLabel/);
+  assert.match(page, /本批处理进度：已处理 \{batchProcessedCount\}\/\{batchProcessingTotal\}/);
+  assert.match(page, /还剩 \{batchProcessingRemaining\} 个岗位没有完成当前处理/);
+  assert.match(page, /当前批次可以视为处理完成/);
+  assert.match(page, /没有 current MatchReport，需要先完成 Requirement \/ Match 流程/);
+  assert.match(page, /不计算批次完成进度，也不会把未知状态误报成“已处理”/);
+  assert.match(page, /batchProcessingComplete/);
   assert.match(page, /当前反馈状态暂时读取失败/);
   assert.match(page, /fetchMatchBlockerSummary/);
   assert.match(page, /selectNextEvidencePriority/);
