@@ -240,6 +240,13 @@ export default async function ImportDetailPage({
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
   const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
+  const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
+  const clearedPendingDecisionReports = feedbackAvailable
+    ? matchedReports.filter(
+        (report) => clearedPreviousEvidenceQueueJobIds.has(report.jobId) && !latestFeedbackByReportId.has(report.reportId),
+      )
+    : [];
+  const nextClearedApplyDecisionReport = clearedPendingDecisionReports[0] ?? null;
   const batchEvidenceConsideredJobCount = batchEvidenceAction
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
@@ -332,12 +339,12 @@ export default async function ImportDetailPage({
                     <div className="summary-card"><span>仍有 hard blocker</span><strong>{blockedPreviousEvidenceQueueResults.length}</strong></div>
                     <div className="summary-card"><span>暂无法验证</span><strong>{unverifiablePreviousEvidenceQueueResults.length}</strong></div>
                   </div>
-                  {clearedPreviousEvidenceQueueResults.length > 0 ? (
+                  {nextClearedApplyDecisionReport ? (
                     <div className="notice">
-                      <strong>现在最值得做：</strong>先完成已经解除 hard blocker 的岗位投递判断。真实 Evidence 已经让至少一个原计划目标进入可判断状态，先把这部分价值兑现，再继续下一 Evidence。
+                      <strong>现在最值得做：</strong>先完成已解除 hard blocker、且还没有记录投递判断的岗位。按当前 Ranking 顺序，<strong>{jobLabel(nextClearedApplyDecisionReport.jobId)}</strong> 是这组岗位里排位最高的一项；这里不新增评分，只把已经产生的 Evidence 价值先转成真实 UserFeedback。
                       <div className="actions">
-                        <Link className="button" href={`/jobs/${clearedPreviousEvidenceQueueResults[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
-                          先处理第一个已解锁岗位
+                        <Link className="button" href={`/jobs/${nextClearedApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                          先判断这个最高排名的已解锁岗位
                         </Link>
                       </div>
                     </div>
@@ -357,14 +364,21 @@ export default async function ImportDetailPage({
                     <div className="detail-section">
                       <strong>可以转入投递判断</strong>
                       <ul>
-                        {clearedPreviousEvidenceQueueResults.map(({jobId}) => (
-                          <li key={`cleared-${jobId}`}>
-                            {jobLabel(jobId)}
-                            <div className="actions">
-                              <Link className="button" href={`/jobs/${jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>查看完整依据并做投递判断</Link>
-                            </div>
-                          </li>
-                        ))}
+                        {clearedPreviousEvidenceQueueResults.map(({jobId, report}) => {
+                          const latestFeedback = report ? latestFeedbackByReportId.get(report.reportId) : undefined;
+                          return (
+                            <li key={`cleared-${jobId}`}>
+                              {jobLabel(jobId)}
+                              {latestFeedback ? (
+                                <div className="muted">当前投递判断：{feedbackDecisionShortLabel(latestFeedback.decision)}；这项已完成 UserFeedback，不再占用本轮主下一步。</div>
+                              ) : (
+                                <div className="actions">
+                                  <Link className="button" href={`/jobs/${jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>查看完整依据并做投递判断</Link>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   ) : null}

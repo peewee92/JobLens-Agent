@@ -107,7 +107,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /当前 blocker 事实无法解析出 Requirement 原文/);
   assert.match(page, /暂无法验证/);
   assert.match(page, /现在最值得做/);
-  assert.match(page, /先处理第一个已解锁岗位/);
+  assert.match(page, /clearedPendingDecisionReports/);
+  assert.match(page, /按当前 Ranking 顺序/);
+  assert.match(page, /先判断这个最高排名的已解锁岗位/);
+  assert.match(page, /这项已完成 UserFeedback，不再占用本轮主下一步/);
   assert.match(page, /继续下一项 Evidence/);
   assert.match(page, /现在先不自动改节奏/);
   assert.match(page, /不把未知当成“补证据无效”/);
