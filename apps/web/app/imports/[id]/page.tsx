@@ -215,9 +215,24 @@ export default async function ImportDetailPage({
         if (!report || !improvement || !improvement.comparable || improvement.previousProfileVersion === improvement.currentProfileVersion) {
           return {jobId, report, status: "unverifiable" as const};
         }
-        return blockerByJobId.has(jobId)
-          ? {jobId, report, status: "blocked" as const}
-          : {jobId, report, status: "cleared" as const};
+        const blocker = blockerByJobId.get(jobId) ?? null;
+        if (blocker) {
+          const nextRequirement = blocker.requirements[0] ?? null;
+          const coveredByCurrentAction = Boolean(
+            nextRequirement
+            && batchEvidenceAction
+            && batchEvidenceAction.requirementIds.includes(nextRequirement.requirementId),
+          );
+          return {
+            jobId,
+            report,
+            status: "blocked" as const,
+            blocker,
+            nextRequirement,
+            coveredByCurrentAction,
+          };
+        }
+        return {jobId, report, status: "cleared" as const};
       })
     : [];
   const clearedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "cleared");
@@ -327,7 +342,30 @@ export default async function ImportDetailPage({
                     </div>
                   ) : null}
                   {blockedPreviousEvidenceQueueResults.length > 0 ? (
-                    <p className="muted">仍有 hard blocker 的目标继续留在 Evidence Loop；不会因为完成了一次资料核实就被误报成可直接投递。</p>
+                    <div className="detail-section">
+                      <strong>仍需继续 Evidence Loop</strong>
+                      <ul>
+                        {blockedPreviousEvidenceQueueResults.map((item) => (
+                          <li key={`blocked-${item.jobId}`}>
+                            <strong>{jobLabel(item.jobId)}</strong>：当前仍有 {item.blocker.missingRequirementCount} 条 hard blocker。
+                            {item.nextRequirement ? (
+                              <>
+                                <div>下一条剩余 Requirement：{item.nextRequirement.originalText}</div>
+                                <div className="muted">
+                                  {batchEvidenceAction
+                                    ? item.coveredByCurrentAction
+                                      ? "当前下一 Evidence action 会覆盖这条 Requirement；完成真实资料核实后，再用 Re-match 验证它是否解除。"
+                                      : "当前下一 Evidence action 不覆盖这条 Requirement；它会先处理当前批次中价值更高的其他真实 blocker。"
+                                    : "当前没有可可靠生成的下一 Evidence action，因此这里只展示剩余 Requirement，不猜测该先补什么。"}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="muted">当前 blocker 事实无法解析出 Requirement 原文，因此这里不猜测具体缺口。</div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ) : null}
                   {unverifiablePreviousEvidenceQueueResults.length > 0 ? (
                     <p className="muted">“暂无法验证”表示缺少可比较的前后 MatchReport 或当前事实读取不完整；这里不会把未知结果当成未改善。</p>
