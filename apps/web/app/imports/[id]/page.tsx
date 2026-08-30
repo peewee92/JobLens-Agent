@@ -122,6 +122,9 @@ export default async function ImportDetailPage({
       || improvement.previousRecommendation !== improvement.currentRecommendation;
     return improved ? [{report, improvement}] : [];
   });
+  const resolvedBatchRequirementIds = new Set(
+    improvedBatchJobs.flatMap(({improvement}) => improvement.resolvedRequirementIds),
+  );
   const feedbackByJobId = new Map(
     matchedReports.flatMap((report) => {
       const feedback = latestFeedbackByReportId.get(report.reportId);
@@ -133,9 +136,17 @@ export default async function ImportDetailPage({
         .then((value) => ({status: "fulfilled" as const, value}))
         .catch((reason) => ({status: "rejected" as const, reason}))
     : {status: "fulfilled" as const, value: null};
-  const batchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
+  const rawBatchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
     : null;
+  const batchEvidenceAction = rawBatchEvidenceAction
+    && !rawBatchEvidenceAction.requirementIds.some((requirementId) => resolvedBatchRequirementIds.has(requirementId))
+    ? rawBatchEvidenceAction
+    : null;
+  const batchEvidenceActionStaleAfterImprovement = Boolean(
+    rawBatchEvidenceAction
+    && rawBatchEvidenceAction.requirementIds.some((requirementId) => resolvedBatchRequirementIds.has(requirementId)),
+  );
   const batchEvidenceFocusJobId = selectEvidenceFocusJobId(batchEvidenceAction, feedbackByJobId);
   const batchEvidenceRequirement = batchEvidenceAction && batchEvidenceFocusJobId && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? blockerSummaryResult.value.jobBlockers
@@ -258,6 +269,21 @@ export default async function ImportDetailPage({
               ) : (
                 <p className="notice">当前还没有可确认的批次改善。只有存在同一岗位、同一 Requirement 事实集且 Profile 版本不同的前后 MatchReport 时，系统才会把变化归因给这次资料更新。</p>
               )}
+              {resolvedBatchRequirementIds.size > 0 ? (
+                batchEvidenceAction ? (
+                  <p className="notice">
+                    这次补充的 Evidence 已经解决 {resolvedBatchRequirementIds.size} 条硬要求；这些已解决 Requirement 不会继续驱动下一证据行动。下面的下一步只来自当前仍未解决的 blocker。
+                  </p>
+                ) : batchEvidenceActionStaleAfterImprovement ? (
+                  <p className="notice">
+                    这次已经有硬要求被解决，但当前 blocker 汇总仍包含已解决 Requirement。为避免重复让你补同一项证据，本页暂不生成下一证据行动，请刷新后再看最新事实。
+                  </p>
+                ) : (
+                  <p className="notice">
+                    这次补充的 Evidence 已经解决 {resolvedBatchRequirementIds.size} 条硬要求；当前这批岗位没有新的、可可靠确认的下一证据行动。
+                  </p>
+                )
+              ) : null}
               <p className="muted">这里只比较已经存在的 immutable MatchReport，不会在打开页面时重新匹配或调用 Provider。</p>
             </section>
           ) : null}
