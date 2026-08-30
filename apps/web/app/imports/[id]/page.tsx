@@ -239,6 +239,7 @@ export default async function ImportDetailPage({
   const clearedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "cleared");
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
+  const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
   const batchEvidenceConsideredJobCount = batchEvidenceAction
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
@@ -322,7 +323,11 @@ export default async function ImportDetailPage({
               {previousEvidenceQueueResults.length > 0 ? (
                 <div className="notice">
                   <strong>刚才这项 Evidence 核实后，待办岗位发生了什么：</strong>
+                  <p className="muted">
+                    原计划观察 {focusImpactJobIds.length} 个待办岗位；Re-match 后已有 {verifiedPreviousEvidenceQueueCount} 个可以基于当前事实下结论，另有 {unverifiablePreviousEvidenceQueueResults.length} 个暂时无法验证。
+                  </p>
                   <div className="summary-grid">
+                    <div className="summary-card"><span>原计划观察</span><strong>{focusImpactJobIds.length}</strong></div>
                     <div className="summary-card"><span>已解除 hard blocker</span><strong>{clearedPreviousEvidenceQueueResults.length}</strong></div>
                     <div className="summary-card"><span>仍有 hard blocker</span><strong>{blockedPreviousEvidenceQueueResults.length}</strong></div>
                     <div className="summary-card"><span>暂无法验证</span><strong>{unverifiablePreviousEvidenceQueueResults.length}</strong></div>

@@ -91,6 +91,9 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /focusImpactJobs=/);
   assert.match(page, /previousEvidenceQueueResults/);
   assert.match(page, /刚才这项 Evidence 核实后，待办岗位发生了什么/);
+  assert.match(page, /原计划观察 \{focusImpactJobIds\.length\} 个待办岗位/);
+  assert.match(page, /已有 \{verifiedPreviousEvidenceQueueCount\} 个可以基于当前事实下结论/);
+  assert.match(page, /<span>原计划观察<\/span>/);
   assert.match(page, /已解除 hard blocker/);
   assert.match(page, /仍有 hard blocker/);
   assert.match(page, /下一条剩余 Requirement/);
