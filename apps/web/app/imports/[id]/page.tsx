@@ -136,6 +136,11 @@ export default async function ImportDetailPage({
         .then((value) => ({status: "fulfilled" as const, value}))
         .catch((reason) => ({status: "rejected" as const, reason}))
     : {status: "fulfilled" as const, value: null};
+  const blockerByJobId = new Map(
+    blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
+      ? blockerSummaryResult.value.jobBlockers.map((item) => [item.jobId, item] as const)
+      : [],
+  );
   const rawBatchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
     : null;
@@ -244,6 +249,24 @@ export default async function ImportDetailPage({
                         {improvement.previousRecommendation !== improvement.currentRecommendation
                           ? `，推荐结果从 ${improvement.previousRecommendation ?? "无"} 变为 ${improvement.currentRecommendation ?? "无"}`
                           : ""}。
+                        {blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value ? (() => {
+                          const currentBlocker = blockerByJobId.get(report.jobId);
+                          const nextRequirement = currentBlocker?.requirements[0] ?? null;
+                          return currentBlocker ? (
+                            <div className="notice">
+                              <strong>这个岗位现在还差什么：</strong>
+                              {nextRequirement
+                                ? `虽然已经改善，但当前仍有 ${currentBlocker.missingRequirementCount} 条硬条件缺口；下一条先看“${nextRequirement.originalText}”。`
+                                : `虽然已经改善，但仍有 ${currentBlocker.missingRequirementCount} 条硬条件缺口；当前 Requirement 事实无法解析出具体原文，因此这里不猜测下一项。`}
+                            </div>
+                          ) : (
+                            <div className="notice">
+                              <strong>这个岗位现在还差什么：</strong>当前 Match blocker 事实里已没有硬条件缺口，可以转向投递判断或反馈，不必继续为这个岗位机械补证据。
+                            </div>
+                          );
+                        })() : (
+                          <p className="muted">当前无法可靠读取这个岗位最新的 hard blocker，因此这里不判断它是否已经没有硬缺口。</p>
+                        )}
                         {resolvingEvidence.length > 0 ? (
                           <ul>
                             {resolvingEvidence.slice(0, 3).map(({evidence, supportingRequirements}) => (
