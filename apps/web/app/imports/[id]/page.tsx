@@ -6,6 +6,7 @@ import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchImportDetail,
+  fetchJobDetail,
   fetchJobRequirementReleaseReadiness,
   fetchMatchRanking,
 } from "@/lib/backend";
@@ -35,14 +36,26 @@ export default async function ImportDetailPage({
   }
 
   const importedJobIds = detail.items.flatMap((item) => (item.jobId ? [item.jobId] : []));
-  const [rankingResult, ...readinessResults] = await Promise.allSettled([
+  const [rankingResult, jobDetailResults, readinessResults] = await Promise.all([
     importedJobIds.length > 0
       ? fetchMatchRanking(importedJobIds, {includeBlocked: true})
-      : Promise.resolve({items: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0}),
-    ...importedJobIds.map((jobId) => fetchJobRequirementReleaseReadiness(jobId)),
+          .then((value) => ({status: "fulfilled" as const, value}))
+          .catch((reason) => ({status: "rejected" as const, reason}))
+      : Promise.resolve({
+          status: "fulfilled" as const,
+          value: {items: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0},
+        }),
+    Promise.allSettled(importedJobIds.map((jobId) => fetchJobDetail(jobId))),
+    Promise.allSettled(importedJobIds.map((jobId) => fetchJobRequirementReleaseReadiness(jobId))),
   ]);
+  const rankingAvailable = rankingResult.status === "fulfilled";
   const rankedJobIds = new Set(
-    rankingResult.status === "fulfilled" ? rankingResult.value.items.map((item) => item.jobId) : [],
+    rankingAvailable ? rankingResult.value.items.map((item) => item.jobId) : [],
+  );
+  const jobDetailById = new Map(
+    jobDetailResults.flatMap((result) =>
+      result.status === "fulfilled" ? [[result.value.id, result.value] as const] : [],
+    ),
   );
   const readinessByJobId = new Map(
     readinessResults.flatMap((result) =>
@@ -52,13 +65,32 @@ export default async function ImportDetailPage({
   const matchedCount = importedJobIds.filter((jobId) => rankedJobIds.has(jobId)).length;
   const matchReadyCount = importedJobIds.filter((jobId) => {
     const readiness = readinessByJobId.get(jobId);
-    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
+    return rankingAvailable && !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
   }).length;
   const requirementBlockedCount = importedJobIds.filter((jobId) => {
     const readiness = readinessByJobId.get(jobId);
     return !rankedJobIds.has(jobId) && readiness?.releaseEligible === false;
   }).length;
   const unknownReadinessCount = importedJobIds.length - matchedCount - matchReadyCount - requirementBlockedCount;
+  const matchReadyJobs = importedJobIds.filter((jobId) => {
+    const readiness = readinessByJobId.get(jobId);
+    return rankingAvailable && !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
+  });
+  const requirementBlockedJobs = importedJobIds.filter((jobId) => {
+    const readiness = readinessByJobId.get(jobId);
+    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === false;
+  });
+  const unknownReadinessJobs = importedJobIds.filter((jobId) => {
+    if (rankedJobIds.has(jobId)) {
+      return false;
+    }
+    const readiness = readinessByJobId.get(jobId);
+    return !readiness || (!rankingAvailable && readiness.releaseEligible);
+  });
+  const jobLabel = (jobId: string) => {
+    const job = jobDetailById.get(jobId);
+    return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
+  };
 
   return (
     <>
@@ -91,12 +123,61 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {requirementBlockedJobs.length > 0 ? (
+            <section className="detail-section">
+              <h3>还需处理岗位要求</h3>
+              <p className="muted">先看具体阻塞原因，再决定是否进入该岗位处理；这里不会自动发起分析。</p>
+              <ul>
+                {requirementBlockedJobs.map((jobId) => {
+                  const readiness = readinessByJobId.get(jobId);
+                  return (
+                    <li key={jobId} style={{marginBottom: "0.85rem"}}>
+                      <Link href={`/jobs/${jobId}`}><strong>{jobLabel(jobId)}</strong></Link>
+                      {readiness && readiness.blockers.length > 0 ? (
+                        <ul>
+                          {readiness.blockers.slice(0, 2).map((blocker) => (
+                            <li key={`${jobId}-${blocker.code}`}>{blocker.message}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="muted">当前没有可展示的具体阻塞原因，请进入岗位查看最新状态。</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          {matchReadyJobs.length > 0 ? (
+            <section className="detail-section">
+              <h3>Requirement 已准备、等待匹配</h3>
+              <ul>
+                {matchReadyJobs.map((jobId) => (
+                  <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {unknownReadinessJobs.length > 0 ? (
+            <section className="detail-section">
+              <h3>暂时无法确认的岗位</h3>
+              <p className="muted">这些岗位的 Requirement 状态读取失败，因此不会被误报为“尚未准备”。</p>
+              <ul>
+                {unknownReadinessJobs.map((jobId) => (
+                  <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <div className="actions">
             {matchedCount > 0 || matchReadyCount > 0 ? (
               <Link className="button" href="/recommendations">查看优先投递与继续匹配</Link>
             ) : null}
             {requirementBlockedCount > 0 ? (
-              <Link className="button-ghost" href="/jobs">查看还需分析的岗位</Link>
+              <Link className="button-ghost" href="/jobs">查看全部岗位</Link>
             ) : null}
           </div>
           <p className="muted">

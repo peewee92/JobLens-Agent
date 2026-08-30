@@ -31,9 +31,15 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /要求已准备，可进入匹配/);
   assert.match(page, /岗位要求还未准备好/);
   assert.match(page, /fetchJobRequirementReleaseReadiness/);
+  assert.match(page, /fetchJobDetail/);
   assert.match(page, /fetchMatchRanking/);
+  assert.match(page, /还需处理岗位要求/);
+  assert.match(page, /Requirement 已准备、等待匹配/);
+  assert.match(page, /暂时无法确认的岗位/);
+  assert.match(page, /blockers\.slice\(0, 2\)/);
   assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
   assert.match(page, /真正的匹配仍由你在 JobLens 中显式发起/);
+  assert.match(page, /不会被误报为“尚未准备”/);
 });
 
 test("profile primary copy uses user language and keeps implementation facts in technical details", async () => {
