@@ -13,6 +13,11 @@ import {
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
+import {
+  matchRecommendationClasses,
+  matchRecommendationDescriptions,
+  matchRecommendationLabels,
+} from "@/lib/match-report";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
@@ -71,7 +76,10 @@ export default async function ImportDetailPage({
       result.status === "fulfilled" ? [[result.value.jobId, result.value] as const] : [],
     ),
   );
-  const matchedCount = importedJobIds.filter((jobId) => rankedJobIds.has(jobId)).length;
+  const matchedReports = rankingAvailable
+    ? rankingResult.value.items.filter((item) => importedJobIds.includes(item.jobId))
+    : [];
+  const matchedCount = matchedReports.length;
   const matchReadyCount = importedJobIds.filter(
     (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
   ).length;
@@ -132,6 +140,31 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {matchedReports.length > 0 ? (
+            <section className="detail-section">
+              <h3>这批岗位当前的匹配结果</h3>
+              <p className="muted">按当前 Ranking 顺序展示，只读取已经存在的 MatchReport；这里不会重新匹配。</p>
+              <div className="recommendation-grid">
+                {matchedReports.map((report, index) => (
+                  <article className={`match-recommendation-card ${matchRecommendationClasses[report.recommendation]}`} key={report.reportId}>
+                    <p className="eyebrow">第 {index + 1} 位</p>
+                    <h3><Link href={`/jobs/${report.jobId}`}>{jobLabel(report.jobId)}</Link></h3>
+                    <div className="actions">
+                      <span className={`tag ${matchRecommendationClasses[report.recommendation]}`}>
+                        {matchRecommendationLabels[report.recommendation]}
+                      </span>
+                      <span className="tag">有依据要求 {report.evidenceLinks.length} 条</span>
+                    </div>
+                    <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
+                  </article>
+                ))}
+              </div>
+              <div className="actions">
+                <Link className="button" href="/recommendations">查看全部优先投递</Link>
+              </div>
+            </section>
+          ) : null}
+
           {requirementBlockedJobs.length > 0 ? (
             <section className="detail-section">
               <h3>还需处理岗位要求</h3>

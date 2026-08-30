@@ -513,6 +513,7 @@ Profile 页面可以明确区分：
 - 2026-08-30：把 Import Batch 从“同步审计页”推进为批次级下一步入口。`/imports/{importId}` 只读复用该批次真实 `jobId`、Job Requirement Release Readiness 与现有 Match Ranking，把岗位汇总为“已有当前匹配结果 / Requirement 已准备但尚无当前 MatchReport / Requirement 仍未放行 / 暂时无法确认”，并提供前往“优先投递/继续匹配”或“查看还需分析岗位”的明确入口。该页面不会自动触发 Requirement Extraction、Match、Provider 调用或新的 DB 写入；“可进入匹配”只代表 Requirement 事实链已准备，不把 readiness 冒充 Match 结果。
 - 2026-08-30：继续把 Import Batch 汇总落到岗位级可执行项。对于 Requirement 尚未放行的岗位，页面直接列出真实岗位名称/公司与 Release Readiness 返回的前两条 blocker message，并可进入对应 Job 处理；Requirement 已准备但还没有当前 MatchReport 的岗位也单独列出，方便继续进入显式匹配；readiness 读取失败的岗位保持“暂时无法确认”，明确不会误报成“尚未准备”。该切片只新增只读 Job/Readiness 展示，不自动触发 Requirement Extraction、Match 或 Provider，不新增 DB 写入或 migration。
 - 2026-08-30：把 Import Batch 的“等待匹配”推进为显式、受控的批次匹配入口。页面不再仅凭 Requirement Release Gate 推断可匹配岗位，而是与现有 `match-review/readiness.reviewableJobIds` 取交集，只对本批次中真实 Match Input 已准备、且当前 Ranking 中还没有 MatchReport 的岗位展示执行按钮；点击后复用既有 `POST /api/match-batch`，每轮 `maxReadyJobs=10`，Backend 返回 `resumeJobIds` 时只展示“继续匹配”按钮，绝不自动续跑。页面同时明确提示语义判断可能调用已配置模型，因此 Provider 成本仍由用户显式点击触发；本工程切片本身不执行 Provider、不迁移数据库，也不绕过既有 Match/Eligibility 门禁。
+- 2026-08-30：补齐 Import Batch 匹配后的同页结果反馈。只要当前批次已经存在可用 MatchReport，`/imports/{importId}` 会直接按现有 Ranking 顺序展示岗位、推荐等级、MatchReport summary 与 evidenceLinks 覆盖数，并保留“查看全部优先投递”入口；用户完成显式 batch match 后刷新同一页面即可看到结果，不必先跳到全局推荐页再寻找本批岗位。该展示只消费已有 immutable MatchReport，不重新运行 Match、不调用 Provider、不产生 DB 写入或 migration，也不在 Web 端复制 Ranking 规则。
 
 ### 任务
 
