@@ -42,6 +42,9 @@ export default async function ImportDetailPage({
   const {id} = await params;
   const query = await searchParams;
   const showImprovement = query.showImprovement === "1";
+  const focusImpactJobIds = typeof query.focusImpactJobs === "string"
+    ? query.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
+    : [];
   let detail;
   try {
     detail = await fetchImportDetail(id);
@@ -128,6 +131,11 @@ export default async function ImportDetailPage({
         })),
       )
     : [];
+  const improvementByJobId = new Map(
+    improvementResults.flatMap((result) =>
+      result.status === "fulfilled" ? [[result.value.report.jobId, result.value.improvement] as const] : [],
+    ),
+  );
   const improvedBatchJobs = improvementResults.flatMap((result) => {
     if (result.status !== "fulfilled") return [];
     const {report, improvement} = result.value;
@@ -200,6 +208,21 @@ export default async function ImportDetailPage({
   const consideredBlockedJobIds = new Set(consideredBlockedReports.map((report) => report.jobId));
   const batchEvidenceQueueTargets = batchEvidenceImpactTargets.filter((target) => consideredBlockedJobIds.has(target.jobId));
   const batchEvidenceQueueTargetJobIds = new Set(batchEvidenceQueueTargets.map((target) => target.jobId));
+  const previousEvidenceQueueResults = showImprovement && focusImpactJobIds.length > 0
+    ? focusImpactJobIds.map((jobId) => {
+        const report = matchedReports.find((item) => item.jobId === jobId) ?? null;
+        const improvement = improvementByJobId.get(jobId) ?? null;
+        if (!report || !improvement || !improvement.comparable || improvement.previousProfileVersion === improvement.currentProfileVersion) {
+          return {jobId, report, status: "unverifiable" as const};
+        }
+        return blockerByJobId.has(jobId)
+          ? {jobId, report, status: "blocked" as const}
+          : {jobId, report, status: "cleared" as const};
+      })
+    : [];
+  const clearedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "cleared");
+  const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
+  const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
   const batchEvidenceConsideredJobCount = batchEvidenceAction
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
@@ -280,6 +303,37 @@ export default async function ImportDetailPage({
           </div>
           {showImprovement ? (
             <section className="detail-section">
+              {previousEvidenceQueueResults.length > 0 ? (
+                <div className="notice">
+                  <strong>刚才这项 Evidence 核实后，待办岗位发生了什么：</strong>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>已解除 hard blocker</span><strong>{clearedPreviousEvidenceQueueResults.length}</strong></div>
+                    <div className="summary-card"><span>仍有 hard blocker</span><strong>{blockedPreviousEvidenceQueueResults.length}</strong></div>
+                    <div className="summary-card"><span>暂无法验证</span><strong>{unverifiablePreviousEvidenceQueueResults.length}</strong></div>
+                  </div>
+                  {clearedPreviousEvidenceQueueResults.length > 0 ? (
+                    <div className="detail-section">
+                      <strong>可以转入投递判断</strong>
+                      <ul>
+                        {clearedPreviousEvidenceQueueResults.map(({jobId}) => (
+                          <li key={`cleared-${jobId}`}>
+                            {jobLabel(jobId)}
+                            <div className="actions">
+                              <Link className="button" href={`/jobs/${jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>查看完整依据并做投递判断</Link>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {blockedPreviousEvidenceQueueResults.length > 0 ? (
+                    <p className="muted">仍有 hard blocker 的目标继续留在 Evidence Loop；不会因为完成了一次资料核实就被误报成可直接投递。</p>
+                  ) : null}
+                  {unverifiablePreviousEvidenceQueueResults.length > 0 ? (
+                    <p className="muted">“暂无法验证”表示缺少可比较的前后 MatchReport 或当前事实读取不完整；这里不会把未知结果当成未改善。</p>
+                  ) : null}
+                </div>
+              ) : null}
               <h3>这次补证据后，本批哪些岗位改善了</h3>
               {improvedBatchJobs.length > 0 ? (
                 <ul>

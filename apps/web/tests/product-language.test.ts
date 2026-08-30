@@ -89,6 +89,13 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /去核实这项真实经历/);
   assert.match(page, /focusRequirementId=/);
   assert.match(page, /focusImpactJobs=/);
+  assert.match(page, /previousEvidenceQueueResults/);
+  assert.match(page, /刚才这项 Evidence 核实后，待办岗位发生了什么/);
+  assert.match(page, /已解除 hard blocker/);
+  assert.match(page, /仍有 hard blocker/);
+  assert.match(page, /暂无法验证/);
+  assert.match(page, /可以转入投递判断/);
+  assert.match(page, /缺少可比较的前后 MatchReport 或当前事实读取不完整/);
   assert.match(page, /returnImport=/);
   assert.match(page, /showImprovement/);
   assert.match(page, /fetchMatchImprovement/);
@@ -130,6 +137,7 @@ test("import evidence continuation returns to the batch only after explicit rema
   assert.match(profile, /\^\[A-Za-z0-9_-\]\{1,120\}\$/);
   assert.match(recommendations, /returnImportId/);
   assert.match(recommendations, /showImprovement=1/);
+  assert.match(recommendations, /focusImpactJobs=\$\{encodeURIComponent\(focusImpactJobIds\.join\(","\)\)\}/);
   assert.match(refresh, /returnHref/);
   assert.match(refresh, /state\.kind === "success" && pendingJobIds\.length === 0/);
   assert.match(refresh, /回到这批岗位看改善结果/);

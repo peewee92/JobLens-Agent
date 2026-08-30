@@ -707,7 +707,9 @@ export default async function RecommendationsPage({
         focusJobId={focusJobId}
         focusJobTitle={focusJobTitle}
         focusReportId={focusJobReport?.report.reportId ?? null}
-        returnHref={returnImportId ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1` : null}
+        returnHref={returnImportId
+          ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}`
+          : null}
       />
 
       {rankedItems.length > 0 ? (
