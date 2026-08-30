@@ -333,6 +333,27 @@ export default async function ImportDetailPage({
                     <div className="summary-card"><span>暂无法验证</span><strong>{unverifiablePreviousEvidenceQueueResults.length}</strong></div>
                   </div>
                   {clearedPreviousEvidenceQueueResults.length > 0 ? (
+                    <div className="notice">
+                      <strong>现在最值得做：</strong>先完成已经解除 hard blocker 的岗位投递判断。真实 Evidence 已经让至少一个原计划目标进入可判断状态，先把这部分价值兑现，再继续下一 Evidence。
+                      <div className="actions">
+                        <Link className="button" href={`/jobs/${clearedPreviousEvidenceQueueResults[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                          先处理第一个已解锁岗位
+                        </Link>
+                      </div>
+                    </div>
+                  ) : verifiedPreviousEvidenceQueueCount > 0 && blockedPreviousEvidenceQueueResults.length > 0 && batchEvidenceAction && batchEvidenceProfileHref ? (
+                    <div className="notice">
+                      <strong>现在最值得做：</strong>这次还没有原计划岗位解除 hard blocker，但已有可验证结果，且当前仍存在可靠的下一 Evidence action。继续核实下一项真实证据，再 Re-match 看是否能解锁岗位。
+                      <div className="actions">
+                        <Link className="button" href={batchEvidenceProfileHref}>继续下一项 Evidence</Link>
+                      </div>
+                    </div>
+                  ) : unverifiablePreviousEvidenceQueueResults.length > 0 ? (
+                    <div className="notice">
+                      <strong>现在先不自动改节奏：</strong>本轮仍有岗位缺少可比较结果或当前事实不完整。先保留现有处理路径，不把未知当成“补证据无效”，也不因为未知结果强行切换到投递判断或下一 Evidence。
+                    </div>
+                  ) : null}
+                  {clearedPreviousEvidenceQueueResults.length > 0 ? (
                     <div className="detail-section">
                       <strong>可以转入投递判断</strong>
                       <ul>

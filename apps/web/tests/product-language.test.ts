@@ -106,6 +106,11 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /当前没有可可靠生成的下一 Evidence action/);
   assert.match(page, /当前 blocker 事实无法解析出 Requirement 原文/);
   assert.match(page, /暂无法验证/);
+  assert.match(page, /现在最值得做/);
+  assert.match(page, /先处理第一个已解锁岗位/);
+  assert.match(page, /继续下一项 Evidence/);
+  assert.match(page, /现在先不自动改节奏/);
+  assert.match(page, /不把未知当成“补证据无效”/);
   assert.match(page, /可以转入投递判断/);
   assert.match(page, /缺少可比较的前后 MatchReport 或当前事实读取不完整/);
   assert.match(page, /returnImport=/);
