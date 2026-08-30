@@ -11,9 +11,16 @@ import {
   fetchJobDetail,
   fetchJobRequirementReleaseReadiness,
   fetchLatestUserFeedback,
+  fetchMatchBlockerSummary,
   fetchMatchRanking,
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
+import {
+  consideredAffectedJobCount,
+  listEvidencePriorityImpactTargets,
+  selectEvidenceFocusJobId,
+  selectNextEvidencePriority,
+} from "@/lib/evidence-priority";
 import {formatDateTime} from "@/lib/format";
 import {
   matchRecommendationClasses,
@@ -94,6 +101,35 @@ export default async function ImportDetailPage({
       : [],
   );
   const feedbackCoveredCount = feedbackAvailable ? latestFeedbackByReportId.size : 0;
+  const feedbackByJobId = new Map(
+    matchedReports.flatMap((report) => {
+      const feedback = latestFeedbackByReportId.get(report.reportId);
+      return feedback ? [[report.jobId, feedback] as const] : [];
+    }),
+  );
+  const blockerSummaryResult = matchedReports.length > 0
+    ? await fetchMatchBlockerSummary(importedJobIds)
+        .then((value) => ({status: "fulfilled" as const, value}))
+        .catch((reason) => ({status: "rejected" as const, reason}))
+    : {status: "fulfilled" as const, value: null};
+  const batchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
+    ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
+    : null;
+  const batchEvidenceFocusJobId = selectEvidenceFocusJobId(batchEvidenceAction, feedbackByJobId);
+  const batchEvidenceRequirement = batchEvidenceAction && batchEvidenceFocusJobId && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
+    ? blockerSummaryResult.value.jobBlockers
+        .find((item) => item.jobId === batchEvidenceFocusJobId)
+        ?.requirements.find((requirement) => batchEvidenceAction.requirementIds.includes(requirement.requirementId)) ?? null
+    : null;
+  const batchEvidenceImpactTargets = blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
+    ? listEvidencePriorityImpactTargets(batchEvidenceAction, blockerSummaryResult.value.jobBlockers, feedbackByJobId)
+    : [];
+  const batchEvidenceConsideredJobCount = batchEvidenceAction
+    ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
+    : 0;
+  const batchEvidenceProfileHref = batchEvidenceAction
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}#profile-evidence-focus`
+    : null;
   const matchReadyCount = importedJobIds.filter(
     (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
   ).length;
@@ -190,6 +226,41 @@ export default async function ImportDetailPage({
                   </article>
                 ))}
               </div>
+              {batchEvidenceAction && batchEvidenceProfileHref ? (
+                <section className="detail-section">
+                  <h3>这批岗位下一项最值得核实的证据</h3>
+                  <p>
+                    {batchEvidenceAction.normalizedCapability
+                      ? `先核实“${batchEvidenceAction.normalizedCapability}”相关的真实经历。`
+                      : `先核实一项 ${batchEvidenceAction.requirementType} 类型的真实经历。`}
+                    当前仍影响这批中 {batchEvidenceConsideredJobCount} 个你没有明确标记为“不考虑”的岗位，共对应 {batchEvidenceAction.missingRequirementCount} 条硬条件缺口。
+                  </p>
+                  {batchEvidenceImpactTargets.length > 0 ? (
+                    <ul>
+                      {batchEvidenceImpactTargets.slice(0, 3).map((target) => (
+                        <li key={target.jobId}>
+                          <strong>{jobLabel(target.jobId)}</strong>
+                          <ul>
+                            {target.requirementTexts.map((requirementText) => (
+                              <li key={`${target.jobId}-${requirementText}`}>{requirementText}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <p className="muted">
+                    这里只按当前 blocker 与你的真实反馈排序；明确 rejected 的岗位不会继续驱动补证据。核实并保存真实经历后，最终是否改善仍以 Re-match 为准。
+                  </p>
+                  <div className="actions">
+                    <Link className="button" href={batchEvidenceProfileHref}>去核实这项真实经历</Link>
+                  </div>
+                </section>
+              ) : feedbackAvailable && blockerSummaryResult.status === "fulfilled" ? null : (
+                <p className="notice">
+                  当前无法可靠读取反馈或硬条件缺口，因此这里不生成下一证据建议，避免把未知状态当成事实。
+                </p>
+              )}
               <div className="actions">
                 <Link className="button" href="/recommendations">查看全部优先投递</Link>
               </div>

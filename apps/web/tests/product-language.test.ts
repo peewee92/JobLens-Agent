@@ -40,6 +40,14 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /RecommendationFeedback/);
   assert.match(page, /已反馈 \{feedbackCoveredCount\}\/\{matchedCount\}/);
   assert.match(page, /当前反馈状态暂时读取失败/);
+  assert.match(page, /fetchMatchBlockerSummary/);
+  assert.match(page, /selectNextEvidencePriority/);
+  assert.match(page, /这批岗位下一项最值得核实的证据/);
+  assert.match(page, /明确 rejected 的岗位不会继续驱动补证据/);
+  assert.match(page, /去核实这项真实经历/);
+  assert.match(page, /focusRequirementId=/);
+  assert.match(page, /focusImpactJobs=/);
+  assert.match(page, /当前无法可靠读取反馈或硬条件缺口/);
   assert.match(page, /matchRecommendationLabels\[report\.recommendation\]/);
   assert.match(page, /有依据要求 \{report\.evidenceLinks\.length\} 条/);
   assert.match(page, /report\.summary \|\| matchRecommendationDescriptions/);
