@@ -3,7 +3,12 @@ import {notFound} from "next/navigation";
 
 import {ImportOutcomePill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
-import {BackendApiError, fetchImportDetail} from "@/lib/backend";
+import {
+  BackendApiError,
+  fetchImportDetail,
+  fetchJobRequirementReleaseReadiness,
+  fetchMatchRanking,
+} from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
@@ -29,6 +34,32 @@ export default async function ImportDetailPage({
     return <ServiceError message={message} />;
   }
 
+  const importedJobIds = detail.items.flatMap((item) => (item.jobId ? [item.jobId] : []));
+  const [rankingResult, ...readinessResults] = await Promise.allSettled([
+    importedJobIds.length > 0
+      ? fetchMatchRanking(importedJobIds, {includeBlocked: true})
+      : Promise.resolve({items: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0}),
+    ...importedJobIds.map((jobId) => fetchJobRequirementReleaseReadiness(jobId)),
+  ]);
+  const rankedJobIds = new Set(
+    rankingResult.status === "fulfilled" ? rankingResult.value.items.map((item) => item.jobId) : [],
+  );
+  const readinessByJobId = new Map(
+    readinessResults.flatMap((result) =>
+      result.status === "fulfilled" ? [[result.value.jobId, result.value] as const] : [],
+    ),
+  );
+  const matchedCount = importedJobIds.filter((jobId) => rankedJobIds.has(jobId)).length;
+  const matchReadyCount = importedJobIds.filter((jobId) => {
+    const readiness = readinessByJobId.get(jobId);
+    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === true;
+  }).length;
+  const requirementBlockedCount = importedJobIds.filter((jobId) => {
+    const readiness = readinessByJobId.get(jobId);
+    return !rankedJobIds.has(jobId) && readiness?.releaseEligible === false;
+  }).length;
+  const unknownReadinessCount = importedJobIds.length - matchedCount - matchReadyCount - requirementBlockedCount;
+
   return (
     <>
       <section className="page-heading">
@@ -45,6 +76,34 @@ export default async function ImportDetailPage({
         <div className="summary-card"><span>信息已更新</span><strong>{detail.updated}</strong></div>
         <div className="summary-card"><span>未添加</span><strong>{detail.skipped}</strong></div>
       </div>
+
+      {importedJobIds.length > 0 ? (
+        <section className="detail-card" style={{marginBottom: "1rem"}}>
+          <h2>这批岗位下一步怎么处理</h2>
+          <p className="notice">
+            这里只读取现有 Requirement / Match 事实，不会自动分析岗位、调用 Provider 或替你发起匹配。
+          </p>
+          <div className="summary-grid">
+            <div className="summary-card"><span>已有当前匹配结果</span><strong>{matchedCount}</strong></div>
+            <div className="summary-card"><span>要求已准备，可进入匹配</span><strong>{matchReadyCount}</strong></div>
+            <div className="summary-card"><span>岗位要求还未准备好</span><strong>{requirementBlockedCount}</strong></div>
+            {unknownReadinessCount > 0 ? (
+              <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
+            ) : null}
+          </div>
+          <div className="actions">
+            {matchedCount > 0 || matchReadyCount > 0 ? (
+              <Link className="button" href="/recommendations">查看优先投递与继续匹配</Link>
+            ) : null}
+            {requirementBlockedCount > 0 ? (
+              <Link className="button-ghost" href="/jobs">查看还需分析的岗位</Link>
+            ) : null}
+          </div>
+          <p className="muted">
+            “要求已准备，可进入匹配”只表示岗位 Requirement 事实链已放行，不代表已经生成 MatchReport；真正的匹配仍由你在 JobLens 中显式发起。
+          </p>
+        </section>
+      ) : null}
 
       <section className="detail-grid">
         <article className="detail-card">

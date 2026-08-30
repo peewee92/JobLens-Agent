@@ -23,6 +23,19 @@ test("main navigation is organized around job seeker tasks instead of eval modul
   assert.doesNotMatch(layout, />要求评测</);
 });
 
+test("import detail summarizes zero-provider next steps for the imported batch", async () => {
+  const page = await source("app/imports/[id]/page.tsx");
+
+  assert.match(page, /这批岗位下一步怎么处理/);
+  assert.match(page, /已有当前匹配结果/);
+  assert.match(page, /要求已准备，可进入匹配/);
+  assert.match(page, /岗位要求还未准备好/);
+  assert.match(page, /fetchJobRequirementReleaseReadiness/);
+  assert.match(page, /fetchMatchRanking/);
+  assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
+  assert.match(page, /真正的匹配仍由你在 JobLens 中显式发起/);
+});
+
 test("profile primary copy uses user language and keeps implementation facts in technical details", async () => {
   const page = await source("app/profile/page.tsx");
   assert.match(page, /我的背景和求职偏好/);

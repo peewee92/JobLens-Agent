@@ -510,6 +510,7 @@ Profile 页面可以明确区分：
 
 - 2026-08-30：开始落地 Collector → JobLens 一键同步的最小本地闭环。Collector popup 可把最近一次完整 report 直接 POST 到本机 `http://127.0.0.1:8000/api/v1/job-imports`；后端继续复用既有 Job identity / dedupe / import audit，因此重复同步不会重复创建 Job，而是按真实差异返回 created / updated / skipped。同步失败不会删除或覆盖采集结果，既有“完整报告”JSON 下载继续作为离线兜底。首切片只开放 localhost/127.0.0.1 host permission，不携带 API key、不调用 Requirement Provider、不新增 Backend 表或 migration；后续再基于真实使用验证是否需要可配置 endpoint / 自动增量触发。
 - 2026-08-30：补齐 Collector 同步后的可见结果 handoff。同步成功后 popup 校验 Backend 返回的 immutable `importId`，仅持久化最近一次成功批次 ID，并提供“查看本次导入”直接打开既有 `/imports/{importId}` 审计页；重开 popup 后入口仍可恢复，后续同步失败也不会覆盖上一次成功入口。该 handoff 只复用既有 Import Detail Web/API，不自动启动 Requirement Extraction、Match 或 Provider 调用，不新增 Backend 写模型或 migration。
+- 2026-08-30：把 Import Batch 从“同步审计页”推进为批次级下一步入口。`/imports/{importId}` 只读复用该批次真实 `jobId`、Job Requirement Release Readiness 与现有 Match Ranking，把岗位汇总为“已有当前匹配结果 / Requirement 已准备但尚无当前 MatchReport / Requirement 仍未放行 / 暂时无法确认”，并提供前往“优先投递/继续匹配”或“查看还需分析岗位”的明确入口。该页面不会自动触发 Requirement Extraction、Match、Provider 调用或新的 DB 写入；“可进入匹配”只代表 Requirement 事实链已准备，不把 readiness 冒充 Match 结果。
 
 ### 任务
 
