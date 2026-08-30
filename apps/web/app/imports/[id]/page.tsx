@@ -197,6 +197,9 @@ export default async function ImportDetailPage({
   const batchEvidenceImpactTargets = blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? listEvidencePriorityImpactTargets(batchEvidenceAction, blockerSummaryResult.value.jobBlockers, feedbackByJobId)
     : [];
+  const consideredBlockedJobIds = new Set(consideredBlockedReports.map((report) => report.jobId));
+  const batchEvidenceQueueTargets = batchEvidenceImpactTargets.filter((target) => consideredBlockedJobIds.has(target.jobId));
+  const batchEvidenceQueueTargetJobIds = new Set(batchEvidenceQueueTargets.map((target) => target.jobId));
   const batchEvidenceConsideredJobCount = batchEvidenceAction
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
@@ -458,7 +461,14 @@ export default async function ImportDetailPage({
                             : decision
                               ? "当前判断已记录"
                               : "做投递判断";
-                        return <span className="tag">下一步：{nextStep}</span>;
+                        return (
+                          <>
+                            <span className="tag">下一步：{nextStep}</span>
+                            {batchEvidenceQueueTargetJobIds.has(report.jobId) ? (
+                              <span className="tag">当前证据行动会影响</span>
+                            ) : null}
+                          </>
+                        );
                       })() : null}
                     </div>
                     <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
@@ -496,6 +506,12 @@ export default async function ImportDetailPage({
                       : `先核实一项 ${batchEvidenceAction.requirementType} 类型的真实经历。`}
                     当前仍影响这批中 {batchEvidenceConsideredJobCount} 个你没有明确标记为“不考虑”的岗位，共对应 {batchEvidenceAction.missingRequirementCount} 条硬条件缺口。
                   </p>
+                  {batchEvidenceQueueTargets.length > 0 ? (
+                    <div className="notice">
+                      <strong>这项证据对应当前待办队列中的 {batchEvidenceQueueTargets.length} 个岗位。</strong>
+                      <p className="muted">这些岗位都仍有 hard blocker，且没有被你明确标记为“不考虑”；完成真实 Evidence 核实后，优先回看它们的 Re-match 结果。</p>
+                    </div>
+                  ) : null}
                   {batchEvidenceImpactTargets.length > 0 ? (
                     <ul>
                       {batchEvidenceImpactTargets.slice(0, 3).map((target) => (

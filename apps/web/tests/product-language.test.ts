@@ -73,6 +73,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /它们继续留在 Evidence Loop/);
   assert.match(page, /这些岗位当前都有 hard blocker/);
   assert.match(page, /先处理下一项真实证据/);
+  assert.match(page, /batchEvidenceQueueTargets/);
+  assert.match(page, /当前证据行动会影响/);
+  assert.match(page, /这项证据对应当前待办队列中的/);
+  assert.match(page, /完成真实 Evidence 核实后，优先回看它们的 Re-match 结果/);
   assert.match(page, /hard blocker 状态暂时无法可靠读取/);
   assert.match(page, /这批已有 MatchReport 的岗位都已经记录了投递判断/);
   assert.match(page, /id=\{`feedback-\$\{report\.reportId\}`\}/);
