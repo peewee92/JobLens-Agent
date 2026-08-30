@@ -216,17 +216,44 @@ export default async function ImportDetailPage({
               <h3>这次补证据后，本批哪些岗位改善了</h3>
               {improvedBatchJobs.length > 0 ? (
                 <ul>
-                  {improvedBatchJobs.map(({report, improvement}) => (
-                    <li key={report.reportId}>
-                      <strong>{jobLabel(report.jobId)}</strong>：
-                      {improvement.resolvedRequirementIds.length > 0
-                        ? `少了 ${improvement.resolvedRequirementIds.length} 条硬条件缺口`
-                        : "硬条件缺口数量未减少"}
-                      {improvement.previousRecommendation !== improvement.currentRecommendation
-                        ? `，推荐结果从 ${improvement.previousRecommendation ?? "无"} 变为 ${improvement.currentRecommendation ?? "无"}`
-                        : ""}。
-                    </li>
-                  ))}
+                  {improvedBatchJobs.map(({report, improvement}) => {
+                    const resolvedRequirementIds = new Set(improvement.resolvedRequirementIds);
+                    const resolvingEvidence = improvement.newlySupportingEvidence.flatMap((evidence) => {
+                      const supportingRequirements = evidence.supportingRequirements.filter((requirement) =>
+                        resolvedRequirementIds.has(requirement.requirementId),
+                      );
+                      return supportingRequirements.length > 0 ? [{evidence, supportingRequirements}] : [];
+                    });
+                    return (
+                      <li key={report.reportId}>
+                        <strong>{jobLabel(report.jobId)}</strong>：
+                        {improvement.resolvedRequirementIds.length > 0
+                          ? `少了 ${improvement.resolvedRequirementIds.length} 条硬条件缺口`
+                          : "硬条件缺口数量未减少"}
+                        {improvement.previousRecommendation !== improvement.currentRecommendation
+                          ? `，推荐结果从 ${improvement.previousRecommendation ?? "无"} 变为 ${improvement.currentRecommendation ?? "无"}`
+                          : ""}。
+                        {resolvingEvidence.length > 0 ? (
+                          <ul>
+                            {resolvingEvidence.slice(0, 3).map(({evidence, supportingRequirements}) => (
+                              <li key={`${report.reportId}-${evidence.evidenceId}`}>
+                                新进入匹配依据的真实经历：<strong>{evidence.summary}</strong>
+                                <ul>
+                                  {supportingRequirements.slice(0, 3).map((requirement) => (
+                                    <li key={`${evidence.evidenceId}-${requirement.requirementId}`}>
+                                      已支撑岗位要求：{requirement.originalText}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : improvement.resolvedRequirementIds.length > 0 ? (
+                          <p className="muted">这次能确认硬缺口减少，但现有 provenance 没有精确指出是哪条新增 Evidence 直接支撑了这些已解决要求，因此这里不做猜测。</p>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="notice">当前还没有可确认的批次改善。只有存在同一岗位、同一 Requirement 事实集且 Profile 版本不同的前后 MatchReport 时，系统才会把变化归因给这次资料更新。</p>

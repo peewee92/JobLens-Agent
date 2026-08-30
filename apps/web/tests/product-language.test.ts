@@ -51,6 +51,9 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /showImprovement/);
   assert.match(page, /fetchMatchImprovement/);
   assert.match(page, /这次补证据后，本批哪些岗位改善了/);
+  assert.match(page, /newlySupportingEvidence/);
+  assert.match(page, /已支撑岗位要求/);
+  assert.match(page, /现有 provenance 没有精确指出是哪条新增 Evidence/);
   assert.match(page, /不会在打开页面时重新匹配或调用 Provider/);
   assert.match(page, /当前无法可靠读取反馈或硬条件缺口/);
   assert.match(page, /matchRecommendationLabels\[report\.recommendation\]/);
