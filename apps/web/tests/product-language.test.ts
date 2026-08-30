@@ -96,6 +96,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /下一条剩余 Requirement/);
   assert.match(page, /当前下一 Evidence action 会覆盖这条 Requirement/);
   assert.match(page, /当前下一 Evidence action 不覆盖这条 Requirement/);
+  assert.match(page, /currentEvidenceQueuePriorityTargets/);
+  assert.match(page, /当前 action 会先帮助这些待办岗位/);
+  assert.match(page, /这些目标来自当前 Evidence action 对真实 Requirement ID 的命中/);
+  assert.match(page, /当前 action 没有可可靠列出的其他 queue target/);
   assert.match(page, /当前没有可可靠生成的下一 Evidence action/);
   assert.match(page, /当前 blocker 事实无法解析出 Requirement 原文/);
   assert.match(page, /暂无法验证/);

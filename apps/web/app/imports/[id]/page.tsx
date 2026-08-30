@@ -208,6 +208,7 @@ export default async function ImportDetailPage({
   const consideredBlockedJobIds = new Set(consideredBlockedReports.map((report) => report.jobId));
   const batchEvidenceQueueTargets = batchEvidenceImpactTargets.filter((target) => consideredBlockedJobIds.has(target.jobId));
   const batchEvidenceQueueTargetJobIds = new Set(batchEvidenceQueueTargets.map((target) => target.jobId));
+  const currentEvidenceQueuePriorityTargets = batchEvidenceQueueTargets.slice(0, 3);
   const previousEvidenceQueueResults = showImprovement && focusImpactJobIds.length > 0
     ? focusImpactJobIds.map((jobId) => {
         const report = matchedReports.find((item) => item.jobId === jobId) ?? null;
@@ -358,6 +359,30 @@ export default async function ImportDetailPage({
                                       : "当前下一 Evidence action 不覆盖这条 Requirement；它会先处理当前批次中价值更高的其他真实 blocker。"
                                     : "当前没有可可靠生成的下一 Evidence action，因此这里只展示剩余 Requirement，不猜测该先补什么。"}
                                 </div>
+                                {batchEvidenceAction && !item.coveredByCurrentAction ? (
+                                  currentEvidenceQueuePriorityTargets.length > 0 ? (
+                                    <div className="notice">
+                                      <strong>当前 action 会先帮助这些待办岗位：</strong>
+                                      <ul>
+                                        {currentEvidenceQueuePriorityTargets.map((target) => (
+                                          <li key={`priority-target-${item.jobId}-${target.jobId}`}>
+                                            <strong>{jobLabel(target.jobId)}</strong>
+                                            {target.requirementTexts.length > 0 ? (
+                                              <ul>
+                                                {target.requirementTexts.slice(0, 2).map((requirementText) => (
+                                                  <li key={`${item.jobId}-${target.jobId}-${requirementText}`}>{requirementText}</li>
+                                                ))}
+                                              </ul>
+                                            ) : null}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <p className="muted">这些目标来自当前 Evidence action 对真实 Requirement ID 的命中，不代表它们一定会改善；最终仍以保存真实 Evidence 后的 Re-match 为准。</p>
+                                    </div>
+                                  ) : (
+                                    <div className="muted">当前 action 没有可可靠列出的其他 queue target，因此这里不猜测它会先帮助哪个岗位。</div>
+                                  )
+                                ) : null}
                               </>
                             ) : (
                               <div className="muted">当前 blocker 事实无法解析出 Requirement 原文，因此这里不猜测具体缺口。</div>
