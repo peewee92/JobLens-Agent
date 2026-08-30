@@ -53,6 +53,13 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /fetchLatestUserFeedback/);
   assert.match(page, /RecommendationFeedback/);
   assert.match(page, /已反馈 \{feedbackCoveredCount\}\/\{matchedCount\}/);
+  assert.match(page, /feedbackDecisionCounts/);
+  assert.match(page, /尚未判断/);
+  assert.match(page, /还差 \{feedbackDecisionCounts\.pending\} 个岗位完成投递判断/);
+  assert.match(page, /去看下一条尚未判断的岗位/);
+  assert.match(page, /这批已有 MatchReport 的岗位都已经记录了投递判断/);
+  assert.match(page, /id=\{`feedback-\$\{report\.reportId\}`\}/);
+  assert.match(page, /投递判断：\{feedbackDecisionShortLabel/);
   assert.match(page, /当前反馈状态暂时读取失败/);
   assert.match(page, /fetchMatchBlockerSummary/);
   assert.match(page, /selectNextEvidencePriority/);

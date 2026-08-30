@@ -106,6 +106,20 @@ export default async function ImportDetailPage({
       : [],
   );
   const feedbackCoveredCount = feedbackAvailable ? latestFeedbackByReportId.size : 0;
+  const feedbackDecisionCounts = feedbackAvailable
+    ? matchedReports.reduce(
+        (counts, report) => {
+          const decision = latestFeedbackByReportId.get(report.reportId)?.decision;
+          if (decision) counts[decision] += 1;
+          else counts.pending += 1;
+          return counts;
+        },
+        {interested: 0, maybe: 0, rejected: 0, pending: 0},
+      )
+    : null;
+  const nextUndecidedReport = feedbackAvailable
+    ? matchedReports.find((report) => !latestFeedbackByReportId.has(report.reportId)) ?? null
+    : null;
   const improvementResults = showImprovement && matchedReports.length > 0
     ? await Promise.allSettled(
         matchedReports.map(async (report) => ({
@@ -200,6 +214,12 @@ export default async function ImportDetailPage({
     if (decision === "maybe") return "你已标记为再看看";
     if (decision === "rejected") return "你已标记为不考虑";
     return "你还没有记录投递判断";
+  };
+  const feedbackDecisionShortLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
+    if (decision === "interested") return "感兴趣";
+    if (decision === "maybe") return "再看看";
+    if (decision === "rejected") return "不考虑";
+    return "尚未判断";
   };
 
   return (
@@ -339,14 +359,34 @@ export default async function ImportDetailPage({
             <section className="detail-section">
               <h3>这批岗位当前的匹配结果</h3>
               <p className="muted">按当前 Ranking 顺序展示，只读取已经存在的 MatchReport；这里不会重新匹配。</p>
-              {feedbackAvailable ? (
-                <p className="muted">已反馈 {feedbackCoveredCount}/{matchedCount}。你可以直接在这批结果里记录真实判断。</p>
+              {feedbackAvailable && feedbackDecisionCounts ? (
+                <>
+                  <p className="muted">已反馈 {feedbackCoveredCount}/{matchedCount}。你可以直接在这批结果里记录真实判断。</p>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>感兴趣</span><strong>{feedbackDecisionCounts.interested}</strong></div>
+                    <div className="summary-card"><span>再看看</span><strong>{feedbackDecisionCounts.maybe}</strong></div>
+                    <div className="summary-card"><span>不考虑</span><strong>{feedbackDecisionCounts.rejected}</strong></div>
+                    <div className="summary-card"><span>尚未判断</span><strong>{feedbackDecisionCounts.pending}</strong></div>
+                  </div>
+                  {nextUndecidedReport ? (
+                    <p className="notice">
+                      还差 {feedbackDecisionCounts.pending} 个岗位完成投递判断。
+                      <Link href={`#feedback-${nextUndecidedReport.reportId}`}> 去看下一条尚未判断的岗位</Link>
+                    </p>
+                  ) : (
+                    <p className="notice">这批已有 MatchReport 的岗位都已经记录了投递判断；你可以继续处理 Evidence、投递准备或下一批岗位。</p>
+                  )}
+                </>
               ) : (
                 <p className="notice">当前反馈状态暂时读取失败。匹配结果仍可查看，但这里暂不开放反馈，避免覆盖未知状态。</p>
               )}
               <div className="recommendation-grid">
                 {matchedReports.map((report, index) => (
-                  <article className={`match-recommendation-card ${matchRecommendationClasses[report.recommendation]}`} key={report.reportId}>
+                  <article
+                    className={`match-recommendation-card ${matchRecommendationClasses[report.recommendation]}`}
+                    id={`feedback-${report.reportId}`}
+                    key={report.reportId}
+                  >
                     <p className="eyebrow">第 {index + 1} 位</p>
                     <h3><Link href={`/jobs/${report.jobId}`}>{jobLabel(report.jobId)}</Link></h3>
                     <div className="actions">
@@ -354,6 +394,9 @@ export default async function ImportDetailPage({
                         {matchRecommendationLabels[report.recommendation]}
                       </span>
                       <span className="tag">有依据要求 {report.evidenceLinks.length} 条</span>
+                      {feedbackAvailable ? (
+                        <span className="tag">投递判断：{feedbackDecisionShortLabel(latestFeedbackByReportId.get(report.reportId)?.decision)}</span>
+                      ) : null}
                     </div>
                     <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
                     {feedbackAvailable ? (() => {
