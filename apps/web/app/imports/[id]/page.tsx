@@ -164,6 +164,18 @@ export default async function ImportDetailPage({
   const pendingBlockedReports = feedbackQueueAvailable
     ? pendingFeedbackReports.filter((report) => blockerByJobId.has(report.jobId))
     : [];
+  const consideredBlockedReports = feedbackQueueAvailable
+    ? matchedReports.filter((report) => {
+        const decision = latestFeedbackByReportId.get(report.reportId)?.decision;
+        return decision !== "rejected" && blockerByJobId.has(report.jobId);
+      })
+    : [];
+  const completedDecisionReports = feedbackQueueAvailable
+    ? matchedReports.filter((report) => {
+        const feedback = latestFeedbackByReportId.get(report.reportId);
+        return Boolean(feedback) && (feedback?.decision === "rejected" || !blockerByJobId.has(report.jobId));
+      })
+    : [];
   const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
   const rawBatchEvidenceAction = feedbackAvailable && blockerSummaryResult.status === "fulfilled" && blockerSummaryResult.value
     ? selectNextEvidencePriority(blockerSummaryResult.value.priorityActions, feedbackByJobId, null)
@@ -378,6 +390,17 @@ export default async function ImportDetailPage({
                     <div className="summary-card"><span>不考虑</span><strong>{feedbackDecisionCounts.rejected}</strong></div>
                     <div className="summary-card"><span>尚未判断</span><strong>{feedbackDecisionCounts.pending}</strong></div>
                   </div>
+                  {feedbackQueueAvailable ? (
+                    <>
+                      <h4>这批岗位现在还剩哪些待办</h4>
+                      <div className="summary-grid">
+                        <div className="summary-card"><span>可直接做投递判断</span><strong>{pendingClearedReports.length}</strong></div>
+                        <div className="summary-card"><span>仍需补真实证据</span><strong>{consideredBlockedReports.length}</strong></div>
+                        <div className="summary-card"><span>当前已完成处理</span><strong>{completedDecisionReports.length}</strong></div>
+                      </div>
+                      <p className="muted">“仍需补真实证据”会保留已标记为感兴趣/再看看的岗位；只有明确“不考虑”的岗位才退出后续 Evidence 待办。</p>
+                    </>
+                  ) : null}
                   {feedbackDecisionCounts.pending === 0 ? (
                     <p className="notice">这批已有 MatchReport 的岗位都已经记录了投递判断；你可以继续处理 Evidence、投递准备或下一批岗位。</p>
                   ) : !feedbackQueueAvailable ? (
@@ -425,6 +448,18 @@ export default async function ImportDetailPage({
                       {feedbackAvailable ? (
                         <span className="tag">投递判断：{feedbackDecisionShortLabel(latestFeedbackByReportId.get(report.reportId)?.decision)}</span>
                       ) : null}
+                      {feedbackQueueAvailable ? (() => {
+                        const decision = latestFeedbackByReportId.get(report.reportId)?.decision;
+                        const blocked = blockerByJobId.has(report.jobId);
+                        const nextStep = decision === "rejected"
+                          ? "已退出待办"
+                          : blocked
+                            ? "先补真实证据"
+                            : decision
+                              ? "当前判断已记录"
+                              : "做投递判断";
+                        return <span className="tag">下一步：{nextStep}</span>;
+                      })() : null}
                     </div>
                     <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
                     {feedbackAvailable ? (() => {

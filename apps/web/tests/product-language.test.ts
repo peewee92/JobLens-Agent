@@ -60,6 +60,16 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /下一岗位：/);
   assert.match(page, /当前没有 hard blocker，先完成它的投递判断最省步骤/);
   assert.match(page, /先完成这个岗位的投递判断/);
+  assert.match(page, /这批岗位现在还剩哪些待办/);
+  assert.match(page, /可直接做投递判断/);
+  assert.match(page, /仍需补真实证据/);
+  assert.match(page, /当前已完成处理/);
+  assert.match(page, /只有明确“不考虑”的岗位才退出后续 Evidence 待办/);
+  assert.match(page, /下一步：\{nextStep\}/);
+  assert.match(page, /已退出待办/);
+  assert.match(page, /先补真实证据/);
+  assert.match(page, /当前判断已记录/);
+  assert.match(page, /做投递判断/);
   assert.match(page, /它们继续留在 Evidence Loop/);
   assert.match(page, /这些岗位当前都有 hard blocker/);
   assert.match(page, /先处理下一项真实证据/);
