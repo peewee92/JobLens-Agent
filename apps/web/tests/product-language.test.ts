@@ -413,6 +413,17 @@ test("focused evidence action returns with exact requirement identity and report
   assert.match(recommendations, /继续核实下一项真实证据/);
 });
 
+test("import improvement explains why the next evidence action changed", async () => {
+  const page = await source("app/imports/[id]/page.tsx");
+
+  assert.match(page, /为什么下一步是这一项/);
+  assert.match(page, /刚补的真实 Evidence 已解决/);
+  assert.match(page, /出现可验证改善/);
+  assert.match(page, /这些要求已经从候选行动中排除/);
+  assert.match(page, /当前仍未解决、且影响仍在考虑岗位最多的是下面这一项/);
+  assert.match(page, /showImprovement && resolvedBatchRequirementIds\.size > 0/);
+});
+
 test("job detail explains deterministic eligibility without fake match scores", async () => {
   const page = await source("app/jobs/[id]/page.tsx");
   const eligibility = await source("lib/eligibility.ts");

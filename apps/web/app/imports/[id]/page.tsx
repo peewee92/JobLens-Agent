@@ -327,6 +327,16 @@ export default async function ImportDetailPage({
               {batchEvidenceAction && batchEvidenceProfileHref ? (
                 <section className="detail-section">
                   <h3>这批岗位下一项最值得核实的证据</h3>
+                  {showImprovement && resolvedBatchRequirementIds.size > 0 ? (
+                    <div className="notice">
+                      <strong>为什么下一步是这一项：</strong>
+                      刚补的真实 Evidence 已解决 {resolvedBatchRequirementIds.size} 条硬要求
+                      {improvedBatchJobs.length > 0
+                        ? `，并让 ${improvedBatchJobs.slice(0, 3).map(({report}) => jobLabel(report.jobId)).join("、")}${improvedBatchJobs.length > 3 ? ` 等 ${improvedBatchJobs.length} 个岗位` : ""} 出现可验证改善`
+                        : ""}。
+                      这些要求已经从候选行动中排除；当前仍未解决、且影响仍在考虑岗位最多的是下面这一项，所以继续优先核实它。
+                    </div>
+                  ) : null}
                   <p>
                     {batchEvidenceAction.normalizedCapability
                       ? `先核实“${batchEvidenceAction.normalizedCapability}”相关的真实经历。`
