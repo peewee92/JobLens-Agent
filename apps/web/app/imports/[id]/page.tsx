@@ -195,6 +195,12 @@ export default async function ImportDetailPage({
     const job = jobDetailById.get(jobId);
     return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
   };
+  const feedbackDecisionLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
+    if (decision === "interested") return "你已标记为感兴趣";
+    if (decision === "maybe") return "你已标记为再看看";
+    if (decision === "rejected") return "你已标记为不考虑";
+    return "你还没有记录投递判断";
+  };
 
   return (
     <>
@@ -267,6 +273,16 @@ export default async function ImportDetailPage({
                           ) : (
                             <div className="notice">
                               <strong>这个岗位现在还差什么：</strong>当前 Match blocker 事实里已没有硬条件缺口，可以停止机械补证据，转向投递判断。
+                              <div className="detail-section">
+                                <strong>现在为什么值得进入投递判断：</strong>
+                                <ul>
+                                  <li>当前 Ranking 建议：{matchRecommendationLabels[report.recommendation]}。</li>
+                                  <li>当前 MatchReport 依据：{report.summary || matchRecommendationDescriptions[report.recommendation]}</li>
+                                  <li>可追溯到 {report.evidenceLinks.length} 条 Requirement → Evidence 关联。</li>
+                                  <li>你的当前判断：{feedbackDecisionLabel(latestFeedback?.decision)}。</li>
+                                </ul>
+                                <p className="muted">这只是基于当前 MatchReport、hard blocker 与你的反馈做的决策摘要，不代表系统替你决定投递。</p>
+                              </div>
                               <div className="actions">
                                 <Link className="button" href={`/jobs/${report.jobId}/prepare`}>查看完整依据并进入投递判断</Link>
                               </div>

@@ -522,6 +522,7 @@ Profile 页面可以明确区分：
 - 2026-08-30：补齐批次级“刚解决了什么 → 为什么下一步还是这一项”的连续决策解释。只有 `showImprovement=1` 且存在可验证 `resolvedRequirementIds` 时，Import 页面才在下一 Evidence action 前明确说明：本轮真实 Evidence 已解决多少条硬要求、哪些本批岗位出现可验证改善、这些已解决 Requirement 已从候选行动排除，以及当前下一项为什么仍是“影响仍在考虑岗位最多”的未解决 blocker。该解释完全复用现有 improvement / blocker / UserFeedback 事实，不按关键词猜测因果，不改变 Evidence Priority、Match、Eligibility、Ranking 或反馈事实，零 Provider、零 DB 写入、零 migration。
 - 2026-08-30：把批次改善结果继续落到单个岗位的“现在还差什么”。对本次存在可验证 improvement 的岗位，Import 页面直接复用当前 `match-blockers.jobBlockers`：若岗位仍有 hard missing，展示当前仍缺的数量和第一条可解析 Requirement 原文；若当前 blocker 事实已不再包含该岗位，则明确提示可以转向投递判断/反馈，不必继续机械补证据；若 blocker 读取失败或只知道缺口 ID、无法解析 Requirement 原文，则保持 unknown 并拒绝猜测。该切片只读消费现有 MatchReport / blocker 事实，不改变 Ranking、Eligibility、UserFeedback 或 Evidence Priority，零 Provider、零 DB 写入、零 migration。
 - 2026-08-30：把“已经没有 hard blocker”的改善岗位直接接回投递决策。只有本轮 improvement 可验证、当前 `match-blockers` 已不再包含该岗位，且 latest UserFeedback 不是 `rejected` 时，Import 页面才提供“查看完整依据并进入投递判断”，复用既有 `/jobs/{jobId}/prepare`；如果用户已经明确标记“不考虑”，页面只确认该岗位无需继续补证据，不继续推动投递。仍有 hard blocker、blocker 读取失败或事实不可确认时都不会出现该入口。该切片不改变 Ranking / Eligibility / UserFeedback，不自动投递、不运行 Match 或 Provider，零 DB 写入、零 migration。
+- 2026-08-30：补齐“进入投递判断”前的岗位级事实摘要。对已经可验证改善、且当前 hard blocker 已清零的岗位，Import 页面会在跳转 Prepare 前直接展示当前 Ranking 建议、MatchReport summary、Requirement → Evidence 可追溯关联数，以及 latest UserFeedback（感兴趣 / 再看看 / 尚未判断）；这些信息都来自现有 immutable MatchReport / Feedback，不根据岗位文案重新推断，也不把“没有 hard blocker”包装成系统替用户做出的投递决定。`rejected` 岗位仍不会进入这一摘要与投递 handoff；该切片零 Provider、零 Backend 业务改动、零 migration。
 
 ### 任务
 

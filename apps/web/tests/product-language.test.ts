@@ -431,6 +431,18 @@ test("import improvement explains why the next evidence action changed", async (
   assert.match(page, /showImprovement && resolvedBatchRequirementIds\.size > 0/);
 });
 
+test("cleared import jobs show a fact-based apply decision summary", async () => {
+  const page = await source("app/imports/[id]/page.tsx");
+
+  assert.match(page, /现在为什么值得进入投递判断/);
+  assert.match(page, /当前 Ranking 建议/);
+  assert.match(page, /当前 MatchReport 依据/);
+  assert.match(page, /Requirement → Evidence 关联/);
+  assert.match(page, /你的当前判断/);
+  assert.match(page, /不代表系统替你决定投递/);
+  assert.match(page, /latestFeedback\?\.decision/);
+});
+
 test("job detail explains deterministic eligibility without fake match scores", async () => {
   const page = await source("app/jobs/[id]/page.tsx");
   const eligibility = await source("lib/eligibility.ts");
