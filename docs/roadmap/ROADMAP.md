@@ -550,6 +550,7 @@ Profile 页面可以明确区分：
 - 2026-08-31：把“整批处理完成”从状态提示推进为 MVP v0.1 的用户结果出口。只有 `batchProcessingComplete` 已由 current MatchReport + latest UserFeedback + blocker facts 严格确认时，Import 才按 current Ranking 顺序汇总最终判断：`interested` 作为“优先继续关注/申请”、`maybe` 作为“保留观察”、`rejected` 作为“明确不考虑”；不新增最终评分或第二套排序。若当前页面同时有可比较 Match 历史，则补充展示已验证 Evidence 改善岗位数；缺少可比较历史时不把未知算成无改善。该摘要只消费既有 Ranking、immutable UserFeedback 与 improvement facts，不自动运行 Match/Provider、不改变 UserFeedback/Evidence Priority，零 Backend 业务改动、零 migration。
 - 2026-08-31：给整批最终结果增加一个明确的后续求职行动出口。批次严格完成后，若存在 `interested`，直接复用 current Ranking 中最高的一项进入 Prepare，帮助把结果转成真实申请准备；若没有 `interested` 但存在 `maybe`，则引导复核最高 Ranking 的观察岗位；若整批都是 `rejected`，明确停止继续为这些岗位补 Evidence，并提供“调整求职偏好 / 导入下一批岗位”两个出口。该分流只消费既有 Ranking + immutable UserFeedback，不新增评分、不自动投递、不运行 Match/Provider，零 Backend 业务改动、零 migration。
 - 2026-08-31：把批次终点进入 Prepare 后的事实展示收敛成最小“申请准备清单”。Job Preparation 页面在 `factsUsable=true` 时，只从 Backend 已返回的 `resumeDelta`、`studyChecklist` 与 `interviewFacts` 中各取当前第一项，按“先突出已确认真实经历 → 再补最关键 Evidence/学习缺口 → 最后准备最高优先级面试 Requirement”的顺序给出三步入口；完整事实分区仍保留在下方。该清单不生成新经历、STAR 成绩、指标或面试答案，不新增前端匹配/优先级算法，也不调用 Provider；零 Backend 业务改动、零 migration。
+- 2026-08-31：为三步申请准备清单增加最小 ActionItem 状态。勾选只记录用户自己的准备进度，并按岗位与当前清单事实版本隔离；当准备事实变化时旧进度自动失效。状态不改变 MatchReport、Evidence、Ranking 或 UserFeedback，不调用 Provider，零 Backend 业务改动、零 migration。
 
 ### 任务
 

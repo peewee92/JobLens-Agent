@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import {ApplicationChecklistProgress} from "@/components/application-checklist-progress";
 import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -123,15 +124,14 @@ export default async function JobPreparationPage({
           )}
 
           {preparation.factsUsable ? (
-            <section className="detail-section">
-              <h2>申请准备清单</h2>
-              <p className="muted">先按这三步准备，再看下面的完整依据。这里只整理 Backend 已返回的 Requirement / Evidence 事实，不生成新的经历、成绩或指标。</p>
-              <ol>
-                <li><strong>先突出最有把握的真实经历：</strong> {preparationHighlightText}</li>
-                <li><strong>再补最关键的准备缺口：</strong> {preparationGapText}</li>
-                <li><strong>最后准备最高优先级面试问题：</strong> {interviewFocusText}</li>
-              </ol>
-            </section>
+            <ApplicationChecklistProgress
+              jobId={id}
+              items={[
+                {id: "highlight", label: "先突出最有把握的真实经历：", text: preparationHighlightText},
+                {id: "gap", label: "再补最关键的准备缺口：", text: preparationGapText},
+                {id: "interview", label: "最后准备最高优先级面试问题：", text: interviewFocusText},
+              ]}
+            />
           ) : null}
 
           {!preparation.factsUsable ? (

@@ -247,6 +247,7 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
     join(webRoot, "app/jobs/[id]/prepare/page.tsx"),
     "utf8",
   );
+  const checklist = await readFile(join(webRoot, "components/application-checklist-progress.tsx"), "utf8");
   const backend = await readFile(join(webRoot, "lib/backend.ts"), "utf8");
 
   assert.match(page, /fetchJobPreparation/);
@@ -255,13 +256,16 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /storyFacts/);
   assert.match(page, /interviewFacts/);
   assert.match(page, /studyChecklist/);
-  assert.match(page, /申请准备清单/);
+  assert.match(page, /ApplicationChecklistProgress/);
   assert.match(page, /先突出最有把握的真实经历/);
   assert.match(page, /再补最关键的准备缺口/);
   assert.match(page, /最后准备最高优先级面试问题/);
-  assert.match(page, /不生成新的经历、成绩或指标/);
+  assert.match(checklist, /申请准备清单/);
+  assert.match(checklist, /不会修改 MatchReport、Evidence 或 Ranking/);
+  assert.match(checklist, /localStorage/);
   assert.match(backend, /\/api\/v1\/job-preparation\/\$\{encodeURIComponent\(jobId\)\}/);
   assert.doesNotMatch(page, /fetch\(/);
+  assert.doesNotMatch(checklist, /fetch\(/);
   assert.doesNotMatch(page, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER|gapSeverity\s*=|mustHaveRatio\s*=/);
 });
 
