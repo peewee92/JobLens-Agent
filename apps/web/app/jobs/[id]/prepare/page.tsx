@@ -50,6 +50,25 @@ export default async function JobPreparationPage({
       ? await fetchLatestUserFeedback([currentReport.reportId]).catch(() => null)
       : null;
     const latestFeedback = feedbackResult?.feedback[0] ?? null;
+    const preparationHighlights = preparation.resumeDelta?.highlights ?? [];
+    const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
+    const preparationStudyItems = preparation.studyChecklist?.items ?? [];
+    const preparationInterviewItems = preparation.interviewFacts?.items ?? [];
+    const topPreparationHighlight = preparationHighlights[0] ?? null;
+    const topPreparationEvidenceGap = preparationEvidenceGaps[0] ?? null;
+    const topPreparationStudyItem = preparationStudyItems[0] ?? null;
+    const topInterviewFocus = preparationInterviewItems[0] ?? null;
+    const preparationHighlightText = topPreparationHighlight
+      ? `${topPreparationHighlight.capability}（Evidence：${topPreparationHighlight.evidenceIds.join("、") || "已确认"}）`
+      : "当前没有可安全突出为岗位优势的已确认 Evidence。";
+    const preparationGapText = topPreparationEvidenceGap
+      ? `${topPreparationEvidenceGap.capability}（${topPreparationEvidenceGap.status === "missing" ? "Profile 中缺少该能力事实" : "已有技能事实，但缺少已确认 Evidence"}）`
+      : topPreparationStudyItem
+        ? `${topPreparationStudyItem.capability}（${topPreparationStudyItem.requirementText}）`
+        : "当前没有已识别的 Evidence 缺口或面试前补习项。";
+    const interviewFocusText = topInterviewFocus
+      ? `${topInterviewFocus.requirementText}（优先级：${topInterviewFocus.preparationPriority}）`
+      : "当前没有可可靠生成的面试 Requirement 重点。";
 
     return (
       <>
@@ -102,6 +121,18 @@ export default async function JobPreparationPage({
           ) : (
             <p className="notice">当前没有可用的最新 MatchReport，因此这里不能记录投递判断；请先完成该岗位的显式匹配。</p>
           )}
+
+          {preparation.factsUsable ? (
+            <section className="detail-section">
+              <h2>申请准备清单</h2>
+              <p className="muted">先按这三步准备，再看下面的完整依据。这里只整理 Backend 已返回的 Requirement / Evidence 事实，不生成新的经历、成绩或指标。</p>
+              <ol>
+                <li><strong>先突出最有把握的真实经历：</strong> {preparationHighlightText}</li>
+                <li><strong>再补最关键的准备缺口：</strong> {preparationGapText}</li>
+                <li><strong>最后准备最高优先级面试问题：</strong> {interviewFocusText}</li>
+              </ol>
+            </section>
+          ) : null}
 
           {!preparation.factsUsable ? (
             <div className="review-result review-pending">
