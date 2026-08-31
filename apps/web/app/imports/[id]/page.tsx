@@ -42,6 +42,12 @@ export default async function ImportDetailPage({
   const {id} = await params;
   const query = await searchParams;
   const showImprovement = query.showImprovement === "1";
+  const requestedAfterPrepareEvidenceJobId = typeof query.afterPrepareEvidence === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterPrepareEvidence)
+    ? query.afterPrepareEvidence
+    : null;
+  const requestedFocusRequirementId = typeof query.focusRequirementId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.focusRequirementId)
+    ? query.focusRequirementId
+    : null;
   const requestedAfterFeedbackJobId = typeof query.afterFeedback === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterFeedback)
     ? query.afterFeedback
     : null;
@@ -170,6 +176,15 @@ export default async function ImportDetailPage({
   const resolvedBatchRequirementIds = new Set(
     improvedBatchJobs.flatMap(({improvement}) => improvement.resolvedRequirementIds),
   );
+  const prepareEvidenceSourceResult = requestedAfterPrepareEvidenceJobId && requestedFocusRequirementId
+    ? improvedBatchJobs.find(({report, improvement}) =>
+        report.jobId === requestedAfterPrepareEvidenceJobId
+        && improvement.resolvedRequirementIds.includes(requestedFocusRequirementId),
+      ) ?? null
+    : null;
+  const otherPrepareEvidenceImprovedJobs = prepareEvidenceSourceResult
+    ? improvedBatchJobs.filter(({report}) => report.jobId !== prepareEvidenceSourceResult.report.jobId)
+    : [];
   const feedbackByJobId = new Map(
     matchedReports.flatMap((report) => {
       const feedback = latestFeedbackByReportId.get(report.reportId);
@@ -612,7 +627,37 @@ export default async function ImportDetailPage({
             )
           ) : null}
           {showImprovement ? (
-            <section className="detail-section">
+            <section className="detail-section" id="prepare-evidence-batch-result">
+              {requestedAfterPrepareEvidenceJobId ? (
+                prepareEvidenceSourceResult ? (
+                  <div className="notice">
+                    <strong>刚从申请准备回来：这次 Evidence 的批次影响已重新核验</strong>
+                    <p className="muted">{jobLabel(prepareEvidenceSourceResult.report.jobId)} 的目标 Requirement 已在可比较 MatchImprovement 中真实解除；下面的跨岗位结果仍由本批 current MatchReport 重新计算，不信任返回链接本身。</p>
+                    {otherPrepareEvidenceImprovedJobs.length > 0 ? (
+                      <>
+                        <p>同一次 Profile 更新还真实改善了 <strong>{otherPrepareEvidenceImprovedJobs.length}</strong> 个同批岗位：</p>
+                        <ul>
+                          {otherPrepareEvidenceImprovedJobs.slice(0, 3).map(({report, improvement}) => (
+                            <li key={`prepare-evidence-batch-${report.reportId}`}>
+                              <strong>{jobLabel(report.jobId)}</strong>：少了 {improvement.resolvedRequirementIds.length} 条硬条件缺口
+                              {improvement.previousRecommendation !== improvement.currentRecommendation
+                                ? `，推荐结果从 ${improvement.previousRecommendation ?? "无"} 变为 ${improvement.currentRecommendation ?? "无"}`
+                                : ""}。
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <p className="muted">当前没有其他同批岗位满足“可比较且真实改善”的证据，因此这里不扩张这次 Evidence 的跨岗位价值。</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="notice">
+                    <strong>暂时无法确认这次 Prepare Evidence 的批次影响</strong>
+                    <p className="muted">返回参数不能证明改善；只有来源岗位的目标 Requirement 能在当前可比较 MatchImprovement 中再次确认 resolved 时，才会展示跨岗位影响。</p>
+                  </div>
+                )
+              ) : null}
               {postMatchEvidenceResults.length > 0 ? (
                 <div className="notice">
                   <strong>这轮 Match 里原本 blocked 的岗位，Re-match 后发生了什么：</strong>

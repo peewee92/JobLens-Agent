@@ -181,7 +181,7 @@ export default async function JobPreparationPage({
                   <div className="actions">
                     <Link className="button-secondary" href="#application-checklist">继续最新准备清单 ↓</Link>
                     {returnImportId ? (
-                      <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}`}>
+                      <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterPrepareEvidence=${encodeURIComponent(id)}${focusRequirementId ? `&focusRequirementId=${encodeURIComponent(focusRequirementId)}` : ""}${afterMatchQuery}#prepare-evidence-batch-result`}>
                         返回本次导入查看最新批次结果
                       </Link>
                     ) : null}
