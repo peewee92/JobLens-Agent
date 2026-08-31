@@ -362,6 +362,19 @@ export default async function ImportDetailPage({
                     <div className="summary-card"><span>等待 Evidence 改善</span><strong>{pendingEvidenceCount}</strong></div>
                   </div>
                   <p className="muted">“等待投递判断”只包含当前无 hard blocker 且尚未反馈的岗位；“等待 Evidence 改善”保留感兴趣/再看看且仍有 blocker 的岗位，明确“不考虑”的岗位已经退出。</p>
+                  {unmatchedProcessingCount > 0 ? (
+                    <div className="detail-section">
+                      <strong>还没形成 MatchReport 的岗位卡在哪里</strong>
+                      <div className="summary-grid">
+                        <div className="summary-card"><span>Requirement 已 ready，可显式 Match</span><strong>{matchReadyJobs.length}</strong></div>
+                        <div className="summary-card"><span>Requirement 仍 blocked</span><strong>{requirementBlockedJobs.length}</strong></div>
+                        {unknownReadinessJobs.length > 0 ? (
+                          <div className="summary-card"><span>Readiness 暂无法确认</span><strong>{unknownReadinessJobs.length}</strong></div>
+                        ) : null}
+                      </div>
+                      <p className="muted">这三个状态直接复用当前 Requirement Release / Match Readiness 事实：ready 只代表可以由你显式发起 Match，不会自动调用 Provider；blocked 需要先处理岗位要求；无法确认的岗位不会被猜成 ready 或 blocked。</p>
+                    </div>
+                  ) : null}
                   {nextApplyDecisionReport ? (
                     <div className="actions">
                       <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>

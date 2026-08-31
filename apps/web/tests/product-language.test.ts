@@ -95,6 +95,12 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /还没形成 MatchReport/);
   assert.match(page, /等待投递判断/);
   assert.match(page, /等待 Evidence 改善/);
+  assert.match(page, /还没形成 MatchReport 的岗位卡在哪里/);
+  assert.match(page, /Requirement 已 ready，可显式 Match/);
+  assert.match(page, /Requirement 仍 blocked/);
+  assert.match(page, /Readiness 暂无法确认/);
+  assert.match(page, /ready 只代表可以由你显式发起 Match，不会自动调用 Provider/);
+  assert.match(page, /无法确认的岗位不会被猜成 ready 或 blocked/);
   assert.match(page, /当前主行动：先判断/);
   assert.match(page, /当前主行动：先匹配 \{matchReadyJobs\.length\} 个已准备岗位/);
   assert.match(page, /当前主行动：先处理一个岗位要求/);
