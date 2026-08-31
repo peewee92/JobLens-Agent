@@ -357,7 +357,13 @@ export default async function ImportDetailPage({
         const resolvedPlannedRequirement = focusImpactRequirementIds.length > 0
           && improvement.resolvedRequirementIds.some((requirementId) => focusImpactRequirementIds.includes(requirementId));
         if (!resolvedPlannedRequirement) {
-          return {jobId, report, status: "unverifiable" as const};
+          const improvedWithoutPlannedRequirement = improvement.resolvedRequirementIds.length > 0
+            || improvement.previousRecommendation !== improvement.currentRecommendation;
+          return {
+            jobId,
+            report,
+            status: improvedWithoutPlannedRequirement ? "unattributed" as const : "unverifiable" as const,
+          };
         }
         const blocker = blockerByJobId.get(jobId) ?? null;
         if (blocker) {
@@ -381,12 +387,14 @@ export default async function ImportDetailPage({
     : [];
   const clearedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "cleared");
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
+  const unattributedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unattributed");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
   const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
   const afterMatchJobIdSet = new Set(requestedAfterMatchJobIds);
   const postMatchEvidenceResults = previousEvidenceQueueResults.filter((item) => afterMatchJobIdSet.has(item.jobId));
   const postMatchEvidenceClearedResults = postMatchEvidenceResults.filter((item) => item.status === "cleared");
   const postMatchEvidenceBlockedResults = postMatchEvidenceResults.filter((item) => item.status === "blocked");
+  const postMatchEvidenceUnattributedResults = postMatchEvidenceResults.filter((item) => item.status === "unattributed");
   const postMatchEvidenceUnverifiableResults = postMatchEvidenceResults.filter((item) => item.status === "unverifiable");
   const postMatchEvidenceBlockedJobIds = new Set(postMatchEvidenceBlockedResults.map((item) => item.jobId));
   const postMatchEvidenceClearedWithFeedbackCount = postMatchEvidenceClearedResults.filter((item) => {
@@ -400,6 +408,7 @@ export default async function ImportDetailPage({
   ) ?? null;
   const postMatchEvidenceConverged = postMatchEvidenceResults.length > 0
     && postMatchEvidenceBlockedResults.length === 0
+    && postMatchEvidenceUnattributedResults.length === 0
     && postMatchEvidenceUnverifiableResults.length === 0;
   const nextEvidencePostMatchTargets = batchEvidenceImpactTargets.filter((target) => postMatchEvidenceBlockedJobIds.has(target.jobId));
   const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
@@ -880,12 +889,13 @@ export default async function ImportDetailPage({
                 <div className="notice">
                   <strong>刚才这项 Evidence 核实后，待办岗位发生了什么：</strong>
                   <p className="muted">
-                    原计划观察 {focusImpactJobIds.length} 个待办岗位；Re-match 后已有 {verifiedPreviousEvidenceQueueCount} 个可以基于当前事实下结论，另有 {unverifiablePreviousEvidenceQueueResults.length} 个暂时无法验证。
+                    原计划观察 {focusImpactJobIds.length} 个待办岗位；Re-match 后已有 {verifiedPreviousEvidenceQueueCount} 个可以归因到本次计划 Requirement，{unattributedPreviousEvidenceQueueResults.length} 个虽然出现改善但不能归因给本次 Evidence，另有 {unverifiablePreviousEvidenceQueueResults.length} 个暂时无法验证。
                   </p>
                   <div className="summary-grid">
                     <div className="summary-card"><span>原计划观察</span><strong>{focusImpactJobIds.length}</strong></div>
                     <div className="summary-card"><span>已解除 hard blocker</span><strong>{clearedPreviousEvidenceQueueResults.length}</strong></div>
                     <div className="summary-card"><span>仍有 hard blocker</span><strong>{blockedPreviousEvidenceQueueResults.length}</strong></div>
+                    <div className="summary-card"><span>改善但无法归因</span><strong>{unattributedPreviousEvidenceQueueResults.length}</strong></div>
                     <div className="summary-card"><span>暂无法验证</span><strong>{unverifiablePreviousEvidenceQueueResults.length}</strong></div>
                   </div>
                   {nextClearedApplyDecisionReport ? (
@@ -981,8 +991,20 @@ export default async function ImportDetailPage({
                       </ul>
                     </div>
                   ) : null}
+                  {unattributedPreviousEvidenceQueueResults.length > 0 ? (
+                    <div className="detail-section">
+                      <strong>岗位改善了，但不能归功于这次 Evidence</strong>
+                      <ul>
+                        {unattributedPreviousEvidenceQueueResults.map((item) => (
+                          <li key={`unattributed-${item.jobId}`}>
+                            <strong>{jobLabel(item.jobId)}</strong>：前后 MatchReport 可比较且确实出现改善，但本次行动前记录的 Requirement ID 没有进入 resolvedRequirementIds。系统不会把同一次 Profile 更新中的其他 Evidence 改动误算到这次行动上。
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   {unverifiablePreviousEvidenceQueueResults.length > 0 ? (
-                    <p className="muted">“暂无法验证”表示缺少可比较的前后 MatchReport 或当前事实读取不完整；这里不会把未知结果当成未改善。</p>
+                    <p className="muted">“暂无法验证”只表示缺少可比较的前后 MatchReport 或当前事实读取不完整；它与“改善但无法归因”是不同状态，这里不会把未知结果当成未改善。</p>
                   ) : null}
                 </div>
               ) : null}
