@@ -205,6 +205,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /仍需 Evidence/);
   assert.match(page, /不会把单纯解除 blocker 当成用户已经做完投递判断/);
   assert.match(page, /当前只有不可验证结果，因此这里不声称 Evidence 已经改善或没有改善这些岗位/);
+  assert.match(page, /这组 post-Match Evidence 已经收敛/);
+  assert.match(page, /现在剩下的不是继续补 Evidence，而是完成已解锁岗位的真实 UserFeedback/);
+  assert.match(page, /这里只结束这组观察目标，不代表整个 Import Batch 已完成/);
+  assert.match(page, /不会把这组 Evidence 的完成误报成整批岗位完成/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
 

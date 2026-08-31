@@ -308,6 +308,13 @@ export default async function ImportDetailPage({
     return Boolean(report && latestFeedbackByReportId.has(report.reportId));
   }).length;
   const postMatchEvidenceClearedPendingFeedbackCount = postMatchEvidenceClearedResults.length - postMatchEvidenceClearedWithFeedbackCount;
+  const postMatchEvidenceClearedJobIds = new Set(postMatchEvidenceClearedResults.map((item) => item.jobId));
+  const nextPostMatchEvidenceFeedbackReport = matchedReports.find((report) =>
+    postMatchEvidenceClearedJobIds.has(report.jobId) && !latestFeedbackByReportId.has(report.reportId),
+  ) ?? null;
+  const postMatchEvidenceConverged = postMatchEvidenceResults.length > 0
+    && postMatchEvidenceBlockedResults.length === 0
+    && postMatchEvidenceUnverifiableResults.length === 0;
   const nextEvidencePostMatchTargets = batchEvidenceImpactTargets.filter((target) => postMatchEvidenceBlockedJobIds.has(target.jobId));
   const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
   const clearedPendingDecisionReports = feedbackAvailable
@@ -554,7 +561,38 @@ export default async function ImportDetailPage({
                     </div>
                     <p className="muted">这里的“已完成反馈”只统计已经真实存在 latest UserFeedback 的已解锁岗位；不会把单纯解除 blocker 当成用户已经做完投递判断。</p>
                   </div>
-                  {postMatchEvidenceClearedResults.length > 0 ? (
+                  {postMatchEvidenceConverged ? (
+                    <div className="notice">
+                      <strong>这组 post-Match Evidence 已经收敛：</strong>
+                      {nextPostMatchEvidenceFeedbackReport ? (
+                        <>
+                          <p className="muted">本次实际观察岗位已经全部解除 hard blocker，且没有不可验证项；现在剩下的不是继续补 Evidence，而是完成已解锁岗位的真实 UserFeedback。</p>
+                          <div className="actions">
+                            <Link className="button" href={`/jobs/${nextPostMatchEvidenceFeedbackReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
+                              下一步：判断 {jobLabel(nextPostMatchEvidenceFeedbackReport.jobId)}
+                            </Link>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="muted">本次实际观察岗位已经全部解除 hard blocker，并且这些已解锁岗位都已有 latest UserFeedback。这组 Evidence 工作可以结束；这里只结束这组观察目标，不代表整个 Import Batch 已完成。</p>
+                          {nextApplyDecisionReport ? (
+                            <div className="actions">
+                              <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                                回到批次剩余判断：{jobLabel(nextApplyDecisionReport.jobId)}
+                              </Link>
+                            </div>
+                          ) : batchEvidenceAction && batchEvidenceProfileHref ? (
+                            <div className="actions">
+                              <Link className="button" href={batchEvidenceProfileHref}>回到批次剩余 Evidence</Link>
+                            </div>
+                          ) : (
+                            <p className="muted">当前没有更强的批次级主行动；不会把这组 Evidence 的完成误报成整批岗位完成。</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ) : postMatchEvidenceClearedResults.length > 0 ? (
                     <p className="muted">新增解锁岗位已经重新进入上面的 post-Match 投递判断队列，并继续按 current Ranking 选择下一项；不会因为 Evidence 回流另建一套排序。</p>
                   ) : postMatchEvidenceBlockedResults.length > 0 ? (
                     <>
