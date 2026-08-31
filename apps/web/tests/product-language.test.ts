@@ -604,6 +604,11 @@ test("import improvement explains why the next evidence action changed", async (
   assert.match(page, /prepareEvidenceDecisionLoopComplete/);
   assert.match(page, /这次 Evidence 行动的小闭环已经完成/);
   assert.match(page, /这些结果只来自 current latest UserFeedback/);
+  assert.match(page, /为什么下一步仍值得继续补 Evidence/);
+  assert.match(page, /当前下一 Evidence action 仍精确命中/);
+  assert.match(page, /这里只展示 Requirement ID 的真实命中，不预测改善幅度/);
+  assert.match(page, /currentEvidenceQueuePriorityTargets/);
+  assert.match(page, /不会为了保持连续感猜测下一项证据会帮助哪些岗位/);
   assert.match(page, /不声明这次 Evidence 决策闭环已经完成/);
 });
 

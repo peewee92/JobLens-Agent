@@ -665,6 +665,24 @@ export default async function ImportDetailPage({
                             <div className="summary-card"><span>不考虑</span><strong>{prepareEvidenceRejectedCount}</strong></div>
                           </div>
                           <p className="muted">这些结果只来自 current latest UserFeedback。下面继续复用当前批次已有的主行动顺序，不因为这组局部闭环完成就误报整批结束。</p>
+                          {batchEvidenceAction && currentEvidenceQueuePriorityTargets.length > 0 ? (
+                            <div className="detail-section">
+                              <strong>为什么下一步仍值得继续补 Evidence</strong>
+                              <p className="muted">
+                                当前下一 Evidence action 仍精确命中 {batchEvidenceQueueTargets.length} 个你还在考虑、且仍有 hard blocker 的岗位；这里只展示 Requirement ID 的真实命中，不预测改善幅度。
+                              </p>
+                              <ul>
+                                {currentEvidenceQueuePriorityTargets.map((target) => (
+                                  <li key={`evidence-loop-next-target-${target.jobId}`}>
+                                    <strong>{jobLabel(target.jobId)}</strong>
+                                    {target.requirementTexts.length > 0 ? `：${target.requirementTexts.slice(0, 2).join("；")}` : ""}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            <p className="muted">这组判断已完成，但当前没有可靠的下一 Evidence impact target；这里不会为了保持连续感猜测下一项证据会帮助哪些岗位。</p>
+                          )}
                         </div>
                       </>
                     ) : (
