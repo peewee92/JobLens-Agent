@@ -101,7 +101,7 @@ export default async function JobPreparationPage({
         ?? null
       : null;
     const preparationGapProfileHref = topPreparationEvidenceGap
-      ? `/profile?next=/recommendations&focusJob=${encodeURIComponent(id)}&focusRequirementId=${encodeURIComponent(topPreparationEvidenceGap.requirementId)}&focusCapability=${encodeURIComponent(topPreparationEvidenceGap.capability)}${topPreparationEvidenceGapRequirementText ? `&focusRequirementText=${encodeURIComponent(topPreparationEvidenceGapRequirementText)}` : ""}&returnPrepare=${encodeURIComponent(id)}#profile-evidence-focus`
+      ? `/profile?next=/recommendations&focusJob=${encodeURIComponent(id)}&focusRequirementId=${encodeURIComponent(topPreparationEvidenceGap.requirementId)}&focusCapability=${encodeURIComponent(topPreparationEvidenceGap.capability)}${topPreparationEvidenceGapRequirementText ? `&focusRequirementText=${encodeURIComponent(topPreparationEvidenceGapRequirementText)}` : ""}&returnPrepare=${encodeURIComponent(id)}${returnImportId ? `&returnImport=${encodeURIComponent(returnImportId)}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}#profile-evidence-focus`
       : null;
     const interviewFocusText = topInterviewFocus
       ? `${topInterviewFocus.requirementText}（优先级：${topInterviewFocus.preparationPriority}）`
@@ -180,6 +180,11 @@ export default async function JobPreparationPage({
                   )}
                   <div className="actions">
                     <Link className="button-secondary" href="#application-checklist">继续最新准备清单 ↓</Link>
+                    {returnImportId ? (
+                      <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}`}>
+                        返回本次导入查看最新批次结果
+                      </Link>
+                    ) : null}
                   </div>
                 </>
               ) : focusedEvidenceOutcome === "remaining" ? (
