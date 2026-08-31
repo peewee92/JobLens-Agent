@@ -211,6 +211,12 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /回到批次：匹配/);
   assert.match(page, /回到批次：先处理一个岗位要求/);
   assert.match(page, /这批导入岗位也已经全部完成当前处理/);
+  assert.match(page, /这批岗位最终怎么处理/);
+  assert.match(page, /优先继续关注/);
+  assert.match(page, /保留观察/);
+  assert.match(page, /明确不考虑/);
+  assert.match(page, /以下顺序直接沿用 current Ranking，不新增最终评分/);
+  assert.match(page, /已验证 Evidence 改善/);
   assert.match(page, /不会把未知 readiness 猜成可执行状态/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });

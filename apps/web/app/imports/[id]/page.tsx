@@ -134,6 +134,15 @@ export default async function ImportDetailPage({
         {interested: 0, maybe: 0, rejected: 0, pending: 0},
       )
     : null;
+  const finalInterestedReports = feedbackAvailable
+    ? matchedReports.filter((report) => latestFeedbackByReportId.get(report.reportId)?.decision === "interested")
+    : [];
+  const finalMaybeReports = feedbackAvailable
+    ? matchedReports.filter((report) => latestFeedbackByReportId.get(report.reportId)?.decision === "maybe")
+    : [];
+  const finalRejectedReports = feedbackAvailable
+    ? matchedReports.filter((report) => latestFeedbackByReportId.get(report.reportId)?.decision === "rejected")
+    : [];
   const pendingFeedbackReports = feedbackAvailable
     ? matchedReports.filter((report) => !latestFeedbackByReportId.has(report.reportId))
     : [];
@@ -451,7 +460,44 @@ export default async function ImportDetailPage({
             <div className="notice">
               <strong>本批处理进度：已处理 {batchProcessedCount}/{batchProcessingTotal}</strong>
               {batchProcessingComplete ? (
-                <p className="muted">这批岗位已经全部形成 current MatchReport，并且每个岗位都完成了当前所需处理：无 hard blocker 的岗位已有投递判断，明确“不考虑”的岗位已退出后续 Evidence 待办。当前批次可以视为处理完成。</p>
+                <div className="detail-section">
+                  <p className="muted">这批岗位已经全部形成 current MatchReport，并且每个岗位都完成了当前所需处理：无 hard blocker 的岗位已有投递判断，明确“不考虑”的岗位已退出后续 Evidence 待办。当前批次可以视为处理完成。</p>
+                  <strong>这批岗位最终怎么处理</strong>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>优先继续关注</span><strong>{finalInterestedReports.length}</strong></div>
+                    <div className="summary-card"><span>保留观察</span><strong>{finalMaybeReports.length}</strong></div>
+                    <div className="summary-card"><span>明确不考虑</span><strong>{finalRejectedReports.length}</strong></div>
+                    {showImprovement ? (
+                      <div className="summary-card"><span>已验证 Evidence 改善</span><strong>{improvedBatchJobs.length}</strong></div>
+                    ) : null}
+                  </div>
+                  {finalInterestedReports.length > 0 ? (
+                    <div>
+                      <strong>优先申请 / 继续跟进</strong>
+                      <p className="muted">以下顺序直接沿用 current Ranking，不新增最终评分：</p>
+                      <ol>
+                        {finalInterestedReports.slice(0, 5).map((report) => (
+                          <li key={`final-interested-${report.jobId}`}>
+                            <Link href={`/jobs/${report.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>{jobLabel(report.jobId)}</Link>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                  {finalMaybeReports.length > 0 ? (
+                    <p className="muted">保留观察：{finalMaybeReports.slice(0, 5).map((report) => jobLabel(report.jobId)).join("、")}{finalMaybeReports.length > 5 ? ` 等 ${finalMaybeReports.length} 个` : ""}。</p>
+                  ) : null}
+                  {finalRejectedReports.length > 0 ? (
+                    <p className="muted">明确不考虑：{finalRejectedReports.slice(0, 5).map((report) => jobLabel(report.jobId)).join("、")}{finalRejectedReports.length > 5 ? ` 等 ${finalRejectedReports.length} 个` : ""}。这些岗位不会继续驱动 Evidence 待办。</p>
+                  ) : null}
+                  {showImprovement ? (
+                    improvementResults.length > 0 ? (
+                      <p className="muted">本页当前可比较的 Match 历史中，有 {improvedBatchJobs.length} 个岗位出现了可验证改善；这里只统计已读取到的 immutable MatchReport 对比，不把缺少历史的数据算成“没有改善”。</p>
+                    ) : (
+                      <p className="muted">当前没有可比较的 Match 历史，因此最终摘要不声称本轮 Evidence 带来了岗位改善。</p>
+                    )
+                  ) : null}
+                </div>
               ) : (
                 <>
                   <p className="muted">还剩 {batchProcessingRemaining} 个岗位没有完成当前处理。下面只按当前事实拆分剩余阶段，不把 unknown 状态塞进某个可执行队列。</p>
