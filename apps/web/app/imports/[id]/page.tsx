@@ -484,6 +484,36 @@ export default async function ImportDetailPage({
                       </ol>
                     </div>
                   ) : null}
+                  <div className="notice">
+                    <strong>整批完成后，下一步做什么</strong>
+                    {finalInterestedReports[0] ? (
+                      <>
+                        <p className="muted">先把最高 Ranking 的“感兴趣”岗位转成真实投递准备；这里沿用你已经做出的 UserFeedback，不替你自动申请。</p>
+                        <div className="actions">
+                          <Link className="button" href={`/jobs/${finalInterestedReports[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                            准备申请：{jobLabel(finalInterestedReports[0].jobId)}
+                          </Link>
+                        </div>
+                      </>
+                    ) : finalMaybeReports[0] ? (
+                      <>
+                        <p className="muted">这批没有你明确标记“感兴趣”的岗位。先复核最高 Ranking 的“再看看”岗位，决定是否升级为真实申请目标。</p>
+                        <div className="actions">
+                          <Link className="button" href={`/jobs/${finalMaybeReports[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                            复核观察岗位：{jobLabel(finalMaybeReports[0].jobId)}
+                          </Link>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="muted">这批岗位都已明确“不考虑”。不要继续为它们补 Evidence；更有价值的是调整求职偏好，或导入下一批真实岗位重新开始。</p>
+                        <div className="actions">
+                          <Link className="button" href="/profile#targetRoles">调整求职偏好</Link>
+                          <Link className="button-secondary" href="/import">导入下一批岗位</Link>
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {finalMaybeReports.length > 0 ? (
                     <p className="muted">保留观察：{finalMaybeReports.slice(0, 5).map((report) => jobLabel(report.jobId)).join("、")}{finalMaybeReports.length > 5 ? ` 等 ${finalMaybeReports.length} 个` : ""}。</p>
                   ) : null}
