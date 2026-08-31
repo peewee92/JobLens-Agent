@@ -67,6 +67,14 @@ export default async function JobPreparationPage({
       : topPreparationStudyItem
         ? `${topPreparationStudyItem.capability}（${topPreparationStudyItem.requirementText}）`
         : "当前没有已识别的 Evidence 缺口或面试前补习项。";
+    const topPreparationEvidenceGapRequirementText = topPreparationEvidenceGap
+      ? preparationInterviewItems.find((item) => item.requirementId === topPreparationEvidenceGap.requirementId)?.requirementText
+        ?? preparationStudyItems.find((item) => item.requirementId === topPreparationEvidenceGap.requirementId)?.requirementText
+        ?? null
+      : null;
+    const preparationGapProfileHref = topPreparationEvidenceGap
+      ? `/profile?next=/recommendations&focusJob=${encodeURIComponent(id)}&focusRequirementId=${encodeURIComponent(topPreparationEvidenceGap.requirementId)}&focusCapability=${encodeURIComponent(topPreparationEvidenceGap.capability)}${topPreparationEvidenceGapRequirementText ? `&focusRequirementText=${encodeURIComponent(topPreparationEvidenceGapRequirementText)}` : ""}&returnPrepare=${encodeURIComponent(id)}#profile-evidence-focus`
+      : null;
     const interviewFocusText = topInterviewFocus
       ? `${topInterviewFocus.requirementText}（优先级：${topInterviewFocus.preparationPriority}）`
       : "当前没有可可靠生成的面试 Requirement 重点。";
@@ -124,14 +132,25 @@ export default async function JobPreparationPage({
           )}
 
           {preparation.factsUsable ? (
-            <ApplicationChecklistProgress
+            <>
+              <ApplicationChecklistProgress
               jobId={id}
               items={[
                 {id: "highlight", label: "先突出最有把握的真实经历：", text: preparationHighlightText},
                 {id: "gap", label: "再补最关键的准备缺口：", text: preparationGapText},
                 {id: "interview", label: "最后准备最高优先级面试问题：", text: interviewFocusText},
               ]}
-            />
+              />
+              {preparationGapProfileHref ? (
+                <div className="notice">
+                  <strong>这项缺口可以回到真实 Evidence 闭环处理</strong>
+                  <p className="muted">只在你确实有相关经历时补充 Profile；保存后仍需要你显式重新计算这个岗位，系统不会因为打开链接就声称缺口已改善。</p>
+                  <div className="actions">
+                    <Link className="button-secondary" href={preparationGapProfileHref}>补充这项真实 Evidence →</Link>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {!preparation.factsUsable ? (

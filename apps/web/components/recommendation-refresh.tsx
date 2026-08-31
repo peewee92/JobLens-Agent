@@ -27,12 +27,14 @@ export function RecommendationRefresh({
   focusJobTitle = null,
   focusReportId = null,
   returnHref = null,
+  returnLabel = "回到这批岗位看改善结果",
 }: {
   jobIds: string[];
   focusJobId?: string | null;
   focusJobTitle?: string | null;
   focusReportId?: string | null;
   returnHref?: string | null;
+  returnLabel?: string;
 }) {
   const router = useRouter();
   const [pendingJobIds, setPendingJobIds] = useState(jobIds);
@@ -150,7 +152,7 @@ export function RecommendationRefresh({
       {returnHref && state.kind === "success" && pendingJobIds.length === 0 ? (
         <div className="actions">
           <button className="button-secondary" type="button" onClick={() => router.push(returnHref)}>
-            回到这批岗位看改善结果
+            {returnLabel}
           </button>
         </div>
       ) : null}

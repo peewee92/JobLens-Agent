@@ -551,6 +551,7 @@ Profile 页面可以明确区分：
 - 2026-08-31：给整批最终结果增加一个明确的后续求职行动出口。批次严格完成后，若存在 `interested`，直接复用 current Ranking 中最高的一项进入 Prepare，帮助把结果转成真实申请准备；若没有 `interested` 但存在 `maybe`，则引导复核最高 Ranking 的观察岗位；若整批都是 `rejected`，明确停止继续为这些岗位补 Evidence，并提供“调整求职偏好 / 导入下一批岗位”两个出口。该分流只消费既有 Ranking + immutable UserFeedback，不新增评分、不自动投递、不运行 Match/Provider，零 Backend 业务改动、零 migration。
 - 2026-08-31：把批次终点进入 Prepare 后的事实展示收敛成最小“申请准备清单”。Job Preparation 页面在 `factsUsable=true` 时，只从 Backend 已返回的 `resumeDelta`、`studyChecklist` 与 `interviewFacts` 中各取当前第一项，按“先突出已确认真实经历 → 再补最关键 Evidence/学习缺口 → 最后准备最高优先级面试 Requirement”的顺序给出三步入口；完整事实分区仍保留在下方。该清单不生成新经历、STAR 成绩、指标或面试答案，不新增前端匹配/优先级算法，也不调用 Provider；零 Backend 业务改动、零 migration。
 - 2026-08-31：为三步申请准备清单增加最小 ActionItem 状态。勾选只记录用户自己的准备进度，并按岗位与当前清单事实版本隔离；当准备事实变化时旧进度自动失效。状态不改变 MatchReport、Evidence、Ranking 或 UserFeedback，不调用 Provider，零 Backend 业务改动、零 migration。
+- 2026-08-31：把 Prepare 中真实 Evidence gap 接回现有 Growth Loop。只有 Backend `resumeDelta.evidenceGaps` 真正给出缺口时，Prepare 才展示“补充这项真实 Evidence”入口，并携带该岗位、精确 Requirement ID、capability 与可用 Requirement 文案进入 Profile；Profile 保存后继续到 Recommendations，由用户显式触发既有 Re-match，成功后可回到原岗位 Prepare 重新读取最新 `JobPreparationBundle`，从而让清单事实和本地 ActionItem 指纹自然刷新。URL 只携带上下文，不声明改善；不自动 Match/Provider、不生成经历、不修改 Ranking/UserFeedback，零 Backend 业务改动、零 migration。
 
 ### 任务
 

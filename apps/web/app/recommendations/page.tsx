@@ -84,6 +84,9 @@ export default async function RecommendationsPage({
   const returnImportId = typeof params.returnImport === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(params.returnImport)
     ? params.returnImport
     : null;
+  const returnPrepareJobId = typeof params.returnPrepare === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(params.returnPrepare)
+    ? params.returnPrepare
+    : null;
   const afterMatchJobIds = typeof params.afterMatchJobs === "string"
     ? Array.from(new Set(
         params.afterMatchJobs
@@ -717,7 +720,12 @@ export default async function RecommendationsPage({
         focusReportId={focusJobReport?.report.reportId ?? null}
         returnHref={returnImportId
           ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
-          : null}
+          : returnPrepareJobId && returnPrepareJobId === focusJobId
+            ? `/jobs/${encodeURIComponent(returnPrepareJobId)}/prepare`
+            : null}
+        returnLabel={returnPrepareJobId && returnPrepareJobId === focusJobId
+          ? "回到申请准备查看更新后的清单"
+          : undefined}
       />
 
       {rankedItems.length > 0 ? (
