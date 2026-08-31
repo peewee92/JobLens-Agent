@@ -26,6 +26,7 @@ export default async function JobPreparationPage({
     afterMatchJobs?: string | string[];
     afterEvidence?: string | string[];
     focusRequirementId?: string | string[];
+    prepareEvidenceJobs?: string | string[];
   }>;
 }) {
   const {id} = await params;
@@ -37,6 +38,7 @@ export default async function JobPreparationPage({
   const requestedAfterMatchJobs = Array.isArray(query.afterMatchJobs) ? query.afterMatchJobs[0] : query.afterMatchJobs;
   const requestedAfterEvidence = Array.isArray(query.afterEvidence) ? query.afterEvidence[0] : query.afterEvidence;
   const requestedFocusRequirementId = Array.isArray(query.focusRequirementId) ? query.focusRequirementId[0] : query.focusRequirementId;
+  const requestedPrepareEvidenceJobs = Array.isArray(query.prepareEvidenceJobs) ? query.prepareEvidenceJobs[0] : query.prepareEvidenceJobs;
   const afterEvidence = requestedAfterEvidence === "1";
   const focusRequirementId = typeof requestedFocusRequirementId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(requestedFocusRequirementId)
     ? requestedFocusRequirementId
@@ -51,6 +53,17 @@ export default async function JobPreparationPage({
     : [];
   const afterMatchQuery = afterMatchJobIds.length > 0
     ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}`
+    : "";
+  const prepareEvidenceJobIds = typeof requestedPrepareEvidenceJobs === "string"
+    ? Array.from(new Set(
+        requestedPrepareEvidenceJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
+  const prepareEvidenceQuery = prepareEvidenceJobIds.length > 0
+    ? `&prepareEvidenceJobs=${encodeURIComponent(prepareEvidenceJobIds.join(","))}`
     : "";
 
   try {
@@ -140,7 +153,7 @@ export default async function JobPreparationPage({
                   initialReasons={latestFeedback?.reasons ?? []}
                   initialNote={latestFeedback?.note ?? null}
                   successHref={returnImportId
-                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}${afterMatchQuery}`
+                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}${afterMatchQuery}${prepareEvidenceQuery}`
                     : undefined}
                   successLabel="返回本次导入继续下一步"
                 />
@@ -149,7 +162,7 @@ export default async function JobPreparationPage({
               )}
               {returnImportId ? (
                 <div className="actions">
-                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}`}>
+                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}${prepareEvidenceQuery}`}>
                     返回本次导入查看反馈进度
                   </Link>
                 </div>

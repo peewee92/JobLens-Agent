@@ -51,6 +51,14 @@ export default async function ImportDetailPage({
   const requestedAfterFeedbackJobId = typeof query.afterFeedback === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterFeedback)
     ? query.afterFeedback
     : null;
+  const requestedPrepareEvidenceJobIds = typeof query.prepareEvidenceJobs === "string"
+    ? Array.from(new Set(
+        query.prepareEvidenceJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
   const requestedAfterMatchJobIds = typeof query.afterMatchJobs === "string"
     ? Array.from(new Set(
         query.afterMatchJobs
@@ -264,13 +272,29 @@ export default async function ImportDetailPage({
       .filter(({improvement}) => improvement.resolvedRequirementIds.length > 0)
       .map(({report}) => report.jobId),
   );
-  const nextPrepareEvidenceUnlockedReport = prepareEvidenceSourceResult && feedbackQueueAvailable
-    ? matchedReports.find((report) =>
+  const prepareEvidenceUnlockedReports = prepareEvidenceSourceResult && feedbackQueueAvailable
+    ? matchedReports.filter((report) =>
         otherPrepareEvidenceResolvedJobIds.has(report.jobId)
+        && !blockerByJobId.has(report.jobId),
+      )
+    : [];
+  const nextPrepareEvidenceUnlockedReport = prepareEvidenceUnlockedReports.find((report) => !latestFeedbackByReportId.has(report.reportId)) ?? null;
+  const prepareEvidenceUnlockedJobQuery = prepareEvidenceUnlockedReports.length > 0
+    ? `&prepareEvidenceJobs=${encodeURIComponent(prepareEvidenceUnlockedReports.map((report) => report.jobId).join(","))}`
+    : "";
+  const verifiedPrepareEvidenceDecisionReports = feedbackQueueAvailable
+    ? matchedReports.filter((report) =>
+        requestedPrepareEvidenceJobIds.includes(report.jobId)
         && !blockerByJobId.has(report.jobId)
-        && !latestFeedbackByReportId.has(report.reportId),
-      ) ?? null
-    : null;
+        && otherPrepareEvidenceResolvedJobIds.has(report.jobId),
+      )
+    : [];
+  const prepareEvidenceCompletedDecisionReports = verifiedPrepareEvidenceDecisionReports.filter((report) => latestFeedbackByReportId.has(report.reportId));
+  const prepareEvidencePendingDecisionReports = verifiedPrepareEvidenceDecisionReports.filter((report) => !latestFeedbackByReportId.has(report.reportId));
+  const nextPrepareEvidencePendingDecisionReport = prepareEvidencePendingDecisionReports[0] ?? null;
+  const prepareEvidenceDecisionQuery = verifiedPrepareEvidenceDecisionReports.length > 0
+    ? `&prepareEvidenceJobs=${encodeURIComponent(verifiedPrepareEvidenceDecisionReports.map((report) => report.jobId).join(","))}`
+    : "";
   const afterFeedbackReport = requestedAfterFeedbackJobId
     ? matchedReports.find((report) => report.jobId === requestedAfterFeedbackJobId) ?? null
     : null;
@@ -608,7 +632,27 @@ export default async function ImportDetailPage({
             afterFeedbackConfirmed ? (
               <div className="notice">
                 <strong>刚完成一项投递判断：</strong>{jobLabel(requestedAfterFeedbackJobId)} 已记录为“{feedbackDecisionShortLabel(afterFeedbackDecision ?? undefined)}”。本页已经按更新后的 latest UserFeedback、当前 Ranking 与 hard blocker 重新计算下一步。
-                {nextAfterMatchApplyReport ? (
+                {requestedPrepareEvidenceJobIds.length > 0 ? (
+                  <div className="detail-section">
+                    <strong>这次 Evidence 已转化出的真实投递判断：</strong>
+                    <div className="summary-grid">
+                      <div className="summary-card"><span>已完成判断</span><strong>{prepareEvidenceCompletedDecisionReports.length}</strong></div>
+                      <div className="summary-card"><span>仍待判断</span><strong>{prepareEvidencePendingDecisionReports.length}</strong></div>
+                    </div>
+                    {prepareEvidencePendingDecisionReports.length > 0 ? (
+                      <p className="muted">仍待判断：{prepareEvidencePendingDecisionReports.slice(0, 3).map((report) => jobLabel(report.jobId)).join("、")}。这里只统计 current facts 仍能验证为“本次 Evidence 真实解除 Requirement 且当前无 hard blocker”的岗位。</p>
+                    ) : (
+                      <p className="muted">这次 Evidence 真实解锁且仍可验证的岗位都已经形成 UserFeedback；不会把 URL 中的观察集合本身当成完成证据。</p>
+                    )}
+                  </div>
+                ) : null}
+                {nextPrepareEvidencePendingDecisionReport ? (
+                  <div className="actions">
+                    <Link className="button" href={`/jobs/${nextPrepareEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}`}>
+                      下一步：继续判断这次 Evidence 解锁的 {jobLabel(nextPrepareEvidencePendingDecisionReport.jobId)}
+                    </Link>
+                  </div>
+                ) : nextAfterMatchApplyReport ? (
                   <div className="actions">
                     <Link className="button" href={`/jobs/${nextAfterMatchApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
                       下一步：继续判断本轮 Match 解锁的 {jobLabel(nextAfterMatchApplyReport.jobId)}
@@ -660,7 +704,7 @@ export default async function ImportDetailPage({
                         </ul>
                         {nextPrepareEvidenceUnlockedReport ? (
                           <div className="actions">
-                            <Link className="button" href={`/jobs/${nextPrepareEvidenceUnlockedReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
+                            <Link className="button" href={`/jobs/${nextPrepareEvidenceUnlockedReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceUnlockedJobQuery}`}>
                               下一步：判断刚被这次 Evidence 解锁的 {jobLabel(nextPrepareEvidenceUnlockedReport.jobId)}
                             </Link>
                           </div>
