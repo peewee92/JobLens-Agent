@@ -121,7 +121,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /去核实这项真实经历/);
   assert.match(page, /focusRequirementId=/);
   assert.match(page, /focusImpactJobs=/);
+  assert.match(page, /focusImpactRequirementIds=/);
   assert.match(page, /previousEvidenceQueueResults/);
+  assert.match(page, /resolvedPlannedRequirement/);
+  assert.match(page, /improvement\.resolvedRequirementIds\.some/);
   assert.match(page, /刚才这项 Evidence 核实后，待办岗位发生了什么/);
   assert.match(page, /原计划观察 \{focusImpactJobIds\.length\} 个待办岗位/);
   assert.match(page, /已有 \{verifiedPreviousEvidenceQueueCount\} 个可以基于当前事实下结论/);
@@ -238,6 +241,7 @@ test("import evidence continuation returns to the batch only after explicit rema
   assert.match(recommendations, /afterMatchJobIds/);
   assert.match(recommendations, /showImprovement=1/);
   assert.match(recommendations, /focusImpactJobs=\$\{encodeURIComponent\(focusImpactJobIds\.join\(","\)\)\}/);
+  assert.match(recommendations, /focusImpactRequirementIds=\$\{encodeURIComponent\(focusImpactRequirementIds\.join\(","\)\)\}/);
   assert.match(recommendations, /afterMatchJobs=\$\{encodeURIComponent\(afterMatchJobIds\.join\(","\)\)\}/);
   assert.match(refresh, /returnHref/);
   assert.match(refresh, /state\.kind === "success" && pendingJobIds\.length === 0/);
@@ -492,6 +496,8 @@ test("profile can return to recommendations only through the whitelisted save co
   assert.match(page, /requestedFocusRequirementText/);
   assert.match(page, /requestedFocusImpactJobs/);
   assert.match(page, /query\.set\("focusImpactJobs", focusImpactJobs\)/);
+  assert.match(page, /requestedFocusImpactRequirementIds/);
+  assert.match(page, /query\.set\("focusImpactRequirementIds", focusImpactRequirementIds\)/);
   assert.match(page, /requestedEvidenceActionHistory/);
   assert.match(page, /query\.set\("evidenceActionHistory", evidenceActionHistory\)/);
   assert.match(page, /split\(","\)/);

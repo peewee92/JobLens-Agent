@@ -78,6 +78,14 @@ export default async function RecommendationsPage({
   const focusImpactJobIds = typeof params.focusImpactJobs === "string"
     ? params.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
+  const focusImpactRequirementIds = typeof params.focusImpactRequirementIds === "string"
+    ? Array.from(new Set(
+        params.focusImpactRequirementIds
+          .split(",")
+          .map((requirementId) => requirementId.trim())
+          .filter((requirementId) => /^[A-Za-z0-9_-]{1,120}$/.test(requirementId)),
+      )).slice(0, 20)
+    : [];
   const previousEvidenceActionHistory = parseEvidenceActionHistory(
     typeof params.evidenceActionHistory === "string" ? params.evidenceActionHistory : null,
   );
@@ -721,7 +729,7 @@ export default async function RecommendationsPage({
         returnHref={returnPrepareJobId && returnPrepareJobId === focusJobId
           ? `/jobs/${encodeURIComponent(returnPrepareJobId)}/prepare?afterEvidence=1${focusRequirementId ? `&focusRequirementId=${encodeURIComponent(focusRequirementId)}` : ""}${returnImportId ? `&returnImport=${encodeURIComponent(returnImportId)}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
           : returnImportId
-            ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
+            ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${focusImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(focusImpactRequirementIds.join(","))}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
             : null}
         returnLabel={returnPrepareJobId && returnPrepareJobId === focusJobId
           ? "回到申请准备查看更新后的清单"

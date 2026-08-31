@@ -23,6 +23,7 @@ function buildRecommendationReturnHref({
   focusCapability,
   focusRequirementText,
   focusImpactJobs,
+  focusImpactRequirementIds,
   evidenceActionHistory,
   returnImport,
   returnPrepare,
@@ -34,6 +35,7 @@ function buildRecommendationReturnHref({
   focusCapability: string | null;
   focusRequirementText: string | null;
   focusImpactJobs: string | null;
+  focusImpactRequirementIds: string | null;
   evidenceActionHistory: string | null;
   returnImport: string | null;
   returnPrepare: string | null;
@@ -46,6 +48,7 @@ function buildRecommendationReturnHref({
   if (focusCapability) query.set("focusCapability", focusCapability);
   if (focusRequirementText) query.set("focusRequirementText", focusRequirementText);
   if (focusImpactJobs) query.set("focusImpactJobs", focusImpactJobs);
+  if (focusImpactRequirementIds) query.set("focusImpactRequirementIds", focusImpactRequirementIds);
   if (evidenceActionHistory) query.set("evidenceActionHistory", evidenceActionHistory);
   if (returnImport) query.set("returnImport", returnImport);
   if (returnPrepare) query.set("returnPrepare", returnPrepare);
@@ -78,6 +81,9 @@ export default async function ProfilePage({
   const requestedFocusImpactJobs = Array.isArray(params.focusImpactJobs)
     ? params.focusImpactJobs[0]
     : params.focusImpactJobs;
+  const requestedFocusImpactRequirementIds = Array.isArray(params.focusImpactRequirementIds)
+    ? params.focusImpactRequirementIds[0]
+    : params.focusImpactRequirementIds;
   const requestedEvidenceActionHistory = Array.isArray(params.evidenceActionHistory)
     ? params.evidenceActionHistory[0]
     : params.evidenceActionHistory;
@@ -95,6 +101,14 @@ export default async function ProfilePage({
     : null;
   const focusImpactJobs = typeof requestedFocusImpactJobs === "string"
     ? requestedFocusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3).join(",") || null
+    : null;
+  const focusImpactRequirementIds = typeof requestedFocusImpactRequirementIds === "string"
+    ? Array.from(new Set(
+        requestedFocusImpactRequirementIds
+          .split(",")
+          .map((requirementId) => requirementId.trim())
+          .filter((requirementId) => /^[A-Za-z0-9_-]{1,120}$/.test(requirementId)),
+      )).slice(0, 20).join(",") || null
     : null;
   const evidenceActionHistory = typeof requestedEvidenceActionHistory === "string"
     ? requestedEvidenceActionHistory.split(",").map((item) => item.trim().slice(0, 160)).filter(Boolean).slice(-4).join(",") || null
@@ -122,6 +136,7 @@ export default async function ProfilePage({
         focusCapability,
         focusRequirementText,
         focusImpactJobs,
+        focusImpactRequirementIds,
         evidenceActionHistory,
         returnImport,
         returnPrepare,

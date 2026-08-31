@@ -73,6 +73,14 @@ export default async function ImportDetailPage({
   const focusImpactJobIds = typeof query.focusImpactJobs === "string"
     ? query.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
+  const focusImpactRequirementIds = typeof query.focusImpactRequirementIds === "string"
+    ? Array.from(new Set(
+        query.focusImpactRequirementIds
+          .split(",")
+          .map((requirementId) => requirementId.trim())
+          .filter((requirementId) => /^[A-Za-z0-9_-]{1,120}$/.test(requirementId)),
+      )).slice(0, 20)
+    : [];
   let detail;
   try {
     detail = await fetchImportDetail(id);
@@ -346,6 +354,11 @@ export default async function ImportDetailPage({
         if (!report || !improvement || !improvement.comparable || improvement.previousProfileVersion === improvement.currentProfileVersion) {
           return {jobId, report, status: "unverifiable" as const};
         }
+        const resolvedPlannedRequirement = focusImpactRequirementIds.length > 0
+          && improvement.resolvedRequirementIds.some((requirementId) => focusImpactRequirementIds.includes(requirementId));
+        if (!resolvedPlannedRequirement) {
+          return {jobId, report, status: "unverifiable" as const};
+        }
         const blocker = blockerByJobId.get(jobId) ?? null;
         if (blocker) {
           const nextRequirement = blocker.requirements[0] ?? null;
@@ -400,7 +413,7 @@ export default async function ImportDetailPage({
     ? consideredAffectedJobCount(batchEvidenceAction, feedbackByJobId)
     : 0;
   const batchEvidenceProfileHref = batchEvidenceAction
-    ? `/profile?next=/recommendations&returnImport=${encodeURIComponent(id)}&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${requestedAfterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(requestedAfterMatchJobIds.join(","))}` : ""}#profile-evidence-focus`
+    ? `/profile?next=/recommendations&returnImport=${encodeURIComponent(id)}&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${batchEvidenceAction.requirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(batchEvidenceAction.requirementIds.slice(0, 20).join(","))}` : ""}${requestedAfterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(requestedAfterMatchJobIds.join(","))}` : ""}#profile-evidence-focus`
     : null;
   const matchReadyCount = importedJobIds.filter(
     (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
