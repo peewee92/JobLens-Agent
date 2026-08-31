@@ -553,6 +553,7 @@ Profile 页面可以明确区分：
 - 2026-08-31：为三步申请准备清单增加最小 ActionItem 状态。勾选只记录用户自己的准备进度，并按岗位与当前清单事实版本隔离；当准备事实变化时旧进度自动失效。状态不改变 MatchReport、Evidence、Ranking 或 UserFeedback，不调用 Provider，零 Backend 业务改动、零 migration。
 - 2026-08-31：把 Prepare 中真实 Evidence gap 接回现有 Growth Loop。只有 Backend `resumeDelta.evidenceGaps` 真正给出缺口时，Prepare 才展示“补充这项真实 Evidence”入口，并携带该岗位、精确 Requirement ID、capability 与可用 Requirement 文案进入 Profile；Profile 保存后继续到 Recommendations，由用户显式触发既有 Re-match，成功后可回到原岗位 Prepare 重新读取最新 `JobPreparationBundle`，从而让清单事实和本地 ActionItem 指纹自然刷新。URL 只携带上下文，不声明改善；不自动 Match/Provider、不生成经历、不修改 Ranking/UserFeedback，零 Backend 业务改动、零 migration。
 - 2026-08-31：补齐 Prepare → Evidence → Re-match 返回后的可见准备 delta。Recommendations 只有在用户显式 Re-match 完成后才把 `afterEvidence=1 + focusRequirementId` 带回原岗位 Prepare；Prepare 不信任 URL 结果，而是重新读取 current MatchReport 与只读 `match-improvement`：只有 comparable=true 且目标 Requirement 真实进入 `resolvedRequirementIds` 才声明该 hard missing 已解除；若仍存在于 current `missingRequirementIds` 则明确仍需 Evidence；历史不可比较、读取失败或事实不足统一保持 unverifiable。随后页面继续展示最新 `JobPreparationBundle`，把用户带到新的最高优先级准备项。该切片不修改 Match/Ranking/UserFeedback/Evidence Priority、不自动调用 Provider，零 Backend 业务改动、零 migration。
+- 2026-08-31：当 Prepare 的目标 Evidence gap 已在可比较 Re-match 中真实解除时，进一步展示这次新增 Evidence 还精确命中的其他 Requirement，并直接跳到刷新后的最新申请准备清单。其他影响只复用 `MatchImprovement.newlySupportingEvidence[].supportingRequirements` 的真实记录，排除当前已处理 Requirement，最多展示 3 条；没有命中时明确保持“无可验证其他影响”，不把潜在帮助包装成已改善。跨岗位影响仍由 Import Batch 的既有 Growth Loop 汇总，Prepare 不复制第二套批次算法。该切片不新增评分、不自动 Match/Provider、不修改 Ranking/UserFeedback，零 Backend 业务改动、零 migration。
 
 ### 任务
 

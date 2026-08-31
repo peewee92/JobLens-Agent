@@ -11,6 +11,7 @@ import {
   fetchMatchImprovement,
   fetchMatchRanking,
 } from "@/lib/backend";
+import {listNewlySupportedRequirements} from "@/lib/match-improvement-outcome";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,9 @@ export default async function JobPreparationPage({
             : "unverifiable"
         : "unverifiable"
       : null;
+    const otherRequirementsReachedByEvidence = focusedEvidenceOutcome === "resolved"
+      ? listNewlySupportedRequirements(evidenceImprovement, focusRequirementId)
+      : [];
     const preparationHighlights = preparation.resumeDelta?.highlights ?? [];
     const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
     const preparationStudyItems = preparation.studyChecklist?.items ?? [];
@@ -159,7 +163,25 @@ export default async function JobPreparationPage({
             <div className="notice">
               <strong>刚才这项 Evidence 更新后的准备结果：</strong>
               {focusedEvidenceOutcome === "resolved" ? (
-                <p className="muted">这条岗位 Requirement 已在可比较的 Re-match 中从 hard missing 移除。下面的准备清单已按最新 JobPreparationBundle 刷新，可以继续处理新的最高优先级准备项。</p>
+                <>
+                  <p className="muted">这条岗位 Requirement 已在可比较的 Re-match 中从 hard missing 移除。下面的准备清单已按最新 JobPreparationBundle 刷新，可以继续处理新的最高优先级准备项。</p>
+                  {otherRequirementsReachedByEvidence.length > 0 ? (
+                    <div className="detail-section">
+                      <strong>这次新增 Evidence 还命中了其他真实 Requirement：</strong>
+                      <ul>
+                        {otherRequirementsReachedByEvidence.slice(0, 3).map((requirement) => (
+                          <li key={`prepare-evidence-impact-${requirement.requirementId}`}>{requirement.originalText}</li>
+                        ))}
+                      </ul>
+                      <p className="muted">这里只展示本次可比较 MatchImprovement 中真实记录的 supportingRequirements，不把“可能有帮助”当成已经改善。</p>
+                    </div>
+                  ) : (
+                    <p className="muted">当前没有可验证的其他 Requirement 命中，因此这里不扩张这次 Evidence 的影响范围。</p>
+                  )}
+                  <div className="actions">
+                    <Link className="button-secondary" href="#application-checklist">继续最新准备清单 ↓</Link>
+                  </div>
+                </>
               ) : focusedEvidenceOutcome === "remaining" ? (
                 <p className="muted">这条 Requirement 在可比较的 Re-match 后仍是 hard missing。下面会继续显示当前真实缺口；不要为了勾完清单补写不存在的经历。</p>
               ) : (

@@ -37,7 +37,7 @@ export function ApplicationChecklistProgress({jobId, items}: {jobId: string; ite
   };
 
   return (
-    <section className="detail-section" data-testid="application-checklist-progress">
+    <section id="application-checklist" className="detail-section" data-testid="application-checklist-progress">
       <div className="section-heading-row">
         <div>
           <h2>申请准备清单</h2>
