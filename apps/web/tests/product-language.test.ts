@@ -192,6 +192,11 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /本轮解锁岗位已判断完，继续处理真实 Evidence/);
   assert.match(page, /afterMatchJobs=\$\{encodeURIComponent\(requestedAfterMatchJobIds\.join\(","\)\)\}/);
   assert.match(page, /当前不强行切换到投递判断或下一 Evidence/);
+  assert.match(page, /这轮 Match 里原本 blocked 的岗位，Re-match 后发生了什么/);
+  assert.match(page, /本次实际观察/);
+  assert.match(page, /新增解锁/);
+  assert.match(page, /新增解锁岗位已经重新进入上面的 post-Match 投递判断队列/);
+  assert.match(page, /当前只有不可验证结果，因此这里不声称 Evidence 已经改善或没有改善这些岗位/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
 

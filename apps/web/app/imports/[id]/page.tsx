@@ -297,6 +297,11 @@ export default async function ImportDetailPage({
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
   const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
+  const afterMatchJobIdSet = new Set(requestedAfterMatchJobIds);
+  const postMatchEvidenceResults = previousEvidenceQueueResults.filter((item) => afterMatchJobIdSet.has(item.jobId));
+  const postMatchEvidenceClearedResults = postMatchEvidenceResults.filter((item) => item.status === "cleared");
+  const postMatchEvidenceBlockedResults = postMatchEvidenceResults.filter((item) => item.status === "blocked");
+  const postMatchEvidenceUnverifiableResults = postMatchEvidenceResults.filter((item) => item.status === "unverifiable");
   const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
   const clearedPendingDecisionReports = feedbackAvailable
     ? matchedReports.filter(
@@ -518,6 +523,27 @@ export default async function ImportDetailPage({
           ) : null}
           {showImprovement ? (
             <section className="detail-section">
+              {postMatchEvidenceResults.length > 0 ? (
+                <div className="notice">
+                  <strong>这轮 Match 里原本 blocked 的岗位，Re-match 后发生了什么：</strong>
+                  <p className="muted">这里只统计同时属于本轮 Match 上下文、且确实被刚才 Evidence action 纳入观察的岗位；只有可比较的 MatchReport 和当前 blocker facts 才会被归类。</p>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>本次实际观察</span><strong>{postMatchEvidenceResults.length}</strong></div>
+                    <div className="summary-card"><span>新增解锁</span><strong>{postMatchEvidenceClearedResults.length}</strong></div>
+                    <div className="summary-card"><span>仍有 hard blocker</span><strong>{postMatchEvidenceBlockedResults.length}</strong></div>
+                    {postMatchEvidenceUnverifiableResults.length > 0 ? (
+                      <div className="summary-card"><span>暂无法验证</span><strong>{postMatchEvidenceUnverifiableResults.length}</strong></div>
+                    ) : null}
+                  </div>
+                  {postMatchEvidenceClearedResults.length > 0 ? (
+                    <p className="muted">新增解锁岗位已经重新进入上面的 post-Match 投递判断队列，并继续按 current Ranking 选择下一项；不会因为 Evidence 回流另建一套排序。</p>
+                  ) : postMatchEvidenceBlockedResults.length > 0 ? (
+                    <p className="muted">这组岗位当前还没有新增解锁；已验证仍 blocked 的岗位继续留在 Evidence Loop。</p>
+                  ) : (
+                    <p className="muted">当前只有不可验证结果，因此这里不声称 Evidence 已经改善或没有改善这些岗位。</p>
+                  )}
+                </div>
+              ) : null}
               {previousEvidenceQueueResults.length > 0 ? (
                 <div className="notice">
                   <strong>刚才这项 Evidence 核实后，待办岗位发生了什么：</strong>
