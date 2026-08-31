@@ -552,6 +552,7 @@ Profile 页面可以明确区分：
 - 2026-08-31：把批次终点进入 Prepare 后的事实展示收敛成最小“申请准备清单”。Job Preparation 页面在 `factsUsable=true` 时，只从 Backend 已返回的 `resumeDelta`、`studyChecklist` 与 `interviewFacts` 中各取当前第一项，按“先突出已确认真实经历 → 再补最关键 Evidence/学习缺口 → 最后准备最高优先级面试 Requirement”的顺序给出三步入口；完整事实分区仍保留在下方。该清单不生成新经历、STAR 成绩、指标或面试答案，不新增前端匹配/优先级算法，也不调用 Provider；零 Backend 业务改动、零 migration。
 - 2026-08-31：为三步申请准备清单增加最小 ActionItem 状态。勾选只记录用户自己的准备进度，并按岗位与当前清单事实版本隔离；当准备事实变化时旧进度自动失效。状态不改变 MatchReport、Evidence、Ranking 或 UserFeedback，不调用 Provider，零 Backend 业务改动、零 migration。
 - 2026-08-31：把 Prepare 中真实 Evidence gap 接回现有 Growth Loop。只有 Backend `resumeDelta.evidenceGaps` 真正给出缺口时，Prepare 才展示“补充这项真实 Evidence”入口，并携带该岗位、精确 Requirement ID、capability 与可用 Requirement 文案进入 Profile；Profile 保存后继续到 Recommendations，由用户显式触发既有 Re-match，成功后可回到原岗位 Prepare 重新读取最新 `JobPreparationBundle`，从而让清单事实和本地 ActionItem 指纹自然刷新。URL 只携带上下文，不声明改善；不自动 Match/Provider、不生成经历、不修改 Ranking/UserFeedback，零 Backend 业务改动、零 migration。
+- 2026-08-31：补齐 Prepare → Evidence → Re-match 返回后的可见准备 delta。Recommendations 只有在用户显式 Re-match 完成后才把 `afterEvidence=1 + focusRequirementId` 带回原岗位 Prepare；Prepare 不信任 URL 结果，而是重新读取 current MatchReport 与只读 `match-improvement`：只有 comparable=true 且目标 Requirement 真实进入 `resolvedRequirementIds` 才声明该 hard missing 已解除；若仍存在于 current `missingRequirementIds` 则明确仍需 Evidence；历史不可比较、读取失败或事实不足统一保持 unverifiable。随后页面继续展示最新 `JobPreparationBundle`，把用户带到新的最高优先级准备项。该切片不修改 Match/Ranking/UserFeedback/Evidence Priority、不自动调用 Provider，零 Backend 业务改动、零 migration。
 
 ### 任务
 

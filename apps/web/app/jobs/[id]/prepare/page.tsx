@@ -8,6 +8,7 @@ import {
   fetchJobDetail,
   fetchJobPreparation,
   fetchLatestUserFeedback,
+  fetchMatchImprovement,
   fetchMatchRanking,
 } from "@/lib/backend";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
@@ -19,7 +20,12 @@ export default async function JobPreparationPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams?: Promise<{returnImport?: string | string[]; afterMatchJobs?: string | string[]}>;
+  searchParams?: Promise<{
+    returnImport?: string | string[];
+    afterMatchJobs?: string | string[];
+    afterEvidence?: string | string[];
+    focusRequirementId?: string | string[];
+  }>;
 }) {
   const {id} = await params;
   const query = searchParams ? await searchParams : {};
@@ -28,6 +34,12 @@ export default async function JobPreparationPage({
     ? requestedReturnImport
     : null;
   const requestedAfterMatchJobs = Array.isArray(query.afterMatchJobs) ? query.afterMatchJobs[0] : query.afterMatchJobs;
+  const requestedAfterEvidence = Array.isArray(query.afterEvidence) ? query.afterEvidence[0] : query.afterEvidence;
+  const requestedFocusRequirementId = Array.isArray(query.focusRequirementId) ? query.focusRequirementId[0] : query.focusRequirementId;
+  const afterEvidence = requestedAfterEvidence === "1";
+  const focusRequirementId = typeof requestedFocusRequirementId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(requestedFocusRequirementId)
+    ? requestedFocusRequirementId
+    : null;
   const afterMatchJobIds = typeof requestedAfterMatchJobs === "string"
     ? Array.from(new Set(
         requestedAfterMatchJobs
@@ -51,6 +63,18 @@ export default async function JobPreparationPage({
       ? await fetchLatestUserFeedback([currentReport.reportId]).catch(() => null)
       : null;
     const latestFeedback = feedbackResult?.feedback[0] ?? null;
+    const evidenceImprovement = afterEvidence && currentReport && focusRequirementId
+      ? await fetchMatchImprovement(id, currentReport.reportId).catch(() => null)
+      : null;
+    const focusedEvidenceOutcome = afterEvidence && focusRequirementId
+      ? evidenceImprovement?.comparable
+        ? evidenceImprovement.resolvedRequirementIds.includes(focusRequirementId)
+          ? "resolved"
+          : currentReport?.missingRequirementIds.includes(focusRequirementId)
+            ? "remaining"
+            : "unverifiable"
+        : "unverifiable"
+      : null;
     const preparationHighlights = preparation.resumeDelta?.highlights ?? [];
     const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
     const preparationStudyItems = preparation.studyChecklist?.items ?? [];
@@ -130,6 +154,19 @@ export default async function JobPreparationPage({
           ) : (
             <p className="notice">当前没有可用的最新 MatchReport，因此这里不能记录投递判断；请先完成该岗位的显式匹配。</p>
           )}
+
+          {focusedEvidenceOutcome ? (
+            <div className="notice">
+              <strong>刚才这项 Evidence 更新后的准备结果：</strong>
+              {focusedEvidenceOutcome === "resolved" ? (
+                <p className="muted">这条岗位 Requirement 已在可比较的 Re-match 中从 hard missing 移除。下面的准备清单已按最新 JobPreparationBundle 刷新，可以继续处理新的最高优先级准备项。</p>
+              ) : focusedEvidenceOutcome === "remaining" ? (
+                <p className="muted">这条 Requirement 在可比较的 Re-match 后仍是 hard missing。下面会继续显示当前真实缺口；不要为了勾完清单补写不存在的经历。</p>
+              ) : (
+                <p className="muted">当前无法基于可比较 Match 历史确认这条 Requirement 是否改善，因此这里只展示最新准备事实，不把返回链接本身当成成功证据。</p>
+              )}
+            </div>
+          ) : null}
 
           {preparation.factsUsable ? (
             <>

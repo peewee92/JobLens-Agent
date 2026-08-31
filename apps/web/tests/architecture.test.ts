@@ -263,6 +263,10 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /returnPrepare/);
   assert.match(page, /补充这项真实 Evidence/);
   assert.match(page, /系统不会因为打开链接就声称缺口已改善/);
+  assert.match(page, /fetchMatchImprovement/);
+  assert.match(page, /resolvedRequirementIds\.includes\(focusRequirementId\)/);
+  assert.match(page, /missingRequirementIds\.includes\(focusRequirementId\)/);
+  assert.match(page, /不把返回链接本身当成成功证据/);
   assert.match(checklist, /申请准备清单/);
   assert.match(checklist, /不会修改 MatchReport、Evidence 或 Ranking/);
   assert.match(checklist, /localStorage/);

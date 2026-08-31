@@ -721,7 +721,7 @@ export default async function RecommendationsPage({
         returnHref={returnImportId
           ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
           : returnPrepareJobId && returnPrepareJobId === focusJobId
-            ? `/jobs/${encodeURIComponent(returnPrepareJobId)}/prepare`
+            ? `/jobs/${encodeURIComponent(returnPrepareJobId)}/prepare?afterEvidence=1${focusRequirementId ? `&focusRequirementId=${encodeURIComponent(focusRequirementId)}` : ""}`
             : null}
         returnLabel={returnPrepareJobId && returnPrepareJobId === focusJobId
           ? "回到申请准备查看更新后的清单"

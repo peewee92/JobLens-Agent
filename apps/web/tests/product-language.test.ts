@@ -435,6 +435,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(feedback, /note,/);
   assert.match(page, /RecommendationRefresh/);
   assert.match(page, /回到申请准备查看更新后的清单/);
+  assert.match(page, /afterEvidence=1/);
+  assert.match(page, /focusRequirementId=/);
   assert.match(page, /RecommendationRequirementAnalysis/);
   assert.match(requirementBatch, /分析下一批/);
   assert.match(requirementBatch, /Provider 当前不可用/);
