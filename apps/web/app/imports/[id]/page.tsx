@@ -302,6 +302,8 @@ export default async function ImportDetailPage({
   const postMatchEvidenceClearedResults = postMatchEvidenceResults.filter((item) => item.status === "cleared");
   const postMatchEvidenceBlockedResults = postMatchEvidenceResults.filter((item) => item.status === "blocked");
   const postMatchEvidenceUnverifiableResults = postMatchEvidenceResults.filter((item) => item.status === "unverifiable");
+  const postMatchEvidenceBlockedJobIds = new Set(postMatchEvidenceBlockedResults.map((item) => item.jobId));
+  const nextEvidencePostMatchTargets = batchEvidenceImpactTargets.filter((target) => postMatchEvidenceBlockedJobIds.has(target.jobId));
   const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
   const clearedPendingDecisionReports = feedbackAvailable
     ? matchedReports.filter(
@@ -538,7 +540,29 @@ export default async function ImportDetailPage({
                   {postMatchEvidenceClearedResults.length > 0 ? (
                     <p className="muted">新增解锁岗位已经重新进入上面的 post-Match 投递判断队列，并继续按 current Ranking 选择下一项；不会因为 Evidence 回流另建一套排序。</p>
                   ) : postMatchEvidenceBlockedResults.length > 0 ? (
-                    <p className="muted">这组岗位当前还没有新增解锁；已验证仍 blocked 的岗位继续留在 Evidence Loop。</p>
+                    <>
+                      <p className="muted">这组岗位当前还没有新增解锁；已验证仍 blocked 的岗位继续留在 Evidence Loop。</p>
+                      {batchEvidenceAction && nextEvidencePostMatchTargets.length > 0 ? (
+                        <div className="detail-section">
+                          <strong>为什么下一 Evidence 仍值得继续：</strong>
+                          <p className="muted">当前既有 Evidence Priority 仍精确命中这轮 Match 中 {nextEvidencePostMatchTargets.length} 个已验证 blocked 岗位；这里不新增评分，只展示它实际覆盖的剩余 Requirement。</p>
+                          <ul>
+                            {nextEvidencePostMatchTargets.slice(0, 3).map((target) => (
+                              <li key={`post-match-next-evidence-${target.jobId}`}>
+                                <strong>{jobLabel(target.jobId)}</strong>
+                                <ul>
+                                  {target.requirementTexts.map((requirementText) => (
+                                    <li key={`post-match-next-evidence-${target.jobId}-${requirementText}`}>{requirementText}</li>
+                                  ))}
+                                </ul>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : batchEvidenceAction ? (
+                        <p className="muted">当前下一 Evidence action 仍来自批次中未解决的真实 blocker，但它没有精确命中这轮 Match 里刚验证仍 blocked 的岗位；系统不会为了维持连续感而声称它会帮助这些岗位。</p>
+                      ) : null}
+                    </>
                   ) : (
                     <p className="muted">当前只有不可验证结果，因此这里不声称 Evidence 已经改善或没有改善这些岗位。</p>
                   )}
