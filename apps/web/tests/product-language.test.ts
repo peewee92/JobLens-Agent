@@ -592,6 +592,9 @@ test("import improvement explains why the next evidence action changed", async (
   assert.match(page, /这次 Evidence 的批次影响已重新核验/);
   assert.match(page, /不信任返回链接本身/);
   assert.match(page, /当前没有其他同批岗位满足“可比较且真实改善”的证据/);
+  assert.match(page, /nextPrepareEvidenceUnlockedReport/);
+  assert.match(page, /真实解除 Requirement、已无 hard blocker、且尚未反馈/);
+  assert.match(page, /下一步：判断刚被这次 Evidence 解锁的/);
 });
 
 test("cleared import jobs show a fact-based apply decision summary", async () => {

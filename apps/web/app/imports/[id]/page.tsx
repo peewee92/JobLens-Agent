@@ -259,6 +259,18 @@ export default async function ImportDetailPage({
   const pendingApplyDecisionCount = feedbackQueueAvailable ? pendingClearedReports.length : null;
   const pendingEvidenceCount = feedbackQueueAvailable ? consideredBlockedReports.length : null;
   const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
+  const otherPrepareEvidenceResolvedJobIds = new Set(
+    otherPrepareEvidenceImprovedJobs
+      .filter(({improvement}) => improvement.resolvedRequirementIds.length > 0)
+      .map(({report}) => report.jobId),
+  );
+  const nextPrepareEvidenceUnlockedReport = prepareEvidenceSourceResult && feedbackQueueAvailable
+    ? matchedReports.find((report) =>
+        otherPrepareEvidenceResolvedJobIds.has(report.jobId)
+        && !blockerByJobId.has(report.jobId)
+        && !latestFeedbackByReportId.has(report.reportId),
+      ) ?? null
+    : null;
   const afterFeedbackReport = requestedAfterFeedbackJobId
     ? matchedReports.find((report) => report.jobId === requestedAfterFeedbackJobId) ?? null
     : null;
@@ -646,6 +658,15 @@ export default async function ImportDetailPage({
                             </li>
                           ))}
                         </ul>
+                        {nextPrepareEvidenceUnlockedReport ? (
+                          <div className="actions">
+                            <Link className="button" href={`/jobs/${nextPrepareEvidenceUnlockedReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
+                              下一步：判断刚被这次 Evidence 解锁的 {jobLabel(nextPrepareEvidenceUnlockedReport.jobId)}
+                            </Link>
+                          </div>
+                        ) : (
+                          <p className="muted">这些额外改善岗位里，当前没有同时满足“真实解除 Requirement、已无 hard blocker、且尚未反馈”的新投递判断；不会仅凭推荐文案变化强行推进。</p>
+                        )}
                       </>
                     ) : (
                       <p className="muted">当前没有其他同批岗位满足“可比较且真实改善”的证据，因此这里不扩张这次 Evidence 的跨岗位价值。</p>
