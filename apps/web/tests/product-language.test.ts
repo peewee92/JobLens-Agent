@@ -133,6 +133,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /岗位改善了，但不能归功于这次 Evidence/);
   assert.match(page, /现有 provenance 指向的其他新增匹配依据/);
   assert.match(page, /新支撑岗位要求/);
+  assert.match(page, /这个岗位当前仍有 hard blocker/);
+  assert.match(page, /它已经形成一个新的投递判断机会/);
+  assert.match(page, /nextUnattributedEvidenceApplyReport/);
+  assert.match(page, /由其他真实 Evidence 解锁、且尚未完成 UserFeedback/);
   assert.match(page, /保持 unknown，不猜测是哪条改动带来了改善/);
   assert.match(page, /它与“改善但无法归因”是不同状态/);
   assert.match(page, /<span>原计划观察<\/span>/);

@@ -398,6 +398,18 @@ export default async function ImportDetailPage({
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
   const unattributedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unattributed");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
+  const unattributedEvidenceOpportunityJobIds = new Set(
+    feedbackQueueAvailable
+      ? unattributedPreviousEvidenceQueueResults.flatMap((item) => {
+          if (!item.report || (item.alternativeEvidenceProvenance ?? []).length === 0) return [];
+          if (blockerByJobId.has(item.jobId) || latestFeedbackByReportId.has(item.report.reportId)) return [];
+          return [item.jobId];
+        })
+      : [],
+  );
+  const nextUnattributedEvidenceApplyReport = matchedReports.find((report) =>
+    unattributedEvidenceOpportunityJobIds.has(report.jobId),
+  ) ?? null;
   const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
   const afterMatchJobIdSet = new Set(requestedAfterMatchJobIds);
   const postMatchEvidenceResults = previousEvidenceQueueResults.filter((item) => afterMatchJobIdSet.has(item.jobId));
@@ -1025,6 +1037,17 @@ export default async function ImportDetailPage({
                                   ))}
                                 </ul>
                                 <p className="muted">这些只说明同一次 Profile 更新中真实新增了哪些 Requirement → Evidence 支撑关系，可以解释岗位为何出现其他改善；它们不会被改写成本次原计划 Evidence 的成果。</p>
+                                {feedbackQueueAvailable && item.report ? (
+                                  blockerByJobId.has(item.jobId) ? (
+                                    <p className="muted">这个岗位当前仍有 hard blocker，所以这些其他新增 Evidence 还不足以把它放行到投递判断；继续留在 Evidence Loop。</p>
+                                  ) : latestFeedbackByReportId.has(item.report.reportId) ? (
+                                    <p className="muted">这个岗位当前已经没有 hard blocker，但你已经完成最新 UserFeedback，因此不重复占用下一投递判断。</p>
+                                  ) : (
+                                    <p className="muted">这个岗位当前已经没有 hard blocker，并且还没有最新 UserFeedback；它已经形成一个新的投递判断机会。</p>
+                                  )
+                                ) : (
+                                  <p className="muted">当前 blocker / feedback 事实不完整，因此这里不把 provenance 直接升级成投递判断机会。</p>
+                                )}
                               </div>
                             ) : (
                               <p className="muted">现有 MatchImprovement 没有提供足够精确的其他新增 Evidence → Requirement provenance，因此这里保持 unknown，不猜测是哪条改动带来了改善。</p>
@@ -1032,6 +1055,14 @@ export default async function ImportDetailPage({
                           </li>
                         ))}
                       </ul>
+                      {nextUnattributedEvidenceApplyReport ? (
+                        <div className="actions">
+                          <Link className="button" href={`/jobs/${nextUnattributedEvidenceApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                            下一步：判断 {jobLabel(nextUnattributedEvidenceApplyReport.jobId)}
+                          </Link>
+                          <span className="muted">按 current Ranking 顺序选择第一个由其他真实 Evidence 解锁、且尚未完成 UserFeedback 的岗位。</span>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   {unverifiablePreviousEvidenceQueueResults.length > 0 ? (
