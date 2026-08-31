@@ -600,6 +600,11 @@ test("import improvement explains why the next evidence action changed", async (
   assert.match(page, /仍待判断/);
   assert.match(page, /nextPrepareEvidencePendingDecisionReport/);
   assert.match(page, /不会把 URL 中的观察集合本身当成完成证据/);
+  assert.match(page, /prepareEvidenceDecisionSetFullyVerifiable/);
+  assert.match(page, /prepareEvidenceDecisionLoopComplete/);
+  assert.match(page, /这次 Evidence 行动的小闭环已经完成/);
+  assert.match(page, /这些结果只来自 current latest UserFeedback/);
+  assert.match(page, /不声明这次 Evidence 决策闭环已经完成/);
 });
 
 test("cleared import jobs show a fact-based apply decision summary", async () => {

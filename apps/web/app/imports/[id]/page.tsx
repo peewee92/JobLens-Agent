@@ -291,6 +291,19 @@ export default async function ImportDetailPage({
     : [];
   const prepareEvidenceCompletedDecisionReports = verifiedPrepareEvidenceDecisionReports.filter((report) => latestFeedbackByReportId.has(report.reportId));
   const prepareEvidencePendingDecisionReports = verifiedPrepareEvidenceDecisionReports.filter((report) => !latestFeedbackByReportId.has(report.reportId));
+  const prepareEvidenceDecisionSetFullyVerifiable = requestedPrepareEvidenceJobIds.length > 0
+    && verifiedPrepareEvidenceDecisionReports.length === requestedPrepareEvidenceJobIds.length;
+  const prepareEvidenceDecisionLoopComplete = prepareEvidenceDecisionSetFullyVerifiable
+    && prepareEvidencePendingDecisionReports.length === 0;
+  const prepareEvidenceInterestedCount = prepareEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "interested",
+  ).length;
+  const prepareEvidenceMaybeCount = prepareEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "maybe",
+  ).length;
+  const prepareEvidenceRejectedCount = prepareEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "rejected",
+  ).length;
   const nextPrepareEvidencePendingDecisionReport = prepareEvidencePendingDecisionReports[0] ?? null;
   const prepareEvidenceDecisionQuery = verifiedPrepareEvidenceDecisionReports.length > 0
     ? `&prepareEvidenceJobs=${encodeURIComponent(verifiedPrepareEvidenceDecisionReports.map((report) => report.jobId).join(","))}`
@@ -641,8 +654,21 @@ export default async function ImportDetailPage({
                     </div>
                     {prepareEvidencePendingDecisionReports.length > 0 ? (
                       <p className="muted">仍待判断：{prepareEvidencePendingDecisionReports.slice(0, 3).map((report) => jobLabel(report.jobId)).join("、")}。这里只统计 current facts 仍能验证为“本次 Evidence 真实解除 Requirement 且当前无 hard blocker”的岗位。</p>
+                    ) : prepareEvidenceDecisionLoopComplete ? (
+                      <>
+                        <p className="muted">这次 Evidence 真实解锁且仍可验证的岗位都已经形成 UserFeedback；不会把 URL 中的观察集合本身当成完成证据。</p>
+                        <div className="detail-section">
+                          <strong>这次 Evidence 行动的小闭环已经完成</strong>
+                          <div className="summary-grid">
+                            <div className="summary-card"><span>感兴趣</span><strong>{prepareEvidenceInterestedCount}</strong></div>
+                            <div className="summary-card"><span>再看看</span><strong>{prepareEvidenceMaybeCount}</strong></div>
+                            <div className="summary-card"><span>不考虑</span><strong>{prepareEvidenceRejectedCount}</strong></div>
+                          </div>
+                          <p className="muted">这些结果只来自 current latest UserFeedback。下面继续复用当前批次已有的主行动顺序，不因为这组局部闭环完成就误报整批结束。</p>
+                        </div>
+                      </>
                     ) : (
-                      <p className="muted">这次 Evidence 真实解锁且仍可验证的岗位都已经形成 UserFeedback；不会把 URL 中的观察集合本身当成完成证据。</p>
+                      <p className="muted">当前观察集合里有岗位已经无法由 current Match / blocker / improvement facts 完整验证，因此这里不声明这次 Evidence 决策闭环已经完成。</p>
                     )}
                   </div>
                 ) : null}
