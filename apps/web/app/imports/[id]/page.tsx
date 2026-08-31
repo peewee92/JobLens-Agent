@@ -359,10 +359,19 @@ export default async function ImportDetailPage({
         if (!resolvedPlannedRequirement) {
           const improvedWithoutPlannedRequirement = improvement.resolvedRequirementIds.length > 0
             || improvement.previousRecommendation !== improvement.currentRecommendation;
+          const alternativeEvidenceProvenance = improvedWithoutPlannedRequirement
+            ? improvement.newlySupportingEvidence.flatMap((evidence) => {
+                const supportingRequirements = evidence.supportingRequirements.filter((requirement) =>
+                  !focusImpactRequirementIds.includes(requirement.requirementId),
+                );
+                return supportingRequirements.length > 0 ? [{evidence, supportingRequirements}] : [];
+              })
+            : [];
           return {
             jobId,
             report,
             status: improvedWithoutPlannedRequirement ? "unattributed" as const : "unverifiable" as const,
+            alternativeEvidenceProvenance,
           };
         }
         const blocker = blockerByJobId.get(jobId) ?? null;
@@ -998,6 +1007,28 @@ export default async function ImportDetailPage({
                         {unattributedPreviousEvidenceQueueResults.map((item) => (
                           <li key={`unattributed-${item.jobId}`}>
                             <strong>{jobLabel(item.jobId)}</strong>：前后 MatchReport 可比较且确实出现改善，但本次行动前记录的 Requirement ID 没有进入 resolvedRequirementIds。系统不会把同一次 Profile 更新中的其他 Evidence 改动误算到这次行动上。
+                            {(item.alternativeEvidenceProvenance ?? []).length > 0 ? (
+                              <div className="notice">
+                                <strong>现有 provenance 指向的其他新增匹配依据：</strong>
+                                <ul>
+                                  {(item.alternativeEvidenceProvenance ?? []).slice(0, 3).map(({evidence, supportingRequirements}) => (
+                                    <li key={`${item.jobId}-${evidence.evidenceId}`}>
+                                      <strong>{evidence.summary}</strong>
+                                      <ul>
+                                        {supportingRequirements.slice(0, 3).map((requirement) => (
+                                          <li key={`${evidence.evidenceId}-${requirement.requirementId}`}>
+                                            新支撑岗位要求：{requirement.originalText}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </li>
+                                  ))}
+                                </ul>
+                                <p className="muted">这些只说明同一次 Profile 更新中真实新增了哪些 Requirement → Evidence 支撑关系，可以解释岗位为何出现其他改善；它们不会被改写成本次原计划 Evidence 的成果。</p>
+                              </div>
+                            ) : (
+                              <p className="muted">现有 MatchImprovement 没有提供足够精确的其他新增 Evidence → Requirement provenance，因此这里保持 unknown，不猜测是哪条改动带来了改善。</p>
+                            )}
                           </li>
                         ))}
                       </ul>

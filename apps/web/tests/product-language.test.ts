@@ -131,6 +131,9 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /improvedWithoutPlannedRequirement/);
   assert.match(page, /改善但无法归因/);
   assert.match(page, /岗位改善了，但不能归功于这次 Evidence/);
+  assert.match(page, /现有 provenance 指向的其他新增匹配依据/);
+  assert.match(page, /新支撑岗位要求/);
+  assert.match(page, /保持 unknown，不猜测是哪条改动带来了改善/);
   assert.match(page, /它与“改善但无法归因”是不同状态/);
   assert.match(page, /<span>原计划观察<\/span>/);
   assert.match(page, /已解除 hard blocker/);
