@@ -51,7 +51,7 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /fetchJobDetail/);
   assert.match(page, /fetchMatchRanking/);
   assert.match(page, /fetchMatchReviewReadiness/);
-  assert.match(page, /ImportBatchMatch jobIds=\{matchReadyJobs\}/);
+  assert.match(page, /ImportBatchMatch jobIds=\{matchReadyJobs\} importId=\{id\}/);
   assert.match(page, /这批岗位当前的匹配结果/);
   assert.match(page, /fetchLatestUserFeedback/);
   assert.match(page, /RecommendationFeedback/);
@@ -176,6 +176,12 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
   assert.match(page, /真正的匹配仍必须由你显式点击发起/);
   assert.match(page, /不会被误报为“尚未准备”/);
+  assert.match(page, /afterMatchJobs/);
+  assert.match(page, /刚完成显式 Match 后，这些岗位进入了哪里/);
+  assert.match(page, /等待投递判断/);
+  assert.match(page, /进入 Evidence Loop/);
+  assert.match(page, /暂无法确认迁移/);
+  assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
 
 test("import evidence continuation returns to the batch only after explicit rematch", async () => {
@@ -202,6 +208,9 @@ test("import batch matching is explicit, bounded, and never auto-resumes", async
   assert.match(component, /只有你点击后才会执行/);
   assert.match(component, /可能调用已配置的模型/);
   assert.match(component, /setPendingJobIds\(result\.resumeJobIds\)/);
+  assert.match(component, /item\.status === "succeeded"/);
+  assert.match(component, /afterMatchJobs=/);
+  assert.match(component, /router\.replace/);
   assert.doesNotMatch(component, /setTimeout\([^)]*run/);
   assert.doesNotMatch(component, /await run\(\)/);
 });

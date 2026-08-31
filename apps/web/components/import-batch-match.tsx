@@ -21,9 +21,10 @@ async function responseMessage(response: Response): Promise<string> {
   }
 }
 
-export function ImportBatchMatch({jobIds}: {jobIds: string[]}) {
+export function ImportBatchMatch({jobIds, importId}: {jobIds: string[]; importId: string}) {
   const router = useRouter();
   const [pendingJobIds, setPendingJobIds] = useState(jobIds);
+  const [succeededJobIds, setSucceededJobIds] = useState<string[]>([]);
   const [state, setState] = useState<RunState>({kind: "idle", message: ""});
 
   async function run() {
@@ -47,6 +48,11 @@ export function ImportBatchMatch({jobIds}: {jobIds: string[]}) {
 
       const result = (await response.json()) as BatchMatchExecutionResponse;
       const failures = result.failedCount + result.inputBlockedCount + result.persistenceBlockedCount;
+      const newlySucceededJobIds = result.items
+        .filter((item) => item.status === "succeeded")
+        .map((item) => item.jobId);
+      const allSucceededJobIds = Array.from(new Set([...succeededJobIds, ...newlySucceededJobIds])).slice(0, 20);
+      setSucceededJobIds(allSucceededJobIds);
 
       if (result.resumeJobIds.length > 0) {
         setPendingJobIds(result.resumeJobIds);
@@ -66,7 +72,11 @@ export function ImportBatchMatch({jobIds}: {jobIds: string[]}) {
             ? `本轮完成 ${result.succeededCount} 个，另有 ${failures} 个未完成。请查看岗位状态后再决定是否继续。`
             : `已完成 ${result.succeededCount} 个岗位的匹配，当前批次结果已更新。`,
       });
-      router.refresh();
+      if (allSucceededJobIds.length > 0) {
+        router.replace(`/imports/${encodeURIComponent(importId)}?afterMatchJobs=${encodeURIComponent(allSucceededJobIds.join(","))}#batch-match-result`);
+      } else {
+        router.refresh();
+      }
     } catch {
       setState({kind: "error", message: "匹配失败，请检查本地 JobLens 服务后重试。"});
     }

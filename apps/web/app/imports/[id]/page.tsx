@@ -45,6 +45,14 @@ export default async function ImportDetailPage({
   const requestedAfterFeedbackJobId = typeof query.afterFeedback === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterFeedback)
     ? query.afterFeedback
     : null;
+  const requestedAfterMatchJobIds = typeof query.afterMatchJobs === "string"
+    ? Array.from(new Set(
+        query.afterMatchJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
   const focusImpactJobIds = typeof query.focusImpactJobs === "string"
     ? query.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
@@ -169,6 +177,27 @@ export default async function ImportDetailPage({
   const feedbackQueueAvailable = feedbackAvailable
     && blockerSummaryResult.status === "fulfilled"
     && Boolean(blockerSummaryResult.value);
+  const afterMatchTransitionResults = requestedAfterMatchJobIds
+    .filter((jobId) => importedJobIds.includes(jobId))
+    .map((jobId) => {
+      const report = matchedReports.find((item) => item.jobId === jobId) ?? null;
+      if (!report || !feedbackQueueAvailable) {
+        return {jobId, status: "unverifiable" as const};
+      }
+      const feedback = latestFeedbackByReportId.get(report.reportId);
+      const blocker = blockerByJobId.get(jobId) ?? null;
+      if (feedback?.decision === "rejected" || (feedback && !blocker)) {
+        return {jobId, status: "completed" as const};
+      }
+      if (blocker) {
+        return {jobId, status: "evidence" as const, blocker};
+      }
+      return {jobId, status: "apply" as const};
+    });
+  const afterMatchApplyResults = afterMatchTransitionResults.filter((item) => item.status === "apply");
+  const afterMatchEvidenceResults = afterMatchTransitionResults.filter((item) => item.status === "evidence");
+  const afterMatchCompletedResults = afterMatchTransitionResults.filter((item) => item.status === "completed");
+  const afterMatchUnverifiableResults = afterMatchTransitionResults.filter((item) => item.status === "unverifiable");
   const pendingClearedReports = feedbackQueueAvailable
     ? pendingFeedbackReports.filter((report) => !blockerByJobId.has(report.jobId))
     : [];
@@ -348,6 +377,37 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {requestedAfterMatchJobIds.length > 0 ? (
+            <div className="notice" id="batch-match-result">
+              <strong>刚完成显式 Match 后，这些岗位进入了哪里：</strong>
+              {afterMatchTransitionResults.length > 0 ? (
+                <>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>等待投递判断</span><strong>{afterMatchApplyResults.length}</strong></div>
+                    <div className="summary-card"><span>进入 Evidence Loop</span><strong>{afterMatchEvidenceResults.length}</strong></div>
+                    {afterMatchCompletedResults.length > 0 ? (
+                      <div className="summary-card"><span>当前已完成处理</span><strong>{afterMatchCompletedResults.length}</strong></div>
+                    ) : null}
+                    {afterMatchUnverifiableResults.length > 0 ? (
+                      <div className="summary-card"><span>暂无法确认迁移</span><strong>{afterMatchUnverifiableResults.length}</strong></div>
+                    ) : null}
+                  </div>
+                  {afterMatchApplyResults.length > 0 ? (
+                    <p className="muted">{afterMatchApplyResults.map((item) => jobLabel(item.jobId)).join("、")} 已形成 current MatchReport，且当前没有 hard blocker；下一步是完成真实投递判断。</p>
+                  ) : null}
+                  {afterMatchEvidenceResults.length > 0 ? (
+                    <p className="muted">{afterMatchEvidenceResults.map((item) => jobLabel(item.jobId)).join("、")} 已形成 current MatchReport，但仍有 hard blocker；它们已进入 Evidence Loop，不会被误报成可直接投递。</p>
+                  ) : null}
+                  {afterMatchUnverifiableResults.length > 0 ? (
+                    <p className="muted">另有 {afterMatchUnverifiableResults.length} 个本轮目标当前还缺少可可靠读取的 current MatchReport / blocker facts，因此这里不猜测它们迁移到了哪个阶段。</p>
+                  ) : null}
+                  <p className="muted">这里只解释你刚才显式 Match 已产生的最新事实，不会再次运行 Match 或调用 Provider。</p>
+                </>
+              ) : (
+                <p className="muted">返回参数没有命中这次导入中的岗位，因此这里不声称任何岗位已经完成 Match。</p>
+              )}
+            </div>
+          ) : null}
           {feedbackQueueAvailable && batchProcessedCount !== null && batchProcessingRemaining !== null && unmatchedProcessingCount !== null && pendingApplyDecisionCount !== null && pendingEvidenceCount !== null ? (
             <div className="notice">
               <strong>本批处理进度：已处理 {batchProcessedCount}/{batchProcessingTotal}</strong>
@@ -836,7 +896,7 @@ export default async function ImportDetailPage({
                   <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>
                 ))}
               </ul>
-              <ImportBatchMatch jobIds={matchReadyJobs} />
+              <ImportBatchMatch jobIds={matchReadyJobs} importId={id} />
             </section>
           ) : null}
 
