@@ -198,6 +198,8 @@ export default async function ImportDetailPage({
   const afterMatchEvidenceResults = afterMatchTransitionResults.filter((item) => item.status === "evidence");
   const afterMatchCompletedResults = afterMatchTransitionResults.filter((item) => item.status === "completed");
   const afterMatchUnverifiableResults = afterMatchTransitionResults.filter((item) => item.status === "unverifiable");
+  const afterMatchApplyJobIds = new Set(afterMatchApplyResults.map((item) => item.jobId));
+  const nextAfterMatchApplyReport = matchedReports.find((report) => afterMatchApplyJobIds.has(report.jobId)) ?? null;
   const pendingClearedReports = feedbackQueueAvailable
     ? pendingFeedbackReports.filter((report) => !blockerByJobId.has(report.jobId))
     : [];
@@ -400,6 +402,21 @@ export default async function ImportDetailPage({
                   ) : null}
                   {afterMatchUnverifiableResults.length > 0 ? (
                     <p className="muted">另有 {afterMatchUnverifiableResults.length} 个本轮目标当前还缺少可可靠读取的 current MatchReport / blocker facts，因此这里不猜测它们迁移到了哪个阶段。</p>
+                  ) : null}
+                  {nextAfterMatchApplyReport ? (
+                    <div className="actions">
+                      <Link className="button" href={`/jobs/${nextAfterMatchApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                        下一步：先判断 {jobLabel(nextAfterMatchApplyReport.jobId)}
+                      </Link>
+                      <span className="muted">这项在本轮新进入“等待投递判断”的岗位里 current Ranking 最高；没有新增评分。</span>
+                    </div>
+                  ) : afterMatchEvidenceResults.length > 0 && batchEvidenceAction && batchEvidenceProfileHref ? (
+                    <div className="actions">
+                      <Link className="button" href={batchEvidenceProfileHref}>下一步：处理当前最高价值 Evidence</Link>
+                      <span className="muted">本轮没有新解锁到投递判断的岗位；这些成功 Match 岗位仍有 hard blocker，因此继续现有 Evidence Loop。</span>
+                    </div>
+                  ) : afterMatchUnverifiableResults.length > 0 ? (
+                    <p className="muted">本轮迁移结果仍有不可验证项，当前不强行切换到投递判断或下一 Evidence。</p>
                   ) : null}
                   <p className="muted">这里只解释你刚才显式 Match 已产生的最新事实，不会再次运行 Match 或调用 Provider。</p>
                 </>

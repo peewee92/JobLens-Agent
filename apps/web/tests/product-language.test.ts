@@ -181,6 +181,11 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /等待投递判断/);
   assert.match(page, /进入 Evidence Loop/);
   assert.match(page, /暂无法确认迁移/);
+  assert.match(page, /nextAfterMatchApplyReport/);
+  assert.match(page, /下一步：先判断/);
+  assert.match(page, /current Ranking 最高；没有新增评分/);
+  assert.match(page, /下一步：处理当前最高价值 Evidence/);
+  assert.match(page, /当前不强行切换到投递判断或下一 Evidence/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
 
