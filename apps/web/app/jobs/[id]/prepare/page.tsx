@@ -18,7 +18,7 @@ export default async function JobPreparationPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams?: Promise<{returnImport?: string | string[]}>;
+  searchParams?: Promise<{returnImport?: string | string[]; afterMatchJobs?: string | string[]}>;
 }) {
   const {id} = await params;
   const query = searchParams ? await searchParams : {};
@@ -26,6 +26,18 @@ export default async function JobPreparationPage({
   const returnImportId = typeof requestedReturnImport === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(requestedReturnImport)
     ? requestedReturnImport
     : null;
+  const requestedAfterMatchJobs = Array.isArray(query.afterMatchJobs) ? query.afterMatchJobs[0] : query.afterMatchJobs;
+  const afterMatchJobIds = typeof requestedAfterMatchJobs === "string"
+    ? Array.from(new Set(
+        requestedAfterMatchJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
+  const afterMatchQuery = afterMatchJobIds.length > 0
+    ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}`
+    : "";
 
   try {
     const [job, preparation] = await Promise.all([
@@ -43,7 +55,7 @@ export default async function JobPreparationPage({
       <>
         <div className="actions" style={{marginBottom: 18}}>
           {returnImportId ? (
-            <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1`}>
+            <Link className="button-ghost" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}`}>
               ← 返回本次导入
             </Link>
           ) : null}
@@ -72,7 +84,7 @@ export default async function JobPreparationPage({
                   initialReasons={latestFeedback?.reasons ?? []}
                   initialNote={latestFeedback?.note ?? null}
                   successHref={returnImportId
-                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}`
+                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}${afterMatchQuery}`
                     : undefined}
                   successLabel="返回本次导入继续下一步"
                 />
@@ -81,7 +93,7 @@ export default async function JobPreparationPage({
               )}
               {returnImportId ? (
                 <div className="actions">
-                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1`}>
+                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}`}>
                     返回本次导入查看反馈进度
                   </Link>
                 </div>

@@ -53,6 +53,9 @@ export default async function ImportDetailPage({
           .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
       )).slice(0, 20)
     : [];
+  const afterMatchPrepareQuery = requestedAfterMatchJobIds.length > 0
+    ? `&afterMatchJobs=${encodeURIComponent(requestedAfterMatchJobIds.join(","))}`
+    : "";
   const focusImpactJobIds = typeof query.focusImpactJobs === "string"
     ? query.focusImpactJobs.split(",").map((jobId) => jobId.trim().slice(0, 120)).filter(Boolean).slice(0, 3)
     : [];
@@ -405,7 +408,7 @@ export default async function ImportDetailPage({
                   ) : null}
                   {nextAfterMatchApplyReport ? (
                     <div className="actions">
-                      <Link className="button" href={`/jobs/${nextAfterMatchApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                      <Link className="button" href={`/jobs/${nextAfterMatchApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
                         下一步：先判断 {jobLabel(nextAfterMatchApplyReport.jobId)}
                       </Link>
                       <span className="muted">这项在本轮新进入“等待投递判断”的岗位里 current Ranking 最高；没有新增评分。</span>
@@ -483,7 +486,17 @@ export default async function ImportDetailPage({
             afterFeedbackConfirmed ? (
               <div className="notice">
                 <strong>刚完成一项投递判断：</strong>{jobLabel(requestedAfterFeedbackJobId)} 已记录为“{feedbackDecisionShortLabel(afterFeedbackDecision ?? undefined)}”。本页已经按更新后的 latest UserFeedback、当前 Ranking 与 hard blocker 重新计算下一步。
-                {nextApplyDecisionReport ? (
+                {nextAfterMatchApplyReport ? (
+                  <div className="actions">
+                    <Link className="button" href={`/jobs/${nextAfterMatchApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}`}>
+                      下一步：继续判断本轮 Match 解锁的 {jobLabel(nextAfterMatchApplyReport.jobId)}
+                    </Link>
+                  </div>
+                ) : requestedAfterMatchJobIds.length > 0 && afterMatchEvidenceResults.length > 0 && batchEvidenceAction && batchEvidenceProfileHref ? (
+                  <div className="actions">
+                    <Link className="button" href={batchEvidenceProfileHref}>下一步：本轮解锁岗位已判断完，继续处理真实 Evidence</Link>
+                  </div>
+                ) : nextApplyDecisionReport ? (
                   <div className="actions">
                     <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
                       下一步：判断 {jobLabel(nextApplyDecisionReport.jobId)}

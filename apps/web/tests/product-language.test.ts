@@ -37,6 +37,8 @@ test("prepare keeps imported-batch feedback handoff grounded in the current matc
   assert.match(page, /返回本次导入查看反馈进度/);
   assert.match(page, /successHref=/);
   assert.match(page, /afterFeedback=/);
+  assert.match(page, /afterMatchJobs/);
+  assert.match(page, /afterMatchQuery/);
   assert.match(page, /返回本次导入继续下一步/);
 });
 
@@ -185,6 +187,9 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /下一步：先判断/);
   assert.match(page, /current Ranking 最高；没有新增评分/);
   assert.match(page, /下一步：处理当前最高价值 Evidence/);
+  assert.match(page, /afterMatchPrepareQuery/);
+  assert.match(page, /下一步：继续判断本轮 Match 解锁的/);
+  assert.match(page, /本轮解锁岗位已判断完，继续处理真实 Evidence/);
   assert.match(page, /当前不强行切换到投递判断或下一 Evidence/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
