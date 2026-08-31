@@ -199,6 +199,11 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /为什么下一 Evidence 仍值得继续/);
   assert.match(page, /当前既有 Evidence Priority 仍精确命中这轮 Match 中/);
   assert.match(page, /它没有精确命中这轮 Match 里刚验证仍 blocked 的岗位/);
+  assert.match(page, /这组岗位现在还剩多少要处理/);
+  assert.match(page, /已解锁并完成反馈/);
+  assert.match(page, /已解锁、等待反馈/);
+  assert.match(page, /仍需 Evidence/);
+  assert.match(page, /不会把单纯解除 blocker 当成用户已经做完投递判断/);
   assert.match(page, /当前只有不可验证结果，因此这里不声称 Evidence 已经改善或没有改善这些岗位/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });

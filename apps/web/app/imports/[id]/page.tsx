@@ -303,6 +303,11 @@ export default async function ImportDetailPage({
   const postMatchEvidenceBlockedResults = postMatchEvidenceResults.filter((item) => item.status === "blocked");
   const postMatchEvidenceUnverifiableResults = postMatchEvidenceResults.filter((item) => item.status === "unverifiable");
   const postMatchEvidenceBlockedJobIds = new Set(postMatchEvidenceBlockedResults.map((item) => item.jobId));
+  const postMatchEvidenceClearedWithFeedbackCount = postMatchEvidenceClearedResults.filter((item) => {
+    const report = item.report;
+    return Boolean(report && latestFeedbackByReportId.has(report.reportId));
+  }).length;
+  const postMatchEvidenceClearedPendingFeedbackCount = postMatchEvidenceClearedResults.length - postMatchEvidenceClearedWithFeedbackCount;
   const nextEvidencePostMatchTargets = batchEvidenceImpactTargets.filter((target) => postMatchEvidenceBlockedJobIds.has(target.jobId));
   const clearedPreviousEvidenceQueueJobIds = new Set(clearedPreviousEvidenceQueueResults.map((item) => item.jobId));
   const clearedPendingDecisionReports = feedbackAvailable
@@ -536,6 +541,18 @@ export default async function ImportDetailPage({
                     {postMatchEvidenceUnverifiableResults.length > 0 ? (
                       <div className="summary-card"><span>暂无法验证</span><strong>{postMatchEvidenceUnverifiableResults.length}</strong></div>
                     ) : null}
+                  </div>
+                  <div className="notice">
+                    <strong>这组岗位现在还剩多少要处理：</strong>
+                    <div className="summary-grid">
+                      <div className="summary-card"><span>已解锁并完成反馈</span><strong>{postMatchEvidenceClearedWithFeedbackCount}</strong></div>
+                      <div className="summary-card"><span>已解锁、等待反馈</span><strong>{postMatchEvidenceClearedPendingFeedbackCount}</strong></div>
+                      <div className="summary-card"><span>仍需 Evidence</span><strong>{postMatchEvidenceBlockedResults.length}</strong></div>
+                      {postMatchEvidenceUnverifiableResults.length > 0 ? (
+                        <div className="summary-card"><span>暂无法确认</span><strong>{postMatchEvidenceUnverifiableResults.length}</strong></div>
+                      ) : null}
+                    </div>
+                    <p className="muted">这里的“已完成反馈”只统计已经真实存在 latest UserFeedback 的已解锁岗位；不会把单纯解除 blocker 当成用户已经做完投递判断。</p>
                   </div>
                   {postMatchEvidenceClearedResults.length > 0 ? (
                     <p className="muted">新增解锁岗位已经重新进入上面的 post-Match 投递判断队列，并继续按 current Ranking 选择下一项；不会因为 Evidence 回流另建一套排序。</p>
