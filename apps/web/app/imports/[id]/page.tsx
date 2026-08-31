@@ -576,18 +576,28 @@ export default async function ImportDetailPage({
                       ) : (
                         <>
                           <p className="muted">本次实际观察岗位已经全部解除 hard blocker，并且这些已解锁岗位都已有 latest UserFeedback。这组 Evidence 工作可以结束；这里只结束这组观察目标，不代表整个 Import Batch 已完成。</p>
-                          {nextApplyDecisionReport ? (
+                          {batchProcessingComplete ? (
+                            <p className="muted">按当前 current MatchReport、latest UserFeedback 与 blocker facts，这批导入岗位也已经全部完成当前处理。</p>
+                          ) : nextApplyDecisionReport ? (
                             <div className="actions">
                               <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
                                 回到批次剩余判断：{jobLabel(nextApplyDecisionReport.jobId)}
                               </Link>
+                            </div>
+                          ) : matchReadyJobs.length > 0 ? (
+                            <div className="actions">
+                              <Link className="button" href="#batch-match">回到批次：匹配 {matchReadyJobs.length} 个已准备岗位</Link>
+                            </div>
+                          ) : requirementBlockedJobs.length > 0 ? (
+                            <div className="actions">
+                              <Link className="button" href={`/jobs/${requirementBlockedJobs[0]}`}>回到批次：先处理一个岗位要求</Link>
                             </div>
                           ) : batchEvidenceAction && batchEvidenceProfileHref ? (
                             <div className="actions">
                               <Link className="button" href={batchEvidenceProfileHref}>回到批次剩余 Evidence</Link>
                             </div>
                           ) : (
-                            <p className="muted">当前没有更强的批次级主行动；不会把这组 Evidence 的完成误报成整批岗位完成。</p>
+                            <p className="muted">当前没有更强的批次级主行动；不会把这组 Evidence 的完成误报成整批岗位完成，也不会把未知 readiness 猜成可执行状态。</p>
                           )}
                         </>
                       )}

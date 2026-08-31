@@ -208,7 +208,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /这组 post-Match Evidence 已经收敛/);
   assert.match(page, /现在剩下的不是继续补 Evidence，而是完成已解锁岗位的真实 UserFeedback/);
   assert.match(page, /这里只结束这组观察目标，不代表整个 Import Batch 已完成/);
-  assert.match(page, /不会把这组 Evidence 的完成误报成整批岗位完成/);
+  assert.match(page, /回到批次：匹配/);
+  assert.match(page, /回到批次：先处理一个岗位要求/);
+  assert.match(page, /这批导入岗位也已经全部完成当前处理/);
+  assert.match(page, /不会把未知 readiness 猜成可执行状态/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
 
