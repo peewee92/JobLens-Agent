@@ -190,6 +190,7 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /afterMatchPrepareQuery/);
   assert.match(page, /下一步：继续判断本轮 Match 解锁的/);
   assert.match(page, /本轮解锁岗位已判断完，继续处理真实 Evidence/);
+  assert.match(page, /afterMatchJobs=\$\{encodeURIComponent\(requestedAfterMatchJobIds\.join\(","\)\)\}/);
   assert.match(page, /当前不强行切换到投递判断或下一 Evidence/);
   assert.match(page, /不会再次运行 Match 或调用 Provider/);
 });
@@ -200,10 +201,13 @@ test("import evidence continuation returns to the batch only after explicit rema
   const refresh = await source("components/recommendation-refresh.tsx");
 
   assert.match(profile, /returnImport/);
+  assert.match(profile, /query\.set\("afterMatchJobs", afterMatchJobs\)/);
   assert.match(profile, /\^\[A-Za-z0-9_-\]\{1,120\}\$/);
   assert.match(recommendations, /returnImportId/);
+  assert.match(recommendations, /afterMatchJobIds/);
   assert.match(recommendations, /showImprovement=1/);
   assert.match(recommendations, /focusImpactJobs=\$\{encodeURIComponent\(focusImpactJobIds\.join\(","\)\)\}/);
+  assert.match(recommendations, /afterMatchJobs=\$\{encodeURIComponent\(afterMatchJobIds\.join\(","\)\)\}/);
   assert.match(refresh, /returnHref/);
   assert.match(refresh, /state\.kind === "success" && pendingJobIds\.length === 0/);
   assert.match(refresh, /回到这批岗位看改善结果/);

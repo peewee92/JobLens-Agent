@@ -84,6 +84,14 @@ export default async function RecommendationsPage({
   const returnImportId = typeof params.returnImport === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(params.returnImport)
     ? params.returnImport
     : null;
+  const afterMatchJobIds = typeof params.afterMatchJobs === "string"
+    ? Array.from(new Set(
+        params.afterMatchJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
   let jobs;
   try {
     jobs = await fetchJobPage(new URLSearchParams({limit: "50", offset: "0"}));
@@ -708,7 +716,7 @@ export default async function RecommendationsPage({
         focusJobTitle={focusJobTitle}
         focusReportId={focusJobReport?.report.reportId ?? null}
         returnHref={returnImportId
-          ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}`
+          ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}`
           : null}
       />
 
