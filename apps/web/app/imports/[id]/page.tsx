@@ -195,6 +195,11 @@ export default async function ImportDetailPage({
   const batchProcessingComplete = feedbackQueueAvailable
     && matchedCount === batchProcessingTotal
     && completedDecisionReports.length === batchProcessingTotal;
+  const unmatchedProcessingCount = feedbackQueueAvailable
+    ? Math.max(batchProcessingTotal - matchedCount, 0)
+    : null;
+  const pendingApplyDecisionCount = feedbackQueueAvailable ? pendingClearedReports.length : null;
+  const pendingEvidenceCount = feedbackQueueAvailable ? consideredBlockedReports.length : null;
   const nextApplyDecisionReport = pendingClearedReports[0] ?? null;
   const afterFeedbackReport = requestedAfterFeedbackJobId
     ? matchedReports.find((report) => report.jobId === requestedAfterFeedbackJobId) ?? null
@@ -343,19 +348,42 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
-          {feedbackQueueAvailable && batchProcessedCount !== null && batchProcessingRemaining !== null ? (
+          {feedbackQueueAvailable && batchProcessedCount !== null && batchProcessingRemaining !== null && unmatchedProcessingCount !== null && pendingApplyDecisionCount !== null && pendingEvidenceCount !== null ? (
             <div className="notice">
               <strong>本批处理进度：已处理 {batchProcessedCount}/{batchProcessingTotal}</strong>
               {batchProcessingComplete ? (
                 <p className="muted">这批岗位已经全部形成 current MatchReport，并且每个岗位都完成了当前所需处理：无 hard blocker 的岗位已有投递判断，明确“不考虑”的岗位已退出后续 Evidence 待办。当前批次可以视为处理完成。</p>
               ) : (
-                <p className="muted">
-                  还剩 {batchProcessingRemaining} 个岗位没有完成当前处理。
-                  {matchedCount < batchProcessingTotal
-                    ? `其中 ${batchProcessingTotal - matchedCount} 个还没有 current MatchReport，需要先完成 Requirement / Match 流程；`
-                    : ""}
-                  已有 MatchReport 的岗位则继续按“无 hard blocker → 投递判断；有 hard blocker → Evidence Loop”推进。
-                </p>
+                <>
+                  <p className="muted">还剩 {batchProcessingRemaining} 个岗位没有完成当前处理。下面只按当前事实拆分剩余阶段，不把 unknown 状态塞进某个可执行队列。</p>
+                  <div className="summary-grid">
+                    <div className="summary-card"><span>还没形成 MatchReport</span><strong>{unmatchedProcessingCount}</strong></div>
+                    <div className="summary-card"><span>等待投递判断</span><strong>{pendingApplyDecisionCount}</strong></div>
+                    <div className="summary-card"><span>等待 Evidence 改善</span><strong>{pendingEvidenceCount}</strong></div>
+                  </div>
+                  <p className="muted">“等待投递判断”只包含当前无 hard blocker 且尚未反馈的岗位；“等待 Evidence 改善”保留感兴趣/再看看且仍有 blocker 的岗位，明确“不考虑”的岗位已经退出。</p>
+                  {nextApplyDecisionReport ? (
+                    <div className="actions">
+                      <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                        当前主行动：先判断 {jobLabel(nextApplyDecisionReport.jobId)}
+                      </Link>
+                    </div>
+                  ) : matchReadyJobs.length > 0 ? (
+                    <div className="actions">
+                      <Link className="button" href="#batch-match">当前主行动：先匹配 {matchReadyJobs.length} 个已准备岗位</Link>
+                    </div>
+                  ) : requirementBlockedJobs.length > 0 ? (
+                    <div className="actions">
+                      <Link className="button" href={`/jobs/${requirementBlockedJobs[0]}`}>当前主行动：先处理一个岗位要求</Link>
+                    </div>
+                  ) : batchEvidenceAction && batchEvidenceProfileHref ? (
+                    <div className="actions">
+                      <Link className="button" href={batchEvidenceProfileHref}>当前主行动：继续下一项 Evidence</Link>
+                    </div>
+                  ) : (
+                    <p className="muted">当前没有可以基于可靠事实给出的唯一主行动；不会用未知 readiness / blocker 状态替你猜。</p>
+                  )}
+                </>
               )}
             </div>
           ) : matchedReports.length > 0 ? (
@@ -788,7 +816,7 @@ export default async function ImportDetailPage({
           ) : null}
 
           {matchReadyJobs.length > 0 ? (
-            <section className="detail-section">
+            <section className="detail-section" id="batch-match">
               <h3>Requirement 已准备、等待匹配</h3>
               <ul>
                 {matchReadyJobs.map((jobId) => (
