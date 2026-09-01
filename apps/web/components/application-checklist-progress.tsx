@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {useEffect, useMemo, useState} from "react";
 
+import type {ApplicationChecklistItem} from "@/lib/application-checklist";
 import {
   applicationChecklistFingerprint,
   applicationChecklistStorageKey,
@@ -11,19 +12,13 @@ import {
   type ApplicationChecklistStepId,
 } from "@/lib/application-checklist-state";
 
-interface ChecklistItem {
-  id: ApplicationChecklistStepId;
-  label: string;
-  text: string;
-}
-
 export function ApplicationChecklistProgress({
   jobId,
   items,
   completionHref,
 }: {
   jobId: string;
-  items: ChecklistItem[];
+  items: ApplicationChecklistItem[];
   completionHref?: string;
 }) {
   const fingerprint = useMemo(() => applicationChecklistFingerprint(items), [items]);

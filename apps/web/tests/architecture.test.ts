@@ -248,6 +248,7 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
     "utf8",
   );
   const checklist = await readFile(join(webRoot, "components/application-checklist-progress.tsx"), "utf8");
+  const checklistBuilder = await readFile(join(webRoot, "lib/application-checklist.ts"), "utf8");
   const backend = await readFile(join(webRoot, "lib/backend.ts"), "utf8");
 
   assert.match(page, /fetchJobPreparation/);
@@ -257,9 +258,10 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /interviewFacts/);
   assert.match(page, /studyChecklist/);
   assert.match(page, /ApplicationChecklistProgress/);
-  assert.match(page, /先突出最有把握的真实经历/);
-  assert.match(page, /再补最关键的准备缺口/);
-  assert.match(page, /最后准备最高优先级面试问题/);
+  assert.match(page, /buildApplicationChecklistItems/);
+  assert.match(checklistBuilder, /先突出最有把握的真实经历/);
+  assert.match(checklistBuilder, /再补最关键的准备缺口/);
+  assert.match(checklistBuilder, /最后准备最高优先级面试问题/);
   assert.match(page, /returnPrepare/);
   assert.match(page, /补充这项真实 Evidence/);
   assert.match(page, /系统不会因为打开链接就声称缺口已改善/);
@@ -280,6 +282,7 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /evidenceAttributionQuery/);
   assert.match(page, /returnImportProgressHref/);
   assert.match(page, /completionHref=\{returnImportProgressHref\}/);
+  assert.match(page, /afterPreparation=/);
   assert.match(page, /focusImpactRequirementIds/);
   assert.match(checklist, /id="application-checklist"/);
   assert.match(checklist, /申请准备清单/);
@@ -292,7 +295,24 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(backend, /\/api\/v1\/job-preparation\/\$\{encodeURIComponent\(jobId\)\}/);
   assert.doesNotMatch(page, /fetch\(/);
   assert.doesNotMatch(checklist, /fetch\(/);
+  assert.doesNotMatch(checklistBuilder, /fetch\(/);
   assert.doesNotMatch(page, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER|gapSeverity\s*=|mustHaveRatio\s*=/);
+});
+
+test("Import detail revalidates local application checklist progress against current preparation facts", async () => {
+  const page = await readFile(join(webRoot, "app/imports/[id]/page.tsx"), "utf8");
+  const summary = await readFile(join(webRoot, "components/application-checklist-summary.tsx"), "utf8");
+
+  assert.match(page, /afterPreparation/);
+  assert.match(page, /fetchJobPreparation/);
+  assert.match(page, /buildApplicationChecklistItems/);
+  assert.match(page, /ApplicationChecklistSummary/);
+  assert.match(page, /当前无法用这批岗位的最新 JobPreparationBundle 校验/);
+  assert.match(summary, /applicationChecklistFingerprint/);
+  assert.match(summary, /parseApplicationChecklistState/);
+  assert.match(summary, /localStorage/);
+  assert.match(summary, /不代表已经投递/);
+  assert.doesNotMatch(summary, /fetch\(/);
 });
 
 test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {

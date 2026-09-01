@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
+import {ApplicationChecklistSummary} from "@/components/application-checklist-summary";
 import {ImportBatchMatch} from "@/components/import-batch-match";
 import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ImportOutcomePill} from "@/components/status-pill";
@@ -9,6 +10,7 @@ import {
   BackendApiError,
   fetchImportDetail,
   fetchJobDetail,
+  fetchJobPreparation,
   fetchJobRequirementReleaseReadiness,
   fetchLatestUserFeedback,
   fetchMatchBlockerSummary,
@@ -16,6 +18,7 @@ import {
   fetchMatchRanking,
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
+import {buildApplicationChecklistItems} from "@/lib/application-checklist";
 import {
   consideredAffectedJobCount,
   listEvidencePriorityImpactTargets,
@@ -50,6 +53,9 @@ export default async function ImportDetailPage({
     : null;
   const requestedAfterFeedbackJobId = typeof query.afterFeedback === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterFeedback)
     ? query.afterFeedback
+    : null;
+  const requestedAfterPreparationJobId = typeof query.afterPreparation === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(query.afterPreparation)
+    ? query.afterPreparation
     : null;
   const requestedPrepareEvidenceJobIds = typeof query.prepareEvidenceJobs === "string"
     ? Array.from(new Set(
@@ -105,6 +111,14 @@ export default async function ImportDetailPage({
   }
 
   const importedJobIds = detail.items.flatMap((item) => (item.jobId ? [item.jobId] : []));
+  const preparationProgressResult = requestedAfterPreparationJobId && importedJobIds.includes(requestedAfterPreparationJobId)
+    ? await fetchJobPreparation(requestedAfterPreparationJobId)
+        .then((value) => ({status: "fulfilled" as const, value}))
+        .catch((reason) => ({status: "rejected" as const, reason}))
+    : null;
+  const preparationProgressItems = preparationProgressResult?.status === "fulfilled" && preparationProgressResult.value.factsUsable
+    ? buildApplicationChecklistItems(preparationProgressResult.value)
+    : null;
   const [rankingResult, matchReviewReadinessResult, jobDetailResults, readinessResults] = await Promise.all([
     importedJobIds.length > 0
       ? fetchMatchRanking(importedJobIds, {includeBlocked: true})
@@ -586,6 +600,20 @@ export default async function ImportDetailPage({
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
           </div>
+          {requestedAfterPreparationJobId ? (
+            preparationProgressItems ? (
+              <ApplicationChecklistSummary
+                jobId={requestedAfterPreparationJobId}
+                jobLabel={jobLabel(requestedAfterPreparationJobId)}
+                items={preparationProgressItems}
+                prepareHref={`/jobs/${requestedAfterPreparationJobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}
+              />
+            ) : (
+              <div className="notice">
+                当前无法用这批岗位的最新 JobPreparationBundle 校验刚才的申请准备进度，因此这里不展示旧浏览器勾选，也不猜测准备是否完成。
+              </div>
+            )
+          ) : null}
           {requestedAfterMatchJobIds.length > 0 ? (
             <div className="notice" id="batch-match-result">
               <strong>刚完成显式 Match 后，这些岗位进入了哪里：</strong>

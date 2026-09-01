@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import {ApplicationChecklistProgress} from "@/components/application-checklist-progress";
+import {buildApplicationChecklistItems} from "@/lib/application-checklist";
 import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -104,7 +105,7 @@ export default async function JobPreparationPage({
     : [];
   const evidenceAttributionQuery = `${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${focusImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(focusImpactRequirementIds.join(","))}` : ""}`;
   const returnImportProgressHref = returnImportId
-    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}${prepareEvidenceQuery}${prepareAlternativeEvidenceQuery}${evidenceAttributionQuery}`
+    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterPreparation=${encodeURIComponent(id)}${afterMatchQuery}${prepareEvidenceQuery}${prepareAlternativeEvidenceQuery}${evidenceAttributionQuery}`
     : undefined;
 
   try {
@@ -133,22 +134,11 @@ export default async function JobPreparationPage({
     const otherRequirementsReachedByEvidence = focusedEvidenceOutcome === "resolved"
       ? listNewlySupportedRequirements(evidenceImprovement, focusRequirementId)
       : [];
-    const preparationHighlights = preparation.resumeDelta?.highlights ?? [];
+    const preparationChecklistItems = buildApplicationChecklistItems(preparation);
     const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
     const preparationStudyItems = preparation.studyChecklist?.items ?? [];
     const preparationInterviewItems = preparation.interviewFacts?.items ?? [];
-    const topPreparationHighlight = preparationHighlights[0] ?? null;
     const topPreparationEvidenceGap = preparationEvidenceGaps[0] ?? null;
-    const topPreparationStudyItem = preparationStudyItems[0] ?? null;
-    const topInterviewFocus = preparationInterviewItems[0] ?? null;
-    const preparationHighlightText = topPreparationHighlight
-      ? `${topPreparationHighlight.capability}（Evidence：${topPreparationHighlight.evidenceIds.join("、") || "已确认"}）`
-      : "当前没有可安全突出为岗位优势的已确认 Evidence。";
-    const preparationGapText = topPreparationEvidenceGap
-      ? `${topPreparationEvidenceGap.capability}（${topPreparationEvidenceGap.status === "missing" ? "Profile 中缺少该能力事实" : "已有技能事实，但缺少已确认 Evidence"}）`
-      : topPreparationStudyItem
-        ? `${topPreparationStudyItem.capability}（${topPreparationStudyItem.requirementText}）`
-        : "当前没有已识别的 Evidence 缺口或面试前补习项。";
     const topPreparationEvidenceGapRequirementText = topPreparationEvidenceGap
       ? preparationInterviewItems.find((item) => item.requirementId === topPreparationEvidenceGap.requirementId)?.requirementText
         ?? preparationStudyItems.find((item) => item.requirementId === topPreparationEvidenceGap.requirementId)?.requirementText
@@ -157,9 +147,6 @@ export default async function JobPreparationPage({
     const preparationGapProfileHref = topPreparationEvidenceGap
       ? `/profile?next=/recommendations&focusJob=${encodeURIComponent(id)}&focusRequirementId=${encodeURIComponent(topPreparationEvidenceGap.requirementId)}&focusCapability=${encodeURIComponent(topPreparationEvidenceGap.capability)}${topPreparationEvidenceGapRequirementText ? `&focusRequirementText=${encodeURIComponent(topPreparationEvidenceGapRequirementText)}` : ""}&returnPrepare=${encodeURIComponent(id)}${returnImportId ? `&returnImport=${encodeURIComponent(returnImportId)}` : ""}${afterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(afterMatchJobIds.join(","))}` : ""}#profile-evidence-focus`
       : null;
-    const interviewFocusText = topInterviewFocus
-      ? `${topInterviewFocus.requirementText}（优先级：${topInterviewFocus.preparationPriority}）`
-      : "当前没有可可靠生成的面试 Requirement 重点。";
 
     return (
       <>
@@ -254,11 +241,7 @@ export default async function JobPreparationPage({
               <ApplicationChecklistProgress
               jobId={id}
               completionHref={returnImportProgressHref}
-              items={[
-                {id: "highlight", label: "先突出最有把握的真实经历：", text: preparationHighlightText},
-                {id: "gap", label: "再补最关键的准备缺口：", text: preparationGapText},
-                {id: "interview", label: "最后准备最高优先级面试问题：", text: interviewFocusText},
-              ]}
+              items={preparationChecklistItems}
               />
               {preparationGapProfileHref ? (
                 <div className="notice">
