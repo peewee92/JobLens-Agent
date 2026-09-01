@@ -627,6 +627,13 @@ test("import improvement explains why the next evidence action changed", async (
   assert.match(page, /currentEvidenceQueuePriorityTargets/);
   assert.match(page, /不会为了保持连续感猜测下一项证据会帮助哪些岗位/);
   assert.match(page, /不声明这次 Evidence 决策闭环已经完成/);
+  assert.match(page, /同次 Profile 更新带来的额外决策价值/);
+  assert.match(page, /避免把额外价值混成直接归因成果/);
+  assert.match(page, /alternativeEvidenceDecisionSetFullyVerifiable/);
+  assert.match(page, /额外已完成判断/);
+  assert.match(page, /额外仍待判断/);
+  assert.match(page, /nextAlternativeEvidencePendingDecisionReport/);
+  assert.match(page, /不会并入上面的原计划 Evidence 直接产出/);
 });
 
 test("cleared import jobs show a fact-based apply decision summary", async () => {

@@ -275,6 +275,10 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /返回本次导入查看最新批次结果/);
   assert.match(page, /prepareEvidenceJobs/);
   assert.match(page, /prepareEvidenceQuery/);
+  assert.match(page, /prepareAlternativeEvidenceJobs/);
+  assert.match(page, /prepareAlternativeEvidenceQuery/);
+  assert.match(page, /evidenceAttributionQuery/);
+  assert.match(page, /focusImpactRequirementIds/);
   assert.match(checklist, /id="application-checklist"/);
   assert.match(checklist, /申请准备清单/);
   assert.match(checklist, /不会修改 MatchReport、Evidence 或 Ranking/);

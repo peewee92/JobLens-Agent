@@ -27,6 +27,9 @@ export default async function JobPreparationPage({
     afterEvidence?: string | string[];
     focusRequirementId?: string | string[];
     prepareEvidenceJobs?: string | string[];
+    prepareAlternativeEvidenceJobs?: string | string[];
+    focusImpactJobs?: string | string[];
+    focusImpactRequirementIds?: string | string[];
   }>;
 }) {
   const {id} = await params;
@@ -39,6 +42,13 @@ export default async function JobPreparationPage({
   const requestedAfterEvidence = Array.isArray(query.afterEvidence) ? query.afterEvidence[0] : query.afterEvidence;
   const requestedFocusRequirementId = Array.isArray(query.focusRequirementId) ? query.focusRequirementId[0] : query.focusRequirementId;
   const requestedPrepareEvidenceJobs = Array.isArray(query.prepareEvidenceJobs) ? query.prepareEvidenceJobs[0] : query.prepareEvidenceJobs;
+  const requestedPrepareAlternativeEvidenceJobs = Array.isArray(query.prepareAlternativeEvidenceJobs)
+    ? query.prepareAlternativeEvidenceJobs[0]
+    : query.prepareAlternativeEvidenceJobs;
+  const requestedFocusImpactJobs = Array.isArray(query.focusImpactJobs) ? query.focusImpactJobs[0] : query.focusImpactJobs;
+  const requestedFocusImpactRequirementIds = Array.isArray(query.focusImpactRequirementIds)
+    ? query.focusImpactRequirementIds[0]
+    : query.focusImpactRequirementIds;
   const afterEvidence = requestedAfterEvidence === "1";
   const focusRequirementId = typeof requestedFocusRequirementId === "string" && /^[A-Za-z0-9_-]{1,120}$/.test(requestedFocusRequirementId)
     ? requestedFocusRequirementId
@@ -65,6 +75,34 @@ export default async function JobPreparationPage({
   const prepareEvidenceQuery = prepareEvidenceJobIds.length > 0
     ? `&prepareEvidenceJobs=${encodeURIComponent(prepareEvidenceJobIds.join(","))}`
     : "";
+  const prepareAlternativeEvidenceJobIds = typeof requestedPrepareAlternativeEvidenceJobs === "string"
+    ? Array.from(new Set(
+        requestedPrepareAlternativeEvidenceJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
+  const prepareAlternativeEvidenceQuery = prepareAlternativeEvidenceJobIds.length > 0
+    ? `&prepareAlternativeEvidenceJobs=${encodeURIComponent(prepareAlternativeEvidenceJobIds.join(","))}`
+    : "";
+  const focusImpactJobIds = typeof requestedFocusImpactJobs === "string"
+    ? Array.from(new Set(
+        requestedFocusImpactJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 3)
+    : [];
+  const focusImpactRequirementIds = typeof requestedFocusImpactRequirementIds === "string"
+    ? Array.from(new Set(
+        requestedFocusImpactRequirementIds
+          .split(",")
+          .map((requirementId) => requirementId.trim())
+          .filter((requirementId) => /^[A-Za-z0-9_-]{1,120}$/.test(requirementId)),
+      )).slice(0, 20)
+    : [];
+  const evidenceAttributionQuery = `${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${focusImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(focusImpactRequirementIds.join(","))}` : ""}`;
 
   try {
     const [job, preparation] = await Promise.all([
@@ -153,7 +191,7 @@ export default async function JobPreparationPage({
                   initialReasons={latestFeedback?.reasons ?? []}
                   initialNote={latestFeedback?.note ?? null}
                   successHref={returnImportId
-                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}${afterMatchQuery}${prepareEvidenceQuery}`
+                    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1&afterFeedback=${encodeURIComponent(id)}${afterMatchQuery}${prepareEvidenceQuery}${prepareAlternativeEvidenceQuery}${evidenceAttributionQuery}`
                     : undefined}
                   successLabel="返回本次导入继续下一步"
                 />
@@ -162,7 +200,7 @@ export default async function JobPreparationPage({
               )}
               {returnImportId ? (
                 <div className="actions">
-                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}${prepareEvidenceQuery}`}>
+                  <Link className="button" href={`/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}${prepareEvidenceQuery}${prepareAlternativeEvidenceQuery}${evidenceAttributionQuery}`}>
                     返回本次导入查看反馈进度
                   </Link>
                 </div>

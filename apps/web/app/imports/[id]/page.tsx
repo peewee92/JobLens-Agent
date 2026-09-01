@@ -59,6 +59,14 @@ export default async function ImportDetailPage({
           .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
       )).slice(0, 20)
     : [];
+  const requestedPrepareAlternativeEvidenceJobIds = typeof query.prepareAlternativeEvidenceJobs === "string"
+    ? Array.from(new Set(
+        query.prepareAlternativeEvidenceJobs
+          .split(",")
+          .map((jobId) => jobId.trim())
+          .filter((jobId) => /^[A-Za-z0-9_-]{1,120}$/.test(jobId)),
+      )).slice(0, 20)
+    : [];
   const requestedAfterMatchJobIds = typeof query.afterMatchJobs === "string"
     ? Array.from(new Set(
         query.afterMatchJobs
@@ -81,6 +89,7 @@ export default async function ImportDetailPage({
           .filter((requirementId) => /^[A-Za-z0-9_-]{1,120}$/.test(requirementId)),
       )).slice(0, 20)
     : [];
+  const previousEvidenceAttributionQuery = `${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${focusImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(focusImpactRequirementIds.join(","))}` : ""}`;
   let detail;
   try {
     detail = await fetchImportDetail(id);
@@ -398,18 +407,56 @@ export default async function ImportDetailPage({
   const blockedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "blocked");
   const unattributedPreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unattributed");
   const unverifiablePreviousEvidenceQueueResults = previousEvidenceQueueResults.filter((item) => item.status === "unverifiable");
-  const unattributedEvidenceOpportunityJobIds = new Set(
+  const alternativeEvidenceQualifiedJobIds = new Set(
     feedbackQueueAvailable
       ? unattributedPreviousEvidenceQueueResults.flatMap((item) => {
           if (!item.report || (item.alternativeEvidenceProvenance ?? []).length === 0) return [];
-          if (blockerByJobId.has(item.jobId) || latestFeedbackByReportId.has(item.report.reportId)) return [];
+          if (blockerByJobId.has(item.jobId)) return [];
           return [item.jobId];
         })
       : [],
   );
-  const nextUnattributedEvidenceApplyReport = matchedReports.find((report) =>
+  const unattributedEvidenceOpportunityJobIds = new Set(
+    matchedReports.flatMap((report) =>
+      alternativeEvidenceQualifiedJobIds.has(report.jobId) && !latestFeedbackByReportId.has(report.reportId)
+        ? [report.jobId]
+        : [],
+    ),
+  );
+  const unattributedEvidenceOpportunityReports = matchedReports.filter((report) =>
     unattributedEvidenceOpportunityJobIds.has(report.jobId),
-  ) ?? null;
+  );
+  const nextUnattributedEvidenceApplyReport = unattributedEvidenceOpportunityReports[0] ?? null;
+  const verifiedAlternativeEvidenceDecisionReports = feedbackQueueAvailable
+    ? matchedReports.filter((report) =>
+        requestedPrepareAlternativeEvidenceJobIds.includes(report.jobId)
+        && alternativeEvidenceQualifiedJobIds.has(report.jobId),
+      )
+    : [];
+  const alternativeEvidenceDecisionSetFullyVerifiable = requestedPrepareAlternativeEvidenceJobIds.length > 0
+    && verifiedAlternativeEvidenceDecisionReports.length === requestedPrepareAlternativeEvidenceJobIds.length;
+  const alternativeEvidenceCompletedDecisionReports = verifiedAlternativeEvidenceDecisionReports.filter((report) =>
+    latestFeedbackByReportId.has(report.reportId),
+  );
+  const alternativeEvidencePendingDecisionReports = verifiedAlternativeEvidenceDecisionReports.filter((report) =>
+    !latestFeedbackByReportId.has(report.reportId),
+  );
+  const alternativeEvidenceInterestedCount = alternativeEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "interested",
+  ).length;
+  const alternativeEvidenceMaybeCount = alternativeEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "maybe",
+  ).length;
+  const alternativeEvidenceRejectedCount = alternativeEvidenceCompletedDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "rejected",
+  ).length;
+  const nextAlternativeEvidencePendingDecisionReport = alternativeEvidencePendingDecisionReports[0] ?? null;
+  const alternativeEvidenceDecisionQuery = verifiedAlternativeEvidenceDecisionReports.length > 0
+    ? `&prepareAlternativeEvidenceJobs=${encodeURIComponent(verifiedAlternativeEvidenceDecisionReports.map((report) => report.jobId).join(","))}`
+    : "";
+  const unattributedEvidenceOpportunityQuery = unattributedEvidenceOpportunityReports.length > 0
+    ? `&prepareAlternativeEvidenceJobs=${encodeURIComponent(unattributedEvidenceOpportunityReports.map((report) => report.jobId).join(","))}`
+    : "";
   const verifiedPreviousEvidenceQueueCount = clearedPreviousEvidenceQueueResults.length + blockedPreviousEvidenceQueueResults.length;
   const afterMatchJobIdSet = new Set(requestedAfterMatchJobIds);
   const postMatchEvidenceResults = previousEvidenceQueueResults.filter((item) => afterMatchJobIdSet.has(item.jobId));
@@ -733,10 +780,38 @@ export default async function ImportDetailPage({
                     )}
                   </div>
                 ) : null}
+                {requestedPrepareAlternativeEvidenceJobIds.length > 0 ? (
+                  <div className="detail-section">
+                    <strong>同次 Profile 更新带来的额外决策价值：</strong>
+                    <p className="muted">这一组岗位不是原计划 Evidence 直接解除的目标；它们必须仍能由 alternative Evidence → Requirement provenance + 当前 blocker 清零重新验证，才会计入这里，避免把额外价值混成直接归因成果。</p>
+                    <div className="summary-grid">
+                      <div className="summary-card"><span>额外已完成判断</span><strong>{alternativeEvidenceCompletedDecisionReports.length}</strong></div>
+                      <div className="summary-card"><span>额外仍待判断</span><strong>{alternativeEvidencePendingDecisionReports.length}</strong></div>
+                      <div className="summary-card"><span>感兴趣</span><strong>{alternativeEvidenceInterestedCount}</strong></div>
+                      <div className="summary-card"><span>再看看</span><strong>{alternativeEvidenceMaybeCount}</strong></div>
+                      <div className="summary-card"><span>不考虑</span><strong>{alternativeEvidenceRejectedCount}</strong></div>
+                    </div>
+                    {alternativeEvidenceDecisionSetFullyVerifiable ? (
+                      alternativeEvidencePendingDecisionReports.length > 0 ? (
+                        <p className="muted">仍待判断：{alternativeEvidencePendingDecisionReports.slice(0, 3).map((report) => jobLabel(report.jobId)).join("、")}。这些只算“同次更新中的其他真实 Evidence 带来的额外解锁”，不会并入上面的原计划 Evidence 直接产出。</p>
+                      ) : (
+                        <p className="muted">这组额外解锁岗位都已完成 latest UserFeedback；结果单独保留为额外价值，不改写原计划 Evidence 的直接归因摘要。</p>
+                      )
+                    ) : (
+                      <p className="muted">当前有岗位已经无法由 alternative provenance + current blocker facts 完整验证，因此这里不声明这组额外决策产出已收敛。</p>
+                    )}
+                  </div>
+                ) : null}
                 {nextPrepareEvidencePendingDecisionReport ? (
                   <div className="actions">
                     <Link className="button" href={`/jobs/${nextPrepareEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}`}>
                       下一步：继续判断这次 Evidence 解锁的 {jobLabel(nextPrepareEvidencePendingDecisionReport.jobId)}
+                    </Link>
+                  </div>
+                ) : nextAlternativeEvidencePendingDecisionReport ? (
+                  <div className="actions">
+                    <Link className="button" href={`/jobs/${nextAlternativeEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}>
+                      下一步：继续判断额外解锁的 {jobLabel(nextAlternativeEvidencePendingDecisionReport.jobId)}
                     </Link>
                   </div>
                 ) : nextAfterMatchApplyReport ? (
@@ -1057,7 +1132,7 @@ export default async function ImportDetailPage({
                       </ul>
                       {nextUnattributedEvidenceApplyReport ? (
                         <div className="actions">
-                          <Link className="button" href={`/jobs/${nextUnattributedEvidenceApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
+                          <Link className="button" href={`/jobs/${nextUnattributedEvidenceApplyReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${unattributedEvidenceOpportunityQuery}${previousEvidenceAttributionQuery}`}>
                             下一步：判断 {jobLabel(nextUnattributedEvidenceApplyReport.jobId)}
                           </Link>
                           <span className="muted">按 current Ranking 顺序选择第一个由其他真实 Evidence 解锁、且尚未完成 UserFeedback 的岗位。</span>
