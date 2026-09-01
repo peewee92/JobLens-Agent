@@ -103,6 +103,9 @@ export default async function JobPreparationPage({
       )).slice(0, 20)
     : [];
   const evidenceAttributionQuery = `${focusImpactJobIds.length > 0 ? `&focusImpactJobs=${encodeURIComponent(focusImpactJobIds.join(","))}` : ""}${focusImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(focusImpactRequirementIds.join(","))}` : ""}`;
+  const returnImportProgressHref = returnImportId
+    ? `/imports/${encodeURIComponent(returnImportId)}?showImprovement=1${afterMatchQuery}${prepareEvidenceQuery}${prepareAlternativeEvidenceQuery}${evidenceAttributionQuery}`
+    : undefined;
 
   try {
     const [job, preparation] = await Promise.all([
@@ -250,6 +253,7 @@ export default async function JobPreparationPage({
             <>
               <ApplicationChecklistProgress
               jobId={id}
+              completionHref={returnImportProgressHref}
               items={[
                 {id: "highlight", label: "先突出最有把握的真实经历：", text: preparationHighlightText},
                 {id: "gap", label: "再补最关键的准备缺口：", text: preparationGapText},

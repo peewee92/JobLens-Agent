@@ -278,10 +278,16 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(page, /prepareAlternativeEvidenceJobs/);
   assert.match(page, /prepareAlternativeEvidenceQuery/);
   assert.match(page, /evidenceAttributionQuery/);
+  assert.match(page, /returnImportProgressHref/);
+  assert.match(page, /completionHref=\{returnImportProgressHref\}/);
   assert.match(page, /focusImpactRequirementIds/);
   assert.match(checklist, /id="application-checklist"/);
   assert.match(checklist, /申请准备清单/);
   assert.match(checklist, /不会修改 MatchReport、Evidence 或 Ranking/);
+  assert.match(checklist, /这份岗位申请准备清单已完成/);
+  assert.match(checklist, /不代表系统已经替你投递/);
+  assert.match(checklist, /返回本次导入继续处理/);
+  assert.match(checklist, /completionHref/);
   assert.match(checklist, /localStorage/);
   assert.match(backend, /\/api\/v1\/job-preparation\/\$\{encodeURIComponent\(jobId\)\}/);
   assert.doesNotMatch(page, /fetch\(/);

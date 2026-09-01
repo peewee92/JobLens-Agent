@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useEffect, useMemo, useState} from "react";
 
 import {
@@ -16,7 +17,15 @@ interface ChecklistItem {
   text: string;
 }
 
-export function ApplicationChecklistProgress({jobId, items}: {jobId: string; items: ChecklistItem[]}) {
+export function ApplicationChecklistProgress({
+  jobId,
+  items,
+  completionHref,
+}: {
+  jobId: string;
+  items: ChecklistItem[];
+  completionHref?: string;
+}) {
   const fingerprint = useMemo(() => applicationChecklistFingerprint(items), [items]);
   const [completed, setCompleted] = useState<ApplicationChecklistStepId[]>([]);
 
@@ -28,6 +37,8 @@ export function ApplicationChecklistProgress({jobId, items}: {jobId: string; ite
     window.localStorage.setItem(applicationChecklistStorageKey(jobId), JSON.stringify(state));
     setCompleted(state.completed);
   }, [jobId, fingerprint]);
+
+  const checklistComplete = items.length > 0 && items.every((item) => completed.includes(item.id));
 
   const toggle = (stepId: ApplicationChecklistStepId) => {
     const current = {fingerprint, completed};
@@ -59,6 +70,19 @@ export function ApplicationChecklistProgress({jobId, items}: {jobId: string; ite
           </li>
         ))}
       </ol>
+      {checklistComplete ? (
+        <div className="notice" data-testid="application-checklist-complete">
+          <strong>这份岗位申请准备清单已完成</strong>
+          <p className="muted">这里只表示你已经处理完当前三项准备任务，不代表系统已经替你投递，也不会改变 MatchReport、Ranking 或 UserFeedback。</p>
+          {completionHref ? (
+            <div className="actions">
+              <Link className="button" href={completionHref}>返回本次导入继续处理 →</Link>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="muted">完成当前三项后，这里会明确提示准备已收敛；如果准备事实发生变化，进度会按新事实自动重置。</p>
+      )}
     </section>
   );
 }
