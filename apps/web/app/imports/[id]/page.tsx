@@ -835,18 +835,22 @@ export default async function ImportDetailPage({
                       <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
                         当前主行动：先判断 {jobLabel(nextApplyDecisionReport.jobId)}
                       </Link>
+                      <span className="muted">这个岗位已有 current MatchReport、当前没有 hard blocker，但还没有 latest UserFeedback；先完成真实投递判断，才能继续收敛 Ranking → UserFeedback 闭环。</span>
                     </div>
                   ) : matchReadyJobs.length > 0 ? (
                     <div className="actions">
                       <Link className="button" href="#batch-match">当前主行动：先匹配 {matchReadyJobs.length} 个已准备岗位</Link>
+                      <span className="muted">这 {matchReadyJobs.length} 个岗位的 Requirement 已达到当前 release / Match readiness；只有显式 Match 后才能形成 current MatchReport，再进入 Ranking 与投递判断。</span>
                     </div>
                   ) : requirementBlockedJobs.length > 0 ? (
                     <div className="actions">
                       <Link className="button" href={`/jobs/${requirementBlockedJobs[0]}`}>当前主行动：先处理一个岗位要求</Link>
+                      <span className="muted">目前没有更靠前的待判断或 Match-ready 岗位；这批仍有 {requirementBlockedJobs.length} 个岗位被 Requirement release 阻塞，先让其中一个进入可匹配状态。</span>
                     </div>
                   ) : batchEvidenceAction && batchEvidenceProfileHref ? (
                     <div className="actions">
                       <Link className="button" href={batchEvidenceProfileHref}>当前主行动：继续下一项 Evidence</Link>
+                      <span className="muted">当前没有更靠前的待判断、Match-ready 或 Requirement-blocked 行动；现有 Evidence action 精确覆盖 {batchEvidenceImpactTargets.length} 个仍在考虑岗位的 Requirement blocker，继续它能回到 Evidence → Re-match → 可见结果。</span>
                     </div>
                   ) : (
                     <p className="muted">当前没有可以基于可靠事实给出的唯一主行动；不会用未知 readiness / blocker 状态替你猜。</p>

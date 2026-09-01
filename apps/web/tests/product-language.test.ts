@@ -72,6 +72,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /当前没有 hard blocker，先完成它的投递判断最省步骤/);
   assert.match(page, /先完成这个岗位的投递判断/);
   assert.match(page, /这批岗位现在还剩哪些待办/);
+  assert.match(page, /已有 current MatchReport、当前没有 hard blocker/);
+  assert.match(page, /Requirement 已达到当前 release \/ Match readiness/);
+  assert.match(page, /被 Requirement release 阻塞/);
+  assert.match(page, /Evidence action 精确覆盖 \{batchEvidenceImpactTargets.length\} 个仍在考虑岗位/);
   assert.match(page, /可直接做投递判断/);
   assert.match(page, /仍需补真实证据/);
   assert.match(page, /当前已完成处理/);
