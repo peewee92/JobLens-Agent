@@ -4,6 +4,7 @@ import test from "node:test";
 import {buildApplicationChecklistItems} from "../lib/application-checklist";
 import {
   applicationChecklistFingerprint,
+  isApplicationChecklistComplete,
   parseApplicationChecklistState,
   toggleApplicationChecklistStep,
 } from "../lib/application-checklist-state";
@@ -38,6 +39,17 @@ test("application checklist resets completion when preparation facts change", ()
   }), newFingerprint);
 
   assert.deepEqual(state, {fingerprint: newFingerprint, completed: []});
+});
+
+test("application checklist completion requires all current-fingerprint steps", () => {
+  const fingerprint = applicationChecklistFingerprint(items);
+  const completeRaw = JSON.stringify({fingerprint, completed: ["highlight", "gap", "interview"]});
+  const staleRaw = JSON.stringify({fingerprint: "stale", completed: ["highlight", "gap", "interview"]});
+
+  assert.equal(isApplicationChecklistComplete(completeRaw, items), true);
+  assert.equal(isApplicationChecklistComplete(staleRaw, items), false);
+  assert.equal(isApplicationChecklistComplete(null, items), false);
+  assert.equal(isApplicationChecklistComplete(completeRaw, []), false);
 });
 
 test("application checklist toggles user progress without changing its fact fingerprint", () => {

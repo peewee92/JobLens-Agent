@@ -33,6 +33,16 @@ export function parseApplicationChecklistState(raw: string | null, fingerprint: 
   }
 }
 
+export function isApplicationChecklistComplete(
+  raw: string | null,
+  items: Array<{id: ApplicationChecklistStepId; text: string}>,
+): boolean {
+  if (items.length === 0) return false;
+  const fingerprint = applicationChecklistFingerprint(items);
+  const state = parseApplicationChecklistState(raw, fingerprint);
+  return items.every((item) => state.completed.includes(item.id));
+}
+
 export function toggleApplicationChecklistStep(
   state: ApplicationChecklistState,
   stepId: ApplicationChecklistStepId,

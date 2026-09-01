@@ -188,6 +188,25 @@ export default async function ImportDetailPage({
   const finalRejectedReports = feedbackAvailable
     ? matchedReports.filter((report) => latestFeedbackByReportId.get(report.reportId)?.decision === "rejected")
     : [];
+  const afterPreparationInterestedReports = requestedAfterPreparationJobId
+    ? finalInterestedReports.filter((report) => report.jobId !== requestedAfterPreparationJobId)
+    : [];
+  const afterPreparationInterestedPreparationResults = requestedAfterPreparationJobId
+    ? await Promise.allSettled(
+        afterPreparationInterestedReports.map(async (report) => ({
+          report,
+          preparation: await fetchJobPreparation(report.jobId),
+        })),
+      )
+    : [];
+  const afterPreparationInterestedCandidates = afterPreparationInterestedPreparationResults.map((result, index) => {
+    const report = afterPreparationInterestedReports[index];
+    if (!report) return null;
+    if (result.status !== "fulfilled" || !result.value.preparation.factsUsable) {
+      return {report, items: null};
+    }
+    return {report, items: buildApplicationChecklistItems(result.value.preparation)};
+  }).filter((candidate): candidate is {report: (typeof finalInterestedReports)[number]; items: ReturnType<typeof buildApplicationChecklistItems> | null} => candidate !== null);
   const pendingFeedbackReports = feedbackAvailable
     ? matchedReports.filter((report) => !latestFeedbackByReportId.has(report.reportId))
     : [];
@@ -556,8 +575,24 @@ export default async function ImportDetailPage({
     const job = jobDetailById.get(jobId);
     return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
   };
-  const nextAfterPreparationInterestedReport = requestedAfterPreparationJobId
-    ? finalInterestedReports.find((report) => report.jobId !== requestedAfterPreparationJobId) ?? null
+  const afterPreparationFallbackAction = requestedAfterPreparationJobId
+    ? nextApplyDecisionReport
+      ? {
+          href: `/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
+          label: `回到批次：判断 ${jobLabel(nextApplyDecisionReport.jobId)}`,
+        }
+      : matchReadyJobs.length > 0
+        ? {href: "#batch-match", label: `回到批次：匹配 ${matchReadyJobs.length} 个已准备岗位`}
+        : requirementBlockedJobs.length > 0
+          ? {href: `/jobs/${requirementBlockedJobs[0]}`, label: "回到批次：先处理一个岗位要求"}
+          : batchEvidenceAction && batchEvidenceProfileHref
+            ? {href: batchEvidenceProfileHref, label: "回到批次：继续下一项 Evidence"}
+            : finalMaybeReports[0]
+              ? {
+                  href: `/jobs/${finalMaybeReports[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
+                  label: `复核保留观察岗位：${jobLabel(finalMaybeReports[0].jobId)}`,
+                }
+              : {href: "/import", label: "当前批次没有其他可执行目标，导入下一批岗位"}
     : null;
 
   const feedbackDecisionLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
@@ -611,10 +646,14 @@ export default async function ImportDetailPage({
                 jobLabel={jobLabel(requestedAfterPreparationJobId)}
                 items={preparationProgressItems}
                 prepareHref={`/jobs/${requestedAfterPreparationJobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}
-                nextApplicationHref={nextAfterPreparationInterestedReport
-                  ? `/jobs/${nextAfterPreparationInterestedReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`
-                  : undefined}
-                nextApplicationLabel={nextAfterPreparationInterestedReport ? jobLabel(nextAfterPreparationInterestedReport.jobId) : undefined}
+                interestedCandidates={afterPreparationInterestedCandidates.map(({report, items}) => ({
+                  jobId: report.jobId,
+                  jobLabel: jobLabel(report.jobId),
+                  prepareHref: `/jobs/${report.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`,
+                  items,
+                }))}
+                fallbackHref={afterPreparationFallbackAction?.href ?? "/import"}
+                fallbackLabel={afterPreparationFallbackAction?.label ?? "回到批次继续下一步"}
               />
             ) : (
               <div className="notice">

@@ -7,6 +7,7 @@ import type {ApplicationChecklistItem} from "@/lib/application-checklist";
 import {
   applicationChecklistFingerprint,
   applicationChecklistStorageKey,
+  isApplicationChecklistComplete,
   parseApplicationChecklistState,
   type ApplicationChecklistStepId,
 } from "@/lib/application-checklist-state";
@@ -16,15 +17,22 @@ export function ApplicationChecklistSummary({
   jobLabel,
   items,
   prepareHref,
-  nextApplicationHref,
-  nextApplicationLabel,
+  interestedCandidates,
+  fallbackHref,
+  fallbackLabel,
 }: {
   jobId: string;
   jobLabel: string;
   items: ApplicationChecklistItem[];
   prepareHref: string;
-  nextApplicationHref?: string;
-  nextApplicationLabel?: string;
+  interestedCandidates: Array<{
+    jobId: string;
+    jobLabel: string;
+    prepareHref: string;
+    items: ApplicationChecklistItem[] | null;
+  }>;
+  fallbackHref: string;
+  fallbackLabel: string;
 }) {
   const fingerprint = useMemo(() => applicationChecklistFingerprint(items), [items]);
   const [completed, setCompleted] = useState<ApplicationChecklistStepId[]>([]);
@@ -39,6 +47,15 @@ export function ApplicationChecklistSummary({
 
   const completedCount = items.filter((item) => completed.includes(item.id)).length;
   const complete = items.length > 0 && completedCount === items.length;
+  const nextInterestedCandidate = complete
+    ? interestedCandidates.find((candidate) => {
+        if (!candidate.items) return true;
+        return !isApplicationChecklistComplete(
+          window.localStorage.getItem(applicationChecklistStorageKey(candidate.jobId)),
+          candidate.items,
+        );
+      }) ?? null
+    : null;
 
   return (
     <div className="notice" data-testid="application-checklist-summary">
@@ -49,18 +66,26 @@ export function ApplicationChecklistSummary({
           : "这是本浏览器里的 ActionItem 进度；只有与当前 JobPreparationBundle 事实指纹一致的勾选才会保留，旧准备事实不会被算进来。"}
       </p>
       <div className="actions">
-        {complete && nextApplicationHref && nextApplicationLabel ? (
+        {complete ? (
           <>
-            <Link className="button" href={nextApplicationHref}>
-              准备下一个感兴趣岗位：{nextApplicationLabel} →
-            </Link>
+            {nextInterestedCandidate ? (
+              <Link className="button" href={nextInterestedCandidate.prepareHref}>
+                {nextInterestedCandidate.items
+                  ? `准备下一个尚未完成的感兴趣岗位：${nextInterestedCandidate.jobLabel}`
+                  : `检查下一个感兴趣岗位的准备状态：${nextInterestedCandidate.jobLabel}`} →
+              </Link>
+            ) : (
+              <Link className="button" href={fallbackHref}>
+                {fallbackLabel} →
+              </Link>
+            )}
             <Link className="button-secondary" href={prepareHref}>
               查看当前申请准备
             </Link>
           </>
         ) : (
-          <Link className={complete ? "button-secondary" : "button"} href={prepareHref}>
-            {complete ? "查看当前申请准备" : "继续申请准备"} →
+          <Link className="button" href={prepareHref}>
+            继续申请准备 →
           </Link>
         )}
       </div>

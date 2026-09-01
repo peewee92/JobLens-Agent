@@ -312,10 +312,14 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(summary, /parseApplicationChecklistState/);
   assert.match(summary, /localStorage/);
   assert.match(summary, /不代表已经投递/);
-  assert.match(summary, /nextApplicationHref/);
-  assert.match(summary, /准备下一个感兴趣岗位/);
-  assert.match(page, /nextAfterPreparationInterestedReport/);
-  assert.match(page, /finalInterestedReports\.find/);
+  assert.match(summary, /interestedCandidates/);
+  assert.match(summary, /isApplicationChecklistComplete/);
+  assert.match(summary, /准备下一个尚未完成的感兴趣岗位/);
+  assert.match(summary, /fallbackHref/);
+  assert.match(page, /afterPreparationInterestedPreparationResults/);
+  assert.match(page, /Promise\.allSettled/);
+  assert.match(page, /afterPreparationFallbackAction/);
+  assert.match(page, /当前批次没有其他可执行目标，导入下一批岗位/);
   assert.doesNotMatch(summary, /fetch\(/);
 });
 
