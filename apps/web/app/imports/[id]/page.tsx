@@ -454,6 +454,28 @@ export default async function ImportDetailPage({
   const alternativeEvidenceDecisionQuery = verifiedAlternativeEvidenceDecisionReports.length > 0
     ? `&prepareAlternativeEvidenceJobs=${encodeURIComponent(verifiedAlternativeEvidenceDecisionReports.map((report) => report.jobId).join(","))}`
     : "";
+  const evidenceUpdateDecisionReports = matchedReports.filter((report) =>
+    verifiedPrepareEvidenceDecisionReports.some((item) => item.reportId === report.reportId)
+    || verifiedAlternativeEvidenceDecisionReports.some((item) => item.reportId === report.reportId),
+  );
+  const evidenceUpdateDecisionSetFullyVerifiable = (requestedPrepareEvidenceJobIds.length > 0 || requestedPrepareAlternativeEvidenceJobIds.length > 0)
+    && (requestedPrepareEvidenceJobIds.length === 0 || prepareEvidenceDecisionSetFullyVerifiable)
+    && (requestedPrepareAlternativeEvidenceJobIds.length === 0 || alternativeEvidenceDecisionSetFullyVerifiable);
+  const evidenceUpdatePendingDecisionReports = evidenceUpdateDecisionReports.filter((report) =>
+    !latestFeedbackByReportId.has(report.reportId),
+  );
+  const evidenceUpdateDecisionLoopComplete = evidenceUpdateDecisionSetFullyVerifiable
+    && evidenceUpdatePendingDecisionReports.length === 0;
+  const evidenceUpdateInterestedReports = evidenceUpdateDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "interested",
+  );
+  const evidenceUpdateMaybeReports = evidenceUpdateDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "maybe",
+  );
+  const evidenceUpdateRejectedReports = evidenceUpdateDecisionReports.filter(
+    (report) => latestFeedbackByReportId.get(report.reportId)?.decision === "rejected",
+  );
+  const evidenceUpdatePrimaryApplicationReport = evidenceUpdateInterestedReports[0] ?? evidenceUpdateMaybeReports[0] ?? null;
   const unattributedEvidenceOpportunityQuery = unattributedEvidenceOpportunityReports.length > 0
     ? `&prepareAlternativeEvidenceJobs=${encodeURIComponent(unattributedEvidenceOpportunityReports.map((report) => report.jobId).join(","))}`
     : "";
@@ -802,15 +824,37 @@ export default async function ImportDetailPage({
                     )}
                   </div>
                 ) : null}
-                {nextPrepareEvidencePendingDecisionReport ? (
+                {evidenceUpdateDecisionLoopComplete ? (
+                  <div className="detail-section">
+                    <strong>这次 Profile Evidence 更新已经形成完整决策结果</strong>
+                    <p className="muted">下面把原计划 Evidence 的直接产出与同次更新中其他 Evidence 的额外价值放在同一个结果出口里，但归因口径仍保持分离；顺序继续沿用 current Ranking。</p>
+                    <div className="summary-grid">
+                      <div className="summary-card"><span>直接解锁</span><strong>{verifiedPrepareEvidenceDecisionReports.length}</strong></div>
+                      <div className="summary-card"><span>额外解锁</span><strong>{verifiedAlternativeEvidenceDecisionReports.length}</strong></div>
+                      <div className="summary-card"><span>感兴趣</span><strong>{evidenceUpdateInterestedReports.length}</strong></div>
+                      <div className="summary-card"><span>再看看</span><strong>{evidenceUpdateMaybeReports.length}</strong></div>
+                      <div className="summary-card"><span>不考虑</span><strong>{evidenceUpdateRejectedReports.length}</strong></div>
+                    </div>
+                    {evidenceUpdatePrimaryApplicationReport ? (
+                      <div className="actions">
+                        <Link className="button" href={`/jobs/${evidenceUpdatePrimaryApplicationReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}>
+                          {latestFeedbackByReportId.get(evidenceUpdatePrimaryApplicationReport.reportId)?.decision === "interested" ? "下一步：准备申请" : "下一步：复核观察岗位"} {jobLabel(evidenceUpdatePrimaryApplicationReport.jobId)}
+                        </Link>
+                        <span className="muted">优先选择 current Ranking 最高的“感兴趣”岗位；若没有感兴趣岗位，才复核最高 Ranking 的“再看看”。明确“不考虑”的岗位不会被继续推动。</span>
+                      </div>
+                    ) : (
+                      <p className="muted">这次更新解锁的岗位都已明确“不考虑”；不再为这组岗位继续做申请准备，回到当前批次的剩余主行动。</p>
+                    )}
+                  </div>
+                ) : nextPrepareEvidencePendingDecisionReport ? (
                   <div className="actions">
-                    <Link className="button" href={`/jobs/${nextPrepareEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}`}>
+                    <Link className="button" href={`/jobs/${nextPrepareEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}>
                       下一步：继续判断这次 Evidence 解锁的 {jobLabel(nextPrepareEvidencePendingDecisionReport.jobId)}
                     </Link>
                   </div>
                 ) : nextAlternativeEvidencePendingDecisionReport ? (
                   <div className="actions">
-                    <Link className="button" href={`/jobs/${nextAlternativeEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}>
+                    <Link className="button" href={`/jobs/${nextAlternativeEvidencePendingDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}>
                       下一步：继续判断额外解锁的 {jobLabel(nextAlternativeEvidencePendingDecisionReport.jobId)}
                     </Link>
                   </div>
