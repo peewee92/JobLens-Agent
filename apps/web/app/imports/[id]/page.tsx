@@ -580,19 +580,39 @@ export default async function ImportDetailPage({
       ? {
           href: `/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
           label: `回到批次：判断 ${jobLabel(nextApplyDecisionReport.jobId)}`,
+          reason: `当前还有 ${pendingApplyDecisionCount ?? 0} 个岗位已经有 current MatchReport、没有 hard blocker，但尚未记录投递判断；先完成判断能直接把现有 Ranking 结果转成用户决策，不需要生成新的分析。`,
         }
       : matchReadyJobs.length > 0
-        ? {href: "#batch-match", label: `回到批次：匹配 ${matchReadyJobs.length} 个已准备岗位`}
+        ? {
+            href: "#batch-match",
+            label: `回到批次：匹配 ${matchReadyJobs.length} 个已准备岗位`,
+            reason: `当前有 ${matchReadyJobs.length} 个岗位的 Requirement 已达到 release / Match readiness，但还没有 current MatchReport；下一步需要用户显式 Match，才能进入 Ranking 与投递判断。`,
+          }
         : requirementBlockedJobs.length > 0
-          ? {href: `/jobs/${requirementBlockedJobs[0]}`, label: "回到批次：先处理一个岗位要求"}
+          ? {
+              href: `/jobs/${requirementBlockedJobs[0]}`,
+              label: "回到批次：先处理一个岗位要求",
+              reason: `当前还有 ${requirementBlockedJobs.length} 个岗位的 Requirement 尚未达到 release 条件；在这些事实准备好之前，不应提前运行 Match 或解释排序结果。`,
+            }
           : batchEvidenceAction && batchEvidenceProfileHref
-            ? {href: batchEvidenceProfileHref, label: "回到批次：继续下一项 Evidence"}
+            ? {
+                href: batchEvidenceProfileHref,
+                label: "回到批次：继续下一项 Evidence",
+                reason: batchEvidenceImpactTargets.length > 0
+                  ? `当前 Evidence action 精确命中 ${batchEvidenceImpactTargets.length} 个仍在考虑岗位的 Requirement；这些 hard blocker 需要先用真实经历补证，再通过显式 Re-match 验证是否解除。`
+                  : "当前仍有 Evidence blocker，但没有更早阶段的待判断、Match-ready 或 Requirement blocker；继续现有 Evidence action 是当前可验证的下一步。",
+              }
             : finalMaybeReports[0]
               ? {
                   href: `/jobs/${finalMaybeReports[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
                   label: `复核保留观察岗位：${jobLabel(finalMaybeReports[0].jobId)}`,
+                  reason: `当前没有更早阶段的待判断、Match-ready、Requirement 或 Evidence 工作；剩余 ${finalMaybeReports.length} 个“再看看”岗位，因此按 current Ranking 先复核最高的一项。`,
                 }
-              : {href: "/import", label: "当前批次没有其他可执行目标，导入下一批岗位"}
+              : {
+                  href: "/import",
+                  label: "当前批次没有其他可执行目标，导入下一批岗位",
+                  reason: "当前批次没有可验证的待判断、Match-ready、Requirement blocker、Evidence blocker 或 maybe 复核项；继续制造新动作不会增加主闭环价值。",
+                }
     : null;
 
   const feedbackDecisionLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
@@ -654,6 +674,7 @@ export default async function ImportDetailPage({
                 }))}
                 fallbackHref={afterPreparationFallbackAction?.href ?? "/import"}
                 fallbackLabel={afterPreparationFallbackAction?.label ?? "回到批次继续下一步"}
+                fallbackReason={afterPreparationFallbackAction?.reason ?? "继续使用当前批次已有事实选择下一步，不新增评分或状态。"}
                 batchRemainder={{
                   pendingDecision: pendingApplyDecisionCount ?? 0,
                   matchReady: matchReadyJobs.length,

@@ -318,6 +318,8 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(summary, /fallbackHref/);
   assert.match(summary, /application-batch-handoff-summary/);
   assert.match(summary, /这批感兴趣岗位的当前申请准备已经收敛/);
+  assert.match(summary, /为什么现在先做这一步/);
+  assert.match(summary, /fallbackReason/);
   assert.match(summary, /batchRemainder\.pendingDecision/);
   assert.match(summary, /batchRemainder\.matchReady/);
   assert.match(summary, /batchRemainder\.requirementBlocked/);
@@ -328,6 +330,9 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(page, /afterPreparationInterestedPreparationResults/);
   assert.match(page, /Promise\.allSettled/);
   assert.match(page, /afterPreparationFallbackAction/);
+  assert.match(page, /current MatchReport、没有 hard blocker/);
+  assert.match(page, /Requirement 已达到 release \/ Match readiness/);
+  assert.match(page, /Evidence action 精确命中/);
   assert.match(page, /当前批次没有其他可执行目标，导入下一批岗位/);
   assert.doesNotMatch(summary, /fetch\(/);
 });

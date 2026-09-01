@@ -20,6 +20,7 @@ export function ApplicationChecklistSummary({
   interestedCandidates,
   fallbackHref,
   fallbackLabel,
+  fallbackReason,
   batchRemainder,
 }: {
   jobId: string;
@@ -34,6 +35,7 @@ export function ApplicationChecklistSummary({
   }>;
   fallbackHref: string;
   fallbackLabel: string;
+  fallbackReason: string;
   batchRemainder: {
     pendingDecision: number;
     matchReady: number;
@@ -88,6 +90,7 @@ export function ApplicationChecklistSummary({
               <div className="summary-card"><span>暂无法确认</span><strong>{batchRemainder.unknownReadiness}</strong></div>
             ) : null}
           </div>
+          <p className="muted"><strong>为什么现在先做这一步：</strong>{fallbackReason}</p>
         </div>
       ) : null}
       <div className="actions">
