@@ -10,6 +10,17 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 
 路线图强调先形成可验证闭环，再增加能力广度与平台规模。**Eval 从 Phase 1 就介入，不是最后一个 Phase。**
 
+## 当前真实 Active Milestone（2026-09-01）
+
+当前不再把 Requirement live governance 的下一人工步骤误当成整个项目唯一主线：
+
+- `Phase 3B-3K`：**BLOCKED_BY_HUMAN_GATE**。Formal Dataset / Canary 工程能力已经具备，剩余关键证据依赖真实 Provider 凭据/成本授权与人工 Continue/Stop/accept/reject；自动任务不得代签，也不得为了绕开该门禁继续打磨周边控制台或 Requirement 语义细节。
+- `Phase 4 Single Job Match` + `Phase 5 Batch Ranking + UserFeedback`：**当前产品主线**。离线 MVP gate 已全绿，但真实 20-job loop 当前只有 `4/20` current MatchReport；这 4 个报告的真实 UserFeedback 为 `0/4`，另外 `16/20` 岗位仍需 Requirement Analysis。
+- 当前真实阻塞分成两类：① 用户事实/反馈门禁——现有 blocked MatchReport 需要用户确认真实 Profile Evidence，并由用户本人提交 interested/maybe/rejected；② Provider 门禁——其余 16 个岗位要扩大真实 MatchReport 覆盖，需要明确 live Provider 成本授权后做 bounded Requirement Analysis。两者都不能由自动任务伪造。
+- 自动推进选择规则：优先直接减少 Phase 4/5 未完成验收项；若本轮没有安全 A=`Milestone Driver`，只允许做解除上述主循环 blocker 的 B=`Core Loop Enabler`。只要存在 A/B，禁止继续 Import/Prepare CTA、文案、selector/fallback、Dashboard 或无关重构。连续两轮未减少 acceptance criterion/blocker 时，必须先重新做 milestone gap analysis。
+
+进度事实以 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 为准；README 的“当前阶段”必须与这里同步。里程碑推进看验收项是否关闭，不看 commit 数。
+
 领域模型、阶段边界与关键决策见：
 - [领域模型](architecture/DOMAIN-MODEL.md)
 - [系统架构](architecture/SYSTEM-ARCHITECTURE.md)
