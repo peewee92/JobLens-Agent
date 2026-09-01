@@ -556,6 +556,10 @@ export default async function ImportDetailPage({
     const job = jobDetailById.get(jobId);
     return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
   };
+  const nextAfterPreparationInterestedReport = requestedAfterPreparationJobId
+    ? finalInterestedReports.find((report) => report.jobId !== requestedAfterPreparationJobId) ?? null
+    : null;
+
   const feedbackDecisionLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
     if (decision === "interested") return "你已标记为感兴趣";
     if (decision === "maybe") return "你已标记为再看看";
@@ -607,6 +611,10 @@ export default async function ImportDetailPage({
                 jobLabel={jobLabel(requestedAfterPreparationJobId)}
                 items={preparationProgressItems}
                 prepareHref={`/jobs/${requestedAfterPreparationJobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`}
+                nextApplicationHref={nextAfterPreparationInterestedReport
+                  ? `/jobs/${nextAfterPreparationInterestedReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}${afterMatchPrepareQuery}${prepareEvidenceDecisionQuery}${alternativeEvidenceDecisionQuery}${previousEvidenceAttributionQuery}`
+                  : undefined}
+                nextApplicationLabel={nextAfterPreparationInterestedReport ? jobLabel(nextAfterPreparationInterestedReport.jobId) : undefined}
               />
             ) : (
               <div className="notice">

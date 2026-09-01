@@ -16,11 +16,15 @@ export function ApplicationChecklistSummary({
   jobLabel,
   items,
   prepareHref,
+  nextApplicationHref,
+  nextApplicationLabel,
 }: {
   jobId: string;
   jobLabel: string;
   items: ApplicationChecklistItem[];
   prepareHref: string;
+  nextApplicationHref?: string;
+  nextApplicationLabel?: string;
 }) {
   const fingerprint = useMemo(() => applicationChecklistFingerprint(items), [items]);
   const [completed, setCompleted] = useState<ApplicationChecklistStepId[]>([]);
@@ -45,9 +49,20 @@ export function ApplicationChecklistSummary({
           : "这是本浏览器里的 ActionItem 进度；只有与当前 JobPreparationBundle 事实指纹一致的勾选才会保留，旧准备事实不会被算进来。"}
       </p>
       <div className="actions">
-        <Link className={complete ? "button-secondary" : "button"} href={prepareHref}>
-          {complete ? "查看当前申请准备" : "继续申请准备"} →
-        </Link>
+        {complete && nextApplicationHref && nextApplicationLabel ? (
+          <>
+            <Link className="button" href={nextApplicationHref}>
+              准备下一个感兴趣岗位：{nextApplicationLabel} →
+            </Link>
+            <Link className="button-secondary" href={prepareHref}>
+              查看当前申请准备
+            </Link>
+          </>
+        ) : (
+          <Link className={complete ? "button-secondary" : "button"} href={prepareHref}>
+            {complete ? "查看当前申请准备" : "继续申请准备"} →
+          </Link>
+        )}
       </div>
     </div>
   );

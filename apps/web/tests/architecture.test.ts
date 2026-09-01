@@ -312,6 +312,10 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(summary, /parseApplicationChecklistState/);
   assert.match(summary, /localStorage/);
   assert.match(summary, /不代表已经投递/);
+  assert.match(summary, /nextApplicationHref/);
+  assert.match(summary, /准备下一个感兴趣岗位/);
+  assert.match(page, /nextAfterPreparationInterestedReport/);
+  assert.match(page, /finalInterestedReports\.find/);
   assert.doesNotMatch(summary, /fetch\(/);
 });
 
