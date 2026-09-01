@@ -316,6 +316,15 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(summary, /isApplicationChecklistComplete/);
   assert.match(summary, /准备下一个尚未完成的感兴趣岗位/);
   assert.match(summary, /fallbackHref/);
+  assert.match(summary, /application-batch-handoff-summary/);
+  assert.match(summary, /这批感兴趣岗位的当前申请准备已经收敛/);
+  assert.match(summary, /batchRemainder\.pendingDecision/);
+  assert.match(summary, /batchRemainder\.matchReady/);
+  assert.match(summary, /batchRemainder\.requirementBlocked/);
+  assert.match(summary, /batchRemainder\.evidenceBlocked/);
+  assert.match(summary, /batchRemainder\.maybe/);
+  assert.match(page, /pendingDecision: pendingApplyDecisionCount/);
+  assert.match(page, /unknownReadiness: unknownReadinessCount/);
   assert.match(page, /afterPreparationInterestedPreparationResults/);
   assert.match(page, /Promise\.allSettled/);
   assert.match(page, /afterPreparationFallbackAction/);

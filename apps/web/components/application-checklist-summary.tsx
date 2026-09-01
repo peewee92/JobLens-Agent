@@ -20,6 +20,7 @@ export function ApplicationChecklistSummary({
   interestedCandidates,
   fallbackHref,
   fallbackLabel,
+  batchRemainder,
 }: {
   jobId: string;
   jobLabel: string;
@@ -33,6 +34,14 @@ export function ApplicationChecklistSummary({
   }>;
   fallbackHref: string;
   fallbackLabel: string;
+  batchRemainder: {
+    pendingDecision: number;
+    matchReady: number;
+    requirementBlocked: number;
+    evidenceBlocked: number;
+    maybe: number;
+    unknownReadiness: number;
+  };
 }) {
   const fingerprint = useMemo(() => applicationChecklistFingerprint(items), [items]);
   const [completed, setCompleted] = useState<ApplicationChecklistStepId[]>([]);
@@ -65,6 +74,22 @@ export function ApplicationChecklistSummary({
           ? "当前三项准备任务都已完成。这里只读取本浏览器里、且与当前 JobPreparationBundle 事实指纹一致的 ActionItem 进度，不代表已经投递。"
           : "这是本浏览器里的 ActionItem 进度；只有与当前 JobPreparationBundle 事实指纹一致的勾选才会保留，旧准备事实不会被算进来。"}
       </p>
+      {complete && !nextInterestedCandidate ? (
+        <div data-testid="application-batch-handoff-summary">
+          <p><strong>这批感兴趣岗位的当前申请准备已经收敛。</strong></p>
+          <p className="muted">这里只表示当前浏览器中、与最新准备事实一致的清单都已完成，不表示这些岗位已经投递。整个批次接下来还有：</p>
+          <div className="summary-grid">
+            <div className="summary-card"><span>待投递判断</span><strong>{batchRemainder.pendingDecision}</strong></div>
+            <div className="summary-card"><span>可显式 Match</span><strong>{batchRemainder.matchReady}</strong></div>
+            <div className="summary-card"><span>Requirement blocker</span><strong>{batchRemainder.requirementBlocked}</strong></div>
+            <div className="summary-card"><span>Evidence blocker</span><strong>{batchRemainder.evidenceBlocked}</strong></div>
+            <div className="summary-card"><span>保留观察</span><strong>{batchRemainder.maybe}</strong></div>
+            {batchRemainder.unknownReadiness > 0 ? (
+              <div className="summary-card"><span>暂无法确认</span><strong>{batchRemainder.unknownReadiness}</strong></div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="actions">
         {complete ? (
           <>

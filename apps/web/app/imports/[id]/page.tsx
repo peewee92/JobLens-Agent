@@ -654,6 +654,14 @@ export default async function ImportDetailPage({
                 }))}
                 fallbackHref={afterPreparationFallbackAction?.href ?? "/import"}
                 fallbackLabel={afterPreparationFallbackAction?.label ?? "回到批次继续下一步"}
+                batchRemainder={{
+                  pendingDecision: pendingApplyDecisionCount ?? 0,
+                  matchReady: matchReadyJobs.length,
+                  requirementBlocked: requirementBlockedJobs.length,
+                  evidenceBlocked: pendingEvidenceCount ?? 0,
+                  maybe: finalMaybeReports.length,
+                  unknownReadiness: unknownReadinessCount,
+                }}
               />
             ) : (
               <div className="notice">
