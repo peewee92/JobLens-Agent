@@ -19,6 +19,7 @@ import {
   fetchMatchReviewReadiness,
 } from "@/lib/backend";
 import {buildApplicationChecklistItems} from "@/lib/application-checklist";
+import {selectBatchNextAction} from "@/lib/batch-next-action";
 import {
   consideredAffectedJobCount,
   listEvidencePriorityImpactTargets,
@@ -575,44 +576,63 @@ export default async function ImportDetailPage({
     const job = jobDetailById.get(jobId);
     return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
   };
-  const afterPreparationFallbackAction = requestedAfterPreparationJobId
-    ? nextApplyDecisionReport
+  const batchNextAction = selectBatchNextAction({
+    pendingFeedbackJobIds: pendingClearedReports.map((report) => report.jobId),
+    matchReadyJobIds: matchReadyJobs,
+    requirementBlockedJobIds: requirementBlockedJobs,
+    evidenceAvailable: Boolean(batchEvidenceAction && batchEvidenceProfileHref),
+    evidenceImpactCount: batchEvidenceImpactTargets.length,
+    maybeJobIds: finalMaybeReports.map((report) => report.jobId),
+    unverifiableCount: unknownReadinessCount,
+  });
+  const batchNextActionPresentation = batchNextAction.kind === "feedback"
+    ? {
+        href: `/jobs/${batchNextAction.jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
+        label: `判断 ${jobLabel(batchNextAction.jobId)}`,
+        reason: `当前还有 ${pendingApplyDecisionCount ?? 0} 个岗位已经有 current MatchReport、没有 hard blocker，但尚未记录投递判断；先完成判断能直接把现有 Ranking 结果转成用户决策，不需要生成新的分析。`,
+      }
+    : batchNextAction.kind === "match"
       ? {
-          href: `/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
-          label: `回到批次：判断 ${jobLabel(nextApplyDecisionReport.jobId)}`,
-          reason: `当前还有 ${pendingApplyDecisionCount ?? 0} 个岗位已经有 current MatchReport、没有 hard blocker，但尚未记录投递判断；先完成判断能直接把现有 Ranking 结果转成用户决策，不需要生成新的分析。`,
+          href: "#batch-match",
+          label: `匹配 ${batchNextAction.count} 个已准备岗位`,
+          reason: `当前有 ${batchNextAction.count} 个岗位的 Requirement 已达到 release / Match readiness，但还没有 current MatchReport；下一步需要用户显式 Match，才能进入 Ranking 与投递判断。`,
         }
-      : matchReadyJobs.length > 0
+      : batchNextAction.kind === "requirement"
         ? {
-            href: "#batch-match",
-            label: `回到批次：匹配 ${matchReadyJobs.length} 个已准备岗位`,
-            reason: `当前有 ${matchReadyJobs.length} 个岗位的 Requirement 已达到 release / Match readiness，但还没有 current MatchReport；下一步需要用户显式 Match，才能进入 Ranking 与投递判断。`,
+            href: `/jobs/${batchNextAction.jobId}`,
+            label: "先处理一个岗位要求",
+            reason: `当前还有 ${batchNextAction.count} 个岗位的 Requirement 尚未达到 release 条件；在这些事实准备好之前，不应提前运行 Match 或解释排序结果。`,
           }
-        : requirementBlockedJobs.length > 0
+        : batchNextAction.kind === "evidence" && batchEvidenceProfileHref
           ? {
-              href: `/jobs/${requirementBlockedJobs[0]}`,
-              label: "回到批次：先处理一个岗位要求",
-              reason: `当前还有 ${requirementBlockedJobs.length} 个岗位的 Requirement 尚未达到 release 条件；在这些事实准备好之前，不应提前运行 Match 或解释排序结果。`,
+              href: batchEvidenceProfileHref,
+              label: "继续下一项 Evidence",
+              reason: batchNextAction.impactCount > 0
+                ? `当前 Evidence action 精确命中 ${batchNextAction.impactCount} 个仍在考虑岗位的 Requirement；这些 hard blocker 需要先用真实经历补证，再通过显式 Re-match 验证是否解除。`
+                : "当前仍有 Evidence blocker，但没有更早阶段的待判断、Match-ready 或 Requirement blocker；继续现有 Evidence action 是当前可验证的下一步。",
             }
-          : batchEvidenceAction && batchEvidenceProfileHref
+          : batchNextAction.kind === "maybe"
             ? {
-                href: batchEvidenceProfileHref,
-                label: "回到批次：继续下一项 Evidence",
-                reason: batchEvidenceImpactTargets.length > 0
-                  ? `当前 Evidence action 精确命中 ${batchEvidenceImpactTargets.length} 个仍在考虑岗位的 Requirement；这些 hard blocker 需要先用真实经历补证，再通过显式 Re-match 验证是否解除。`
-                  : "当前仍有 Evidence blocker，但没有更早阶段的待判断、Match-ready 或 Requirement blocker；继续现有 Evidence action 是当前可验证的下一步。",
+                href: `/jobs/${batchNextAction.jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
+                label: `复核保留观察岗位：${jobLabel(batchNextAction.jobId)}`,
+                reason: `当前没有更早阶段的待判断、Match-ready、Requirement 或 Evidence 工作；剩余 ${batchNextAction.count} 个“再看看”岗位，因此按 current Ranking 先复核最高的一项。`,
               }
-            : finalMaybeReports[0]
+            : batchNextAction.kind === "unverifiable"
               ? {
-                  href: `/jobs/${finalMaybeReports[0].jobId}/prepare?returnImport=${encodeURIComponent(id)}`,
-                  label: `复核保留观察岗位：${jobLabel(finalMaybeReports[0].jobId)}`,
-                  reason: `当前没有更早阶段的待判断、Match-ready、Requirement 或 Evidence 工作；剩余 ${finalMaybeReports.length} 个“再看看”岗位，因此按 current Ranking 先复核最高的一项。`,
+                  href: `/imports/${encodeURIComponent(id)}`,
+                  label: "重新读取批次事实",
+                  reason: `当前还有 ${batchNextAction.count} 个岗位的 readiness 暂无法可靠确认；这里不会把 unknown 猜成已完成或跳过，先只读刷新当前批次事实。`,
                 }
               : {
                   href: "/import",
                   label: "当前批次没有其他可执行目标，导入下一批岗位",
-                  reason: "当前批次没有可验证的待判断、Match-ready、Requirement blocker、Evidence blocker 或 maybe 复核项；继续制造新动作不会增加主闭环价值。",
-                }
+                  reason: "当前批次没有可验证的待判断、Match-ready、Requirement blocker、Evidence blocker、maybe 复核项或 unknown readiness；继续制造新动作不会增加主闭环价值。",
+                };
+  const afterPreparationFallbackAction = requestedAfterPreparationJobId
+    ? {
+        ...batchNextActionPresentation,
+        label: batchNextAction.kind === "next-batch" ? batchNextActionPresentation.label : `回到批次：${batchNextActionPresentation.label}`,
+      }
     : null;
 
   const feedbackDecisionLabel = (decision: "interested" | "maybe" | "rejected" | undefined) => {
@@ -830,31 +850,12 @@ export default async function ImportDetailPage({
                       <p className="muted">这三个状态直接复用当前 Requirement Release / Match Readiness 事实：ready 只代表可以由你显式发起 Match，不会自动调用 Provider；blocked 需要先处理岗位要求；无法确认的岗位不会被猜成 ready 或 blocked。</p>
                     </div>
                   ) : null}
-                  {nextApplyDecisionReport ? (
-                    <div className="actions">
-                      <Link className="button" href={`/jobs/${nextApplyDecisionReport.jobId}/prepare?returnImport=${encodeURIComponent(id)}`}>
-                        当前主行动：先判断 {jobLabel(nextApplyDecisionReport.jobId)}
-                      </Link>
-                      <span className="muted">这个岗位已有 current MatchReport、当前没有 hard blocker，但还没有 latest UserFeedback；先完成真实投递判断，才能继续收敛 Ranking → UserFeedback 闭环。</span>
-                    </div>
-                  ) : matchReadyJobs.length > 0 ? (
-                    <div className="actions">
-                      <Link className="button" href="#batch-match">当前主行动：先匹配 {matchReadyJobs.length} 个已准备岗位</Link>
-                      <span className="muted">这 {matchReadyJobs.length} 个岗位的 Requirement 已达到当前 release / Match readiness；只有显式 Match 后才能形成 current MatchReport，再进入 Ranking 与投递判断。</span>
-                    </div>
-                  ) : requirementBlockedJobs.length > 0 ? (
-                    <div className="actions">
-                      <Link className="button" href={`/jobs/${requirementBlockedJobs[0]}`}>当前主行动：先处理一个岗位要求</Link>
-                      <span className="muted">目前没有更靠前的待判断或 Match-ready 岗位；这批仍有 {requirementBlockedJobs.length} 个岗位被 Requirement release 阻塞，先让其中一个进入可匹配状态。</span>
-                    </div>
-                  ) : batchEvidenceAction && batchEvidenceProfileHref ? (
-                    <div className="actions">
-                      <Link className="button" href={batchEvidenceProfileHref}>当前主行动：继续下一项 Evidence</Link>
-                      <span className="muted">当前没有更靠前的待判断、Match-ready 或 Requirement-blocked 行动；现有 Evidence action 精确覆盖 {batchEvidenceImpactTargets.length} 个仍在考虑岗位的 Requirement blocker，继续它能回到 Evidence → Re-match → 可见结果。</span>
-                    </div>
-                  ) : (
-                    <p className="muted">当前没有可以基于可靠事实给出的唯一主行动；不会用未知 readiness / blocker 状态替你猜。</p>
-                  )}
+                  <div className="actions">
+                    <Link className="button" href={batchNextActionPresentation.href}>
+                      当前主行动：{batchNextActionPresentation.label}
+                    </Link>
+                    <span className="muted">{batchNextActionPresentation.reason}</span>
+                  </div>
                 </>
               )}
             </div>
