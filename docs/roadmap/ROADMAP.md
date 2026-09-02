@@ -18,9 +18,10 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - `Phase 4 Single Job Match` + `Phase 5 Batch Ranking + UserFeedback`：**ENGINEERING_COMPLETE / REAL_VALIDATION_BLOCKED**。Single Job Match、MatchReport persistence/policy、Batch Match/Ranking、immutable UserFeedback persistence/readback、Feedback → Match Eval/Target Cohort wiring 与普通用户 Web 入口均已有自动回归证据；2026-09-02 复核 Match/Feedback Backend 140 tests、Web 148 tests、typecheck 与 production build 全绿。真实 20-job loop 当前仍只有 `4/20` current MatchReport，这 4 个报告的真实 UserFeedback 为 `0/4`，另外 `16/20` 岗位仍需 Requirement Analysis；这些 live/用户验证不能由 fixture 或自动任务代签。
 - `Phase 6 Target Cohort + Skill Gap`：**ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED**。Target Cohort 选择、Requirement 聚合、显式技能归一、Profile 对比、SkillGap 指标、P0/P1、Action Plan、Gap Detail Backend API 与 `/gaps` Web 入口均已有确定性工程链路；2026-09-02 专项 Backend 63 tests + Web 148 tests、typecheck、production build 全绿。真实效果验证仍依赖上游真实 UserFeedback / 可用岗位事实，不用 fixture 冒充 live 结论。
 - `Phase 7 Job Preparation`：**ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED**。Preparation Readiness、Resume Delta、项目/经历排序、Story Facts、Interview Facts、Study Checklist、Backend 聚合 API 与 Web Prepare 入口均有测试/构建证据；真实岗位使用效果仍受上游真实覆盖限制。
+- `Phase 8 Career Agent`：**ENGINEERING_ACTIVE**。Phase 4–7 的工程验收已具备明确证据，因此此前“不要提前进入 Agent”的条件已经解除；当前只推进单 Agent 的受治理编排层，不进入 Multi-Agent。首个切片已完成 Context Builder：P0 只暴露通过现有 release gate 的显式确认 Profile/SearchIntent 与用户显式指定的当前 Job 安全元数据，故意排除 raw JD 和 Evidence 正文；P1 Evidence 只接受调用方显式指定、且真实存在于当前确认 Profile 的 immutable Evidence ID，缺失时 fail-closed。Profile/SearchIntent 在构建期间发生版本漂移同样 fail-closed；固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`。
 - `Phase 9 Growth Loop / Collector Sync`：**ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED**。核心 `Action → Evidence → Profile save → explicit Re-match → comparable Match delta → 下一 Evidence/Prepare/UserFeedback action` 已有可恢复 ActionItem、精确 Requirement/Evidence provenance、跨岗位可见影响和批次 handoff；Collector 也已具备 localhost 一键同步 + Import 审计入口。2026-09-02 复核 Backend Growth Loop 25 tests、Web 148 tests、typecheck、production build 与 Collector sync tests 全绿。`新岗位提醒 / 定时更新` 明确保留为价值验证后的 deferred P1/P2，不阻塞当前 Growth Loop 工程完成。
 - 当前真实阻塞分成两类：① 用户事实/反馈门禁——现有 blocked MatchReport 需要用户确认真实 Profile Evidence，并由用户本人提交 interested/maybe/rejected；② Provider 门禁——其余 16 个岗位要扩大真实 MatchReport 覆盖，需要明确 live Provider 成本授权后做 bounded Requirement Analysis。两者都不能由自动任务伪造。
-- 自动推进选择规则：Phase 4/5 的工程验收已关闭，后续优先减少真实 coverage blocker；若 HUMAN_GATE 之外出现新的确定性 coverage enabler，可作为 B 类主线继续实现。Phase 6/7/9 的工程验收也已关闭，不再制造新的 Growth Loop/Import/Prepare 边缘功能；若没有新的安全 coverage enabler，则保持真实门禁状态，不用低价值改动制造假进度。Phase 8 Career Agent 仍需明确产品授权后再进入。
+- 自动推进选择规则：Phase 4/5 的工程验收已关闭，后续仍优先减少真实 coverage blocker；若 HUMAN_GATE 之外出现新的确定性 coverage enabler，可作为 B 类主线继续实现。Phase 6/7/9 的工程验收也已关闭，不再制造新的 Growth Loop/Import/Prepare 边缘功能。由于 Phase 4–7 工程验收已具备证据，Phase 8 现在允许按 ADR-0004 逐个推进单 Agent 的 `Context Builder → Tool Registry → unified entry → Agent Eval`，但 Agent 只能编排成熟 Workflow，禁止复制业务规则或引入 Multi-Agent。
 
 进度事实以 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 为准；README 的“当前阶段”必须与这里同步。里程碑推进看验收项是否关闭，不看 commit 数。
 
@@ -484,12 +485,17 @@ Profile 页面可以明确区分：
 - 所有业务事实仍来自 `JobRequirement` 等统一模型；
 - 多 Agent 不进入本期。
 
+### 当前进度（2026-09-02）
+
+- 已完成首个受治理 `CareerAgentContextBuilder`：复用现有 Career Context release gate，仅在显式确认 Profile + SearchIntent 可释放时向 Agent 暴露这些版本化事实；P0 Profile context 只带身份、版本、headline、years、Skill 元数据，不携带 Evidence 正文。可选 current Job 必须由调用方显式提供真实 Job ID，且只暴露 `id/title/company/area` 安全元数据，故意不把 raw JD `description` 注入 Agent，后续 Match/Gap/Prepare 仍必须消费 `JobRequirement` 事实链。
+- P1 relevant Evidence 必须由上游成熟 Workflow/调用方显式提供 immutable Evidence ID；Builder 只从当前确认 Profile 精确筛选、稳定去重，不做关键词/向量/LLM 猜测，任一请求 ID 不属于当前 Profile 时返回 `relevant_evidence_not_confirmed` 并整份 context fail-closed。Context 构建同时对 Profile/SearchIntent 身份漂移 fail-closed：release readiness 与随后读取到的 current snapshot ID/version 不一致时返回 `career_context_identity_changed`，不把混合版本上下文交给 Agent。缺 Career Context 或指定 Job 不存在也 fail-closed；全路径固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`。
+
 ### 任务
 
-- 统一对话入口；
-- Tool Registry（复用 Workflow 能力，不是把业务全写成 Agent Tool）；
-- Context Builder（P0 用户确认事实 / 当前 Job，P1 相关 Evidence）；
-- `Agent Eval`。
+- [ ] 统一对话入口；
+- [ ] Tool Registry（复用 Workflow 能力，不是把业务全写成 Agent Tool）；
+- [x] Context Builder（P0 用户确认事实 / 当前 Job，P1 相关 Evidence）；
+- [ ] `Agent Eval`。
 
 ---
 
