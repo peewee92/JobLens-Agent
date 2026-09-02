@@ -18,8 +18,9 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 - `Phase 4 Single Job Match` + `Phase 5 Batch Ranking + UserFeedback`：**LIVE_VALIDATION_BLOCKED**。离线 MVP gate 已全绿，但真实 20-job loop 当前只有 `4/20` current MatchReport；这 4 个报告的真实 UserFeedback 为 `0/4`，另外 `16/20` 岗位仍需 Requirement Analysis。
 - `Phase 6 Target Cohort + Skill Gap`：**ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED**。Target Cohort 选择、Requirement 聚合、显式技能归一、Profile 对比、SkillGap 指标、P0/P1、Action Plan、Gap Detail Backend API 与 `/gaps` Web 入口均已有确定性工程链路；2026-09-02 专项 Backend 63 tests + Web 148 tests、typecheck、production build 全绿。真实效果验证仍依赖上游真实 UserFeedback / 可用岗位事实，不用 fixture 冒充 live 结论。
 - `Phase 7 Job Preparation`：**ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED**。Preparation Readiness、Resume Delta、项目/经历排序、Story Facts、Interview Facts、Study Checklist、Backend 聚合 API 与 Web Prepare 入口均有测试/构建证据；真实岗位使用效果仍受上游真实覆盖限制。
+- `Phase 9 Growth Loop / Collector Sync`：**ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED**。核心 `Action → Evidence → Profile save → explicit Re-match → comparable Match delta → 下一 Evidence/Prepare/UserFeedback action` 已有可恢复 ActionItem、精确 Requirement/Evidence provenance、跨岗位可见影响和批次 handoff；Collector 也已具备 localhost 一键同步 + Import 审计入口。2026-09-02 复核 Backend Growth Loop 25 tests、Web 148 tests、typecheck、production build 与 Collector sync tests 全绿。`新岗位提醒 / 定时更新` 明确保留为价值验证后的 deferred P1/P2，不阻塞当前 Growth Loop 工程完成。
 - 当前真实阻塞分成两类：① 用户事实/反馈门禁——现有 blocked MatchReport 需要用户确认真实 Profile Evidence，并由用户本人提交 interested/maybe/rejected；② Provider 门禁——其余 16 个岗位要扩大真实 MatchReport 覆盖，需要明确 live Provider 成本授权后做 bounded Requirement Analysis。两者都不能由自动任务伪造。
-- 自动推进选择规则：优先直接减少 Phase 4/5 未完成验收项；若被 HUMAN_GATE 阻塞，则继续扫描后续核心 Phase 的安全 A/B 验收项。Phase 6/7 工程验收已经关闭后，下一安全主线应转向尚未闭合的 Growth Loop 核心验收，不得回到 Import/Prepare CTA、文案、selector/fallback、Dashboard 或无关重构。
+- 自动推进选择规则：优先直接减少 Phase 4/5 未完成验收项；若被 HUMAN_GATE 阻塞，则只推进尚未关闭的核心工程里程碑。Phase 6/7/9 的工程验收均已关闭后，不再制造新的 Growth Loop/Import/Prepare 边缘功能；下一安全开发面应回到 Phase 4/5 的真实 coverage blocker，或在获得明确产品授权后再进入 Phase 8 Career Agent。
 
 进度事实以 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 为准；README 的“当前阶段”必须与这里同步。里程碑推进看验收项是否关闭，不看 commit 数。
 
@@ -591,12 +592,16 @@ Profile 页面可以明确区分：
 
 ### 任务
 
-- ActionItem 状态；
-- 学习 / 项目 Evidence 录入；
-- Profile 更新与重新匹配；
-- Collector API 同步（插件 POST Agent API，增量导入，保留 JSON 兜底）；
-- “补完这个能力后影响了哪些岗位”对比；
-- 新岗位提醒 / 定时更新（价值验证后再做）。
+- [x] ActionItem 状态；
+- [x] 学习 / 项目 Evidence 录入；
+- [x] Profile 更新与重新匹配；
+- [x] Collector API 同步（插件 POST Agent API，增量导入，保留 JSON 兜底）；
+- [x] “补完这个能力后影响了哪些岗位”对比；
+- [ ] 新岗位提醒 / 定时更新（**deferred**：价值验证后再做，不阻塞当前 Growth Loop 工程完成）。
+
+### 工程验收（2026-09-02）
+
+`Phase 9` 核心工程能力标记为 **ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED**：ActionItem 可恢复状态、Evidence 录入与完整性保护、Profile 保存后的显式 Re-match、同一 Requirement Extraction 下的可比较 Match delta、Requirement ↔ Evidence 精确 provenance、跨岗位影响回流、下一 Evidence / Prepare / UserFeedback handoff，以及 Collector localhost 一键同步均已有可运行代码与自动测试证据。专项 Backend Growth Loop `25 passed`，Web `148 passed`、typecheck、production build 与 Collector sync tests 全绿。真实闭环效果仍依赖上游真实 MatchReport 覆盖、用户 UserFeedback 与必要 Provider 授权，因此不能用 fixture/离线测试冒充真实用户价值验证。
 
 ---
 

@@ -193,10 +193,9 @@ Phase 5：Batch Ranking + UserFeedback 🚧 LIVE_VALIDATION_BLOCKED（4 个 curr
 Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED
 Phase 7：Job Preparation ✅ ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED
 Phase 8：Career Agent ⏸ P1，暂不提前推进
+Phase 9：Growth Loop / Collector Sync ✅ ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED
 ```
 
-Phase 9（P1/P2：Growth Loop / Collector API 同步）见路线图。
-
-截至 2026-09-02 的真实主循环进度由 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 复核：离线 MVP gate 已通过，20 个真实岗位中 4 个已有 current MatchReport、0 个 current MatchReport 已有真实 UserFeedback、16 个岗位仍需 Requirement Analysis。`Phase 3B-3K` 目前剩余 credential-backed live Provider / 人工质量决定；Phase 4/5 的扩大真实覆盖也受 Provider 与用户本人反馈门禁约束。与 live 验证分开计算后，Phase 6 的 Target Cohort → Skill Gap → Action Plan → Gap Detail API/Web 链路和 Phase 7 的 Preparation Readiness → Resume Delta → 项目/经历排序 → Story/Interview Facts → Study Checklist → API/Web 聚合入口均已有工程证据，本轮专项 Backend 63 tests 与 Web 148 tests、typecheck、production build 全绿，因此标记为 `ENGINEERING_COMPLETE`；它们的真实用户/真实岗位效果验证仍等待上游真实反馈与覆盖扩展。自动推进下一步应扫描尚未完成的 Growth Loop 核心验收项，而不是回到 Import/Prepare CTA、selector、fallback 或文案微调。
+截至 2026-09-02 的真实主循环进度由 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 复核：离线 MVP gate 已通过，20 个真实岗位中 4 个已有 current MatchReport、0 个 current MatchReport 已有真实 UserFeedback、16 个岗位仍需 Requirement Analysis。`Phase 3B-3K` 目前剩余 credential-backed live Provider / 人工质量决定；Phase 4/5 的扩大真实覆盖也受 Provider 与用户本人反馈门禁约束。与 live 验证分开计算后，Phase 6 的 Target Cohort → Skill Gap → Action Plan → Gap Detail API/Web、Phase 7 的 Preparation Readiness → Resume Delta → Story/Interview Facts → Study Checklist → Prepare，以及 Phase 9 的 `Action → Evidence → Re-match → 可比较 Match delta → 下一 Evidence/Prepare/UserFeedback action` 与 Collector localhost 一键同步均已有工程证据。Phase 9 本轮复核 Backend Growth Loop 25 tests、Web 148 tests、typecheck、production build 与 Collector sync tests 全绿，因此标记为 `ENGINEERING_COMPLETE`；`新岗位提醒 / 定时更新` 保留为价值验证后的 deferred P1/P2，不阻塞当前 Growth Loop 工程完成。真实用户价值验证仍等待上游真实反馈与 MatchReport 覆盖扩展。后续自动推进不再继续制造 Growth Loop/Import/Prepare 边缘功能，应优先回到 Phase 4/5 的真实 coverage blocker；Phase 8 Career Agent 仍需明确产品授权后再进入。
 
 > 开发原则：不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把 Phase 1–5（MVP v0.1）跑通，且每个 LLM Pipeline 从第一天接 Eval。进度优先看未完成验收项是否减少，而不是 commit 数。
