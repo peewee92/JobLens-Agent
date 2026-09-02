@@ -188,8 +188,8 @@ Phase 3B-3H：Guarded Local Live Bootstrap ✅
 Phase 3B-3I：Resumable Database Preparation Checkpoint ✅
 Phase 3B-3J：Explicit Live Canary Operator ✅
 Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ⏸ BLOCKED_BY_HUMAN_GATE
-Phase 4：Single Job Match 🚧 LIVE_VALIDATION_BLOCKED（真实 20 岗位中 4 个已有 current MatchReport）
-Phase 5：Batch Ranking + UserFeedback 🚧 LIVE_VALIDATION_BLOCKED（4 个 current MatchReport 中 0 个已有真实 UserFeedback）
+Phase 4：Single Job Match ✅ ENGINEERING_COMPLETE / REAL_MATCH_VALIDATION_BLOCKED（真实 20 岗位中 4 个已有 current MatchReport）
+Phase 5：Batch Ranking + UserFeedback ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED（4 个 current MatchReport 中 0 个已有真实 UserFeedback）
 Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED
 Phase 7：Job Preparation ✅ ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED
 Phase 8：Career Agent ⏸ P1，暂不提前推进
