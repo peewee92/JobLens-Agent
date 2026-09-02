@@ -15,9 +15,11 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 当前不再把 Requirement live governance 的下一人工步骤误当成整个项目唯一主线：
 
 - `Phase 3B-3K`：**BLOCKED_BY_HUMAN_GATE**。Formal Dataset / Canary 工程能力已经具备，剩余关键证据依赖真实 Provider 凭据/成本授权与人工 Continue/Stop/accept/reject；自动任务不得代签，也不得为了绕开该门禁继续打磨周边控制台或 Requirement 语义细节。
-- `Phase 4 Single Job Match` + `Phase 5 Batch Ranking + UserFeedback`：**当前产品主线**。离线 MVP gate 已全绿，但真实 20-job loop 当前只有 `4/20` current MatchReport；这 4 个报告的真实 UserFeedback 为 `0/4`，另外 `16/20` 岗位仍需 Requirement Analysis。
+- `Phase 4 Single Job Match` + `Phase 5 Batch Ranking + UserFeedback`：**LIVE_VALIDATION_BLOCKED**。离线 MVP gate 已全绿，但真实 20-job loop 当前只有 `4/20` current MatchReport；这 4 个报告的真实 UserFeedback 为 `0/4`，另外 `16/20` 岗位仍需 Requirement Analysis。
+- `Phase 6 Target Cohort + Skill Gap`：**ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED**。Target Cohort 选择、Requirement 聚合、显式技能归一、Profile 对比、SkillGap 指标、P0/P1、Action Plan、Gap Detail Backend API 与 `/gaps` Web 入口均已有确定性工程链路；2026-09-02 专项 Backend 63 tests + Web 148 tests、typecheck、production build 全绿。真实效果验证仍依赖上游真实 UserFeedback / 可用岗位事实，不用 fixture 冒充 live 结论。
+- `Phase 7 Job Preparation`：**ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED**。Preparation Readiness、Resume Delta、项目/经历排序、Story Facts、Interview Facts、Study Checklist、Backend 聚合 API 与 Web Prepare 入口均有测试/构建证据；真实岗位使用效果仍受上游真实覆盖限制。
 - 当前真实阻塞分成两类：① 用户事实/反馈门禁——现有 blocked MatchReport 需要用户确认真实 Profile Evidence，并由用户本人提交 interested/maybe/rejected；② Provider 门禁——其余 16 个岗位要扩大真实 MatchReport 覆盖，需要明确 live Provider 成本授权后做 bounded Requirement Analysis。两者都不能由自动任务伪造。
-- 自动推进选择规则：优先直接减少 Phase 4/5 未完成验收项；若本轮没有安全 A=`Milestone Driver`，只允许做解除上述主循环 blocker 的 B=`Core Loop Enabler`。只要存在 A/B，禁止继续 Import/Prepare CTA、文案、selector/fallback、Dashboard 或无关重构。连续两轮未减少 acceptance criterion/blocker 时，必须先重新做 milestone gap analysis。
+- 自动推进选择规则：优先直接减少 Phase 4/5 未完成验收项；若被 HUMAN_GATE 阻塞，则继续扫描后续核心 Phase 的安全 A/B 验收项。Phase 6/7 工程验收已经关闭后，下一安全主线应转向尚未闭合的 Growth Loop 核心验收，不得回到 Import/Prepare CTA、文案、selector/fallback、Dashboard 或无关重构。
 
 进度事实以 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 为准；README 的“当前阶段”必须与这里同步。里程碑推进看验收项是否关闭，不看 commit 数。
 

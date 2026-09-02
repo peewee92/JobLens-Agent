@@ -188,15 +188,15 @@ Phase 3B-3H：Guarded Local Live Bootstrap ✅
 Phase 3B-3I：Resumable Database Preparation Checkpoint ✅
 Phase 3B-3J：Explicit Live Canary Operator ✅
 Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ⏸ BLOCKED_BY_HUMAN_GATE
-Phase 4：Single Job Match 🚧 当前主线（真实 20 岗位中 4 个已有 current MatchReport）
-Phase 5：Batch Ranking + UserFeedback 🚧 当前主线（4 个 current MatchReport 中 0 个已有真实 UserFeedback）
-Phase 6：Target Cohort + Skill Gap
-Phase 7：Job Preparation
-Phase 8：Career Agent
+Phase 4：Single Job Match 🚧 LIVE_VALIDATION_BLOCKED（真实 20 岗位中 4 个已有 current MatchReport）
+Phase 5：Batch Ranking + UserFeedback 🚧 LIVE_VALIDATION_BLOCKED（4 个 current MatchReport 中 0 个已有真实 UserFeedback）
+Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_BLOCKED
+Phase 7：Job Preparation ✅ ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED
+Phase 8：Career Agent ⏸ P1，暂不提前推进
 ```
 
 Phase 9（P1/P2：Growth Loop / Collector API 同步）见路线图。
 
-截至 2026-09-01 的真实主循环进度由 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 复核：离线 MVP gate 已通过，20 个真实岗位中 4 个已有 current MatchReport、0 个 current MatchReport 已有真实 UserFeedback、16 个岗位仍需 Requirement Analysis。`Phase 3B-3K` 目前剩余的是 credential-backed live Provider / 人工质量决定等明确 HUMAN_GATE，不再作为阻塞 Phase 4/5 安全工程推进的唯一“下一阶段”。在没有新的人工反馈或 Provider 成本授权时，自动推进不得通过 Import/Prepare CTA、selector、fallback 或文案微调制造虚假的里程碑进展。
+截至 2026-09-02 的真实主循环进度由 `cd services/backend && .venv/bin/python -m scripts.check_mvp_progress --json` 复核：离线 MVP gate 已通过，20 个真实岗位中 4 个已有 current MatchReport、0 个 current MatchReport 已有真实 UserFeedback、16 个岗位仍需 Requirement Analysis。`Phase 3B-3K` 目前剩余 credential-backed live Provider / 人工质量决定；Phase 4/5 的扩大真实覆盖也受 Provider 与用户本人反馈门禁约束。与 live 验证分开计算后，Phase 6 的 Target Cohort → Skill Gap → Action Plan → Gap Detail API/Web 链路和 Phase 7 的 Preparation Readiness → Resume Delta → 项目/经历排序 → Story/Interview Facts → Study Checklist → API/Web 聚合入口均已有工程证据，本轮专项 Backend 63 tests 与 Web 148 tests、typecheck、production build 全绿，因此标记为 `ENGINEERING_COMPLETE`；它们的真实用户/真实岗位效果验证仍等待上游真实反馈与覆盖扩展。自动推进下一步应扫描尚未完成的 Growth Loop 核心验收项，而不是回到 Import/Prepare CTA、selector、fallback 或文案微调。
 
 > 开发原则：不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把 Phase 1–5（MVP v0.1）跑通，且每个 LLM Pipeline 从第一天接 Eval。进度优先看未完成验收项是否减少，而不是 commit 数。
