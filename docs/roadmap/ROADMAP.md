@@ -489,11 +489,12 @@ Profile 页面可以明确区分：
 
 - 已完成首个受治理 `CareerAgentContextBuilder`：复用现有 Career Context release gate，仅在显式确认 Profile + SearchIntent 可释放时向 Agent 暴露这些版本化事实；P0 Profile context 只带身份、版本、headline、years、Skill 元数据，不携带 Evidence 正文。可选 current Job 必须由调用方显式提供真实 Job ID，且只暴露 `id/title/company/area` 安全元数据，故意不把 raw JD `description` 注入 Agent，后续 Match/Gap/Prepare 仍必须消费 `JobRequirement` 事实链。
 - P1 relevant Evidence 必须由上游成熟 Workflow/调用方显式提供 immutable Evidence ID；Builder 只从当前确认 Profile 精确筛选、稳定去重，不做关键词/向量/LLM 猜测，任一请求 ID 不属于当前 Profile 时返回 `relevant_evidence_not_confirmed` 并整份 context fail-closed。Context 构建同时对 Profile/SearchIntent 身份漂移 fail-closed：release readiness 与随后读取到的 current snapshot ID/version 不一致时返回 `career_context_identity_changed`，不把混合版本上下文交给 Agent。缺 Career Context 或指定 Job 不存在也 fail-closed；全路径固定 `dbWrites=0 / providerCalls=0 / traceRunsCreated=0`。
-- 已完成受治理 `CareerAgentToolRegistry` 首版：只把现有成熟 application Workflow 作为粗粒度 Agent 能力注册，不复制 Eligibility / Ranking / Gap / Prepare 规则。当前仅开放三条确定性只读路径：读取 current immutable MatchReport 的 Ranking、基于用户显式选择 current UserFeedback 的 Target Cohort Gap/Action Plan facts、以及被 governed current Job 锁定的 Job Preparation bundle。所有调用必须先通过 `CareerAgentContext.usable`；Gap 不允许 Agent 自动选择反馈，Prepare 不允许调用时偷偷切换 Job。真实 UserFeedback 写入、Requirement Extraction、Match execution 等会产生用户决策、Provider 成本或 DB side effect 的能力刻意不注册，待统一入口建立明确确认边界后再评估；当前 Registry 自身不调用 Provider、不创建 Trace、不写 DB。
+- 已完成受治理 `CareerAgentToolRegistry` 首版：只把现有成熟 application Workflow 作为粗粒度 Agent 能力注册，不复制 Eligibility / Ranking / Gap / Prepare 规则。当前仅开放三条确定性只读路径：读取 current immutable MatchReport 的 Ranking、基于用户显式选择 current UserFeedback 的 Target Cohort Gap/Action Plan facts、以及被 governed current Job 锁定的 Job Preparation bundle。所有调用必须先通过 `CareerAgentContext.usable`；Gap 不允许 Agent 自动选择反馈，Prepare 不允许调用时偷偷切换 Job。真实 UserFeedback 写入、Requirement Extraction、Match execution 等会产生用户决策、Provider 成本或 DB side effect 的能力刻意不注册；当前 Registry 自身不调用 Provider、不创建 Trace、不写 DB。
+- 已完成统一受治理 single-turn entrypoint：`POST /api/v1/career-agent/turn` 只接受显式结构化 goal `rank_jobs / review_gaps / prepare_job` 与各 Workflow 必需的 immutable IDs；每个 turn 先通过 `CareerAgentContextBuilder` 构建确认边界，再由 `CareerAgentToolRegistry` 委托成熟 Workflow。Context 不可用时零 Tool 调用返回 blockers；Ranking 必须显式 Job IDs，Gap 必须显式 current UserFeedback selection，Prepare 必须锁定 governed current Job。该入口故意不把自由文本字符串用关键词规则伪装成“智能意图理解”，也不注册有 Provider/DB/用户决策副作用的动作；自然语言路由质量留到 `Agent Eval` 有独立证据后再接入。
 
 ### 任务
 
-- [ ] 统一对话入口；
+- [x] 统一受治理入口（structured single-turn；自然语言意图路由待 Agent Eval 验证后再接入）；
 - [x] Tool Registry（复用 Workflow 能力，不是把业务全写成 Agent Tool）；
 - [x] Context Builder（P0 用户确认事实 / 当前 Job，P1 相关 Evidence）；
 - [ ] `Agent Eval`。

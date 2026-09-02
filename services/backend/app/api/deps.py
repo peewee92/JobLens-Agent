@@ -5,6 +5,10 @@ from pathlib import Path
 from fastapi import Depends
 from sqlalchemy import inspect
 
+from app.agent.context import CareerAgentContextBuilder
+from app.agent.entrypoint import CareerAgentEntrypoint
+from app.agent.tool_registry import CareerAgentToolRegistry
+
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
 )
@@ -913,6 +917,31 @@ def get_requirement_batch_execution_use_case(
         coverage=coverage,
         extraction_runner=extraction_runner,
     )
+
+
+def get_career_agent_entrypoint(
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    target_cohort_gaps: BuildSelectedFeedbackTargetCohortGapDetailsUseCase = Depends(
+        get_target_cohort_gap_query_use_case
+    ),
+    job_preparation: BuildJobPreparationBundleUseCase = Depends(
+        get_job_preparation_bundle_use_case
+    ),
+) -> CareerAgentEntrypoint:
+    context_builder = CareerAgentContextBuilder(
+        career_context=career_context,
+        jobs=jobs,
+    )
+    tools = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=target_cohort_gaps,
+        job_preparation=job_preparation,
+    )
+    return CareerAgentEntrypoint(context_builder=context_builder, tools=tools)
 
 
 def get_match_review_readiness_use_case(
