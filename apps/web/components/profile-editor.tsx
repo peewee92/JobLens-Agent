@@ -1,7 +1,7 @@
 "use client";
 
 import {useRouter} from "next/navigation";
-import {FormEvent, useMemo, useRef, useState} from "react";
+import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
 import {ResumeProposalPanel} from "@/components/resume-proposal-panel";
 import {
@@ -210,6 +210,22 @@ export function ProfileEditor({
     message: "",
   });
 
+  useEffect(() => {
+    if (!isProfileEditorOpen || focusedEvidenceIndex === null) return;
+    const focusedEvidence = evidence[focusedEvidenceIndex];
+    if (!focusedEvidence) return;
+    const isEducation = focusedEvidence.type === "education";
+    const card = document.getElementById(
+      `${isEducation ? "profile-education-card" : "profile-evidence-card"}-${focusedEvidenceIndex}`,
+    );
+    const input = document.getElementById(
+      `${isEducation ? "education-key" : "evidence-key"}-${focusedEvidenceIndex}`,
+    );
+    if (!card || !input) return;
+    card.scrollIntoView({behavior: "auto", block: "center"});
+    input.focus({preventScroll: true});
+  }, [evidence.length, focusedEvidenceIndex, isProfileEditorOpen]);
+
   const selectableEvidence = useMemo(
     () => evidence.map((item) => item.key.trim()).filter(Boolean),
     [evidence],
@@ -343,29 +359,29 @@ export function ProfileEditor({
   function revealEvidenceEditor(index: number) {
     setFocusedEvidenceIndex(index);
     setIsProfileEditorOpen(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const card = document.getElementById(`profile-evidence-card-${index}`);
-        card?.scrollIntoView({behavior: "smooth", block: "center"});
-        document.getElementById(`evidence-key-${index}`)?.focus({preventScroll: true});
-      });
-    });
   }
 
   function addEvidenceForCurrentRequirement(type: EvidenceType) {
     markProfileDirty();
-    const blankIndex = evidence.findIndex(
-      (item) => !item.key.trim() && !item.summary.trim(),
+    const sameTypeBlankIndex = evidence.findIndex(
+      (item) => item.type === type && !item.key.trim() && !item.summary.trim(),
     );
-    const targetIndex = blankIndex >= 0 ? blankIndex : evidence.length;
+    const bootstrapBlankIndex = evidence.length === 1
+      && !evidence[0].key.trim()
+      && !evidence[0].summary.trim()
+      && !evidenceReferenceKeys[0]
+      ? 0
+      : -1;
+    const reusableIndex = sameTypeBlankIndex >= 0 ? sameTypeBlankIndex : bootstrapBlankIndex;
+    const targetIndex = reusableIndex >= 0 ? reusableIndex : evidence.length;
     setEvidence((items) =>
-      blankIndex >= 0
+      reusableIndex >= 0
         ? items.map((item, index) =>
-          index === blankIndex ? {...item, type} : item,
+          index === reusableIndex ? {...item, type} : item,
         )
         : [...items, {...EMPTY_EVIDENCE, type}],
     );
-    if (blankIndex < 0) {
+    if (reusableIndex < 0) {
       setEvidenceReferenceKeys((keys) => [...keys, ""]);
     }
     revealEvidenceEditor(targetIndex);
@@ -1047,10 +1063,131 @@ export function ProfileEditor({
           </div>
         </div>
 
+        <div className="subsection-heading" id="profile-education">
+          <div>
+            <h3>教育经历</h3>
+            <p>单独记录学校、学历、专业和时间等真实教育事实；这里不会混入项目或工作经历。</p>
+          </div>
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={() => addEvidenceForCurrentRequirement("education")}
+          >
+            + 添加教育经历
+          </button>
+        </div>
+
+        <div className="editor-list education-editor-list">
+          {evidence.map((item, index) => item.type === "education" ? (
+            <article
+              className="editor-card education-editor-card"
+              id={`profile-education-card-${index}`}
+              key={`education-${index}`}
+            >
+              <div className="education-editor-grid">
+                <div className="field profile-span-2">
+                  <label htmlFor={`education-key-${index}`}>教育经历简称</label>
+                  <input
+                    id={`education-key-${index}`}
+                    value={item.key}
+                    onChange={(event) => updateEvidence(index, {key: event.target.value})}
+                    placeholder="例如：本科 · 计算机相关专业"
+                    required
+                  />
+                </div>
+                <div className="field profile-span-2">
+                  <label htmlFor={`education-summary-${index}`}>教育信息</label>
+                  <textarea
+                    id={`education-summary-${index}`}
+                    value={item.summary}
+                    onChange={(event) => updateEvidence(index, {summary: event.target.value})}
+                    placeholder="填写真实学校、学历层级、专业、就读或毕业时间；岗位有院校限定时也只填写真实事实"
+                    required
+                  />
+                </div>
+                <details className="technical-details profile-span-2">
+                  <summary>查看来源记录</summary>
+                  <div className="field">
+                    <label htmlFor={`education-source-${index}`}>来源记录（用于后续核对）</label>
+                    <input
+                      id={`education-source-${index}`}
+                      value={item.source}
+                      onChange={(event) => updateEvidence(index, {source: event.target.value})}
+                      placeholder="例如：本人确认、简历、学历信息"
+                      required
+                    />
+                  </div>
+                </details>
+              </div>
+              {renameImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>改名会影响已有技能关联</strong>
+                  <p>
+                    “{renameImpactByEvidenceIndex.get(index)?.previousKey}”当前被技能
+                    {renameImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用。
+                    直接保存新简称会让这些既有引用失效；这里只迁移已有引用，不会新增技能或能力判断。
+                  </p>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={() => migrateRenamedEvidenceReferences(index)}
+                  >
+                    将这些已有技能引用迁移到“{renameImpactByEvidenceIndex.get(index)?.nextKey}”
+                  </button>
+                </div>
+              ) : null}
+              {contentImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>清空教育信息会让已有技能失去证据</strong>
+                  <p>
+                    这条教育经历仍被技能
+                    {contentImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用，但教育信息已经为空。
+                    你可以补回真实信息，或显式移除这些既有引用；JobLens 不会自动替你补事实。
+                  </p>
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={() => detachEmptyEvidenceReferences(index)}
+                  >
+                    只移除这些技能引用
+                  </button>
+                </div>
+              ) : null}
+              {deleteImpactByEvidenceIndex.get(index) ? (
+                <div className="notice">
+                  <strong>删除会影响已有技能关联</strong>
+                  <p>
+                    这条教育经历当前被技能
+                    {deleteImpactByEvidenceIndex.get(index)?.affectedSkillNames.join("、")} 引用。
+                    删除时必须同时移除这些既有引用，避免留下失效 Evidence 引用。
+                  </p>
+                  <button
+                    className="danger-link"
+                    type="button"
+                    disabled={evidence.length === 1}
+                    onClick={() => deleteEvidenceAndRemoveReferences(index)}
+                  >
+                    同时移除这些技能引用并删除教育经历
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="danger-link"
+                  type="button"
+                  disabled={evidence.length === 1}
+                  onClick={() => deleteEvidenceAndRemoveReferences(index)}
+                >
+                  删除这条教育经历
+                </button>
+              )}
+            </article>
+          ) : null)}
+        </div>
+
         <div className="subsection-heading" id="profile-evidence">
           <div>
-            <h3>经历与成果</h3>
-            <p>记录真正做过的工作、项目、教育和成果，后面的技能需要从这些经历中找到依据。</p>
+            <h3>工作、项目与成果</h3>
+            <p>记录真正做过的工作、项目和成果；教育事实放在上面的“教育经历”中单独维护。</p>
           </div>
           <button
             className="button-secondary"
@@ -1066,7 +1203,7 @@ export function ProfileEditor({
         </div>
 
         <div className="editor-list">
-          {evidence.map((item, index) => (
+          {evidence.map((item, index) => item.type !== "education" ? (
             <article
               className="editor-card"
               id={`profile-evidence-card-${index}`}
@@ -1189,7 +1326,7 @@ export function ProfileEditor({
                 </button>
               )}
             </article>
-          ))}
+          ) : null)}
         </div>
 
         <div className="subsection-heading">

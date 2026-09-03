@@ -781,14 +781,26 @@ test("career background defaults to card review and only expands the detailed ed
   assert.match(editor, /完成编辑，返回审核/);
 });
 
-test("focused evidence add actions reveal and focus the editable evidence card", async () => {
+test("education add actions open a dedicated education editor instead of a generic experience card", async () => {
   const editor = await source("components/profile-editor.tsx");
 
   assert.match(editor, /function revealEvidenceEditor\(index: number\)/);
-  assert.match(editor, /profile-evidence-card-\$\{index\}/);
-  assert.match(editor, /scrollIntoView\(\{behavior: "smooth", block: "center"\}\)/);
-  assert.match(editor, /evidence-key-\$\{index\}/);
+  assert.match(editor, /profile-education-card/);
+  assert.match(editor, /education-key/);
+  assert.match(editor, /id="profile-education"/);
+  assert.match(editor, /className="education-editor-grid"/);
+  assert.match(editor, /<h3>教育经历<\/h3>/);
+  assert.match(editor, /教育信息/);
+  assert.match(editor, /这里不会混入项目或工作经历/);
+  assert.match(editor, /item\.type === "education"/);
+  assert.match(editor, /item\.type !== "education"/);
+  assert.match(editor, /scrollIntoView\(\{behavior: "auto", block: "center"\}\)/);
   assert.match(editor, /focus\(\{preventScroll: true\}\)/);
+  assert.match(editor, /\[evidence\.length, focusedEvidenceIndex, isProfileEditorOpen\]/);
+  assert.doesNotMatch(editor, /\}, \[evidence, focusedEvidenceIndex, isProfileEditorOpen\]\);/);
+  assert.match(editor, /sameTypeBlankIndex/);
+  assert.match(editor, /bootstrapBlankIndex/);
+  assert.match(editor, /reusableIndex/);
   assert.match(editor, /revealEvidenceEditor\(targetIndex\)/);
 });
 
