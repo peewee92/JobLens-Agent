@@ -53,9 +53,15 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
   const router = useRouter();
   const [state, setState] = useState<State>({kind: "idle", message: ""});
   const [providerBlocked, setProviderBlocked] = useState(providerCooldownActive);
+  const [liveCostConfirmed, setLiveCostConfirmed] = useState(false);
 
   async function run() {
-    if (jobIds.length === 0 || state.kind === "running" || providerBlocked) return;
+    if (
+      jobIds.length === 0
+      || state.kind === "running"
+      || providerBlocked
+      || !liveCostConfirmed
+    ) return;
     setState({
       kind: "running",
       message: `正在分析 ${jobIds.length} 个优先岗位的要求…`,
@@ -65,9 +71,10 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       const response = await fetch("/api/requirement-batch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({jobIds, maxReadyJobs: 5}),
+        body: JSON.stringify({jobIds, maxReadyJobs: 5, confirmLiveCost: true}),
       });
       if (!response.ok) {
+        setLiveCostConfirmed(false);
         setState({kind: "error", message: await responseMessage(response)});
         return;
       }
@@ -76,6 +83,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       if (result.providerUnavailableCount > 0) {
         startProviderCooldown();
         setProviderBlocked(true);
+        setLiveCostConfirmed(false);
         setState({
           kind: "error",
           message: `Provider 当前不可用，本轮已立即停止。成功 ${result.succeededCount} 个，剩余 ${result.deferredCount} 个未继续调用。为避免刷新页面后立即重复产生失败付费调用，本浏览器会话将冷却 30 分钟后再允许重试。`,
@@ -85,6 +93,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       }
 
       clearProviderCooldown();
+      setLiveCostConfirmed(false);
       const incomplete = result.failedCount + result.notSelectedCount + result.deferredCount;
       setState({
         kind: incomplete > 0 ? "error" : "success",
@@ -95,6 +104,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       });
       router.refresh();
     } catch {
+      setLiveCostConfirmed(false);
       setState({kind: "error", message: "岗位要求分析失败，请检查本地服务后重试。"});
     }
   }
@@ -107,8 +117,22 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       <p>
         本轮最多分析 {jobIds.length} 个由 Backend Coverage Planner 选出的岗位。该操作可能调用模型；如果 Provider 出现 429/503/504 等不可用情况，Backend 会立即停止后续岗位，并在当前浏览器会话中保持 30 分钟冷却，避免刷新页面后立即重复付费失败。
       </p>
+      <label className="feedback-reason-option">
+        <input
+          type="checkbox"
+          checked={liveCostConfirmed}
+          onChange={(event) => setLiveCostConfirmed(event.target.checked)}
+          disabled={state.kind === "running" || providerBlocked}
+        />
+        我确认本轮最多分析 {jobIds.length} 个岗位，并允许产生对应的真实 Provider 调用成本；本次确认只对这一轮有效。
+      </label>
       <div className="actions">
-        <button className="button" type="button" onClick={run} disabled={state.kind === "running" || providerBlocked}>
+        <button
+          className="button"
+          type="button"
+          onClick={run}
+          disabled={state.kind === "running" || providerBlocked || !liveCostConfirmed}
+        >
           {state.kind === "running"
             ? "正在分析岗位要求…"
             : providerBlocked

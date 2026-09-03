@@ -53,7 +53,11 @@ def test_requirement_batch_api_exposes_bounded_execution_contract() -> None:
         with TestClient(app) as client:
             response = client.post(
                 "/api/v1/requirement-batch",
-                json={"jobIds": ["job_1", "job_2"], "maxReadyJobs": 1},
+                json={
+                    "jobIds": ["job_1", "job_2"],
+                    "maxReadyJobs": 1,
+                    "confirmLiveCost": True,
+                },
             )
     finally:
         app.dependency_overrides.clear()
@@ -69,11 +73,39 @@ def test_requirement_batch_api_exposes_bounded_execution_contract() -> None:
     assert use_case.calls == [(('job_1', 'job_2'), 1)]
 
 
+def test_requirement_batch_api_requires_explicit_live_cost_confirmation() -> None:
+    use_case = _UseCase()
+    app.dependency_overrides[get_requirement_batch_execution_use_case] = lambda: use_case
+    try:
+        with TestClient(app) as client:
+            missing = client.post(
+                "/api/v1/requirement-batch",
+                json={"jobIds": ["job_1"], "maxReadyJobs": 1},
+            )
+            rejected = client.post(
+                "/api/v1/requirement-batch",
+                json={
+                    "jobIds": ["job_1"],
+                    "maxReadyJobs": 1,
+                    "confirmLiveCost": False,
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert missing.status_code == 422
+    assert rejected.status_code == 422
+    assert use_case.calls == []
+
+
 def test_requirement_batch_api_rejects_more_than_five_jobs() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/requirement-batch",
-            json={"jobIds": [f"job_{index}" for index in range(6)]},
+            json={
+                "jobIds": [f"job_{index}" for index in range(6)],
+                "confirmLiveCost": True,
+            },
         )
     assert response.status_code == 422
 

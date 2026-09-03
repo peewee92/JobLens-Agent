@@ -1,6 +1,8 @@
 """HTTP contract for bounded Requirement Analysis execution."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from app.api.v1.schemas.common import CamelCaseModel
@@ -10,6 +12,7 @@ from app.application.requirement_batch_execution import RequirementBatchExecutio
 class RequirementBatchExecutionRequest(CamelCaseModel):
     job_ids: list[str] = Field(min_length=1, max_length=5)
     max_ready_jobs: int = Field(default=5, ge=1, le=5)
+    confirm_live_cost: Literal[True]
 
 
 class RequirementBatchExecutionItemResponse(CamelCaseModel):
