@@ -20,6 +20,7 @@ from app.api.v1.schemas import ApiErrorResponse
 from app.api.v1.schemas.eligibility import JobEligibilityResponse
 from app.api.v1.schemas.evidence_retrieval import JobEvidenceRetrievalResponse
 from app.api.v1.schemas.job_requirements import (
+    JobRequirementExtractionRequest,
     JobRequirementExtractionResponse,
     JobRequirementReleaseReadinessResponse,
 )
@@ -31,6 +32,7 @@ from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
 from app.application.job_requirements.release import (
     GetJobRequirementReleaseReadinessUseCase,
 )
+from app.application.job_requirements import RequirementLiveCostConfirmationRequiredError
 from app.application.job_requirements.use_cases import (
     ExtractJobRequirementsUseCase,
     GetJobRequirementExtractionUseCase,
@@ -60,7 +62,12 @@ def extract_job_requirements(
         ExtractJobRequirementsUseCase,
         Depends(get_extract_job_requirements_use_case),
     ],
+    request: JobRequirementExtractionRequest | None = None,
 ) -> JobRequirementExtractionResponse:
+    if use_case.requires_live_cost_confirmation and not bool(request and request.confirm_live_cost):
+        raise RequirementLiveCostConfirmationRequiredError(
+            "Live Requirement extraction requires explicit per-run cost confirmation"
+        )
     return JobRequirementExtractionResponse.from_detail(use_case.execute(job_id))
 
 

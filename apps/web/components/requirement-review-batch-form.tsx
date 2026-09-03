@@ -15,8 +15,10 @@ import {
 
 export function RequirementReviewBatchForm({
   candidates,
+  formalCandidateIds = [],
 }: {
   candidates: RequirementReviewCandidate[];
+  formalCandidateIds?: string[];
 }) {
   const router = useRouter();
   const [title, setTitle] = useState("Requirement 真实岗位人工验收");
@@ -100,7 +102,21 @@ export function RequirementReviewBatchForm({
             已选 {selectedIds.length}/20。选择第一条后，其他 Cohort 会被禁用。
           </p>
         </div>
-        {selectedCohort ? <span className="code">{selectedCohort}</span> : null}
+        <div className="actions">
+          {formalCandidateIds.length === 20 ? (
+            <button
+              className="button-ghost"
+              type="button"
+              onClick={() => {
+                setError(null);
+                setSelectedIds(formalCandidateIds);
+              }}
+            >
+              一键选择正式 20 条
+            </button>
+          ) : null}
+          {selectedCohort ? <span className="code">{selectedCohort}</span> : null}
+        </div>
       </div>
 
       <div className="eval-run-list">

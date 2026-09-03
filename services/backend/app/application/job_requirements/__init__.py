@@ -6,6 +6,7 @@ from app.application.job_requirements.errors import (
     JobRequirementExtractionNotFoundError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementLiveCostConfirmationRequiredError,
 )
 from app.application.job_requirements.models import (
     JobRequirementDetail,
@@ -33,4 +34,5 @@ __all__ = [
     "ProposedJobRequirement",
     "RequirementExtractorFailedError",
     "RequirementExtractorUnavailableError",
+    "RequirementLiveCostConfirmationRequiredError",
 ]

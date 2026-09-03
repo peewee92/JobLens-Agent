@@ -16,6 +16,7 @@ const messages: Record<string, string> = {
   profile_extractor_failed: "这次 AI 简历整理没有成功，请稍后重试。你的背景信息不会被自动保存。",
   invalid_profile_extractor_output: "这次 AI 简历整理结果不完整，请稍后重试。你的背景信息不会被自动保存。",
   job_description_not_extractable: "这个岗位的 JD 内容太少，暂时无法分析岗位要求。",
+  requirement_live_cost_confirmation_required: "请先确认本次岗位要求分析可能产生真实 Provider 成本，再继续执行。",
   requirement_extractor_unavailable: "岗位要求分析暂时不可用，请稍后重试。",
   requirement_extractor_failed: "这次岗位要求分析没有成功，请稍后重试。",
   invalid_requirement_extractor_output: "这次岗位要求分析结果不完整，请稍后重试。",

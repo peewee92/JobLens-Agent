@@ -299,6 +299,21 @@ h3 {
   white-space: nowrap;
 }
 
+.requirement-live-cost-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 520px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.requirement-live-cost-consent input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
 .requirement-processing-indicator {
   display: flex;
   align-items: flex-start;

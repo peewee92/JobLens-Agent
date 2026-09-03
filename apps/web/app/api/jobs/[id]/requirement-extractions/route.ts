@@ -2,14 +2,40 @@ import {NextResponse} from "next/server";
 
 import {backendResponse} from "@/lib/backend";
 
+async function readLiveCostConfirmation(request: Request): Promise<boolean> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const payload = await request.json() as {confirmLiveCost?: unknown};
+      return payload.confirmLiveCost === true;
+    } catch {
+      return false;
+    }
+  }
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    try {
+      const form = await request.formData();
+      return form.get("confirmLiveCost") === "true";
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 export async function POST(
   request: Request,
   {params}: {params: Promise<{id: string}>},
 ) {
   const {id} = await params;
+  const confirmLiveCost = await readLiveCostConfirmation(request);
   const response = await backendResponse(
     `/api/v1/jobs/${encodeURIComponent(id)}/requirement-extractions`,
-    {method: "POST"},
+    {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({confirmLiveCost}),
+    },
   );
   const body = await response.text();
   const returnTo = new URL(request.url).searchParams.get("returnTo");

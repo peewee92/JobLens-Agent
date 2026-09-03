@@ -18,15 +18,25 @@ export function JobRequirementExtractButton({
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [confirmLiveCost, setConfirmLiveCost] = useState(false);
 
   async function extract(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setStatus("submitting");
     setMessage("");
+    if (!confirmLiveCost) {
+      setStatus("error");
+      setMessage("请先确认本次岗位要求分析可能产生真实 Provider 成本。");
+      return;
+    }
     try {
       const response = await fetch(
         `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions`,
-        {method: "POST"},
+        {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({confirmLiveCost: true}),
+        },
       );
       const body = (await response.json()) as
         | JobRequirementExtraction
@@ -40,6 +50,7 @@ export function JobRequirementExtractButton({
         );
       }
       router.refresh();
+      setConfirmLiveCost(false);
       setStatus("idle");
     } catch (caught) {
       setStatus("error");
@@ -52,9 +63,25 @@ export function JobRequirementExtractButton({
   return (
     <div>
       <form action={fallbackAction} method="post" onSubmit={extract}>
+        <label className="requirement-live-cost-consent">
+          <input
+            checked={confirmLiveCost}
+            disabled={disabled || status === "submitting"}
+            name="confirmLiveCost"
+            onChange={(event) => {
+              setConfirmLiveCost(event.target.checked);
+              setMessage("");
+              if (status === "error") setStatus("idle");
+            }}
+            required
+            type="checkbox"
+            value="true"
+          />{" "}
+          我确认这次岗位要求分析可能调用真实 Provider 并产生费用。
+        </label>
         <button
           className="button requirement-action-button"
-          disabled={disabled || status === "submitting"}
+          disabled={disabled || status === "submitting" || !confirmLiveCost}
           type="submit"
         >
           {status === "submitting"

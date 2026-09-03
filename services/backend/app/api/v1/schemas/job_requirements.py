@@ -15,6 +15,10 @@ from app.application.job_requirements.release import (
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 
+class JobRequirementExtractionRequest(CamelCaseModel):
+    confirm_live_cost: bool = False
+
+
 class JobRequirementResponse(CamelCaseModel):
     id: str
     job_id: str

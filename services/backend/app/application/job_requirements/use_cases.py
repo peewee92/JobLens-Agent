@@ -46,6 +46,10 @@ class ExtractJobRequirementsUseCase:
     def max_provider_calls_per_execution(self) -> int:
         return self._workflow.max_provider_calls_per_execution
 
+    @property
+    def requires_live_cost_confirmation(self) -> bool:
+        return self._provider not in {"disabled", "fixture"}
+
     def execute(self, job_id: str) -> JobRequirementExtractionDetail:
         job = self._jobs.get_job(job_id)
         if job is None:

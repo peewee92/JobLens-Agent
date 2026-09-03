@@ -409,10 +409,16 @@ def test_disabled_and_invalid_provider_results_map_to_stable_errors(
         HallucinatingExtractor(),
         "simulated-live",
     )
-    invalid = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+    missing_consent = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+    invalid = client.post(
+        f"/api/v1/jobs/{job_id}/requirement-extractions",
+        json={"confirmLiveCost": True},
+    )
 
     assert disabled.status_code == 503
     assert disabled.json()["error"]["code"] == "requirement_extractor_unavailable"
+    assert missing_consent.status_code == 422
+    assert missing_consent.json()["error"]["code"] == "requirement_live_cost_confirmation_required"
     assert invalid.status_code == 502
     assert invalid.json()["error"]["code"] == "invalid_requirement_extractor_output"
     with factory() as session:
@@ -436,6 +442,7 @@ def test_openapi_registers_requirement_routes_and_errors(
     paths = response.json()["paths"]
     post = paths["/api/v1/jobs/{job_id}/requirement-extractions"]["post"]
     assert {"201", "404", "422", "502", "503"} <= set(post["responses"])
+    assert post["requestBody"]["content"]["application/json"]
     assert paths["/api/v1/jobs/{job_id}/requirements"]["get"]
     release = paths[
         "/api/v1/jobs/{job_id}/requirement-release-readiness"

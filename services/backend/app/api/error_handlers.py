@@ -43,6 +43,7 @@ from app.application.job_requirements import (
     JobRequirementExtractionNotFoundError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementLiveCostConfirmationRequiredError,
 )
 from app.application.profile_evals import (
     AcceptedProfileEvalBaselineNotFoundError,
@@ -349,6 +350,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "job_description_not_extractable",
+            str(error),
+        )
+
+    @app.exception_handler(RequirementLiveCostConfirmationRequiredError)
+    async def handle_requirement_live_cost_confirmation_required(
+        _request: Request,
+        error: RequirementLiveCostConfirmationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "requirement_live_cost_confirmation_required",
             str(error),
         )
 

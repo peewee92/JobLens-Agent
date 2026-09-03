@@ -6,6 +6,10 @@ class JobDescriptionNotExtractableError(ValueError):
     """Persisted Job description is missing or outside supported boundaries."""
 
 
+class RequirementLiveCostConfirmationRequiredError(ValueError):
+    """A live Requirement Provider call was requested without explicit cost consent."""
+
+
 class JobRequirementExtractionExecutionError(RuntimeError):
     """Base error for traced Requirement Extractor attempts."""
 

@@ -7,6 +7,7 @@ import type {
   RequirementReviewCandidate,
 } from "../lib/contracts";
 import {
+  buildRequirementReviewFormalReadiness,
   canSelectRequirementCandidate,
   requirementReviewCohortKey,
   requirementReviewEvidenceLabel,
@@ -102,6 +103,39 @@ test("selection allows only one cohort and at most twenty", () => {
   const twenty = Array.from({length: 20}, (_, index) => candidate(`selected-${index}`));
   assert.equal(canSelectRequirementCandidate(candidate("extra"), twenty), false);
   assert.equal(canSelectRequirementCandidate(twenty[0], twenty), true);
+});
+
+test("formal review readiness exposes mixed-model blockers instead of pretending twenty candidates are selectable", () => {
+  const flash = Array.from({length: 16}, (_, index) => candidate(`flash-${index}`, {
+    model: "deepseek-v4-flash",
+    createdAt: `2026-09-03T13:${String(index).padStart(2, "0")}:00Z`,
+  }));
+  const pro = Array.from({length: 4}, (_, index) => candidate(`pro-${index}`, {
+    model: "deepseek-v4-pro",
+    createdAt: `2026-08-25T12:${String(index).padStart(2, "0")}:00Z`,
+  }));
+
+  const readiness = buildRequirementReviewFormalReadiness([...pro, ...flash]);
+
+  assert.equal(readiness.formalReady, false);
+  assert.equal(readiness.targetCandidates.length, 16);
+  assert.equal(readiness.outlierCandidates.length, 4);
+  assert.equal(readiness.cohortCount, 2);
+  assert.match(readiness.targetCohortKey ?? "", /deepseek-v4-flash/);
+  assert.deepEqual(
+    readiness.outlierCandidates.map((item) => item.model),
+    ["deepseek-v4-pro", "deepseek-v4-pro", "deepseek-v4-pro", "deepseek-v4-pro"],
+  );
+});
+
+test("formal review readiness becomes ready only when one exact cohort has twenty current candidates", () => {
+  const readiness = buildRequirementReviewFormalReadiness(
+    Array.from({length: 20}, (_, index) => candidate(`formal-${index}`)),
+  );
+  assert.equal(readiness.formalReady, true);
+  assert.equal(readiness.targetCandidates.length, 20);
+  assert.equal(readiness.outlierCandidates.length, 0);
+  assert.equal(readiness.cohortCount, 1);
 });
 
 test("manual review cases keep stable case order after a judgment is saved", () => {

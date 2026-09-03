@@ -8,7 +8,10 @@ import {
   fetchRequirementReviewCandidates,
 } from "@/lib/backend";
 import {formatDateTime} from "@/lib/format";
-import {requirementReviewEvidenceLabel} from "@/lib/requirement-reviews";
+import {
+  buildRequirementReviewFormalReadiness,
+  requirementReviewEvidenceLabel,
+} from "@/lib/requirement-reviews";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +30,9 @@ export default async function RequirementManualReviewPage() {
         : "读取 Requirement 人工验收数据时发生未知错误。";
     return <ServiceError message={message} />;
   }
+
+  const formalReadiness = buildRequirementReviewFormalReadiness(candidates.items);
+  const targetCandidate = formalReadiness.targetCandidates[0] ?? null;
 
   return (
     <>
@@ -49,13 +55,70 @@ export default async function RequirementManualReviewPage() {
       <section className="detail-card">
         <div className="section-heading-row">
           <div>
+            <h2>正式验收准备状态</h2>
+            <p className="muted">
+              正式 Match baseline 必须由同一 Provider、Model、Extractor 和 Prompt 的 20 个 current Extraction 组成；候选总数达到 20 并不代表已经能创建正式批次。
+            </p>
+          </div>
+          <span className={`status-chip ${formalReadiness.formalReady ? "status-pass" : "status-fixture"}`}>
+            {formalReadiness.formalReady ? "20/20 可正式验收" : `${formalReadiness.targetCandidates.length}/20 同一版本`}
+          </span>
+        </div>
+
+        <div className="summary-grid eval-summary-grid">
+          <div className="summary-card"><span>Current 候选</span><strong>{candidates.total}</strong></div>
+          <div className="summary-card"><span>最大一致 Cohort</span><strong>{formalReadiness.targetCandidates.length}/20</strong></div>
+          <div className="summary-card"><span>版本 Cohort</span><strong>{formalReadiness.cohortCount}</strong></div>
+          <div className="summary-card"><span>需要统一</span><strong>{formalReadiness.outlierCandidates.length}</strong></div>
+        </div>
+
+        {formalReadiness.formalReady ? (
+          <div className="review-result review-accepted">
+            <strong>正式 20-case Requirement Review 已准备好</strong>
+            <p>下面可以一键选择这 20 个完全一致的 current Extraction，创建正式人工验收批次。创建批次不会调用 Provider，也不会替你做人工 Accept / Reject。</p>
+          </div>
+        ) : (
+          <div className="review-result review-pending">
+            <strong>当前还不能创建正式 20-case baseline</strong>
+            <p>
+              当前 {candidates.total} 个 current Extraction 被拆成 {formalReadiness.cohortCount} 个模型版本组；最大一致组只有 {formalReadiness.targetCandidates.length}/20。
+              先把下面 {formalReadiness.outlierCandidates.length} 个岗位重新分析到同一当前版本，再回来创建正式批次。不要用 {formalReadiness.targetCandidates.length} 条练习批次代替正式质量证据。
+            </p>
+            {targetCandidate ? (
+              <p className="code">目标一致版本：{formalReadiness.targetCohortKey}</p>
+            ) : null}
+            {formalReadiness.outlierCandidates.length > 0 ? (
+              <div className="eval-run-list">
+                {formalReadiness.outlierCandidates.map((candidate) => (
+                  <article className="eval-run-card" key={candidate.extractionId}>
+                    <strong>{candidate.title} · {candidate.company}</strong>
+                    <p className="muted">当前模型：{candidate.model}</p>
+                    <div className="actions">
+                      <Link className="button-ghost" href={`/jobs/${candidate.jobId}`}>
+                        打开岗位并重新分析 →
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      <section className="detail-card">
+        <div className="section-heading-row">
+          <div>
             <h2>创建版本冻结的审查批次</h2>
             <p className="muted">
-              当前有 {candidates.total} 个带最新 Requirement Extraction 的岗位。1～19 条是练习批次；20 条完整、当前、非 Fixture 才是正式人工质量证据。
+              当前有 {candidates.total} 个带最新 Requirement Extraction 的岗位。1～19 条仍可作为练习批次；只有上方状态达到 20/20 才能形成正式人工质量证据。
             </p>
           </div>
         </div>
-        <RequirementReviewBatchForm candidates={candidates.items} />
+        <RequirementReviewBatchForm
+          candidates={candidates.items}
+          formalCandidateIds={formalReadiness.formalReady ? formalReadiness.targetCandidates.map((item) => item.extractionId) : []}
+        />
       </section>
 
       <section className="detail-card">

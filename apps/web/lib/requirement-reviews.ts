@@ -40,6 +40,44 @@ export function canSelectRequirementCandidate(
   return requirementReviewCohortKey(candidate) === requirementReviewCohortKey(selected[0]);
 }
 
+export type RequirementReviewFormalReadiness = {
+  formalReady: boolean;
+  requiredCount: 20;
+  targetCohortKey: string | null;
+  targetCandidates: RequirementReviewCandidate[];
+  outlierCandidates: RequirementReviewCandidate[];
+  cohortCount: number;
+};
+
+export function buildRequirementReviewFormalReadiness(
+  candidates: RequirementReviewCandidate[],
+): RequirementReviewFormalReadiness {
+  const groups = new Map<string, RequirementReviewCandidate[]>();
+  for (const item of candidates) {
+    const key = requirementReviewCohortKey(item);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+
+  const rankedGroups = [...groups.entries()].sort(([leftKey, left], [rightKey, right]) => {
+    if (left.length !== right.length) return right.length - left.length;
+    const leftLatest = Math.max(...left.map((item) => Date.parse(item.createdAt) || 0));
+    const rightLatest = Math.max(...right.map((item) => Date.parse(item.createdAt) || 0));
+    if (leftLatest !== rightLatest) return rightLatest - leftLatest;
+    return leftKey.localeCompare(rightKey);
+  });
+  const [targetCohortKey, targetCandidates = []] = rankedGroups[0] ?? [];
+  const targetIds = new Set(targetCandidates.map((item) => item.extractionId));
+
+  return {
+    formalReady: targetCandidates.length === 20,
+    requiredCount: 20,
+    targetCohortKey: targetCohortKey ?? null,
+    targetCandidates,
+    outlierCandidates: candidates.filter((item) => !targetIds.has(item.extractionId)),
+    cohortCount: groups.size,
+  };
+}
+
 export function sortRequirementReviewCases(
   cases: RequirementReviewBatchCase[],
 ): RequirementReviewBatchCase[] {

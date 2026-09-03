@@ -97,6 +97,9 @@ test("the Job Requirement action keeps a native POST fallback when hydration is 
   );
   assert.match(source, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/requirement-extractions`/);
   assert.match(source, /<form action=\{fallbackAction\} method="post" onSubmit=\{extract\}>/);
+  assert.match(source, /name="confirmLiveCost"/);
+  assert.match(source, /required/);
+  assert.match(source, /JSON\.stringify\(\{confirmLiveCost: true\}\)/);
   assert.match(source, /type="submit"/);
   assert.match(source, /returnTo=/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
@@ -109,6 +112,8 @@ test("the Job Requirement Route Handler delegates to Backend and safely redirect
     "utf8",
   );
   assert.match(source, /backendResponse/);
+  assert.match(source, /readLiveCostConfirmation/);
+  assert.match(source, /JSON\.stringify\(\{confirmLiveCost\}\)/);
   assert.match(source, /returnTo === safeReturnTo/);
   assert.match(source, /NextResponse\.redirect\(target, 303\)/);
   assert.match(source, /requirementExtractionError/);
