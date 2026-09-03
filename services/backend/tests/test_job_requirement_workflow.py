@@ -1359,6 +1359,46 @@ def test_workflow_does_not_recover_same_evidence_parent_without_explicit_alterna
         assert "recover_same_evidence_example_experience_parent" not in strategies
 
 
+def test_workflow_collapses_same_evidence_framework_member_into_explicit_umbrella_parent(
+    session_factory: sessionmaker[Session],
+) -> None:
+    evidence = (
+        "2、核心技能:精通 Python,熟练使用 PyTorch/TensorFlow。"
+        "精通 LangChain、LlamaIndex 等大模型应用开发框架。"
+        "有 DeepSeek、Qwen、Llama 3 等开源大模型的私有化部署、微调实战经验。"
+    )
+    child = "精通 LangChain"
+    parent = "精通 LangChain、LlamaIndex 等大模型应用开发框架。"
+    description = f"【任职要求】\n{evidence}\n"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=child,
+            normalized_capability="LangChain",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=parent,
+            normalized_capability="LlamaIndex",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_live_case6_framework_member_parent_duplicate",
+        description=description,
+    )
+
+    assert [(item.type, item.original_text, item.normalized_capability) for item in proposal.requirements] == [
+        (RequirementType.CONSTRAINT, parent, None)
+    ]
+
+
 def test_workflow_keeps_same_evidence_child_in_non_cardinality_second_clause_hard(
     session_factory: sessionmaker[Session],
 ) -> None:

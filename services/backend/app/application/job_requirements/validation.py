@@ -67,6 +67,7 @@ class SemanticRepairStrategy(StrEnum):
     COLLAPSE_HARD_INLINE_ALTERNATIVE_CAPABILITY_FANOUT = (
         "collapse_hard_inline_alternative_capability_fanout"
     )
+    COLLAPSE_HARD_UMBRELLA_MEMBER_DUPLICATE = "collapse_hard_umbrella_member_duplicate"
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -6138,6 +6139,77 @@ def repair_job_requirement_semantics(
                 )
             )
             continue
+        same_evidence_hard_skill_items = [
+            candidate
+            for _, candidate in repaired_items
+            if (
+                candidate.type is RequirementType.SKILL
+                and candidate.importance is RequirementImportance.MUST_HAVE
+                and (candidate.normalized_capability or "").strip()
+                and _presentation_identity(candidate.evidence_span)
+                == _presentation_identity(item.evidence_span)
+            )
+        ]
+        umbrella_parent = next(
+            (
+                candidate
+                for candidate in same_evidence_hard_skill_items
+                if (
+                    candidate is not item
+                    and _classification_text(candidate.original_text).startswith(
+                        f"{_classification_text(item.original_text)}、"
+                    )
+                    and "等" in _classification_text(candidate.original_text)
+                    and re.search(
+                        r"等[^。；;]{0,40}(?:框架|工具|技术栈|平台|数据库|模型|语言)$",
+                        _classification_text(candidate.original_text),
+                    )
+                    is not None
+                    and _unique_exact_span(description, candidate.original_text) is not None
+                )
+            ),
+            None,
+        )
+        umbrella_children = [
+            candidate
+            for candidate in same_evidence_hard_skill_items
+            if (
+                candidate is not item
+                and _classification_text(item.original_text).startswith(
+                    f"{_classification_text(candidate.original_text)}、"
+                )
+                and "等" in _classification_text(item.original_text)
+                and re.search(
+                    r"等[^。；;]{0,40}(?:框架|工具|技术栈|平台|数据库|模型|语言)$",
+                    _classification_text(item.original_text),
+                )
+                is not None
+                and _unique_exact_span(description, item.original_text) is not None
+            )
+        ]
+        if umbrella_parent is not None:
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=SemanticRepairStrategy.COLLAPSE_HARD_UMBRELLA_MEMBER_DUPLICATE,
+                )
+            )
+            continue
+        if umbrella_children:
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=SemanticRepairStrategy.COLLAPSE_HARD_UMBRELLA_MEMBER_DUPLICATE,
+                )
+            )
+            item = replace(
+                item,
+                type=RequirementType.CONSTRAINT,
+                normalized_capability=None,
+                confidence=min(
+                    [item.confidence, *(candidate.confidence for candidate in umbrella_children)]
+                ),
+            )
         compound_ability_fanout_members = [
             candidate
             for _, candidate in repaired_items
