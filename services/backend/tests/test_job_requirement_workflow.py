@@ -7564,6 +7564,56 @@ def test_workflow_drops_exact_cross_type_evaluator_duplicates(
         assert "drop_exact_duplicate_requirement" in strategies
 
 
+def test_workflow_collapses_formal_case_12_cross_importance_experience_duplicate(
+    session_factory: sessionmaker[Session],
+) -> None:
+    original = "有 Agent / 多模态 / RAG 系统实际开发经验;"
+    evidence = f"- {original}"
+    description = (
+        "岗位要求\n"
+        "- 3年以上AI相关研发经验\n"
+        "加分项\n"
+        f"{evidence}\n"
+        "- GitHub 有开源项目或技术博客者优先。"
+    )
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.EXPERIENCE,
+            original_text=original,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.DOMAIN,
+            original_text=original,
+            normalized_capability=None,
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_12_cross_importance_experience_duplicate",
+        description=description,
+    )
+
+    assert [
+        (item.type, item.importance, item.original_text)
+        for item in proposal.requirements
+    ] == [
+        (RequirementType.EXPERIENCE, RequirementImportance.BONUS, original),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "drop_redundant_cross_type_duplicate" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
 def test_workflow_collapses_live_experience_ability_cross_type_and_soft_fanout(
     session_factory: sessionmaker[Session],
 ) -> None:
