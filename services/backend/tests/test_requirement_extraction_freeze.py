@@ -7,7 +7,7 @@ from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION
 
 
 FROZEN_MVP_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
-FROZEN_MVP_SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.95"
+FROZEN_MVP_SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.96"
 
 
 def test_requirement_extraction_versions_remain_frozen_for_mvp() -> None:

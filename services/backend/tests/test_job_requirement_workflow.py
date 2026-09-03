@@ -6186,7 +6186,7 @@ def test_workflow_softens_a_threshold_when_the_same_clause_explicitly_waives_it(
     with session_factory() as session:
         trace = session.get(TraceSpanORM, proposal.trace_run_id)
         assert trace is not None
-        assert trace.output["semanticPolicyVersion"] == "requirement-semantics-v42.95"
+        assert trace.output["semanticPolicyVersion"] == "requirement-semantics-v42.96"
         assert {item["strategy"] for item in trace.output["semanticRepairs"]} == {
             "waiver_scope",
             "drop_redundant_waiver",
@@ -9936,6 +9936,85 @@ def test_workflow_drops_exact_education_duplicate_when_provider_capability_diffe
         assert "drop_exact_duplicate_requirement" in {
             repair["strategy"] for repair in trace.output["semanticRepairs"]
         }
+
+
+def test_workflow_drops_redundant_same_source_constraint_subclause_from_human_reject_case(
+    session_factory: sessionmaker[Session],
+) -> None:
+    parent = "有英文读写能力,了解国外前沿产品网站和文档,具备国际化视角"
+    child = "了解国外前沿产品网站和文档,具备国际化视角"
+    evidence = f"6. {parent};"
+    description = f"岗位要求:\n{evidence}\n7. 具有较强的沟通、表达、总结及文档制作能力。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.CONSTRAINT,
+            original_text=parent,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=parent,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.CONSTRAINT,
+            original_text=child,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.96,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_live_v4295_same_source_constraint_subclause",
+        description=description,
+    )
+
+    assert [(item.type, item.importance, item.original_text) for item in proposal.requirements] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, parent),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "drop_redundant_same_source_constraint_subclause" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
+def test_workflow_keeps_distinct_same_source_constraint_siblings_without_parent_child_overlap(
+    session_factory: sessionmaker[Session],
+) -> None:
+    first = "有英文读写能力"
+    second = "具备国际化视角"
+    evidence = "6. 有英文读写能力,了解国外前沿产品网站和文档,具备国际化视角;"
+    description = f"岗位要求:\n{evidence}\n7. 具有较强的沟通表达能力。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.CONSTRAINT,
+            original_text=first,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.CONSTRAINT,
+            original_text=second,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.96,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_same_source_distinct_constraint_siblings",
+        description=description,
+    )
+
+    assert [(item.type, item.importance, item.original_text) for item in proposal.requirements] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, first),
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, second),
+    ]
 
 
 def test_workflow_keeps_distinct_education_requirements_with_different_source_facts(

@@ -16,7 +16,7 @@ from app.domain.job_requirements import RequirementImportance, RequirementType
 
 MAX_REQUIREMENTS_PER_RUN = 50
 GROUNDING_POLICY_VERSION = "grounding-v1"
-SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.95"
+SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.96"
 COVERAGE_POLICY_VERSION = "requirement-coverage-v4"
 MIN_DUTY_CANDIDATES_FOR_COVERAGE_GATE = 4
 MIN_COVERED_DUTY_CANDIDATES = 2
@@ -60,6 +60,9 @@ class SemanticRepairStrategy(StrEnum):
     DROP_REDUNDANT_REPAIRED_REQUIREMENT = "drop_redundant_repaired_requirement"
     RECOVER_ALTERNATIVE_GROUP_HEADER = "recover_alternative_group_header"
     DROP_EXACT_DUPLICATE_REQUIREMENT = "drop_exact_duplicate_requirement"
+    DROP_REDUNDANT_SAME_SOURCE_CONSTRAINT_SUBCLAUSE = (
+        "drop_redundant_same_source_constraint_subclause"
+    )
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -3027,6 +3030,57 @@ def _presentation_quote(value: str) -> str:
 
 def _presentation_identity(value: str) -> str:
     return _presentation_quote(value).casefold()
+
+
+def _is_redundant_same_source_constraint_subclause(
+    description: str,
+    item: ProposedJobRequirement,
+    kept_items: list[ProposedJobRequirement],
+) -> bool:
+    """Drop a strict constraint subclause duplicated from the same grounded source line.
+
+    This deliberately targets the human-reviewed v42.95 failure where a provider kept
+    both ``A,B,C`` and ``B,C`` as separate hard constraints. The child is removable
+    only when it begins at an explicit clause boundary inside an already-kept parent,
+    both items have no independent normalized capability, and the wider child evidence
+    proves that both quotes came from the same unique JD source occurrence.
+    """
+    if item.type is not RequirementType.CONSTRAINT or (item.normalized_capability or "").strip():
+        return False
+    child = _presentation_quote(item.original_text)
+    child_evidence = _presentation_quote(item.evidence_span)
+    if not child or not child_evidence:
+        return False
+    child_evidence_span = _unique_exact_span(description, child_evidence)
+    if child_evidence_span is None:
+        return False
+
+    for parent in kept_items:
+        if (
+            parent.type is not RequirementType.CONSTRAINT
+            or parent.importance is not item.importance
+            or (parent.normalized_capability or "").strip()
+        ):
+            continue
+        parent_text = _presentation_quote(parent.original_text)
+        parent_evidence = _presentation_quote(parent.evidence_span)
+        if not parent_text or parent_text == child or parent_evidence != parent_text:
+            continue
+        child_start = parent_text.find(child)
+        if child_start <= 0 or parent_text[child_start - 1] not in {",", "，", ";", "；"}:
+            continue
+        parent_span = _unique_exact_span(description, parent_text)
+        if parent_span is None:
+            continue
+        if not (
+            child_evidence_span[0] <= parent_span[0]
+            and parent_span[1] <= child_evidence_span[1]
+        ):
+            continue
+        if child not in child_evidence:
+            continue
+        return True
+    return False
 
 
 def _unique_presentation_span(
@@ -6064,6 +6118,20 @@ def repair_job_requirement_semantics(
                     ),
                 )
             )
+        if _is_redundant_same_source_constraint_subclause(
+            description,
+            item,
+            final_items,
+        ):
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=(
+                        SemanticRepairStrategy.DROP_REDUNDANT_SAME_SOURCE_CONSTRAINT_SUBCLAUSE
+                    ),
+                )
+            )
+            continue
         presentation_identity = _presentation_identity(item.original_text)
         presentation_span = _unique_presentation_span(description, item.original_text)
         source_identity = (

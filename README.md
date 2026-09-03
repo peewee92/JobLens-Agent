@@ -187,15 +187,15 @@ Phase 3B-3G：Live Canary Session Manifest + Evidence Pack ✅
 Phase 3B-3H：Guarded Local Live Bootstrap ✅
 Phase 3B-3I：Resumable Database Preparation Checkpoint ✅
 Phase 3B-3J：Explicit Live Canary Operator ✅
-Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ⏸ BLOCKED_BY_HUMAN_GATE
-Phase 4：Single Job Match ✅ ENGINEERING_COMPLETE / REAL_MATCH_VALIDATION_BLOCKED（真实 20 岗位中 8 个已有 current MatchReport）
-Phase 5：Batch Ranking + UserFeedback ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_ACTIVE（真实 20 岗位已全部有 current v42.95 Requirement Extraction；8 个已有 current MatchReport，current-report Feedback 仍需用户重新确认）
-Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_REQUIREMENT_QUALITY_DECISION_PENDING（20 个 current v42.95 Requirement 已统一并完成 20/20 人工 Review：12 Accept / 8 Reject；最终 accept_for_match / reject_for_match 尚待用户提交）
+Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ✅ HUMAN_DECISION_REJECTED（20/20 人审完成，最终 `reject_for_match` 已提交）
+Phase 4：Single Job Match ✅ ENGINEERING_COMPLETE / REAL_MATCH_VALIDATION_BLOCKED（运行时真实 20 岗位中 4 个已有 current MatchReport，16 个已具备 current Requirement 但尚无 MatchReport）
+Phase 5：Batch Ranking + UserFeedback ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_ACTIVE（真实 20 岗位均已有 current v42.95 Requirement Extraction；当前 4 个 current MatchReport、0 个 current-report Feedback，16 个 match-ready-without-report）
+Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_REQUIREMENT_QUALITY_REMEDIATION_ACTIVE（20 个 v42.95 Requirement 已完成 20/20 人审并最终 `reject_for_match`；当前基于 8 个 Reject Case 定向修 duplicate / importance，accepted baseline 仍关闭）
 Phase 7：Job Preparation ✅ ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED
 Phase 8：Career Agent ✅ ENGINEERING_COMPLETE（governed Context Builder + read-only Tool Registry + structured unified turn entrypoint + deterministic Agent Eval 已完成；自由文本路由未作为当前工程完成条件）
 Phase 9：Growth Loop / Collector Sync ✅ ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED
 ```
 
-截至 2026-09-03 的真实主循环状态已经进入 Requirement 正式人工质量结论门禁。20 个真实岗位全部有 current `requirement-extractor-v42.95 / requirement-extraction-v7` Extraction，并已统一到 `openai / deepseek-v4-flash` 同一 Cohort；正式 Batch `reqreviewbatch_e08cb34fa0444cbba781b50362ddb109` 已完成 20/20 人工 Review，结果为 12 Accept / 8 Reject，结构化问题集中为 `duplicate_requirement=6`、`wrong_importance=4`，Stale=0、Formal Evidence Eligible=true，但 Final Decision 仍为空，因此 Match Release 继续保持 false。`scripts.check_mvp_progress --json` 现在同时读取这条人工质量门禁，当前 `next_priority=complete_requirement_review_final_decision`，不会再被 current MatchReport / Feedback 数量误导。基于 40% Reject 且问题会直接污染 Eligibility / Match / Skill Gap，本轮工程复盘建议当前 v42.95 最终选择 `reject_for_match`，但该不可变人工结论必须由用户本人在 Review 页面提交，自动任务不得代签。若最终 Reject，下一主线是把 8 个 Reject Case 固化为 deterministic regression，优先修重复/递归拆分和显式 importance 错分，再进入 v42.96；若最终 Accept，则停止 Requirement 调优并回到 current MatchReport → UserFeedback → Target Cohort → Skill Gap。完整复盘见 `docs/implementation/P0-3B3K-Requirement-AI-Human-Eval-Retrospective.md`。Phase 8 维持 `ENGINEERING_COMPLETE`，不进入 Multi-Agent。
+截至 2026-09-04 的真实主循环已经进入 Requirement 质量修复阶段。正式 Batch `reqreviewbatch_e08cb34fa0444cbba781b50362ddb109` 已完成 20/20 人工 Review（12 Accept / 8 Reject），用户本人已提交不可变 Final Decision=`reject_for_match`；问题集中为 `duplicate_requirement=6`、`wrong_importance=4`，因此 Match Release 继续保持 false，`scripts.check_mvp_progress --json` 的真实 `next_priority=remediate_requirement_quality`。本轮已用人工 Reject Case #4 固化第一条 deterministic regression，并将 semantic policy 小步解冻到 `requirement-semantics-v42.96`：同类型 constraint、同 importance、无独立 capability、同一唯一来源行中，若子项只是已保留父项在明确逗号/分号边界后的严格子句，则确定性删除该重复子项；两个没有父子包含关系的独立 sibling 仍保留。该修复零 Provider 调用，不改变 `requirement-extractor-v42.95`；后续继续把剩余 duplicate / importance Reject Case 固化后再决定是否需要 extractor bump。完整复盘见 `docs/implementation/P0-3B3K-Requirement-AI-Human-Eval-Retrospective.md`。Phase 8 维持 `ENGINEERING_COMPLETE`，不进入 Multi-Agent。
 
 > 开发原则：不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把 Phase 1–5（MVP v0.1）跑通，且每个 LLM Pipeline 从第一天接 Eval。进度优先看未完成验收项是否减少，而不是 commit 数。

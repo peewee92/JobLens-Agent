@@ -112,7 +112,7 @@ JobLens 的 `JobRequirement` 是后续 Eligibility、Match、Ranking、Target Co
 - Case Reject Rate：40%
 - Stale：0
 - Formal Evidence Eligible：true
-- Final Decision：尚未提交
+- Final Decision：`reject_for_match`（用户本人已提交不可变最终结论）
 - Match Release Eligible：false
 
 结构化问题统计：
@@ -195,9 +195,9 @@ JobLens 的 `JobRequirement` 是后续 Eligibility、Match、Ranking、Target Co
 
 因此本次复盘的工程建议是：
 
-> **当前 `requirement-extractor-v42.95 / requirement-semantics-v42.95` 不建议作为新的 human-accepted Match baseline。推荐人工最终结论选择 `reject_for_match`，再基于这 8 个 Reject Case 做下一轮确定性质量修复。**
+> **当前 `requirement-extractor-v42.95 / requirement-semantics-v42.95` 已由用户本人最终 `reject_for_match`，不能作为新的 human-accepted Match baseline。下一阶段正式进入基于 8 个 Reject Case 的确定性质量修复。**
 
-注意：这只是基于 20-case 证据得出的工程建议。批次最终结论仍必须由用户本人在页面提交，系统和自动任务不能代签。
+该最终结论已经由用户本人提交，系统和自动任务没有代签；Match Release 继续保持关闭，直到未来新 Batch 获得人工 `accept_for_match`。
 
 ---
 
@@ -243,13 +243,15 @@ JobLens 的 `JobRequirement` 是后续 Eligibility、Match、Ranking、Target Co
 
 本次 20-case 人审已经提供了解冻证据：8/20 Reject、6 个重复 Requirement Case、4 个 importance 错分 Case，而且两类问题都会直接改变 Eligibility / Match / Skill Gap。
 
-因此可以合理开启下一版本，但必须保持小步、可回放。建议下一目标版本为 `v42.96`，不直接跳 v43。
+因此可以合理开启下一版本，但必须保持小步、可回放。本轮已先将 semantic policy 小步推进到 `requirement-semantics-v42.96`，Extractor 仍保持 `requirement-extractor-v42.95`；只有真正修改 Provider 抽取边界时才再决定是否 bump Extractor，不直接跳 v43。
+
+首个 v42.96 slice 已用人工 Reject Case #4 锁定“同一来源行父 constraint + 严格子句重复”：只有同类型、同 importance、无独立 normalized capability、唯一 grounded 来源、且子项从父项明确逗号/分号边界开始时，才删除冗余子项。另有反例确保同一来源行里的两个独立 sibling 不会被误删。整个修复与回归均为零 Provider 调用。
 
 ---
 
 ## 10. 下一阶段主线
 
-如果当前批次最终由用户提交 `reject_for_match`：
+当前批次已经由用户提交 `reject_for_match`，因此下一阶段实际执行链路是：
 
 ```text
 20-case 人工证据

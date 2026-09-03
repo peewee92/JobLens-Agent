@@ -8,7 +8,7 @@ from app.evals.mvp_quality import MvpQualityStatus
 from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION
 
 FROZEN_MVP_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
-FROZEN_MVP_SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.95"
+FROZEN_MVP_SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.96"
 
 
 @dataclass(frozen=True, slots=True)
