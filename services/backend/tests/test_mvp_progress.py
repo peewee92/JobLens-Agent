@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.evals.mvp_progress import RealMvpLoopProgress, build_mvp_progress_summary
+from app.evals.mvp_progress import (
+    RealMvpLoopProgress,
+    RequirementReviewProgress,
+    build_mvp_progress_summary,
+)
 from app.evals.mvp_quality import MvpQualityStatus
 
 
@@ -117,6 +121,86 @@ def test_mvp_progress_generates_ready_reports_before_more_requirement_analysis()
     )
 
     assert summary.next_priority == "generate_ready_match_reports"
+
+
+def test_mvp_progress_prioritizes_completed_requirement_review_final_decision_gate() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_review=RequirementReviewProgress(
+            sample_size=20,
+            reviewed_count=20,
+            accepted_count=12,
+            rejected_count=8,
+            final_decision=None,
+            match_release_eligible=False,
+            issue_code_counts={"duplicate_requirement": 6, "wrong_importance": 4},
+        ),
+    )
+
+    assert summary.requirement_review_data_available is True
+    assert summary.requirement_review_reviewed_count == 20
+    assert summary.requirement_review_rejected_count == 8
+    assert summary.requirement_review_issue_code_counts == {
+        "duplicate_requirement": 6,
+        "wrong_importance": 4,
+    }
+    assert summary.next_priority == "complete_requirement_review_final_decision"
+
+
+def test_mvp_progress_routes_rejected_requirement_baseline_to_quality_remediation() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_review=RequirementReviewProgress(
+            sample_size=20,
+            reviewed_count=20,
+            accepted_count=12,
+            rejected_count=8,
+            final_decision="reject_for_match",
+            match_release_eligible=False,
+            issue_code_counts={"duplicate_requirement": 6, "wrong_importance": 4},
+        ),
+    )
+
+    assert summary.requirement_review_final_decision == "reject_for_match"
+    assert summary.next_priority == "remediate_requirement_quality"
+
+
+def test_mvp_progress_resumes_real_loop_after_requirement_baseline_is_accepted() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_review=RequirementReviewProgress(
+            sample_size=20,
+            reviewed_count=20,
+            accepted_count=20,
+            rejected_count=0,
+            final_decision="accept_for_match",
+            match_release_eligible=True,
+            issue_code_counts={},
+        ),
+    )
+
+    assert summary.next_priority == "complete_current_user_feedback"
 
 
 def test_mvp_progress_marks_real_loop_observed_only_when_reports_and_feedback_cover_jobs() -> None:

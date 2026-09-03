@@ -7,7 +7,12 @@ import json
 
 from fastapi.testclient import TestClient
 
-from app.evals.mvp_progress import RealMvpLoopProgress, build_mvp_progress_summary
+from app.evals.mvp_progress import (
+    RealMvpLoopProgress,
+    RequirementReviewProgress,
+    build_mvp_progress_summary,
+)
+from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION
 from app.evals.mvp_quality import evaluate_mvp_quality_status
 from app.main import app
 
@@ -59,11 +64,59 @@ def _load_real_loop_progress() -> RealMvpLoopProgress | None:
         return None
 
 
+def _load_requirement_review_progress() -> RequirementReviewProgress | None:
+    """Read the newest current 20-case Requirement human-review gate."""
+    try:
+        with TestClient(app) as client:
+            batches_response = client.get(
+                "/api/v1/requirement-review-batches",
+                params={"limit": 20, "offset": 0},
+            )
+            batches_response.raise_for_status()
+            batches = batches_response.json()["items"]
+            current = next(
+                (
+                    item
+                    for item in batches
+                    if int(item["sampleSize"]) == 20
+                    and item["extractorVersion"] == EXTRACTOR_VERSION
+                    and int(item["staleCaseCount"]) == 0
+                    and item["provider"] != "fixture"
+                ),
+                None,
+            )
+            if current is None:
+                return None
+
+            detail_response = client.get(
+                f"/api/v1/requirement-review-batches/{current['id']}"
+            )
+            detail_response.raise_for_status()
+            detail = detail_response.json()
+            summary = detail["summary"]
+            return RequirementReviewProgress(
+                sample_size=int(summary["sampleSize"]),
+                reviewed_count=int(summary["reviewedCount"]),
+                accepted_count=int(summary["acceptedCount"]),
+                rejected_count=int(summary["rejectedCount"]),
+                final_decision=summary["finalDecision"],
+                match_release_eligible=bool(summary["matchReleaseEligible"]),
+                issue_code_counts={
+                    str(code): int(count)
+                    for code, count in detail["issueCodeCounts"].items()
+                },
+            )
+    except Exception:
+        # Human-review visibility is diagnostic and must not turn the offline gate red.
+        return None
+
+
 def main() -> int:
     args = _arguments()
     summary = build_mvp_progress_summary(
         evaluate_mvp_quality_status(),
         real_loop=_load_real_loop_progress(),
+        requirement_review=_load_requirement_review_progress(),
     )
     payload = asdict(summary)
     if args.json:
@@ -80,6 +133,9 @@ def main() -> int:
             f"{summary.real_total_jobs if summary.real_loop_data_available else 'unknown'} "
             f"realFeedback={summary.real_feedback_covered_reports if summary.real_loop_data_available else 'unknown'}/"
             f"{summary.real_current_match_reports if summary.real_loop_data_available else 'unknown'} "
+            f"requirementReview={summary.requirement_review_reviewed_count if summary.requirement_review_data_available else 'unknown'}/"
+            f"{summary.requirement_review_sample_size if summary.requirement_review_data_available else 'unknown'} "
+            f"requirementDecision={summary.requirement_review_final_decision or 'pending'} "
             f"nextPriority={summary.next_priority}"
         )
     return 0 if summary.mvp_gate_passed and summary.top_n_available else 1

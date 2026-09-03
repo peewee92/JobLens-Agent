@@ -21,6 +21,17 @@ class RealMvpLoopProgress:
 
 
 @dataclass(frozen=True, slots=True)
+class RequirementReviewProgress:
+    sample_size: int
+    reviewed_count: int
+    accepted_count: int
+    rejected_count: int
+    final_decision: str | None
+    match_release_eligible: bool
+    issue_code_counts: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
 class MvpProgressSummary:
     mvp_gate_passed: bool
     offline_e2e_slices_completed: int
@@ -40,6 +51,14 @@ class MvpProgressSummary:
     real_match_ready_without_report: int | None
     real_match_report_coverage: float | None
     real_feedback_coverage: float | None
+    requirement_review_data_available: bool
+    requirement_review_sample_size: int | None
+    requirement_review_reviewed_count: int | None
+    requirement_review_accepted_count: int | None
+    requirement_review_rejected_count: int | None
+    requirement_review_final_decision: str | None
+    requirement_review_match_release_eligible: bool | None
+    requirement_review_issue_code_counts: dict[str, int] | None
     next_priority: str
 
 
@@ -47,6 +66,7 @@ def build_mvp_progress_summary(
     status: MvpQualityStatus,
     *,
     real_loop: RealMvpLoopProgress | None = None,
+    requirement_review: RequirementReviewProgress | None = None,
 ) -> MvpProgressSummary:
     """Translate quality facts into the small set of progress metrics MVP cares about."""
     top_n_available = (
@@ -77,6 +97,27 @@ def build_mvp_progress_summary(
     )
     if not offline_ready:
         next_priority = "restore_offline_mvp_gate"
+    elif requirement_review is not None and requirement_review.sample_size == 20:
+        if requirement_review.reviewed_count < requirement_review.sample_size:
+            next_priority = "complete_requirement_review_cases"
+        elif requirement_review.final_decision is None:
+            next_priority = "complete_requirement_review_final_decision"
+        elif requirement_review.final_decision == "reject_for_match":
+            next_priority = "remediate_requirement_quality"
+        elif not requirement_review.match_release_eligible:
+            next_priority = "restore_requirement_match_release"
+        elif real_loop_observed:
+            next_priority = "real_mvp_value_loop_observed"
+        elif real_loop is None:
+            next_priority = "collect_real_match_reports_and_feedback"
+        elif real_loop.feedback_covered_reports < real_loop.current_match_reports:
+            next_priority = "complete_current_user_feedback"
+        elif real_loop.match_ready_without_report > 0:
+            next_priority = "generate_ready_match_reports"
+        elif real_loop.requirement_analysis_needed > 0:
+            next_priority = "expand_real_match_report_coverage"
+        else:
+            next_priority = "resolve_real_match_input_blockers"
     elif real_loop_observed:
         next_priority = "real_mvp_value_loop_observed"
     elif real_loop is None:
@@ -116,5 +157,27 @@ def build_mvp_progress_summary(
         ),
         real_match_report_coverage=real_match_report_coverage,
         real_feedback_coverage=real_feedback_coverage,
+        requirement_review_data_available=requirement_review is not None,
+        requirement_review_sample_size=(
+            requirement_review.sample_size if requirement_review is not None else None
+        ),
+        requirement_review_reviewed_count=(
+            requirement_review.reviewed_count if requirement_review is not None else None
+        ),
+        requirement_review_accepted_count=(
+            requirement_review.accepted_count if requirement_review is not None else None
+        ),
+        requirement_review_rejected_count=(
+            requirement_review.rejected_count if requirement_review is not None else None
+        ),
+        requirement_review_final_decision=(
+            requirement_review.final_decision if requirement_review is not None else None
+        ),
+        requirement_review_match_release_eligible=(
+            requirement_review.match_release_eligible if requirement_review is not None else None
+        ),
+        requirement_review_issue_code_counts=(
+            dict(requirement_review.issue_code_counts) if requirement_review is not None else None
+        ),
         next_priority=next_priority,
     )
