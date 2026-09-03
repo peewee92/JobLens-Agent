@@ -56,6 +56,19 @@ export function RecommendationFeedback({
   const [feedbackNote, setFeedbackNote] = useState(initialNote ?? "");
   const [error, setError] = useState<string | null>(null);
   const [savedThisSession, setSavedThisSession] = useState(false);
+  const normalizedFeedbackNote = feedbackNote.trim() || null;
+  const rejectedIsUnchanged = isSameFeedback(
+    "rejected",
+    selectedReasons,
+    normalizedFeedbackNote,
+  );
+  const rejectedDisabledReason = selectedReasons.length === 0
+    ? "先选择至少一个不考虑原因。"
+    : selectedReasons.includes("other") && normalizedFeedbackNote === null
+      ? "选择“其他”时，请先填写上方的补充说明。"
+      : rejectedIsUnchanged
+        ? "这份“不考虑”反馈已经保存，无需重复提交。"
+        : null;
 
   function isSameFeedback(
     decision: FeedbackDecision,
@@ -70,6 +83,7 @@ export function RecommendationFeedback({
   }
 
   function toggleReason(reason: FeedbackReason) {
+    setError(null);
     setSelectedReasons((current) => normalizeReasons(
       current.includes(reason)
         ? current.filter((item) => item !== reason)
@@ -179,8 +193,10 @@ export function RecommendationFeedback({
             );
           })}
         </div>
-        {selectedReasons.includes("other") ? (
-          <p className="muted">选择“其他”时请说明原因。</p>
+        {rejectedDisabledReason ? (
+          <p className="muted" id={`rejected-feedback-help-${matchReportId}`}>
+            {rejectedDisabledReason}
+          </p>
         ) : null}
         <div className="actions">
           <button
@@ -194,20 +210,12 @@ export function RecommendationFeedback({
                 feedbackNote.trim() || null,
               )
             }
-            disabled={
-              pendingDecision !== null
-              || selectedReasons.length === 0
-              || (selectedReasons.includes("other") && feedbackNote.trim() === "")
-              || isSameFeedback(
-                "rejected",
-                selectedReasons,
-                feedbackNote.trim() || null,
-              )
-            }
+            aria-describedby={rejectedDisabledReason ? `rejected-feedback-help-${matchReportId}` : undefined}
+            disabled={pendingDecision !== null || rejectedDisabledReason !== null}
             onClick={() => void submit(
               "rejected",
               selectedReasons,
-              feedbackNote.trim() || null,
+              normalizedFeedbackNote,
             )}
           >
             {pendingDecision === "rejected" ? "保存中…" : "不考虑"}

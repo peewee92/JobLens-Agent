@@ -84,7 +84,39 @@ def test_mvp_progress_includes_real_value_loop_coverage_without_changing_offline
     assert summary.real_match_ready_without_report == 0
     assert summary.real_match_report_coverage == 0.2
     assert summary.real_feedback_coverage == 0.25
-    assert summary.next_priority == "collect_real_match_reports_and_feedback"
+    assert summary.next_priority == "complete_current_user_feedback"
+
+
+def test_mvp_progress_expands_match_coverage_after_current_feedback_is_complete() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=4,
+            requirement_analysis_needed=16,
+            match_ready_without_report=0,
+        ),
+    )
+
+    assert summary.real_match_report_coverage == 0.2
+    assert summary.real_feedback_coverage == 1.0
+    assert summary.next_priority == "expand_real_match_report_coverage"
+
+
+def test_mvp_progress_generates_ready_reports_before_more_requirement_analysis() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=4,
+            requirement_analysis_needed=12,
+            match_ready_without_report=4,
+        ),
+    )
+
+    assert summary.next_priority == "generate_ready_match_reports"
 
 
 def test_mvp_progress_marks_real_loop_observed_only_when_reports_and_feedback_cover_jobs() -> None:

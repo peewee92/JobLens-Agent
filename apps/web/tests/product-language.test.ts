@@ -450,9 +450,16 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /反馈状态暂不可用/);
   assert.match(page, /不会把读取失败误报成“0 个已反馈”/);
   assert.match(page, /你的反馈会帮助 JobLens 判断推荐是否符合真实求职选择/);
+  assert.match(page, /allCurrentReportsRejected/);
+  assert.match(page, /这批已分析岗位你都明确不考虑，停止继续为它们补 Evidence/);
+  assert.match(page, /主线切换为扩大比较范围/);
+  assert.match(page, /recommendation-coverage/);
   assert.match(feedback, /其他/);
   assert.match(feedback, /补充说明（可选）/);
-  assert.match(feedback, /选择“其他”时请说明原因/);
+  assert.match(feedback, /选择“其他”时，请先填写上方的补充说明/);
+  assert.match(feedback, /先选择至少一个不考虑原因/);
+  assert.match(feedback, /rejectedDisabledReason/);
+  assert.match(feedback, /aria-describedby/);
   assert.match(feedback, /initialNote/);
   assert.match(feedback, /note,/);
   assert.match(page, /RecommendationRefresh/);
@@ -472,6 +479,7 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(feedback, /type="checkbox"/);
   assert.match(feedback, /selectedReasons/);
   assert.match(feedback, /toggleReason/);
+  assert.match(feedback, /setError\(null\)/);
   assert.match(feedback, /可多选/);
   assert.match(feedback, /aria-pressed/);
   assert.match(feedback, /savedDecision === decision/);
@@ -771,6 +779,17 @@ test("career background defaults to card review and only expands the detailed ed
   assert.match(editor, /isProfileEditorOpen/);
   assert.match(editor, /setIsProfileEditorOpen\(true\)/);
   assert.match(editor, /完成编辑，返回审核/);
+});
+
+test("focused evidence add actions reveal and focus the editable evidence card", async () => {
+  const editor = await source("components/profile-editor.tsx");
+
+  assert.match(editor, /function revealEvidenceEditor\(index: number\)/);
+  assert.match(editor, /profile-evidence-card-\$\{index\}/);
+  assert.match(editor, /scrollIntoView\(\{behavior: "smooth", block: "center"\}\)/);
+  assert.match(editor, /evidence-key-\$\{index\}/);
+  assert.match(editor, /focus\(\{preventScroll: true\}\)/);
+  assert.match(editor, /revealEvidenceEditor\(targetIndex\)/);
 });
 
 test("empty evidence content warns about affected skills before final review", async () => {

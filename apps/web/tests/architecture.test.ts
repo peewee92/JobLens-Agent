@@ -24,6 +24,11 @@ test("the local dev server stays on the documented port even when PORT is inheri
   assert.match(packageJson.scripts?.dev ?? "", /next dev --port 3000/);
 });
 
+test("local loopback hosts can hydrate Next.js dev client resources", async () => {
+  const config = await readFile(join(webRoot, "next.config.ts"), "utf8");
+  assert.match(config, /allowedDevOrigins:\s*\["127\.0\.0\.1", "localhost"\]/);
+});
+
 test("browser-facing source never exposes the backend URL as NEXT_PUBLIC", async () => {
   const files = [
     ...(await sourceFiles(join(webRoot, "app"))),

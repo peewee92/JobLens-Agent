@@ -341,6 +341,9 @@ export default async function RecommendationsPage({
   const nextFeedbackReportId = feedbackStateAvailable
     ? availableReports.find(({report}) => feedbackByReportId.get(report.reportId) === null)?.report.reportId ?? null
     : null;
+  const allCurrentReportsRejected = feedbackStateAvailable
+    && availableReports.length > 0
+    && availableReports.every(({report}) => feedbackByReportId.get(report.reportId)?.decision === "rejected");
   const feedbackByJobId = new Map(
     availableReports.flatMap(({report}) => {
       const feedback = feedbackByReportId.get(report.reportId);
@@ -803,7 +806,19 @@ export default async function RecommendationsPage({
         </section>
       ) : null}
 
-      {blockerSummary && blockerSummary.categories.length > 0 ? (
+      {allCurrentReportsRejected && coverage && coverage.requirementAnalysisNeededCount > 0 ? (
+        <section className="notice">
+          <strong>这批已分析岗位你都明确不考虑，停止继续为它们补 Evidence</strong>
+          <p>
+            当前 {availableReports.length} 个 MatchReport 已全部完成真实反馈，并且都是“不考虑”。这些岗位的教育、技能和经验缺口不会继续驱动你的下一步；主线切换为扩大比较范围，先分析下一批更接近 SearchIntent 的岗位。
+          </p>
+          <div className="actions">
+            <a className="button" href="#recommendation-coverage">查看下一批 {Math.min(coverage.nextAnalysisCandidates.length, 5)} 个候选 →</a>
+          </div>
+        </section>
+      ) : null}
+
+      {blockerSummary && blockerSummary.categories.length > 0 && !allCurrentReportsRejected ? (
         <section className="detail-card">
           <div className="section-heading-row">
             <div>
@@ -915,7 +930,7 @@ export default async function RecommendationsPage({
       ) : null}
 
       {coverage ? (
-        <section className="detail-card">
+        <section className="detail-card" id="recommendation-coverage">
           <div className="section-heading-row">
             <div>
               <p className="eyebrow">扩大比较范围</p>

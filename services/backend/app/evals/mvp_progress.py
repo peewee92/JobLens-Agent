@@ -75,6 +75,20 @@ def build_mvp_progress_summary(
         and real_loop.current_match_reports >= real_loop.total_jobs
         and real_loop.feedback_covered_reports >= real_loop.current_match_reports
     )
+    if not offline_ready:
+        next_priority = "restore_offline_mvp_gate"
+    elif real_loop_observed:
+        next_priority = "real_mvp_value_loop_observed"
+    elif real_loop is None:
+        next_priority = "collect_real_match_reports_and_feedback"
+    elif real_loop.feedback_covered_reports < real_loop.current_match_reports:
+        next_priority = "complete_current_user_feedback"
+    elif real_loop.match_ready_without_report > 0:
+        next_priority = "generate_ready_match_reports"
+    elif real_loop.requirement_analysis_needed > 0:
+        next_priority = "expand_real_match_report_coverage"
+    else:
+        next_priority = "resolve_real_match_input_blockers"
     return MvpProgressSummary(
         mvp_gate_passed=status.gate_passed,
         offline_e2e_slices_completed=1 if top_n_available else 0,
@@ -102,11 +116,5 @@ def build_mvp_progress_summary(
         ),
         real_match_report_coverage=real_match_report_coverage,
         real_feedback_coverage=real_feedback_coverage,
-        next_priority=(
-            "restore_offline_mvp_gate"
-            if not offline_ready
-            else "real_mvp_value_loop_observed"
-            if real_loop_observed
-            else "collect_real_match_reports_and_feedback"
-        ),
+        next_priority=next_priority,
     )

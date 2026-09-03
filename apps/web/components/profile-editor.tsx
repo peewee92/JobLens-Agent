@@ -340,13 +340,24 @@ export function ProfileEditor({
     );
   }
 
+  function revealEvidenceEditor(index: number) {
+    setFocusedEvidenceIndex(index);
+    setIsProfileEditorOpen(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const card = document.getElementById(`profile-evidence-card-${index}`);
+        card?.scrollIntoView({behavior: "smooth", block: "center"});
+        document.getElementById(`evidence-key-${index}`)?.focus({preventScroll: true});
+      });
+    });
+  }
+
   function addEvidenceForCurrentRequirement(type: EvidenceType) {
     markProfileDirty();
     const blankIndex = evidence.findIndex(
       (item) => !item.key.trim() && !item.summary.trim(),
     );
     const targetIndex = blankIndex >= 0 ? blankIndex : evidence.length;
-    setFocusedEvidenceIndex(targetIndex);
     setEvidence((items) =>
       blankIndex >= 0
         ? items.map((item, index) =>
@@ -357,7 +368,7 @@ export function ProfileEditor({
     if (blankIndex < 0) {
       setEvidenceReferenceKeys((keys) => [...keys, ""]);
     }
-    setIsProfileEditorOpen(true);
+    revealEvidenceEditor(targetIndex);
   }
 
   function linkFocusedEvidenceToExistingSkill() {
@@ -1056,7 +1067,11 @@ export function ProfileEditor({
 
         <div className="editor-list">
           {evidence.map((item, index) => (
-            <article className="editor-card" key={`evidence-${index}`}>
+            <article
+              className="editor-card"
+              id={`profile-evidence-card-${index}`}
+              key={`evidence-${index}`}
+            >
               <div className="editor-card-grid">
                 <div className="field">
                   <label htmlFor={`evidence-key-${index}`}>这段经历的简称</label>

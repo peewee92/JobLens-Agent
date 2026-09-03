@@ -281,9 +281,11 @@ h3 {
   background: var(--brand-dark);
 }
 
-.button:disabled {
-  cursor: wait;
-  opacity: 0.65;
+.button:disabled,
+.button-secondary:disabled,
+.button-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .button-secondary {
