@@ -700,9 +700,11 @@ def get_semantic_match_use_case(
 
 def get_match_report_use_case(
     semantic_match: RunJobSemanticMatchUseCase = Depends(get_semantic_match_use_case),
+    eligibility: EvaluateJobEligibilityUseCase = Depends(get_job_eligibility_use_case),
 ) -> BuildJobMatchReportUseCase:
     return BuildJobMatchReportUseCase(
         semantic_match,
+        eligibility=eligibility,
         persistence_ready=lambda: inspect(engine).has_table("match_reports"),
         uow_factory=lambda: SqlAlchemyMatchReportUnitOfWork(SessionLocal),
     )

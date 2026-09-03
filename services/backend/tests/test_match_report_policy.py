@@ -1,7 +1,12 @@
 """Deterministic Recommendation Policy + transient MatchReport tests."""
 from __future__ import annotations
 
-from app.application.eligibility import EligibilityDecision, RequirementFitStatus
+from app.application.eligibility import (
+    EligibilityDecision,
+    JobEligibilityResult,
+    RequirementEligibilityResult,
+    RequirementFitStatus,
+)
 from app.application.semantic_match import (
     JobSemanticMatchResult,
     SemanticAssessmentSource,
@@ -58,6 +63,37 @@ def _semantic(
         provider_calls=1,
         trace_runs_created=1,
     )
+
+
+def _eligibility(
+    *,
+    decision: EligibilityDecision,
+    requirements: tuple[RequirementEligibilityResult, ...],
+) -> JobEligibilityResult:
+    return JobEligibilityResult(
+        job_id="job_1",
+        profile_id="profile_1",
+        profile_version=3,
+        extraction_id="reqrun_1",
+        eligibility=decision,
+        requirements=requirements,
+        matched_count=sum(item.status is RequirementFitStatus.MATCHED for item in requirements),
+        conditional_count=sum(
+            item.status is RequirementFitStatus.CONDITIONAL for item in requirements
+        ),
+        missing_count=sum(item.status is RequirementFitStatus.MISSING for item in requirements),
+    )
+
+
+class _EligibilityRunner:
+    def __init__(self, result: JobEligibilityResult) -> None:
+        self.result = result
+        self.calls = 0
+
+    def execute(self, job_id: str) -> JobEligibilityResult:
+        assert job_id == "job_1"
+        self.calls += 1
+        return self.result
 
 
 class _SemanticRunner:
@@ -130,6 +166,90 @@ def test_match_report_persistence_gate_fails_before_semantic_provider_work() -> 
         use_case.execute("job_1")
 
     assert runner.calls == 0
+
+
+def test_blocked_match_report_skips_semantic_provider_work() -> None:
+    from app.application.match_report import BuildJobMatchReportUseCase, MatchRecommendation
+
+    eligibility = _EligibilityRunner(
+        _eligibility(
+            decision=EligibilityDecision.BLOCKED,
+            requirements=(
+                RequirementEligibilityResult(
+                    requirement_id="req_direct",
+                    requirement_index=0,
+                    type=RequirementType.SKILL,
+                    importance=RequirementImportance.MUST_HAVE,
+                    original_text="熟悉 React",
+                    normalized_capability="React",
+                    status=RequirementFitStatus.MATCHED,
+                    evidence_ids=("ev_react",),
+                    profile_fact_refs=("skill:react",),
+                    reason="已有直接证据。",
+                ),
+                RequirementEligibilityResult(
+                    requirement_id="req_missing",
+                    requirement_index=1,
+                    type=RequirementType.EXPERIENCE,
+                    importance=RequirementImportance.MUST_HAVE,
+                    original_text="5 年后端经验",
+                    normalized_capability="Backend Development",
+                    status=RequirementFitStatus.MISSING,
+                    evidence_ids=(),
+                    profile_fact_refs=(),
+                    reason="当前没有足够专项年限证据。",
+                ),
+                RequirementEligibilityResult(
+                    requirement_id="req_conditional",
+                    requirement_index=2,
+                    type=RequirementType.SKILL,
+                    importance=RequirementImportance.PREFERRED,
+                    original_text="熟悉 Agent 工程实践",
+                    normalized_capability="Agent Engineering",
+                    status=RequirementFitStatus.CONDITIONAL,
+                    evidence_ids=(),
+                    profile_fact_refs=(),
+                    reason="需要语义判断。",
+                ),
+            ),
+        )
+    )
+    semantic = _SemanticRunner(
+        _semantic(
+            eligibility=EligibilityDecision.BLOCKED,
+            assessments=(
+                _assessment(
+                    "req_missing",
+                    1,
+                    importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.PARTIAL,
+                    eligibility_status=RequirementFitStatus.MISSING,
+                ),
+            ),
+        )
+    )
+
+    report = BuildJobMatchReportUseCase(
+        semantic,
+        eligibility=eligibility,
+        persistence_ready=lambda: True,
+    ).execute("job_1")
+
+    assert eligibility.calls == 1
+    assert semantic.calls == 0
+    assert report.recommendation is MatchRecommendation.BLOCKED
+    assert report.provider_calls == 0
+    assert report.trace_runs_created == 0
+    assert report.model is None
+    assert report.trace_run_id is None
+    assert report.matcher_version == "eligibility-only-v1"
+    assert report.missing_requirement_ids == ("req_missing",)
+    assert report.matched_requirement_ids == ("req_direct",)
+    conditional = next(
+        item for item in report.requirement_results if item.requirement_id == "req_conditional"
+    )
+    assert conditional.eligibility_status is RequirementFitStatus.CONDITIONAL
+    assert "不再执行语义匹配" in conditional.reason
 
 
 def test_match_report_runtime_persists_one_immutable_snapshot_when_schema_ready() -> None:
