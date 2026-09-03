@@ -245,7 +245,7 @@ JobLens 的 `JobRequirement` 是后续 Eligibility、Match、Ranking、Target Co
 
 因此可以合理开启下一版本，但必须保持小步、可回放。本轮已先将 semantic policy 小步推进到 `requirement-semantics-v42.96`，Extractor 仍保持 `requirement-extractor-v42.95`；只有真正修改 Provider 抽取边界时才再决定是否 bump Extractor，不直接跳 v43。
 
-首个 v42.96 slice 已用人工 Reject Case #4 锁定“同一来源行父 constraint + 严格子句重复”：只有同类型、同 importance、无独立 normalized capability、唯一 grounded 来源、且子项从父项明确逗号/分号边界开始时，才删除冗余子项。另有反例确保同一来源行里的两个独立 sibling 不会被误删。整个修复与回归均为零 Provider 调用。
+首个 v42.96 slice 已用人工 Reject Case #4 锁定“同一来源行父 constraint + 严格子句重复”：只有同类型、同 importance、无独立 normalized capability、唯一 grounded 来源、且子项从父项明确逗号/分号边界开始时，才删除冗余子项。另有反例确保同一来源行里的两个独立 sibling 不会被误删。第二个 v42.96 slice 继续用人工 Reject Case #5 锁定“同一复合能力句被 3+ normalizedCapability fan-out 后重复计数”：仅当同一 grounded 来源、hard skill、完整原句存在评价性能力/经验结构并带后续“能够/能”动作子句、且至少出现 3 个不同 capability 时，才收敛为一条 hard constraint；明确的三项技术能力并列反例继续保留。两次修复与回归均为零 Provider 调用。
 
 ---
 

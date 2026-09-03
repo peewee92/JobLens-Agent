@@ -9980,6 +9980,99 @@ def test_workflow_drops_redundant_same_source_constraint_subclause_from_human_re
         }
 
 
+def test_workflow_collapses_hard_compound_ability_capability_fanout_from_human_reject_case(
+    session_factory: sessionmaker[Session],
+) -> None:
+    original = "有较强的系统问题分析经验和抽象设计能力,能够解决复杂的系统问题"
+    evidence = f"4、{original};"
+    description = f"任职要求:\n{evidence}\n5、有车载应用开发经验者优先。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="系统问题分析",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="抽象设计",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.97,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="能够解决复杂的系统问题",
+            normalized_capability="系统问题解决",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.96,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_live_v4295_compound_ability_fanout",
+        description=description,
+    )
+
+    assert [(item.type, item.importance, item.original_text) for item in proposal.requirements] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, original),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "collapse_hard_compound_ability_fanout" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
+def test_workflow_keeps_three_explicit_hard_technical_capabilities_from_same_source(
+    session_factory: sessionmaker[Session],
+) -> None:
+    original = "熟悉模型训练、推理优化和模型部署"
+    description = f"任职要求\n1. {original}。\n2. 具备良好的工程实践能力。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="模型训练",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=original,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="推理优化",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=original,
+            confidence=0.97,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="模型部署",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=original,
+            confidence=0.96,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_three_explicit_hard_technical_capabilities",
+        description=description,
+    )
+
+    assert [item.normalized_capability for item in proposal.requirements] == [
+        "模型训练",
+        "推理优化",
+        "模型部署",
+    ]
+
+
 def test_workflow_keeps_distinct_same_source_constraint_siblings_without_parent_child_overlap(
     session_factory: sessionmaker[Session],
 ) -> None:

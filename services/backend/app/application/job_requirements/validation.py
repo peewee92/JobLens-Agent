@@ -63,6 +63,7 @@ class SemanticRepairStrategy(StrEnum):
     DROP_REDUNDANT_SAME_SOURCE_CONSTRAINT_SUBCLAUSE = (
         "drop_redundant_same_source_constraint_subclause"
     )
+    COLLAPSE_HARD_COMPOUND_ABILITY_FANOUT = "collapse_hard_compound_ability_fanout"
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -5962,6 +5963,7 @@ def repair_job_requirement_semantics(
 
     final_items = []
     exact_duplicate_keys: set[tuple[str, str, str, str, str]] = set()
+    compound_ability_fanout_seen: set[tuple[str, str]] = set()
     final_scope_items = tuple(item for _, item in repaired_items)
     for requirement_index, item in repaired_items:
         normalized_alternative_scope = _normalize_alternative_group_child_scope(
@@ -6132,6 +6134,64 @@ def repair_job_requirement_semantics(
                 )
             )
             continue
+        compound_ability_fanout_members = [
+            candidate
+            for _, candidate in repaired_items
+            if (
+                candidate.type is RequirementType.SKILL
+                and candidate.importance is RequirementImportance.MUST_HAVE
+                and (candidate.normalized_capability or "").strip()
+                and _presentation_identity(candidate.evidence_span)
+                == _presentation_identity(item.evidence_span)
+                and (
+                    _presentation_identity(candidate.original_text)
+                    == _presentation_identity(item.original_text)
+                    or _presentation_identity(candidate.original_text)
+                    in _presentation_identity(item.original_text)
+                    or _presentation_identity(item.original_text)
+                    in _presentation_identity(candidate.original_text)
+                )
+            )
+        ]
+        fanout_capabilities = {
+            (candidate.normalized_capability or "").strip().casefold()
+            for candidate in compound_ability_fanout_members
+        }
+        fanout_parent = max(
+            compound_ability_fanout_members,
+            key=lambda candidate: len(_presentation_identity(candidate.original_text)),
+            default=None,
+        )
+        fanout_parent_text = (
+            fanout_parent.original_text.strip() if fanout_parent is not None else ""
+        )
+        hard_compound_ability_fanout = bool(
+            len(fanout_capabilities) >= 3
+            and fanout_parent is not None
+            and any(separator in fanout_parent_text for separator in (",", "，"))
+            and re.search(r"(?:较强|很强|优秀|良好|扎实).*(?:能力|经验)", fanout_parent_text)
+            and re.search(r"(?:能够|能)[^，,；;]{2,100}", fanout_parent_text)
+        )
+        if hard_compound_ability_fanout:
+            fanout_key = (
+                _presentation_identity(fanout_parent.evidence_span),
+                _presentation_identity(fanout_parent.original_text),
+            )
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=SemanticRepairStrategy.COLLAPSE_HARD_COMPOUND_ABILITY_FANOUT,
+                )
+            )
+            if fanout_key in compound_ability_fanout_seen:
+                continue
+            compound_ability_fanout_seen.add(fanout_key)
+            item = replace(
+                fanout_parent,
+                type=RequirementType.CONSTRAINT,
+                normalized_capability=None,
+                confidence=min(candidate.confidence for candidate in compound_ability_fanout_members),
+            )
         presentation_identity = _presentation_identity(item.original_text)
         presentation_span = _unique_presentation_span(description, item.original_text)
         source_identity = (
