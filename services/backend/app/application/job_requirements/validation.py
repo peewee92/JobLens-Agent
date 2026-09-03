@@ -64,6 +64,9 @@ class SemanticRepairStrategy(StrEnum):
         "drop_redundant_same_source_constraint_subclause"
     )
     COLLAPSE_HARD_COMPOUND_ABILITY_FANOUT = "collapse_hard_compound_ability_fanout"
+    COLLAPSE_HARD_INLINE_ALTERNATIVE_CAPABILITY_FANOUT = (
+        "collapse_hard_inline_alternative_capability_fanout"
+    )
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -5964,6 +5967,7 @@ def repair_job_requirement_semantics(
     final_items = []
     exact_duplicate_keys: set[tuple[str, str, str, str, str]] = set()
     compound_ability_fanout_seen: set[tuple[str, str]] = set()
+    hard_inline_alternative_fanout_seen: set[tuple[str, str]] = set()
     final_scope_items = tuple(item for _, item in repaired_items)
     for requirement_index, item in repaired_items:
         normalized_alternative_scope = _normalize_alternative_group_child_scope(
@@ -6191,6 +6195,55 @@ def repair_job_requirement_semantics(
                 type=RequirementType.CONSTRAINT,
                 normalized_capability=None,
                 confidence=min(candidate.confidence for candidate in compound_ability_fanout_members),
+            )
+        inline_alternative_fanout_members = [
+            candidate
+            for _, candidate in repaired_items
+            if (
+                candidate.type is RequirementType.SKILL
+                and candidate.importance is RequirementImportance.MUST_HAVE
+                and (candidate.normalized_capability or "").strip()
+                and _presentation_identity(candidate.original_text)
+                == _presentation_identity(item.original_text)
+                and _presentation_identity(candidate.evidence_span)
+                == _presentation_identity(item.evidence_span)
+            )
+        ]
+        inline_alternative_capabilities = {
+            (candidate.normalized_capability or "").strip().casefold()
+            for candidate in inline_alternative_fanout_members
+        }
+        hard_inline_alternative_fanout = bool(
+            item.type is RequirementType.SKILL
+            and item.importance is RequirementImportance.MUST_HAVE
+            and len(inline_alternative_capabilities) >= 2
+            and any(separator in item.original_text for separator in ("/", "／"))
+            and re.search(r"[（(][^）)]*[／/][^）)]*[）)]", item.original_text) is None
+            and _unique_presentation_span(description, item.original_text) is not None
+        )
+        if hard_inline_alternative_fanout:
+            fanout_key = (
+                _presentation_identity(item.evidence_span),
+                _presentation_identity(item.original_text),
+            )
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=(
+                        SemanticRepairStrategy.COLLAPSE_HARD_INLINE_ALTERNATIVE_CAPABILITY_FANOUT
+                    ),
+                )
+            )
+            if fanout_key in hard_inline_alternative_fanout_seen:
+                continue
+            hard_inline_alternative_fanout_seen.add(fanout_key)
+            item = replace(
+                item,
+                type=RequirementType.CONSTRAINT,
+                normalized_capability=None,
+                confidence=min(
+                    candidate.confidence for candidate in inline_alternative_fanout_members
+                ),
             )
         presentation_identity = _presentation_identity(item.original_text)
         presentation_span = _unique_presentation_span(description, item.original_text)

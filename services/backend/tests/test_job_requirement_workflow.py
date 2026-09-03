@@ -10029,6 +10029,50 @@ def test_workflow_collapses_hard_compound_ability_capability_fanout_from_human_r
         }
 
 
+def test_workflow_collapses_same_text_hard_inline_alternative_capability_fanout_from_human_reject_case(
+    session_factory: sessionmaker[Session],
+) -> None:
+    original = "熟练使用 PyTorch/TensorFlow。"
+    evidence = (
+        "2、核心技能:精通 Python,熟练使用 PyTorch/TensorFlow。"
+        "精通 LangChain、LlamaIndex 等大模型应用开发框架。"
+    )
+    description = f"任职要求:\n{evidence}\n3、加分项:懂提示词工程优化。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="PyTorch",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=original,
+            normalized_capability="TensorFlow",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.97,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_live_v4295_inline_alternative_fanout",
+        description=description,
+    )
+
+    assert [(item.type, item.importance, item.original_text, item.normalized_capability) for item in proposal.requirements] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, original, None),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "collapse_hard_inline_alternative_capability_fanout" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
 def test_workflow_keeps_three_explicit_hard_technical_capabilities_from_same_source(
     session_factory: sessionmaker[Session],
 ) -> None:
