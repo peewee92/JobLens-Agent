@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import {JobRequirementExtractButton} from "@/components/job-requirement-extract-button";
 import {RequirementReviewBatchForm} from "@/components/requirement-review-batch-form";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -93,9 +94,17 @@ export default async function RequirementManualReviewPage() {
                   <article className="eval-run-card" key={candidate.extractionId}>
                     <strong>{candidate.title} · {candidate.company}</strong>
                     <p className="muted">当前模型：{candidate.model}</p>
+                    <p className="muted">重新分析会使用当前统一 Provider / Model；每个岗位都需要你单独确认一次真实 Provider 成本。</p>
+                    <JobRequirementExtractButton
+                      actionLabel="确认成本并重新分析到目标版本"
+                      disabled={false}
+                      hasExisting
+                      jobId={candidate.jobId}
+                      returnTo="/evals/requirements/manual"
+                    />
                     <div className="actions">
                       <Link className="button-ghost" href={`/jobs/${candidate.jobId}`}>
-                        打开岗位并重新分析 →
+                        先查看岗位详情 →
                       </Link>
                     </div>
                   </article>

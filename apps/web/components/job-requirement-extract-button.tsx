@@ -10,10 +10,14 @@ export function JobRequirementExtractButton({
   jobId,
   disabled,
   hasExisting,
+  returnTo,
+  actionLabel,
 }: {
   jobId: string;
   disabled: boolean;
   hasExisting: boolean;
+  returnTo?: string;
+  actionLabel?: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
@@ -58,7 +62,8 @@ export function JobRequirementExtractButton({
     }
   }
 
-  const fallbackAction = `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions?returnTo=${encodeURIComponent(`/jobs/${jobId}`)}`;
+  const fallbackReturnTo = returnTo ?? `/jobs/${jobId}`;
+  const fallbackAction = `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions?returnTo=${encodeURIComponent(fallbackReturnTo)}`;
 
   return (
     <div>
@@ -86,9 +91,9 @@ export function JobRequirementExtractButton({
         >
           {status === "submitting"
             ? "Analyzing…"
-            : hasExisting
+            : actionLabel ?? (hasExisting
               ? "重新分析岗位要求"
-              : "分析岗位要求"}
+              : "分析岗位要求")}
         </button>
       </form>
       {status === "submitting" ? (

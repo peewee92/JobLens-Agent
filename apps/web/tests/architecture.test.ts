@@ -114,10 +114,22 @@ test("the Job Requirement Route Handler delegates to Backend and safely redirect
   assert.match(source, /backendResponse/);
   assert.match(source, /readLiveCostConfirmation/);
   assert.match(source, /JSON\.stringify\(\{confirmLiveCost\}\)/);
-  assert.match(source, /returnTo === safeReturnTo/);
+  assert.match(source, /safeManualReviewReturnTo = "\/evals\/requirements\/manual"/);
+  assert.match(source, /returnTo === safeJobReturnTo \|\| returnTo === safeManualReviewReturnTo/);
   assert.match(source, /NextResponse\.redirect\(target, 303\)/);
   assert.match(source, /requirementExtractionError/);
   assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
+});
+
+test("the Requirement Manual Review page can remediate outlier models without leaving the review workflow", async () => {
+  const page = await readFile(
+    join(webRoot, "app/evals/requirements/manual/page.tsx"),
+    "utf8",
+  );
+  assert.match(page, /JobRequirementExtractButton/);
+  assert.match(page, /actionLabel="确认成本并重新分析到目标版本"/);
+  assert.match(page, /returnTo="\/evals\/requirements\/manual"/);
+  assert.match(page, /每个岗位都需要你单独确认一次真实 Provider 成本/);
 });
 
 test("the Match Report Client runs only after explicit user action through same-origin proxy", async () => {

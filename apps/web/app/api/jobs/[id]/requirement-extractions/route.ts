@@ -39,9 +39,13 @@ export async function POST(
   );
   const body = await response.text();
   const returnTo = new URL(request.url).searchParams.get("returnTo");
-  const safeReturnTo = `/jobs/${id}`;
+  const safeJobReturnTo = `/jobs/${id}`;
+  const safeManualReviewReturnTo = "/evals/requirements/manual";
+  const safeReturnTo = returnTo === safeJobReturnTo || returnTo === safeManualReviewReturnTo
+    ? returnTo
+    : null;
 
-  if (returnTo === safeReturnTo) {
+  if (safeReturnTo) {
     const target = new URL(safeReturnTo, request.url);
     if (!response.ok) {
       let errorCode = "requirement_extraction_failed";
