@@ -10163,6 +10163,60 @@ def test_workflow_collapses_same_text_hard_inline_alternative_capability_fanout_
         }
 
 
+def test_workflow_collapses_recursive_hard_skill_subset_chain_from_formal_case_16(
+    session_factory: sessionmaker[Session],
+) -> None:
+    parent = "熟练掌握大模型 API 调用、RAG 检索增强和 Agent 编排框架"
+    middle = "熟练掌握大模型 API 调用、RAG 检索增强"
+    child = "熟练掌握大模型 API 调用"
+    evidence = f"2. 硬核工程能力：{parent}，并具备受限网络部署经验。"
+    description = f"任职要求\n{evidence}\n3. 具备良好的沟通协作能力。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=parent,
+            normalized_capability="Agent 编排框架",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=middle,
+            normalized_capability="RAG",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.97,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=child,
+            normalized_capability="大模型 API",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=evidence,
+            confidence=0.96,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_16_recursive_hard_skill_subset_chain",
+        description=description,
+    )
+
+    assert [
+        (item.type, item.importance, item.original_text, item.normalized_capability)
+        for item in proposal.requirements
+    ] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.MUST_HAVE, parent, None),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "collapse_recursive_hard_skill_subset_chain" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
 def test_workflow_keeps_three_explicit_hard_technical_capabilities_from_same_source(
     session_factory: sessionmaker[Session],
 ) -> None:

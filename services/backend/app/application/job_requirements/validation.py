@@ -68,6 +68,9 @@ class SemanticRepairStrategy(StrEnum):
         "collapse_hard_inline_alternative_capability_fanout"
     )
     COLLAPSE_HARD_UMBRELLA_MEMBER_DUPLICATE = "collapse_hard_umbrella_member_duplicate"
+    COLLAPSE_RECURSIVE_HARD_SKILL_SUBSET_CHAIN = (
+        "collapse_recursive_hard_skill_subset_chain"
+    )
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -3088,6 +3091,73 @@ def _is_redundant_same_source_constraint_subclause(
     return False
 
 
+def _recursive_hard_skill_subset_group(
+    description: str,
+    item: ProposedJobRequirement,
+    all_items: tuple[ProposedJobRequirement, ...],
+) -> tuple[ProposedJobRequirement, ...]:
+    """Return a strict three-level same-source hard-skill subset chain.
+
+    This targets the formal Case #16 failure where one grounded engineering ability
+    block was recursively emitted as ``A`` -> ``A+B`` -> ``A+B+C``. It deliberately
+    requires three distinct exact-grounded prefix levels sharing one evidence span;
+    ordinary sibling capabilities and two-level parent/child structures are untouched.
+    """
+    if (
+        item.type is not RequirementType.SKILL
+        or item.importance is not RequirementImportance.MUST_HAVE
+        or not (item.normalized_capability or "").strip()
+        or _SOFT_MARKER_PATTERN.search(item.original_text)
+        or _ALTERNATIVE_GROUP_PATTERN.search(item.original_text)
+    ):
+        return ()
+    evidence_identity = _presentation_identity(item.evidence_span)
+    if not evidence_identity or _unique_presentation_span(description, item.evidence_span) is None:
+        return ()
+
+    candidates = [
+        candidate
+        for candidate in all_items
+        if (
+            candidate.type is RequirementType.SKILL
+            and candidate.importance is RequirementImportance.MUST_HAVE
+            and (candidate.normalized_capability or "").strip()
+            and not _SOFT_MARKER_PATTERN.search(candidate.original_text)
+            and not _ALTERNATIVE_GROUP_PATTERN.search(candidate.original_text)
+            and _presentation_identity(candidate.evidence_span) == evidence_identity
+            and _unique_presentation_span(description, candidate.original_text) is not None
+        )
+    ]
+    unique_by_text = {
+        _presentation_identity(candidate.original_text): candidate
+        for candidate in candidates
+        if _presentation_identity(candidate.original_text)
+    }
+    if len(unique_by_text) < 3:
+        return ()
+    ordered = sorted(
+        unique_by_text.values(),
+        key=lambda candidate: len(_presentation_identity(candidate.original_text)),
+        reverse=True,
+    )
+    parent_text = _presentation_quote(ordered[0].original_text)
+    if len(re.findall(r"[、,，]|(?:和|及)", parent_text)) < 2:
+        return ()
+
+    chain = [ordered[0]]
+    previous_identity = _presentation_identity(ordered[0].original_text)
+    for candidate in ordered[1:]:
+        candidate_identity = _presentation_identity(candidate.original_text)
+        if previous_identity.startswith(candidate_identity) and candidate_identity != previous_identity:
+            chain.append(candidate)
+            previous_identity = candidate_identity
+        if len(chain) >= 3:
+            break
+    if len(chain) < 3 or item not in chain:
+        return ()
+    return tuple(chain)
+
+
 def _unique_presentation_span(
     description: str,
     value: str,
@@ -5969,6 +6039,7 @@ def repair_job_requirement_semantics(
     exact_duplicate_keys: set[tuple[str, str, str, str, str]] = set()
     compound_ability_fanout_seen: set[tuple[str, str]] = set()
     hard_inline_alternative_fanout_seen: set[tuple[str, str]] = set()
+    recursive_hard_skill_subset_seen: set[tuple[str, str]] = set()
     final_scope_items = tuple(item for _, item in repaired_items)
     for requirement_index, item in repaired_items:
         normalized_alternative_scope = _normalize_alternative_group_child_scope(
@@ -6139,6 +6210,36 @@ def repair_job_requirement_semantics(
                 )
             )
             continue
+        recursive_subset_group = _recursive_hard_skill_subset_group(
+            description,
+            item,
+            final_scope_items,
+        )
+        if recursive_subset_group:
+            recursive_parent = max(
+                recursive_subset_group,
+                key=lambda candidate: len(_presentation_identity(candidate.original_text)),
+            )
+            recursive_key = (
+                _presentation_identity(recursive_parent.evidence_span),
+                _presentation_identity(recursive_parent.original_text),
+            )
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=SemanticRepairStrategy.COLLAPSE_RECURSIVE_HARD_SKILL_SUBSET_CHAIN,
+                )
+            )
+            if recursive_key in recursive_hard_skill_subset_seen:
+                continue
+            recursive_hard_skill_subset_seen.add(recursive_key)
+            item = replace(
+                recursive_parent,
+                type=RequirementType.CONSTRAINT,
+                normalized_capability=None,
+                confidence=min(candidate.confidence for candidate in recursive_subset_group),
+            )
+
         same_evidence_hard_skill_items = [
             candidate
             for _, candidate in repaired_items
