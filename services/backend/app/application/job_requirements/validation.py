@@ -71,6 +71,9 @@ class SemanticRepairStrategy(StrEnum):
     COLLAPSE_RECURSIVE_HARD_SKILL_SUBSET_CHAIN = (
         "collapse_recursive_hard_skill_subset_chain"
     )
+    COLLAPSE_BONUS_UMBRELLA_CAPABILITY_FANOUT = (
+        "collapse_bonus_umbrella_capability_fanout"
+    )
     EXPAND_COMPOUND_HARD_EVIDENCE_SPAN = "expand_compound_hard_evidence_span"
     NORMALIZE_EXPERIENCE_TYPE_DRIFT = "normalize_experience_type_drift"
     NORMALIZE_TECHNICAL_SKILL_EXPERIENCE_DRIFT = "normalize_technical_skill_experience_drift"
@@ -6039,6 +6042,7 @@ def repair_job_requirement_semantics(
     exact_duplicate_keys: set[tuple[str, str, str, str, str]] = set()
     compound_ability_fanout_seen: set[tuple[str, str]] = set()
     hard_inline_alternative_fanout_seen: set[tuple[str, str]] = set()
+    bonus_umbrella_fanout_seen: set[tuple[str, str]] = set()
     recursive_hard_skill_subset_seen: set[tuple[str, str]] = set()
     final_scope_items = tuple(item for _, item in repaired_items)
     for requirement_index, item in repaired_items:
@@ -6416,6 +6420,76 @@ def repair_job_requirement_semantics(
                 normalized_capability=None,
                 confidence=min(
                     candidate.confidence for candidate in inline_alternative_fanout_members
+                ),
+            )
+        bonus_umbrella_fanout_members = [
+            candidate
+            for _, candidate in repaired_items
+            if (
+                candidate.type is RequirementType.SKILL
+                and candidate.importance is RequirementImportance.BONUS
+                and (candidate.normalized_capability or "").strip()
+                and _presentation_identity(candidate.evidence_span)
+                == _presentation_identity(item.evidence_span)
+            )
+        ]
+        bonus_umbrella_capabilities = {
+            (candidate.normalized_capability or "").strip().casefold()
+            for candidate in bonus_umbrella_fanout_members
+        }
+        bonus_umbrella_parent = max(
+            bonus_umbrella_fanout_members,
+            key=lambda candidate: len(_presentation_identity(candidate.original_text)),
+            default=None,
+        )
+        bonus_umbrella_parent_text = (
+            bonus_umbrella_parent.original_text.strip()
+            if bonus_umbrella_parent is not None
+            else ""
+        )
+        bonus_umbrella_fanout = bool(
+            item.type is RequirementType.SKILL
+            and item.importance is RequirementImportance.BONUS
+            and len(bonus_umbrella_capabilities) >= 3
+            and bonus_umbrella_parent is not None
+            and re.search(
+                r"(?:^|[、.．])\s*加分项\s*[:：]",
+                bonus_umbrella_parent.evidence_span,
+            )
+            is not None
+            and "等" in _classification_text(bonus_umbrella_parent_text)
+            and re.search(
+                r"等[^。；;]{0,40}(?:框架|工具|技术栈|平台|数据库|模型|语言|协议)$",
+                _classification_text(bonus_umbrella_parent_text),
+            )
+            is not None
+            and _unique_exact_span(description, bonus_umbrella_parent.original_text) is not None
+            and all(
+                _presentation_identity(candidate.original_text)
+                in _presentation_identity(bonus_umbrella_parent.original_text)
+                for candidate in bonus_umbrella_fanout_members
+            )
+        )
+        if bonus_umbrella_fanout:
+            fanout_key = (
+                _presentation_identity(bonus_umbrella_parent.evidence_span),
+                _presentation_identity(bonus_umbrella_parent.original_text),
+            )
+            repairs.append(
+                SemanticRepairEvent(
+                    requirement_index=requirement_index,
+                    strategy=SemanticRepairStrategy.COLLAPSE_BONUS_UMBRELLA_CAPABILITY_FANOUT,
+                )
+            )
+            if fanout_key in bonus_umbrella_fanout_seen:
+                continue
+            bonus_umbrella_fanout_seen.add(fanout_key)
+            item = replace(
+                bonus_umbrella_parent,
+                type=RequirementType.CONSTRAINT,
+                normalized_capability=None,
+                confidence=min(
+                    candidate.confidence for candidate in bonus_umbrella_fanout_members
                 ),
             )
         presentation_identity = _presentation_identity(item.original_text)

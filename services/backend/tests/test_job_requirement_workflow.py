@@ -10217,6 +10217,110 @@ def test_workflow_collapses_recursive_hard_skill_subset_chain_from_formal_case_1
         }
 
 
+def test_workflow_collapses_formal_case_20_bonus_umbrella_capability_fanout(
+    session_factory: sessionmaker[Session],
+) -> None:
+    parent = "5、加分项:熟悉 MCP 协议、LangChain、AutoGPT、LlamaIndex 等 Agent 开发框架。"
+    evidence = parent
+    description = f"任职要求\n4、技术能力:熟悉主流大模型技术架构。\n{parent}\n"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="熟悉 MCP 协议",
+            normalized_capability="MCP",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=parent,
+            normalized_capability="LangChain",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="AutoGPT",
+            normalized_capability="AutoGPT",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="LlamaIndex",
+            normalized_capability="LlamaIndex",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_20_bonus_umbrella_capability_fanout",
+        description=description,
+    )
+
+    assert [
+        (item.type, item.importance, item.original_text, item.normalized_capability)
+        for item in proposal.requirements
+    ] == [
+        (RequirementType.CONSTRAINT, RequirementImportance.BONUS, parent, None),
+    ]
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert "collapse_bonus_umbrella_capability_fanout" in {
+            repair["strategy"] for repair in trace.output["semanticRepairs"]
+        }
+
+
+def test_workflow_keeps_explicit_independent_bonus_capabilities_without_umbrella(
+    session_factory: sessionmaker[Session],
+) -> None:
+    evidence = "5、加分项:熟悉 MCP 协议、LangChain、AutoGPT。"
+    description = f"任职要求\n4、技术能力:熟悉主流大模型技术架构。\n{evidence}\n"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="熟悉 MCP 协议",
+            normalized_capability="MCP",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.99,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="LangChain",
+            normalized_capability="LangChain",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.98,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text="AutoGPT",
+            normalized_capability="AutoGPT",
+            importance=RequirementImportance.BONUS,
+            evidence_span=evidence,
+            confidence=0.97,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_independent_bonus_capabilities_without_umbrella",
+        description=description,
+    )
+
+    assert [item.normalized_capability for item in proposal.requirements] == [
+        "MCP",
+        "LangChain",
+        "AutoGPT",
+    ]
+
+
 def test_workflow_keeps_three_explicit_hard_technical_capabilities_from_same_source(
     session_factory: sessionmaker[Session],
 ) -> None:
