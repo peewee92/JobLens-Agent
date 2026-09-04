@@ -29,6 +29,7 @@ class RequirementReviewProgress:
     final_decision: str | None
     match_release_eligible: bool
     issue_code_counts: dict[str, int]
+    semantic_policy_version: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,7 @@ class MvpProgressSummary:
     requirement_review_final_decision: str | None
     requirement_review_match_release_eligible: bool | None
     requirement_review_issue_code_counts: dict[str, int] | None
+    requirement_review_semantic_policy_version: str | None
     next_priority: str
 
 
@@ -98,7 +100,9 @@ def build_mvp_progress_summary(
     if not offline_ready:
         next_priority = "restore_offline_mvp_gate"
     elif requirement_review is not None and requirement_review.sample_size == 20:
-        if requirement_review.reviewed_count < requirement_review.sample_size:
+        if requirement_review.semantic_policy_version != SEMANTIC_POLICY_VERSION:
+            next_priority = "revalidate_requirement_quality"
+        elif requirement_review.reviewed_count < requirement_review.sample_size:
             next_priority = "complete_requirement_review_cases"
         elif requirement_review.final_decision is None:
             next_priority = "complete_requirement_review_final_decision"
@@ -178,6 +182,9 @@ def build_mvp_progress_summary(
         ),
         requirement_review_issue_code_counts=(
             dict(requirement_review.issue_code_counts) if requirement_review is not None else None
+        ),
+        requirement_review_semantic_policy_version=(
+            requirement_review.semantic_policy_version if requirement_review is not None else None
         ),
         next_priority=next_priority,
     )

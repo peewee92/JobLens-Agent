@@ -141,6 +141,7 @@ def test_mvp_progress_prioritizes_completed_requirement_review_final_decision_ga
             final_decision=None,
             match_release_eligible=False,
             issue_code_counts={"duplicate_requirement": 6, "wrong_importance": 4},
+            semantic_policy_version="requirement-semantics-v42.96",
         ),
     )
 
@@ -172,11 +173,38 @@ def test_mvp_progress_routes_rejected_requirement_baseline_to_quality_remediatio
             final_decision="reject_for_match",
             match_release_eligible=False,
             issue_code_counts={"duplicate_requirement": 6, "wrong_importance": 4},
+            semantic_policy_version="requirement-semantics-v42.96",
         ),
     )
 
     assert summary.requirement_review_final_decision == "reject_for_match"
     assert summary.next_priority == "remediate_requirement_quality"
+
+
+def test_mvp_progress_routes_superseded_rejected_baseline_to_revalidation() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_review=RequirementReviewProgress(
+            sample_size=20,
+            reviewed_count=20,
+            accepted_count=12,
+            rejected_count=8,
+            final_decision="reject_for_match",
+            match_release_eligible=False,
+            issue_code_counts={"duplicate_requirement": 6, "wrong_importance": 4},
+            semantic_policy_version="requirement-semantics-v42.95",
+        ),
+    )
+
+    assert summary.requirement_review_semantic_policy_version == "requirement-semantics-v42.95"
+    assert summary.next_priority == "revalidate_requirement_quality"
 
 
 def test_mvp_progress_resumes_real_loop_after_requirement_baseline_is_accepted() -> None:
@@ -197,6 +225,7 @@ def test_mvp_progress_resumes_real_loop_after_requirement_baseline_is_accepted()
             final_decision="accept_for_match",
             match_release_eligible=True,
             issue_code_counts={},
+            semantic_policy_version="requirement-semantics-v42.96",
         ),
     )
 

@@ -105,6 +105,7 @@ def _load_requirement_review_progress() -> RequirementReviewProgress | None:
                     str(code): int(count)
                     for code, count in detail["issueCodeCounts"].items()
                 },
+                semantic_policy_version=summary.get("semanticPolicyVersion"),
             )
     except Exception:
         # Human-review visibility is diagnostic and must not turn the offline gate red.
