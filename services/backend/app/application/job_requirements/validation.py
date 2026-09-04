@@ -6658,18 +6658,46 @@ def audit_job_requirement_coverage(
             (candidate for candidate in lines[line_index + 1 :] if candidate),
             None,
         )
+        next_body_text = (
+            _classification_text(next_nonempty) if next_nonempty is not None else ""
+        )
         next_labeled_body = None
         if next_nonempty is not None:
             next_parts = re.split(r"[:：]", next_nonempty, maxsplit=1)
             if len(next_parts) == 2:
                 next_labeled_body = _classification_text(next_parts[1].strip())
+        unlabeled_group_body = bool(
+            next_nonempty is not None
+            and _LEADING_NUMBERED_ITEM_PREFIX_PATTERN.match(next_nonempty) is None
+            and len(next_body_text) >= 16
+            and any(
+                separator in next_body_text
+                for separator in (",", "，", "。", ";", "；")
+            )
+            and _EXPERIENCE_SEGMENT_PATTERN.search(next_body_text) is None
+            and _EDUCATION_SEGMENT_PATTERN.search(next_body_text) is None
+            and _THRESHOLD_PATTERN.search(next_body_text) is None
+            and _SOFT_MARKER_PATTERN.search(next_body_text) is None
+        )
         numbered_group_heading = bool(
             in_responsibility_section
             and _LEADING_NUMBERED_ITEM_PREFIX_PATTERN.match(raw)
             and not any(separator in text for separator in (",", "，", "。", ";", "；", ":", "："))
-            and next_labeled_body
-            and _LABELED_RESPONSIBILITY_ACTION_PATTERN.search(next_labeled_body)
+            and (
+                (
+                    next_labeled_body
+                    and _LABELED_RESPONSIBILITY_ACTION_PATTERN.search(next_labeled_body)
+                )
+                or unlabeled_group_body
+            )
         )
+        if numbered_group_heading:
+            if unlabeled_group_body and next_nonempty is not None:
+                identity = next_nonempty.casefold()
+                if identity not in seen_candidates:
+                    seen_candidates.add(identity)
+                    duty_candidates.append(next_nonempty)
+            continue
         explicit_numbered_duty = bool(
             in_responsibility_section
             and _LEADING_NUMBERED_ITEM_PREFIX_PATTERN.match(raw)
@@ -6713,12 +6741,14 @@ def audit_job_requirement_coverage(
 
     covered_count = 0
     for candidate in duty_candidates:
+        candidate_identity = _normalize_grounding_text(candidate)
         covered = any(
             (
-                item.evidence_span.strip() == candidate
+                _normalize_grounding_text(item.evidence_span) == candidate_identity
                 or (
                     len(item.original_text.strip()) >= 8
-                    and item.original_text.strip() in candidate
+                    and _normalize_grounding_text(item.original_text)
+                    in candidate_identity
                 )
             )
             for item in output.requirements

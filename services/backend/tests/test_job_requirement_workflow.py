@@ -17,7 +17,10 @@ from app.application.job_requirements import (
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
 )
-from app.application.job_requirements.validation import validate_job_requirement_output
+from app.application.job_requirements.validation import (
+    audit_job_requirement_coverage,
+    validate_job_requirement_output,
+)
 from app.application.ports.job_requirement_extractor import (
     AbstractJobRequirementExtractor,
 )
@@ -8029,6 +8032,55 @@ def test_workflow_does_not_enforce_bonus_coverage_for_small_bonus_section(
     assert proposal.extractor_version == "requirement-extractor-v42.95"
 
 
+def test_coverage_audit_counts_exact_duties_after_fullwidth_punctuation_normalization() -> None:
+    duties = (
+        "在项目负责人或中高级FDE 指导下，参与 xCloud相关产品的部署、配置、升级、联调、验证和基础运维支持工作。",
+        "根据标准检查清单，协助完成客户环境信息收集、部署前检查、日志收集、基础问题定位和处理记录整理。",
+        "根据明确需求，编写或维护简单脚本、部署工具、巡检脚本、数据处理脚本、接口调用脚本等，提升交付效率。",
+        "使用 GitHub Copilot、Cursor、Claude Code、OpenCode、Codex 等 AI 工具辅助完成脚本编写、代码理解、问题分析、文档整理和测试用例生成。",
+        "整理部署文档、操作手册、问题处理记录、FAQ、脚本说明、环境检查表和交付经验，帮助团队形成可复用资产。",
+        "在团队安排下参与客户现场或远程支持，协助完成上线验证、问题跟进、资料整理和客户沟通记录。",
+        "在实际项目中逐步学习私有云、云原生、AIOps、AI 平台、Agent、RAG、MCP、自动化运维等相关能力，不要求入职时全部掌握。",
+    )
+    headings = (
+        "1. 参与客户项目交付实施",
+        "2. 支持客户环境检查与问题排查",
+        "3. 参与自动化脚本和交付工具开发",
+        "4. 使用AI Coding工具辅助工作",
+        "5. 参与交付资产沉淀",
+        "6. 配合客户现场支持",
+        "7. 逐步学习 AI FDE 相关能力",
+    )
+    description = "\n".join(
+        (
+            "岗位职责：",
+            *(line for pair in zip(headings, duties, strict=True) for line in pair),
+            "岗位要求",
+            "1. 具备 2年左右 IT 相关经验。",
+        )
+    )
+    output = JobRequirementExtractionOutput(
+        requirements=tuple(
+            ProposedJobRequirement(
+                type=RequirementType.RESPONSIBILITY,
+                original_text=duty.replace("，", ","),
+                normalized_capability=None,
+                importance=RequirementImportance.MUST_HAVE,
+                evidence_span=duty.replace("，", ","),
+                confidence=0.9,
+            )
+            for duty in duties
+        )
+    )
+
+    audit = audit_job_requirement_coverage(description, output)
+
+    assert audit.duty_candidate_count == 7
+    assert audit.covered_duty_count == 6
+    assert audit.minimum_covered_duty_count == 2
+    assert audit.enforced is True
+
+
 def test_workflow_rejects_near_total_responsibility_coverage_loss(
     session_factory: sessionmaker[Session],
 ) -> None:
@@ -8217,6 +8269,75 @@ def test_workflow_ignores_numbered_responsibility_group_headings_and_counts_labe
         assert trace is not None
         assert trace.error is None
         assert trace.output["coveragePolicyVersion"] == "requirement-coverage-v4"
+        assert trace.output["coverageAudit"] == {
+            "dutyCandidateCount": 4,
+            "coveredDutyCount": 4,
+            "minimumCoveredDutyCount": 2,
+            "enforced": True,
+        }
+
+
+def test_workflow_counts_unlabeled_duty_bodies_after_numbered_group_headings(
+    session_factory: sessionmaker[Session],
+) -> None:
+    grouped_duties = (
+        (
+            "1. 参与客户项目交付实施",
+            "在项目负责人指导下,参与产品部署、配置、升级、联调、验证和基础运维支持工作。",
+        ),
+        (
+            "2. 支持客户环境检查与问题排查",
+            "根据标准检查清单,协助完成环境信息收集、部署前检查、日志收集和基础问题定位。",
+        ),
+        (
+            "3. 参与自动化脚本和交付工具开发",
+            "根据明确需求,编写或维护简单脚本、部署工具、巡检脚本和接口调用脚本,提升交付效率。",
+        ),
+        (
+            "4. 参与交付资产沉淀",
+            "整理部署文档、操作手册、问题处理记录和环境检查表,帮助团队形成可复用资产。",
+        ),
+    )
+    qualification = "本科及以上学历,计算机相关专业"
+    description = "\n".join(
+        (
+            "岗位职责:",
+            *(line for pair in grouped_duties for line in pair),
+            "任职要求:",
+            qualification,
+        )
+    )
+    extractor = StaticRequirementExtractor(
+        *(
+            ProposedJobRequirement(
+                type=RequirementType.RESPONSIBILITY,
+                original_text=duty,
+                normalized_capability=None,
+                importance=RequirementImportance.MUST_HAVE,
+                evidence_span=duty,
+                confidence=0.95,
+            )
+            for _, duty in grouped_duties
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.EDUCATION,
+            original_text=qualification,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=qualification,
+            confidence=0.98,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_unlabeled_grouped_responsibility_coverage",
+        description=description,
+    )
+
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        assert trace.error is None
         assert trace.output["coverageAudit"] == {
             "dutyCandidateCount": 4,
             "coveredDutyCount": 4,
