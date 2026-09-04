@@ -6400,6 +6400,100 @@ def test_workflow_promotes_formal_case_15_solid_backend_foundation_in_requiremen
         assert strategies == ["requirement_section_default_must_have"]
 
 
+def test_workflow_promotes_formal_case_16_unsoftened_qualifications_in_requirement_section(
+    session_factory: sessionmaker[Session],
+) -> None:
+    restricted_network = "具备在受限网络环境下的独立部署与系统监控能力"
+    communication = "能与客户业务人员顺畅沟通,也能与内部研发团队无缝对接"
+    owner_mindset = "具备Owner心态"
+    productization = "具备从“定制化项目”中抽象“标准化产品”的能力"
+    explicit_preferred = "熟悉Dify、Coze等低代码/无代码AI平台,能快速搭建业务原型者优先"
+    description = (
+        "三、 任职要求\n"
+        "学历与经验:计算机、软件工程、人工智能等相关专业本科及以上学历;"
+        "具备5年以上后端/全栈开发经验,其中至少2年以上AI应用落地或ToB企业级项目交付经验。\n"
+        "硬核工程能力:精通Python/Java/Go等至少一门主流语言;"
+        "熟悉主流大模型API调用、RAG架构、LangChain/LlamaIndex等Agent编排框架;"
+        f"{restricted_network}。\n"
+        "业务与沟通能力:具备极强的“双语”翻译能力,"
+        f"{communication};{owner_mindset},敢于在复杂局面下主导技术讨论并把控项目边界。\n"
+        f"产品化思维:{productization},拒绝沦为纯外包开发,致力于通过技术手段提升交付杠杆率。\n"
+        "四、 优先条件\n"
+        f"{explicit_preferred}。"
+    )
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=restricted_network,
+            normalized_capability="受限网络环境下的独立部署与系统监控",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=(
+                "硬核工程能力:精通Python/Java/Go等至少一门主流语言;"
+                "熟悉主流大模型API调用、RAG架构、LangChain/LlamaIndex等Agent编排框架;"
+                f"{restricted_network}。"
+            ),
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=communication,
+            normalized_capability="与客户业务人员及内部研发团队沟通",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=(
+                "业务与沟通能力:具备极强的“双语”翻译能力,"
+                f"{communication};{owner_mindset},敢于在复杂局面下主导技术讨论并把控项目边界。"
+            ),
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=owner_mindset,
+            normalized_capability="Owner心态",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=(
+                "业务与沟通能力:具备极强的“双语”翻译能力,"
+                f"{communication};{owner_mindset},敢于在复杂局面下主导技术讨论并把控项目边界。"
+            ),
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=productization,
+            normalized_capability="从定制化项目中抽象标准化产品的能力",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=(
+                f"产品化思维:{productization},拒绝沦为纯外包开发,致力于通过技术手段提升交付杠杆率。"
+            ),
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=explicit_preferred,
+            normalized_capability="Dify、Coze等低代码/无代码AI平台",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=f"{explicit_preferred}。",
+            confidence=0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_16_fde_importance",
+        description=description,
+    )
+
+    by_text = {item.original_text: item for item in proposal.requirements}
+    assert by_text[restricted_network].importance is RequirementImportance.MUST_HAVE
+    assert by_text[communication].importance is RequirementImportance.MUST_HAVE
+    assert by_text[owner_mindset].importance is RequirementImportance.MUST_HAVE
+    assert by_text[productization].importance is RequirementImportance.MUST_HAVE
+    assert by_text[explicit_preferred].importance is RequirementImportance.PREFERRED
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
+        assert strategies.count("requirement_section_default_must_have") == 4
+
+
 def test_workflow_promotes_unsoftened_preferred_education_in_explicit_requirement_section(
     session_factory: sessionmaker[Session],
 ) -> None:
