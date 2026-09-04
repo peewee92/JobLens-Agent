@@ -1,4 +1,5 @@
 import {ImportForm} from "@/components/import-form";
+import {ImportGuide} from "@/components/import-guide";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default function ImportPage() {
         </p>
       </section>
       <ImportForm />
+      <ImportGuide />
       <div className="notice">
         这里添加的是岗位数据，不是简历。JobLens 不会自动帮你投递岗位。
       </div>
