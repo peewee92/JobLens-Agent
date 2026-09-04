@@ -6494,6 +6494,75 @@ def test_workflow_promotes_formal_case_16_unsoftened_qualifications_in_requireme
         assert strategies.count("requirement_section_default_must_have") == 4
 
 
+def test_workflow_demotes_formal_case_17_explicit_bonus_items_from_must_have(
+    session_factory: sessionmaker[Session],
+) -> None:
+    hard_requirement = "具备扎实的后端开发能力，熟练使用Java、Go、Python中至少一种语言"
+    product_module_bonus = "有独立负责完整产品模块或独立开发AI产品的经验"
+    ax_design_bonus = "熟悉AX（Agent体验）设计，能设计Agent易理解、易操作的接口与交互流程"
+    role_highlight = "参与AIOS平台从0到1的构建，在AI基础设施领域积累深度认知"
+    description = (
+        "【任职要求】\n"
+        f"3. {hard_requirement}。\n"
+        "4. 具备良好的计算机基础，能通过AI工具快速驾驭新技术栈，专注于解决核心问题。\n"
+        "【加分项】\n"
+        f"1. {product_module_bonus}。\n"
+        f"2. {ax_design_bonus}。\n"
+        "【职位亮点】\n"
+        f"1. {role_highlight}。"
+    )
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=hard_requirement,
+            normalized_capability="Backend Development",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=f"3. {hard_requirement}。",
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.EXPERIENCE,
+            original_text=product_module_bonus,
+            normalized_capability="完整产品模块或AI产品独立开发经验",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=f"1. {product_module_bonus}。",
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=ax_design_bonus,
+            normalized_capability="AX（Agent体验）设计",
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=f"2. {ax_design_bonus}。",
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.RESPONSIBILITY,
+            original_text=role_highlight,
+            normalized_capability=None,
+            importance=RequirementImportance.MUST_HAVE,
+            evidence_span=f"1. {role_highlight}。",
+            confidence=0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_17_aios_explicit_bonus_importance",
+        description=description,
+    )
+
+    by_text = {item.original_text: item for item in proposal.requirements}
+    assert by_text[hard_requirement].importance is RequirementImportance.MUST_HAVE
+    assert by_text[product_module_bonus].importance is RequirementImportance.BONUS
+    assert by_text[ax_design_bonus].importance is RequirementImportance.BONUS
+    assert by_text[role_highlight].importance is RequirementImportance.MUST_HAVE
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
+        assert strategies.count("explicit_bonus_section") == 2
+
+
 def test_workflow_promotes_unsoftened_preferred_education_in_explicit_requirement_section(
     session_factory: sessionmaker[Session],
 ) -> None:

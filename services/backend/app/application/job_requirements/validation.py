@@ -403,10 +403,11 @@ _SECTION_HEADING_PATTERN = re.compile(
 )
 _BONUS_SECTION_HEADING_PATTERN = re.compile(
     r"^(?:(?:[一二三四五六七八九十]+|\d+)\s*[、.．]\s*)?"
-    r"(?:加分项|加分条件|bonus(?:\s+points?)?|nice\s+to\s+have)"
-    r"(?:\s*[（(][^（）()\n]{1,40}[）)])?\s*[:：]?$",
+    r"(?:【\s*)?(?:加分项|加分条件|bonus(?:\s+points?)?|nice\s+to\s+have)"
+    r"(?:\s*[（(][^（）()\n]{1,40}[）)])?(?:\s*】)?\s*[:：]?$",
     re.IGNORECASE,
 )
+_BRACKETED_SECTION_HEADING_PATTERN = re.compile(r"^【[^】\n]{1,40}】\s*[:：]?$", re.IGNORECASE)
 _REQUIREMENT_SECTION_NAME_PATTERN = re.compile(
     r"^(?:岗位要求|任职要求|职位要求|任职资格|岗位资格|应聘要求|requirements?|qualifications?)$",
     re.IGNORECASE,
@@ -647,7 +648,10 @@ def _is_explicit_bonus_section_span(description: str, evidence: str) -> bool:
         if _BONUS_SECTION_HEADING_PATTERN.fullmatch(stripped):
             in_bonus_section = True
             continue
-        if _SECTION_HEADING_PATTERN.fullmatch(stripped):
+        if (
+            _SECTION_HEADING_PATTERN.fullmatch(stripped)
+            or _BRACKETED_SECTION_HEADING_PATTERN.fullmatch(stripped)
+        ):
             in_bonus_section = False
             continue
         if (
@@ -6755,7 +6759,10 @@ def validate_explicit_bonus_section_coverage(
             in_bonus_section = True
             continue
         heading = raw.rstrip(":：").strip()
-        if in_bonus_section and _SECTION_HEADING_PATTERN.fullmatch(raw):
+        if in_bonus_section and (
+            _SECTION_HEADING_PATTERN.fullmatch(raw)
+            or _BRACKETED_SECTION_HEADING_PATTERN.fullmatch(raw)
+        ):
             break
         if not in_bonus_section:
             continue
