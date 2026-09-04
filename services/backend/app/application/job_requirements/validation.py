@@ -436,7 +436,7 @@ _HARD_SKILL_CAPABILITY_CAPTURE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _EXPLICIT_REQUIREMENT_START_PATTERN = re.compile(
-    r"^(?:必须|需要|要求|熟悉|熟练|掌握|精通|理解|了解|深入了解|具备|具有|有|本科|硕士|博士|大专|专科|至少|能(?:够)?|对.+(?:具有|有))",
+    r"^(?:必须|需要|要求|熟悉|熟练|掌握|精通|理解|了解|深入了解|具备|具有|有|扎实|本科|硕士|博士|大专|专科|至少|能(?:够)?|对.+(?:具有|有))",
     re.IGNORECASE,
 )
 _APPLICATION_MATERIAL_REQUIREMENT_PATTERN = re.compile(

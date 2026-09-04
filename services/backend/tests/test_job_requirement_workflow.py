@@ -6355,6 +6355,51 @@ def test_workflow_promotes_unsoftened_preferred_item_in_explicit_requirement_sec
         ]
 
 
+def test_workflow_promotes_formal_case_15_solid_backend_foundation_in_requirement_section(
+    session_factory: sessionmaker[Session],
+) -> None:
+    hard_requirement = "扎实后端工程基础"
+    soft_requirement = "扎实的软件工程基础者优先"
+    description = (
+        "任职要求:\n"
+        f"1. {hard_requirement}\n"
+        f"2. {soft_requirement}\n"
+        "3. 熟悉 Python，并具备良好的工程实践。"
+    )
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=hard_requirement,
+            normalized_capability="Backend Engineering",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=hard_requirement,
+            confidence=0.95,
+        ),
+        ProposedJobRequirement(
+            type=RequirementType.SKILL,
+            original_text=soft_requirement,
+            normalized_capability="Backend Engineering",
+            importance=RequirementImportance.PREFERRED,
+            evidence_span=soft_requirement,
+            confidence=0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_case_15_backend_foundation",
+        description=description,
+    )
+
+    by_text = {item.original_text: item for item in proposal.requirements}
+    assert by_text[hard_requirement].importance is RequirementImportance.MUST_HAVE
+    assert by_text[soft_requirement].importance is RequirementImportance.PREFERRED
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
+        assert strategies == ["requirement_section_default_must_have"]
+
+
 def test_workflow_promotes_unsoftened_preferred_education_in_explicit_requirement_section(
     session_factory: sessionmaker[Session],
 ) -> None:
