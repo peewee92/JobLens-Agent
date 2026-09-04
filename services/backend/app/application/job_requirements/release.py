@@ -149,12 +149,14 @@ class GetJobRequirementReleaseReadinessUseCase:
                 baseline.batch.model,
                 baseline.batch.extractor_version,
                 baseline.batch.prompt_version,
+                baseline.batch.semantic_policy_version,
             )
             extraction_cohort = (
                 extraction.provider.casefold(),
                 extraction.model,
                 extraction.extractor_version,
                 extraction.prompt_version,
+                extraction.semantic_policy_version,
             )
             if extraction_cohort != baseline_cohort:
                 block(

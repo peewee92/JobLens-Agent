@@ -46,6 +46,7 @@ from app.db.models import (
     RequirementReviewBatchFinalDecisionORM,
     RequirementReviewBatchORM,
     RequirementReviewCaseReviewORM,
+    TraceSpanORM,
 )
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
@@ -176,6 +177,9 @@ class SqlAlchemyRequirementReviewQueryRepository(
                         trace_run_id=item.trace_run_id,
                         requirement_count=item.requirement_count,
                         created_at=_utc(item.created_at),
+                        semantic_policy_version=_semantic_policy_version(
+                            session, item.trace_run_id
+                        ),
                     )
                     for item in selected
                 ),
@@ -215,6 +219,9 @@ class SqlAlchemyRequirementReviewQueryRepository(
                         latest.get(record.job_id) is not None
                         and latest[record.job_id].id == record.id
                         and _matches_current_job_input(record, job)
+                    ),
+                    semantic_policy_version=_semantic_policy_version(
+                        session, record.trace_run_id
                     ),
                 )
                 for record, job in rows
@@ -454,16 +461,21 @@ def _batch_detail(
                 is_current=is_current,
                 requirements=tuple(requirements_by_extraction[extraction.id]),
                 review=review,
+                semantic_policy_version=_semantic_policy_version(
+                    session, extraction.trace_run_id
+                ),
             )
         )
 
     reviewed_count = accepted_count + rejected_count
     completed = reviewed_count == batch.sample_size
+    semantic_policy_version = _single_semantic_policy_version(case_details)
     formal_evidence_eligible = (
         batch.sample_size == FORMAL_REVIEW_SAMPLE_SIZE
         and completed
         and stale_count == 0
         and batch.provider.casefold() != "fixture"
+        and semantic_policy_version is not None
     )
     final_record = session.scalar(
         select(RequirementReviewBatchFinalDecisionORM).where(
@@ -500,11 +512,27 @@ def _batch_detail(
             ),
             match_release_eligible=match_release_eligible,
             created_at=_utc(batch.created_at),
+            semantic_policy_version=semantic_policy_version,
         ),
         issue_code_counts=dict(sorted(issue_counts.items())),
         cases=tuple(case_details),
         final_decision=final_decision,
     )
+
+
+def _semantic_policy_version(session: Session, trace_run_id: str) -> str | None:
+    trace = session.get(TraceSpanORM, trace_run_id)
+    if trace is None or not isinstance(trace.output, dict):
+        return None
+    value = trace.output.get("semanticPolicyVersion")
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _single_semantic_policy_version(
+    cases: list[RequirementReviewBatchCaseDetail],
+) -> str | None:
+    versions = {case.semantic_policy_version for case in cases}
+    return next(iter(versions)) if len(versions) == 1 else None
 
 
 def _final_decision_detail(

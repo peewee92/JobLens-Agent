@@ -108,14 +108,15 @@ class CreateRequirementReviewBatchUseCase:
                 item.model,
                 item.extractor_version,
                 item.prompt_version,
+                item.semantic_policy_version,
             )
             for item in ordered
         }
         if len(cohort) != 1:
             raise InvalidRequirementReviewBatchError(
-                "All selected Extractions must share provider, model, extractorVersion and promptVersion"
+                "All selected Extractions must share provider, model, extractorVersion, promptVersion and semanticPolicyVersion"
             )
-        provider, model, extractor_version, prompt_version = next(iter(cohort))
+        provider, model, extractor_version, prompt_version, _semantic_policy_version = next(iter(cohort))
 
         batch_id = f"reqreviewbatch_{uuid4().hex}"
         write = RequirementReviewBatchWrite(
@@ -378,6 +379,7 @@ def _batch_evidence_fingerprint(batch: RequirementReviewBatchDetail) -> str:
             "model": batch.summary.model,
             "extractorVersion": batch.summary.extractor_version,
             "promptVersion": batch.summary.prompt_version,
+            "semanticPolicyVersion": batch.summary.semantic_policy_version,
         },
         "summary": {
             "sampleSize": batch.summary.sample_size,

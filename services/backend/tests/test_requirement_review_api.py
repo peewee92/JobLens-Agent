@@ -82,7 +82,10 @@ def _seed_extraction(factory: sessionmaker[Session], index: int) -> str:
                 model="api-quality-model",
                 prompt_version="requirement-extraction-v1",
                 input_refs={"jobId": job_id},
-                output={"requirements": []},
+                output={
+                    "semanticPolicyVersion": "requirement-semantics-v1",
+                    "requirements": [],
+                },
                 latency_ms=8,
                 input_tokens=10,
                 output_tokens=5,

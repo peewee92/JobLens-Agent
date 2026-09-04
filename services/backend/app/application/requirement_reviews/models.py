@@ -42,6 +42,7 @@ class RequirementReviewCandidate:
     trace_run_id: str
     requirement_count: int
     created_at: datetime
+    semantic_policy_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +68,7 @@ class RequirementReviewExtractionSnapshot:
     requirement_count: int
     created_at: datetime
     is_current: bool
+    semantic_policy_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +170,7 @@ class RequirementReviewBatchCaseDetail:
     is_current: bool
     requirements: tuple[JobRequirementDetail, ...]
     review: RequirementReviewCaseReviewDetail | None
+    semantic_policy_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +192,7 @@ class RequirementReviewBatchSummary:
     final_decision: RequirementReviewBatchFinalDecision | None
     match_release_eligible: bool
     created_at: datetime
+    semantic_policy_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

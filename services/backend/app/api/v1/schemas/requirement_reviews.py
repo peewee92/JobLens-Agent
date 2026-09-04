@@ -34,6 +34,7 @@ class RequirementReviewCandidateResponse(CamelCaseModel):
     trace_run_id: str
     requirement_count: int
     created_at: datetime
+    semantic_policy_version: str | None = None
 
     @classmethod
     def from_candidate(
@@ -144,6 +145,7 @@ class RequirementReviewBatchSummaryResponse(CamelCaseModel):
     final_decision: RequirementReviewBatchFinalDecision | None
     match_release_eligible: bool
     created_at: datetime
+    semantic_policy_version: str | None = None
 
     @classmethod
     def from_summary(
@@ -170,6 +172,7 @@ class RequirementReviewBatchCaseResponse(CamelCaseModel):
     is_current: bool
     requirements: list[JobRequirementResponse]
     review: RequirementReviewCaseReviewResponse | None
+    semantic_policy_version: str | None = None
 
     @classmethod
     def from_detail(
@@ -192,6 +195,7 @@ class RequirementReviewBatchCaseResponse(CamelCaseModel):
             created_at=detail.created_at,
             is_current=detail.is_current,
             requirements=[JobRequirementResponse.from_detail(item) for item in detail.requirements],
+            semantic_policy_version=detail.semantic_policy_version,
             review=(
                 RequirementReviewCaseReviewResponse.from_detail(detail.review)
                 if detail.review is not None

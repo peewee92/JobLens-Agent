@@ -68,6 +68,7 @@ def _seed_extraction(
     provider: str = "openai",
     model: str = "quality-model",
     prompt_version: str = "requirement-extraction-v1",
+    semantic_policy_version: str = "requirement-semantics-v1",
     created_at: datetime | None = None,
 ) -> tuple[str, str]:
     job_id = f"job_review_{index}"
@@ -98,7 +99,10 @@ def _seed_extraction(
                 model=model,
                 prompt_version=prompt_version,
                 input_refs={"jobId": job_id, "descriptionSha256": f"hash-{index}-{version}"},
-                output={"requirements": [{"normalizedCapability": "Python"}]},
+                output={
+                    "semanticPolicyVersion": semantic_policy_version,
+                    "requirements": [{"normalizedCapability": "Python"}],
+                },
                 latency_ms=10,
                 input_tokens=20,
                 output_tokens=10,
@@ -329,6 +333,11 @@ def test_batch_rejects_duplicates_missing_stale_and_mixed_cohorts(
         index=11,
         model="different-model",
     )
+    _job, other_semantic_policy = _seed_extraction(
+        session_factory,
+        index=12,
+        semantic_policy_version="requirement-semantics-v2",
+    )
     use_case = _create_use_case(session_factory)
 
     with pytest.raises(InvalidRequirementReviewBatchError, match="duplicates"):
@@ -342,6 +351,12 @@ def test_batch_rejects_duplicates_missing_stale_and_mixed_cohorts(
             title="mixed",
             reviewer="will",
             extraction_ids=(latest, other_model),
+        )
+    with pytest.raises(InvalidRequirementReviewBatchError, match="semantic"):
+        use_case.execute(
+            title="mixed semantic policy",
+            reviewer="will",
+            extraction_ids=(latest, other_semantic_policy),
         )
 
     with session_factory() as session:

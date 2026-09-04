@@ -135,6 +135,7 @@ def _extraction(**overrides) -> JobRequirementExtractionDetail:
         "requirement_count": 1,
         "created_at": NOW,
         "requirements": (_requirement(),),
+        "semantic_policy_version": "requirement-semantics-v1",
     }
     values.update(overrides)
     return JobRequirementExtractionDetail(**values)
@@ -159,6 +160,7 @@ def _baseline(**batch_overrides) -> AcceptedRequirementReviewBaseline:
         "final_decision": RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH,
         "match_release_eligible": True,
         "created_at": NOW,
+        "semantic_policy_version": "requirement-semantics-v1",
     }
     batch_values.update(batch_overrides)
     decision = RequirementReviewBatchFinalDecisionDetail(
@@ -293,6 +295,18 @@ def test_missing_baseline_and_extraction_are_explicit_fail_closed_blockers() -> 
         JobRequirementReleaseBlockerCode.EXTRACTION_MISSING,
     }
     assert result.trace_run_id is None
+
+
+def test_semantic_policy_mismatch_with_accepted_baseline_does_not_release() -> None:
+    result = _execute(
+        extraction=_extraction(semantic_policy_version="requirement-semantics-v2"),
+        baseline=_baseline(semantic_policy_version="requirement-semantics-v1"),
+    )
+
+    assert result.release_eligible is False
+    assert _codes(result) == {
+        JobRequirementReleaseBlockerCode.EXTRACTION_COHORT_MISMATCH,
+    }
 
 
 def test_stale_input_and_unaccepted_cohort_do_not_release() -> None:
