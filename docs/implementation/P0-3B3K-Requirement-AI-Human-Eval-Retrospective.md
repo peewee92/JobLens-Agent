@@ -285,8 +285,8 @@ JobLens 的自动任务应该自动推进“工程能力”，但不能自动推
 4. 读取 Requirement Review 当前人工门禁；
 5. 如果等待人工 Case Review / Final Decision，则明确 HUMAN_GATE，不代签；
 6. 同时扫描是否存在可安全推进的 A/B 工程项；
-7. 若 Final Decision 为 `reject_for_match`，优先把人工 Reject Case 固化为 deterministic regression 并修复系统性质量缺陷；
-8. 若 Final Decision 为 `accept_for_match`，停止 Requirement 调优，回到 MatchReport → UserFeedback → Target Cohort → Skill Gap 主线；
+7. 若 Final Decision 为 `reject_for_match` 且该 Review 与当前 semantic policy 相同，优先把人工 Reject Case 固化为 deterministic regression 并修复系统性质量缺陷；若 Review 属于旧 semantic policy、当前代码已进入新版本，则停止继续调规则，进入 `revalidate_requirement_quality` HUMAN_GATE；
+8. 若新版本 Final Decision 为 `accept_for_match`，停止 Requirement 调优，回到 MatchReport → UserFeedback → Target Cohort → Skill Gap 主线；
 9. 不自动调用真实 Provider，不自动构造 `confirmLiveCost=true`；
 10. 每轮只完成一个最小可验证纵向切片，测试通过后本地 commit，不自动 push。
 
