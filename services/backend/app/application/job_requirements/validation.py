@@ -5998,9 +5998,19 @@ def repair_job_requirement_semantics(
     for _, item in repaired_items:
         if item in same_evidence_alternative_parents:
             continue
-        scope_source = item.original_text
-        if not _ALTERNATIVE_GROUP_PATTERN.search(scope_source):
-            evidence = item.evidence_span.strip()
+        scope_source = item.original_text.strip()
+        evidence = item.evidence_span.strip()
+        if _ALTERNATIVE_GROUP_PATTERN.search(scope_source):
+            # Only a real list header owns the text that follows it. Inline cardinality
+            # clauses such as ``Go/Python/Java 任一,具备扎实后端工程基础`` are bounded
+            # to their own clause; widening them to the rest of the numbered item
+            # incorrectly demotes independent hard siblings (#13/#14 formal v42.96).
+            if not (
+                _ALTERNATIVE_FOLLOWING_LIST_PATTERN.search(scope_source)
+                or scope_source.rstrip().endswith((":", "："))
+            ):
+                continue
+        else:
             if (
                 item.type is RequirementType.CONSTRAINT
                 and item.importance is RequirementImportance.MUST_HAVE

@@ -7,7 +7,7 @@ from app.application.job_requirements.validation import SEMANTIC_POLICY_VERSION
 from app.evals.mvp_quality import MvpQualityStatus
 from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION
 
-FROZEN_MVP_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
+FROZEN_MVP_EXTRACTOR_VERSION = "requirement-extractor-v42.96"
 FROZEN_MVP_SEMANTIC_POLICY_VERSION = "requirement-semantics-v42.96"
 
 
@@ -40,6 +40,7 @@ class RequirementReviewProgress:
     match_release_eligible: bool
     issue_code_counts: dict[str, int]
     semantic_policy_version: str | None
+    extractor_version: str = EXTRACTOR_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +79,7 @@ class MvpProgressSummary:
     requirement_review_match_release_eligible: bool | None
     requirement_review_issue_code_counts: dict[str, int] | None
     requirement_review_semantic_policy_version: str | None
+    requirement_review_extractor_version: str | None
     next_priority: str
 
 
@@ -122,12 +124,19 @@ def build_mvp_progress_summary(
     if not offline_ready:
         next_priority = "restore_offline_mvp_gate"
     elif requirement_review is not None and requirement_review.sample_size == 20:
-        if requirement_review.semantic_policy_version != SEMANTIC_POLICY_VERSION:
-            next_priority = "revalidate_requirement_quality"
-        elif requirement_review.reviewed_count < requirement_review.sample_size:
+        if requirement_review.reviewed_count < requirement_review.sample_size:
             next_priority = "complete_requirement_review_cases"
         elif requirement_review.final_decision is None:
+            # Human evidence must be closed before local extractor/semantic version drift
+            # can route the project into another revalidation cycle. Otherwise a code
+            # bump can bypass an already completed 20-case review's immutable Final
+            # Decision gate.
             next_priority = "complete_requirement_review_final_decision"
+        elif (
+            requirement_review.extractor_version != EXTRACTOR_VERSION
+            or requirement_review.semantic_policy_version != SEMANTIC_POLICY_VERSION
+        ):
+            next_priority = "revalidate_requirement_quality"
         elif requirement_review.final_decision == "reject_for_match":
             next_priority = "remediate_requirement_quality"
         elif not requirement_review.match_release_eligible:
@@ -249,6 +258,9 @@ def build_mvp_progress_summary(
         ),
         requirement_review_semantic_policy_version=(
             requirement_review.semantic_policy_version if requirement_review is not None else None
+        ),
+        requirement_review_extractor_version=(
+            requirement_review.extractor_version if requirement_review is not None else None
         ),
         next_priority=next_priority,
     )

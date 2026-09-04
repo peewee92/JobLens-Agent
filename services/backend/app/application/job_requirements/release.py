@@ -58,6 +58,10 @@ class JobRequirementReleaseReadiness:
     blockers: tuple[JobRequirementReleaseBlocker, ...]
 
 
+# This is the last extractor explicitly allowed by the historical MVP no-baseline
+# escape hatch. A newer extractor version must earn a human accepted baseline before
+# Match Release; do not advance this constant merely because extraction development
+# moves forward.
 MVP_FROZEN_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
 
 

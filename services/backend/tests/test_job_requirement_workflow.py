@@ -241,8 +241,8 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
     ).execute(job_id="job_fixture", description=description)
 
     assert proposal.trace_run_id.startswith("run_")
-    assert proposal.extractor_version == "requirement-extractor-v42.95"
-    assert proposal.prompt_version == "requirement-extraction-v7"
+    assert proposal.extractor_version == "requirement-extractor-v42.96"
+    assert proposal.prompt_version == "requirement-extraction-v8"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
         "FastAPI",
@@ -276,7 +276,7 @@ def test_workflow_repairs_invalid_original_text_from_valid_verbatim_evidence_spa
         description=description,
     )
 
-    assert proposal.extractor_version == "requirement-extractor-v42.95"
+    assert proposal.extractor_version == "requirement-extractor-v42.96"
     assert proposal.requirements[0].original_text == evidence
     assert proposal.requirements[0].evidence_span == evidence
     with session_factory() as session:
@@ -6218,7 +6218,7 @@ def test_workflow_softens_a_threshold_when_the_same_clause_explicitly_waives_it(
         description=description,
     )
 
-    assert proposal.extractor_version == "requirement-extractor-v42.95"
+    assert proposal.extractor_version == "requirement-extractor-v42.96"
     assert [(item.original_text, item.importance) for item in proposal.requirements] == [
         (
             "3 年以上平台开发经验，表现优秀者可放宽至不限年限",
@@ -6401,6 +6401,94 @@ def test_workflow_promotes_formal_case_15_solid_backend_foundation_in_requiremen
         assert trace is not None
         strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
         assert strategies == ["requirement_section_default_must_have"]
+
+
+def test_workflow_keeps_formal_v4296_case_13_post_cardinality_backend_foundation_mandatory(
+    session_factory: sessionmaker[Session],
+) -> None:
+    evidence = (
+        "3、熟悉 Go/Python/Java 任一,具备扎实后端工程基础(API 设计、鉴权、日志、缓存/队列等)。"
+    )
+    language_group = "熟悉 Go/Python/Java 任一"
+    backend_foundation = "具备扎实后端工程基础(API 设计、鉴权、日志、缓存/队列等)。"
+    description = f"任职资格:\n{evidence}\n4、有 LLM/Agent 实战经验。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            RequirementType.CONSTRAINT,
+            language_group,
+            None,
+            RequirementImportance.MUST_HAVE,
+            evidence,
+            0.98,
+        ),
+        ProposedJobRequirement(
+            RequirementType.SKILL,
+            backend_foundation,
+            "后端工程",
+            RequirementImportance.PREFERRED,
+            evidence,
+            0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_v4296_case_13_cardinality_scope",
+        description=description,
+    )
+
+    backend = next(item for item in proposal.requirements if item.original_text == backend_foundation)
+    assert backend.importance is RequirementImportance.MUST_HAVE
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
+        assert "requirement_section_default_must_have" in strategies
+        assert "alternative_child" not in strategies
+
+
+def test_workflow_keeps_formal_v4296_case_14_post_cardinality_deployment_mandatory(
+    session_factory: sessionmaker[Session],
+) -> None:
+    evidence = (
+        "硬核工程能力:精通Python/Java/Go等至少一门主流语言;"
+        "熟悉主流大模型API调用、RAG架构、LangChain/LlamaIndex等Agent编排框架;"
+        "具备在受限网络环境下的独立部署与系统监控能力。"
+    )
+    language_group = "精通Python/Java/Go等至少一门主流语言"
+    deployment = "具备在受限网络环境下的独立部署与系统监控能力"
+    description = f"三、 任职要求\n{evidence}\n四、 优先条件\n有FDE经验者优先。"
+    extractor = StaticRequirementExtractor(
+        ProposedJobRequirement(
+            RequirementType.CONSTRAINT,
+            language_group,
+            None,
+            RequirementImportance.MUST_HAVE,
+            evidence,
+            0.98,
+        ),
+        ProposedJobRequirement(
+            RequirementType.SKILL,
+            deployment,
+            "独立部署与系统监控",
+            RequirementImportance.PREFERRED,
+            evidence,
+            0.95,
+        ),
+    )
+
+    proposal = _workflow(session_factory, extractor).execute(
+        job_id="job_formal_v4296_case_14_cardinality_scope",
+        description=description,
+    )
+
+    deployment_item = next(item for item in proposal.requirements if item.original_text == deployment)
+    assert deployment_item.importance is RequirementImportance.MUST_HAVE
+    with session_factory() as session:
+        trace = session.get(TraceSpanORM, proposal.trace_run_id)
+        assert trace is not None
+        strategies = [item["strategy"] for item in trace.output["semanticRepairs"]]
+        assert "requirement_section_default_must_have" in strategies
+        assert "alternative_child" not in strategies
 
 
 def test_workflow_promotes_formal_case_16_unsoftened_qualifications_in_requirement_section(
@@ -8029,7 +8117,7 @@ def test_workflow_does_not_enforce_bonus_coverage_for_small_bonus_section(
         job_id="job_small_bonus_section",
         description=description,
     )
-    assert proposal.extractor_version == "requirement-extractor-v42.95"
+    assert proposal.extractor_version == "requirement-extractor-v42.96"
 
 
 def test_coverage_audit_counts_exact_duties_after_fullwidth_punctuation_normalization() -> None:

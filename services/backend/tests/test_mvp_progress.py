@@ -182,6 +182,33 @@ def test_mvp_progress_routes_rejected_requirement_baseline_to_quality_remediatio
     assert summary.next_priority == "remediate_requirement_quality"
 
 
+def test_mvp_progress_keeps_final_decision_gate_ahead_of_superseded_extractor() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=0,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=20,
+            match_ready_without_report=0,
+        ),
+        requirement_review=RequirementReviewProgress(
+            sample_size=20,
+            reviewed_count=20,
+            accepted_count=8,
+            rejected_count=12,
+            final_decision=None,
+            match_release_eligible=False,
+            issue_code_counts={"duplicate_requirement": 11},
+            semantic_policy_version="requirement-semantics-v42.96",
+            extractor_version="requirement-extractor-v42.95",
+        ),
+    )
+
+    assert summary.requirement_review_extractor_version == "requirement-extractor-v42.95"
+    assert summary.next_priority == "complete_requirement_review_final_decision"
+
+
 def test_mvp_progress_routes_superseded_rejected_baseline_to_revalidation() -> None:
     summary = build_mvp_progress_summary(
         _status(),

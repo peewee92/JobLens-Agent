@@ -262,6 +262,23 @@ def test_frozen_mvp_extraction_can_release_for_match_without_human_baseline() ->
     assert result.accepted_baseline_batch_id is None
 
 
+def test_new_extractor_stays_blocked_without_human_accepted_baseline() -> None:
+    use_case = GetJobRequirementReleaseReadinessUseCase(
+        jobs=FakeJobs(_job()),
+        requirements=FakeRequirements(_extraction(extractor_version="requirement-extractor-v42.96")),
+        reviews=FakeReviews(None),
+        traces=FakeTraces(_trace(version="requirement-extractor-v42.96")),
+        allow_frozen_mvp_without_baseline=True,
+    )
+
+    result = use_case.execute("job_release_1")
+
+    assert result.release_eligible is False
+    assert _codes(result) == {
+        JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
+    }
+
+
 def test_old_extraction_stays_blocked_without_human_baseline_in_mvp_mode() -> None:
     use_case = GetJobRequirementReleaseReadinessUseCase(
         jobs=FakeJobs(_job()),

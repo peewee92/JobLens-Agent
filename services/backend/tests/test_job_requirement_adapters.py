@@ -60,6 +60,7 @@ def test_openai_requirement_adapter_uses_strict_schema_and_no_storage() -> None:
         ).extract("岗位要求：熟练掌握 Python 和 FastAPI，并具备后端系统设计经验。")
 
     assert captured["model"] == "test-model"
+    assert "same sourceCandidateId and the same exact originalText" in captured["input"][0]["content"][0]["text"]
     assert captured["store"] is False
     assert captured["text"]["format"]["type"] == "json_schema"
     assert captured["text"]["format"]["strict"] is True
@@ -78,13 +79,13 @@ def test_openai_requirement_adapter_allows_raw_buffer_above_final_requirement_li
             "requirements": [
                 {
                     "type": "responsibility",
-                    "originalText": "负责核心系统设计",
+                    "originalText": f"负责核心系统设计 {index}",
                     "normalizedCapability": None,
                     "importance": "must_have",
                     "sourceCandidateId": "S0001",
                     "confidence": 0.95,
                 }
-                for _ in range(51)
+                for index in range(51)
             ]
         }
         return httpx.Response(
@@ -113,6 +114,107 @@ def test_openai_requirement_adapter_allows_raw_buffer_above_final_requirement_li
     schema = captured["response_format"]["json_schema"]["schema"]
     assert schema["properties"]["requirements"]["maxItems"] == 64
     assert len(result.output.requirements) == 51
+
+
+def test_openai_requirement_adapter_rejects_formal_v4296_case_8_same_source_capability_fanout() -> None:
+    evidence = "•对RAG和agent框架有基本了解,包括但不限于 langChain、llama index、autoGen、metaGPT等。"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": evidence,
+                    "normalizedCapability": capability,
+                    "importance": importance,
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.95,
+                }
+                for capability, importance in (
+                    ("RAG", "must_have"),
+                    ("langChain", "preferred"),
+                    ("LlamaIndex", "preferred"),
+                    ("AutoGen", "preferred"),
+                    ("MetaGPT", "preferred"),
+                )
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(output)}}
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(RequirementExtractorFailedError, match="source-fact uniqueness") as captured:
+            OpenAIJobRequirementExtractor(
+                api_key="test-key",
+                model="test-model",
+                base_url="https://example.test/v1",
+                api_style="chat_completions",
+                client=client,
+            ).extract(evidence)
+
+    assert captured.value.failure_stage == "provider_contract_source_fact_uniqueness"
+    assert captured.value.provider_calls == 1
+
+
+def test_openai_requirement_adapter_rejects_formal_v4296_case_16_cross_type_same_source_fact() -> None:
+    evidence = "- 具备扎实的算法基础,熟悉自然语言处理(NLP)、机器学习(ML)核心技术"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        output = {
+            "requirements": [
+                {
+                    "type": "skill",
+                    "originalText": evidence,
+                    "normalizedCapability": "NLP",
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.95,
+                },
+                {
+                    "type": "skill",
+                    "originalText": evidence,
+                    "normalizedCapability": "Machine Learning",
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.94,
+                },
+                {
+                    "type": "experience",
+                    "originalText": evidence,
+                    "normalizedCapability": None,
+                    "importance": "must_have",
+                    "sourceCandidateId": "S0001",
+                    "confidence": 0.93,
+                },
+            ]
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(output)}}
+                ]
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(RequirementExtractorFailedError, match="source-fact uniqueness") as captured:
+            OpenAIJobRequirementExtractor(
+                api_key="test-key",
+                model="test-model",
+                base_url="https://example.test/v1",
+                api_style="chat_completions",
+                client=client,
+            ).extract(evidence)
+
+    assert captured.value.failure_stage == "provider_contract_source_fact_uniqueness"
+    assert captured.value.provider_calls == 1
 
 
 def test_openai_requirement_adapter_normalizes_blank_non_skill_capability_to_none() -> None:
@@ -433,6 +535,8 @@ def test_openai_requirement_adapter_supports_chat_completions_strict_schema() ->
     assert captured["messages"][0]["role"] == "system"
     assert captured["messages"][1]["role"] == "user"
     assert captured["stream"] is False
+    assert captured["temperature"] == 0
+    assert "same sourceCandidateId and the same exact originalText" in captured["messages"][0]["content"]
     assert captured["enable_thinking"] is False
     assert captured["max_completion_tokens"] == 8192
     assert captured["response_format"]["type"] == "json_schema"

@@ -277,6 +277,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     {"role": "user", "content": source_candidate_text},
                 ],
                 "stream": False,
+                "temperature": 0,
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": {
@@ -323,6 +324,10 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             provider_text = output_text(payload)
             parsed = _RequirementsOutput.model_validate_json(provider_text)
             _validate_source_candidate_ids(parsed, source_candidates)
+            _validate_unique_source_facts(
+                parsed,
+                provider_calls=provider_call_counter[0],
+            )
         except RequirementExtractorFailedError:
             raise
         except httpx.HTTPStatusError as error:
@@ -528,6 +533,34 @@ def _validate_source_candidate_ids(
             "OpenAI Requirement extractor returned unknown sourceCandidateId: "
             + ", ".join(invalid)
         )
+
+
+def _validate_unique_source_facts(
+    output: _RequirementsOutput,
+    *,
+    provider_calls: int,
+) -> None:
+    """Fail closed when one Provider source fact is copied into multiple rows.
+
+    v42.96 human review showed the same source candidate + original text being emitted
+    repeatedly with only type/capability changed. That creates duplicate matching weight
+    downstream. A Provider may still emit multiple Requirements from one source candidate,
+    but each row must own a distinct verbatim ``originalText`` slice.
+    """
+    seen: dict[tuple[str, str], int] = {}
+    for index, item in enumerate(output.requirements):
+        original_identity = re.sub(r"\s+", "", item.original_text).casefold()
+        identity = (item.source_candidate_id, original_identity)
+        previous = seen.get(identity)
+        if previous is not None:
+            raise RequirementExtractorFailedError(
+                "OpenAI Requirement extractor violated source-fact uniqueness: "
+                f"Requirement {index} reuses sourceCandidateId={item.source_candidate_id} "
+                f"and the same originalText as Requirement {previous}",
+                failure_stage="provider_contract_source_fact_uniqueness",
+                provider_calls=provider_calls,
+            )
+        seen[identity] = index
 
 
 _CAPABILITY_ALIASES = (
@@ -807,7 +840,9 @@ Rules:
 - Classify importance by the requirement's actual scope. In an explicit requirements/qualifications section, default to must_have unless that exact requirement is softened by optional/preferred/bonus wording.
 - A softening modifier such as 优先/加分/preferred/optional applies only to the clause it modifies; do not downgrade adjacent hard constraints in the same sentence. If one sentence mixes hard and soft clauses, split them into separate requirements when the input provides separable verbatim spans.
 - A waiver or exception such as 可放宽/可豁免/waived/exception weakens only the threshold or condition it modifies. Do not emit the strict threshold as an independent must_have and do not emit the waiver itself as a separate preferred requirement. When the waiver-bearing wording is contiguous, preserve that affected condition as one non-blocking preferred requirement unless another clause remains explicitly unconditional. For example, a years-of-experience threshold followed by an exceptional-candidate waiver is not an unconditional hard gate.
-- For alternative or cardinality groups such as "at least N of the following", "one of", "any one", or "任意一种", preserve the group constraint as must_have but must not make every child independently must_have unless the Job description explicitly requires every child. Child capabilities may be preferred when they are alternatives under the mandatory group constraint.
+- Do not emit more than one Requirement with the same sourceCandidateId and the same exact originalText. One contiguous source fact must not be copied into multiple rows only to attach different types or normalized capabilities.
+- If one contiguous clause mentions multiple capabilities but those capabilities cannot each be copied as distinct verbatim originalText substrings, emit one compound constraint instead of duplicating the full clause for each capability.
+- For alternative or cardinality groups such as "at least N of the following", "one of", "any one", or "任意一种", preserve the mandatory group constraint and must not make every child independently must_have. Emit child capabilities only when each child can be anchored to its own distinct verbatim originalText/source candidate; never duplicate the same full originalText for the parent and its children.
 - Concrete examples such as 如/例如/such as/e.g. illustrate an umbrella requirement rather than adding separate hard constraints. Example children must not become independent must_have requirements unless the Job description explicitly requires those children outside the example wording; prefer the umbrella requirement with its verbatim span and omit redundant example-child requirements.
 - Use bonus only for explicitly optional, plus, preferred, or bonus requirements. Use preferred only for explicitly desirable-but-not-mandatory requirements or alternative child capabilities governed by a separate mandatory group constraint.
 - Normalize capability aliases when supported by the text, for example React.js/ReactJS → React.
