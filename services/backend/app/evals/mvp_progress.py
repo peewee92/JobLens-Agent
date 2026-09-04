@@ -21,6 +21,16 @@ class RealMvpLoopProgress:
 
 
 @dataclass(frozen=True, slots=True)
+class RequirementRevalidationProgress:
+    run_id: str
+    status: str
+    completed_case_count: int
+    attempted_calls: int
+    canary_decision: str | None
+    semantic_policy_version: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class RequirementReviewProgress:
     sample_size: int
     reviewed_count: int
@@ -52,6 +62,13 @@ class MvpProgressSummary:
     real_match_ready_without_report: int | None
     real_match_report_coverage: float | None
     real_feedback_coverage: float | None
+    requirement_revalidation_data_available: bool
+    requirement_revalidation_run_id: str | None
+    requirement_revalidation_status: str | None
+    requirement_revalidation_completed_case_count: int | None
+    requirement_revalidation_attempted_calls: int | None
+    requirement_revalidation_canary_decision: str | None
+    requirement_revalidation_semantic_policy_version: str | None
     requirement_review_data_available: bool
     requirement_review_sample_size: int | None
     requirement_review_reviewed_count: int | None
@@ -68,6 +85,7 @@ def build_mvp_progress_summary(
     status: MvpQualityStatus,
     *,
     real_loop: RealMvpLoopProgress | None = None,
+    requirement_revalidation: RequirementRevalidationProgress | None = None,
     requirement_review: RequirementReviewProgress | None = None,
 ) -> MvpProgressSummary:
     """Translate quality facts into the small set of progress metrics MVP cares about."""
@@ -97,6 +115,10 @@ def build_mvp_progress_summary(
         and real_loop.current_match_reports >= real_loop.total_jobs
         and real_loop.feedback_covered_reports >= real_loop.current_match_reports
     )
+    current_revalidation = (
+        requirement_revalidation is not None
+        and requirement_revalidation.semantic_policy_version == SEMANTIC_POLICY_VERSION
+    )
     if not offline_ready:
         next_priority = "restore_offline_mvp_gate"
     elif requirement_review is not None and requirement_review.sample_size == 20:
@@ -122,6 +144,21 @@ def build_mvp_progress_summary(
             next_priority = "expand_real_match_report_coverage"
         else:
             next_priority = "resolve_real_match_input_blockers"
+    elif current_revalidation:
+        assert requirement_revalidation is not None
+        if requirement_revalidation.status == "awaiting_canary_review":
+            next_priority = "complete_requirement_revalidation_canary_review"
+        elif requirement_revalidation.status == "stopped":
+            next_priority = "remediate_requirement_quality"
+        elif (
+            requirement_revalidation.canary_decision == "continue"
+            and requirement_revalidation.completed_case_count < 20
+        ):
+            next_priority = "resume_requirement_revalidation"
+        elif requirement_revalidation.completed_case_count < 20:
+            next_priority = "continue_requirement_revalidation_canary"
+        else:
+            next_priority = "complete_requirement_review_cases"
     elif real_loop_observed:
         next_priority = "real_mvp_value_loop_observed"
     elif real_loop is None:
@@ -161,6 +198,33 @@ def build_mvp_progress_summary(
         ),
         real_match_report_coverage=real_match_report_coverage,
         real_feedback_coverage=real_feedback_coverage,
+        requirement_revalidation_data_available=requirement_revalidation is not None,
+        requirement_revalidation_run_id=(
+            requirement_revalidation.run_id if requirement_revalidation is not None else None
+        ),
+        requirement_revalidation_status=(
+            requirement_revalidation.status if requirement_revalidation is not None else None
+        ),
+        requirement_revalidation_completed_case_count=(
+            requirement_revalidation.completed_case_count
+            if requirement_revalidation is not None
+            else None
+        ),
+        requirement_revalidation_attempted_calls=(
+            requirement_revalidation.attempted_calls
+            if requirement_revalidation is not None
+            else None
+        ),
+        requirement_revalidation_canary_decision=(
+            requirement_revalidation.canary_decision
+            if requirement_revalidation is not None
+            else None
+        ),
+        requirement_revalidation_semantic_policy_version=(
+            requirement_revalidation.semantic_policy_version
+            if requirement_revalidation is not None
+            else None
+        ),
         requirement_review_data_available=requirement_review is not None,
         requirement_review_sample_size=(
             requirement_review.sample_size if requirement_review is not None else None

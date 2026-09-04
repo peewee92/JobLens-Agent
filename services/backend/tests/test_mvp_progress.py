@@ -5,6 +5,7 @@ from dataclasses import replace
 
 from app.evals.mvp_progress import (
     RealMvpLoopProgress,
+    RequirementRevalidationProgress,
     RequirementReviewProgress,
     build_mvp_progress_summary,
 )
@@ -230,6 +231,55 @@ def test_mvp_progress_resumes_real_loop_after_requirement_baseline_is_accepted()
     )
 
     assert summary.next_priority == "complete_current_user_feedback"
+
+
+def test_mvp_progress_keeps_continued_requirement_revalidation_ahead_of_feedback() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_revalidation=RequirementRevalidationProgress(
+            run_id="reqacceptrun_v4296",
+            status="partial",
+            completed_case_count=3,
+            attempted_calls=3,
+            canary_decision="continue",
+            semantic_policy_version="requirement-semantics-v42.96",
+        ),
+    )
+
+    assert summary.requirement_revalidation_data_available is True
+    assert summary.requirement_revalidation_completed_case_count == 3
+    assert summary.requirement_revalidation_canary_decision == "continue"
+    assert summary.next_priority == "resume_requirement_revalidation"
+
+
+def test_mvp_progress_requires_canary_review_before_resuming_revalidation() -> None:
+    summary = build_mvp_progress_summary(
+        _status(),
+        real_loop=RealMvpLoopProgress(
+            total_jobs=20,
+            current_match_reports=4,
+            feedback_covered_reports=0,
+            requirement_analysis_needed=0,
+            match_ready_without_report=16,
+        ),
+        requirement_revalidation=RequirementRevalidationProgress(
+            run_id="reqacceptrun_v4296",
+            status="awaiting_canary_review",
+            completed_case_count=3,
+            attempted_calls=3,
+            canary_decision=None,
+            semantic_policy_version="requirement-semantics-v42.96",
+        ),
+    )
+
+    assert summary.next_priority == "complete_requirement_revalidation_canary_review"
 
 
 def test_mvp_progress_marks_real_loop_observed_only_when_reports_and_feedback_cover_jobs() -> None:

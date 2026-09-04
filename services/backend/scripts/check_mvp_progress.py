@@ -9,8 +9,14 @@ from fastapi.testclient import TestClient
 
 from app.evals.mvp_progress import (
     RealMvpLoopProgress,
+    RequirementRevalidationProgress,
     RequirementReviewProgress,
     build_mvp_progress_summary,
+)
+from app.application.job_requirements.validation import SEMANTIC_POLICY_VERSION
+from app.repositories import (
+    SqlAlchemyJobRequirementQueryRepository,
+    SqlAlchemyRequirementAcceptanceRunQueryRepository,
 )
 from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION
 from app.evals.mvp_quality import evaluate_mvp_quality_status
@@ -61,6 +67,60 @@ def _load_real_loop_progress() -> RealMvpLoopProgress | None:
             )
     except Exception:
         # Real-loop visibility is diagnostic. It must never turn a healthy offline MVP gate red.
+        return None
+
+
+def _load_requirement_revalidation_progress() -> RequirementRevalidationProgress | None:
+    """Read the newest active live Run that proves the current semantic cohort."""
+    try:
+        from app.db.session import SessionLocal
+
+        run_repository = SqlAlchemyRequirementAcceptanceRunQueryRepository(SessionLocal)
+        requirement_repository = SqlAlchemyJobRequirementQueryRepository(SessionLocal)
+        page = run_repository.list_runs(limit=20, offset=0)
+        for item in page.items:
+            if (
+                item.provider.casefold() != "openai"
+                or item.extractor_version != EXTRACTOR_VERSION
+                or item.batch_id is not None
+                or item.status.value not in {
+                    "pending",
+                    "partial",
+                    "awaiting_canary_review",
+                    "stopped",
+                }
+            ):
+                continue
+            detail = run_repository.get_run(item.id)
+            if detail is None:
+                continue
+            observed_versions: set[str | None] = set()
+            for case in detail.cases:
+                if case.extraction_id is None:
+                    continue
+                extraction = requirement_repository.get_extraction(
+                    job_id=case.job_id,
+                    extraction_id=case.extraction_id,
+                )
+                if extraction is not None:
+                    observed_versions.add(extraction.semantic_policy_version)
+            if observed_versions != {SEMANTIC_POLICY_VERSION}:
+                continue
+            return RequirementRevalidationProgress(
+                run_id=detail.id,
+                status=detail.status.value,
+                completed_case_count=detail.completed_case_count,
+                attempted_calls=detail.attempted_calls,
+                canary_decision=(
+                    detail.canary_review.decision.value
+                    if detail.canary_review is not None
+                    else None
+                ),
+                semantic_policy_version=SEMANTIC_POLICY_VERSION,
+            )
+        return None
+    except Exception:
+        # Revalidation visibility is diagnostic and must not turn the offline gate red.
         return None
 
 
@@ -117,6 +177,7 @@ def main() -> int:
     summary = build_mvp_progress_summary(
         evaluate_mvp_quality_status(),
         real_loop=_load_real_loop_progress(),
+        requirement_revalidation=_load_requirement_revalidation_progress(),
         requirement_review=_load_requirement_review_progress(),
     )
     payload = asdict(summary)
