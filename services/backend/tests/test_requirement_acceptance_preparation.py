@@ -1324,6 +1324,38 @@ def test_new_semantic_policy_does_not_reuse_older_semantic_extractions(
     assert _count(session_factory, RequirementReviewBatchORM) == 2
 
 
+def test_existing_run_cannot_cross_semantic_policy_boundary(
+    session_factory: sessionmaker[Session],
+) -> None:
+    first = _use_case(session_factory).execute(
+        payload=_payload(),
+        title="semantic-bound-run",
+        reviewer="will",
+    )
+    assert first.created_extractions == 20
+
+    with session_factory() as session:
+        traces = session.scalars(select(TraceSpanORM)).all()
+        assert len(traces) == 20
+        for trace in traces:
+            output = dict(trace.output or {})
+            output["semanticPolicyVersion"] = "requirement-semantics-v42.95"
+            trace.output = output
+        session.commit()
+
+    with pytest.raises(InvalidRequirementAcceptanceDatasetError, match="semantic policy"):
+        _use_case(session_factory).execute(
+            payload=_payload(),
+            title="semantic-bound-run",
+            reviewer="will",
+        )
+
+    assert _count(session_factory, JobImportORM) == 1
+    assert _count(session_factory, JobRequirementExtractionORM) == 20
+    assert _count(session_factory, RequirementAcceptanceRunORM) == 1
+    assert _count(session_factory, RequirementReviewBatchORM) == 1
+
+
 def test_provider_unavailable_fails_fast_after_one_traced_attempt(
     session_factory: sessionmaker[Session],
 ) -> None:

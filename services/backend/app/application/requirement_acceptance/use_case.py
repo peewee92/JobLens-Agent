@@ -243,6 +243,7 @@ class PrepareRequirementAcceptanceBatchUseCase:
             extractor_version=self._extractor_version,
             prompt_version=self._prompt_version,
         )
+        self._enforce_existing_run_semantic_policy(existing_run)
         self._enforce_canary_gate(
             existing_run=existing_run,
             max_new_extractions=max_new_extractions,
@@ -577,6 +578,37 @@ class PrepareRequirementAcceptanceBatchUseCase:
             batch_reused=batch_reused,
             cases=tuple(cases),
         )
+
+    def _enforce_existing_run_semantic_policy(
+        self,
+        existing_run: RequirementAcceptanceRunDetail | None,
+    ) -> None:
+        if existing_run is None or self._semantic_policy_version is None:
+            return
+
+        observed_versions: set[str | None] = set()
+        for case in existing_run.cases:
+            if case.extraction_id is None:
+                continue
+            extraction = self._requirements.get_extraction(
+                job_id=case.job_id,
+                extraction_id=case.extraction_id,
+            )
+            if extraction is None:
+                raise RequirementAcceptanceImportError(
+                    "Existing Requirement acceptance Run references a missing Extraction"
+                )
+            observed_versions.add(extraction.semantic_policy_version)
+
+        if observed_versions and observed_versions != {self._semantic_policy_version}:
+            rendered = ", ".join(
+                sorted(version or "unknown" for version in observed_versions)
+            )
+            raise InvalidRequirementAcceptanceDatasetError(
+                "Existing Requirement acceptance Run belongs to a different semantic policy "
+                f"cohort ({rendered}); start a new Run identity for "
+                f"{self._semantic_policy_version}"
+            )
 
     def _enforce_canary_gate(
         self,
