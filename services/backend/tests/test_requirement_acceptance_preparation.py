@@ -77,6 +77,7 @@ from scripts.prepare_requirement_acceptance import _provider_guard_error
 from app.workflows.job_requirement_extraction import (
     EXTRACTOR_VERSION,
     PROMPT_VERSION,
+    SEMANTIC_POLICY_VERSION,
     ExtractJobRequirementsWorkflow,
 )
 
@@ -370,6 +371,7 @@ def _use_case(
         model=selected_extractor.model_name,
         extractor_version=EXTRACTOR_VERSION,
         prompt_version=PROMPT_VERSION,
+        semantic_policy_version=SEMANTIC_POLICY_VERSION,
         execution_lease_ttl_seconds=execution_lease_ttl_seconds,
         clock=clock,
     )
@@ -1285,6 +1287,41 @@ def test_second_identical_run_reuses_extractions_and_exact_batch(
     assert _count(session_factory, JobRequirementExtractionORM) == 20
     assert _count(session_factory, TraceSpanORM) == 20
     assert _count(session_factory, RequirementReviewBatchORM) == 1
+
+
+def test_new_semantic_policy_does_not_reuse_older_semantic_extractions(
+    session_factory: sessionmaker[Session],
+) -> None:
+    first_extractor = CountingFixtureJobRequirementExtractor()
+    first = _use_case(session_factory, extractor=first_extractor).execute(
+        payload=_payload(),
+        title="v42.95 semantic baseline",
+        reviewer="will",
+    )
+    assert first.created_extractions == 20
+    assert first_extractor.call_count == 20
+
+    with session_factory() as session:
+        traces = session.scalars(select(TraceSpanORM)).all()
+        assert len(traces) == 20
+        for trace in traces:
+            output = dict(trace.output or {})
+            output["semanticPolicyVersion"] = "requirement-semantics-v42.95"
+            trace.output = output
+        session.commit()
+
+    second_extractor = CountingFixtureJobRequirementExtractor()
+    second = _use_case(session_factory, extractor=second_extractor).execute(
+        payload=_payload(),
+        title="v42.96 semantic revalidation",
+        reviewer="will",
+    )
+
+    assert second.created_extractions == 20
+    assert second.reused_extractions == 0
+    assert second_extractor.call_count == 20
+    assert _count(session_factory, JobRequirementExtractionORM) == 40
+    assert _count(session_factory, RequirementReviewBatchORM) == 2
 
 
 def test_provider_unavailable_fails_fast_after_one_traced_attempt(

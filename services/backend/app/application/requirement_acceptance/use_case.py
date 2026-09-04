@@ -96,6 +96,7 @@ class PrepareRequirementAcceptanceBatchUseCase:
         model: str,
         extractor_version: str,
         prompt_version: str,
+        semantic_policy_version: str | None = None,
         execution_lease_ttl_seconds: int = (
             DEFAULT_REQUIREMENT_ACCEPTANCE_EXECUTION_LEASE_TTL_SECONDS
         ),
@@ -114,6 +115,9 @@ class PrepareRequirementAcceptanceBatchUseCase:
         self._model = model.strip()
         self._extractor_version = extractor_version.strip()
         self._prompt_version = prompt_version.strip()
+        self._semantic_policy_version = (
+            semantic_policy_version.strip() if semantic_policy_version else None
+        )
         if execution_lease_ttl_seconds <= 0:
             raise ValueError("execution_lease_ttl_seconds must be positive")
         self._execution_lease_ttl = timedelta(seconds=execution_lease_ttl_seconds)
@@ -785,6 +789,10 @@ class PrepareRequirementAcceptanceBatchUseCase:
             and extraction.model == self._model
             and extraction.extractor_version == self._extractor_version
             and extraction.prompt_version == self._prompt_version
+            and (
+                self._semantic_policy_version is None
+                or extraction.semantic_policy_version == self._semantic_policy_version
+            )
         )
 
     def _find_exact_batch(

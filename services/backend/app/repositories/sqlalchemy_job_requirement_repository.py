@@ -16,7 +16,7 @@ from app.application.ports.job_requirement_repository import (
     AbstractJobRequirementQueryRepository,
     AbstractJobRequirementRepository,
 )
-from app.db.models import JobRequirementExtractionORM, JobRequirementORM
+from app.db.models import JobRequirementExtractionORM, JobRequirementORM, TraceSpanORM
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 SessionFactory = Callable[[], Session]
@@ -107,6 +107,13 @@ def _detail(
         if record.created_at.tzinfo is None
         else record.created_at.astimezone(timezone.utc)
     )
+    trace = session.get(TraceSpanORM, record.trace_run_id)
+    semantic_policy_version = None
+    if trace is not None and isinstance(trace.output, dict):
+        raw_semantic_policy_version = trace.output.get("semanticPolicyVersion")
+        if isinstance(raw_semantic_policy_version, str) and raw_semantic_policy_version.strip():
+            semantic_policy_version = raw_semantic_policy_version.strip()
+
     return JobRequirementExtractionDetail(
         extraction_id=record.id,
         job_id=record.job_id,
@@ -134,4 +141,5 @@ def _detail(
             )
             for item in requirements
         ),
+        semantic_policy_version=semantic_policy_version,
     )

@@ -97,4 +97,5 @@ class JobRequirementExtractionDetail:
     requirement_count: int
     created_at: datetime
     requirements: tuple[JobRequirementDetail, ...]
+    semantic_policy_version: str | None = None
     provider_calls: int = 0

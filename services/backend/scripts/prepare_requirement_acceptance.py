@@ -36,6 +36,7 @@ from app.repositories import (
 from app.workflows.job_requirement_extraction import (
     EXTRACTOR_VERSION,
     PROMPT_VERSION,
+    SEMANTIC_POLICY_VERSION,
     ExtractJobRequirementsWorkflow,
 )
 
@@ -132,6 +133,7 @@ def _build_use_case():
         model=extractor.model_name,
         extractor_version=EXTRACTOR_VERSION,
         prompt_version=PROMPT_VERSION,
+        semantic_policy_version=SEMANTIC_POLICY_VERSION,
     )
     return use_case, settings
 
