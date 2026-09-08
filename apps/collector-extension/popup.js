@@ -1,4 +1,4 @@
-const VERSION = '1.4.7';
+const VERSION = '1.4.8';
 const MAX_SELECTED_CITIES = 20;
 const DEFAULT_KEYWORDS = [
   'AI 应用开发工程师',
@@ -187,6 +187,68 @@ function updateTaskEstimate() {
   const estimate = el('taskEstimate');
   estimate.textContent = `预计：${keywordCount} 个搜索词 × ${scopeCount} 个范围 = ${taskCount} 组搜索，最多 ${maxPages} 页。`;
   estimate.classList.toggle('warning', maxPages > 200);
+  updateSearchGuidance();
+}
+
+function updateSearchGuidance() {
+  const cityNames = [...selectedCities.values()].map(city => city.name);
+  const remoteEnabled = el('remote').checked;
+  const coverage = [];
+  if (cityNames.length) coverage.push(`${cityNames.join('、')}的线下/本地岗位`);
+  if (remoteEnabled) coverage.push('全国明确支持远程的岗位');
+  const coverageSuffix = remoteEnabled
+    ? '不会包含未选择城市的线下岗位；“全国远程”不等于“全国所有岗位”。'
+    : '不会包含未选择城市的岗位。';
+  el('coverageSummary').textContent = `${coverage.length ? `本次会搜索：${coverage.join(' + ')}。` : '当前没有可执行的搜索范围。'}${coverageSuffix}`;
+
+  const hints = [];
+  const pages = Math.max(1, Number(el('pagesPerQuery').value || 1));
+  const salary = Math.max(1, Number(el('minSalaryK').value || 1));
+  const relevance = Math.max(0, Number(el('minRelevanceScore').value || 0));
+  const detailLimit = Math.max(0, Number(el('detailLimit').value || 0));
+
+  if (cityNames.length === 0 && remoteEnabled) {
+    hints.push('没有选择线下城市，现在只会留下全国远程岗位。');
+  } else if (cityNames.length === 1) {
+    hints.push(`线下岗位目前只搜 ${cityNames[0]}；如果也接受其他城市，需要手动添加城市。`);
+  }
+  if (pages <= 1) {
+    hints.push('每个关键词只搜 1 页，覆盖会明显偏少；一般建议 2–3 页。');
+  }
+  if (el('salaryMode').value === 'minGte') {
+    hints.push(`当前按最低薪资严格过滤（门槛 ${salary}K）；例如门槛 13K 时，12–20K 也会被排除。`);
+  }
+  if (relevance >= 40) {
+    hints.push(`搜索词匹配门槛 ${relevance} 分比较严格，可能漏掉标题写法不同但实际相关的岗位。`);
+  } else if (relevance > 20) {
+    hints.push(`搜索词匹配门槛 ${relevance} 分高于推荐值 20，结果会更少。`);
+  }
+  if (remoteEnabled && el('remotePolicy').value === 'cardOnly') {
+    hints.push('全国远程目前只看列表卡片；详情里才写“可远程”的岗位可能被漏掉。');
+  }
+  if (remoteEnabled && el('remotePolicy').value === 'cardOrDetail' && el('detailMode').value === 'off') {
+    hints.push('你关闭了详情补采，卡片没写清远程的岗位无法继续确认。');
+  } else if (remoteEnabled && el('remotePolicy').value === 'cardOrDetail' && detailLimit < 20) {
+    hints.push(`详情页上限只有 ${detailLimit}，较低时可能有远程候选来不及确认。`);
+  }
+  if (el('smartStop').value === 'true' && pages > 1) {
+    hints.push('开启了“没有新岗位就提前停止”，遇到重复页时可能不会扫满你设置的页数。');
+  }
+  const exclusions = [
+    el('excludePartTime').checked ? '兼职/日结' : '',
+    el('excludeIntern').checked ? '实习' : '',
+    el('excludeAssistant').checked ? '助理' : ''
+  ].filter(Boolean);
+  if (exclusions.length) hints.push(`已主动排除：${exclusions.join('、')}。`);
+  if (!hints.length) hints.push('当前配置偏平衡；如果结果仍少，主要取决于 BOSS 的真实岗位供给和关键词本身。');
+
+  const list = el('scarcityHints');
+  list.textContent = '';
+  for (const hint of hints) {
+    const item = document.createElement('li');
+    item.textContent = hint;
+    list.appendChild(item);
+  }
 }
 
 function renderAllCityUi() {
@@ -268,6 +330,12 @@ el('clearCitySearch').addEventListener('click', () => {
 el('keywords').addEventListener('input', updateTaskEstimate);
 el('pagesPerQuery').addEventListener('input', updateTaskEstimate);
 el('remote').addEventListener('change', updateTaskEstimate);
+for (const id of [
+  'minSalaryK', 'salaryMode', 'minRelevanceScore', 'remotePolicy', 'detailMode',
+  'detailLimit', 'smartStop', 'excludePartTime', 'excludeIntern', 'excludeAssistant'
+]) {
+  el(id).addEventListener(['minSalaryK', 'minRelevanceScore', 'detailLimit'].includes(id) ? 'input' : 'change', updateSearchGuidance);
+}
 
 el('start').addEventListener('click', async () => {
   const keywords = el('keywords').value.split('\n').map(value => value.trim()).filter(Boolean);
@@ -363,7 +431,7 @@ el('downloadDiagnostics').addEventListener('click', async () => {
 el('downloadRequirementReview').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.requirementReviewJson) {
-    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.7 重新采集。');
+    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.8 重新采集。');
   }
   await downloadData(
     lastRun.requirementReviewFilename || 'boss-job-filter-requirement-review.json',

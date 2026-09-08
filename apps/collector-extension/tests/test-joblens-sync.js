@@ -20,7 +20,7 @@ assert.strictEqual(
 );
 assert.throws(() => sync.buildImportDetailUrl('job_not_import'), /没有返回可打开的导入批次/);
 
-const report = { version: '1.4.7', jobs: [{ title: 'AI Engineer' }] };
+const report = { version: '1.4.8', jobs: [{ title: 'AI Engineer' }] };
 assert.deepStrictEqual(JSON.parse(JSON.stringify(sync.parseReport({ report }))), report);
 assert.deepStrictEqual(
   JSON.parse(JSON.stringify(sync.parseReport({ json: JSON.stringify(report) }))),

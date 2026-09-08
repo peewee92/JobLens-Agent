@@ -19,6 +19,10 @@ h1 small { font-size: 12px; font-weight: 650; color: var(--boss-green-dark); }
 .section-title { display: block; margin: 0 0 7px; font-size: 13px; font-weight: 750; }
 .sub-label { flex: 0 0 auto; color: #53636c; font-size: 12px; font-weight: 650; }
 .field-help { margin: -2px 0 8px; font-size: 11px; line-height: 1.5; color: #74828a; }
+.help-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 3px; border: 1px solid #b8c8cf; border-radius: 50%; color: #60747d; font-size: 10px; font-weight: 750; line-height: 1; cursor: help; vertical-align: 1px; }
+.help-icon:focus { outline: 2px solid rgba(0,179,138,.18); outline-offset: 2px; }
+.help-icon::after { content: attr(data-tooltip); position: absolute; z-index: 30; left: 50%; bottom: calc(100% + 8px); width: 250px; padding: 8px 9px; border-radius: 7px; background: #203038; color: #fff; box-shadow: 0 5px 18px rgba(27,45,53,.18); font-size: 11px; font-weight: 450; line-height: 1.45; text-align: left; opacity: 0; pointer-events: none; transform: translate(-50%, 3px); transition: opacity .12s ease, transform .12s ease; }
+.help-icon:hover::after, .help-icon:focus::after { opacity: 1; transform: translate(-50%, 0); }
 textarea, input, select { width: 100%; padding: 8px; border: 1px solid #cfd9de; border-radius: 7px; background: white; font: inherit; }
 textarea { resize: vertical; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
 input:focus, textarea:focus, select:focus { outline: 2px solid rgba(0,179,138,.16); border-color: var(--boss-green); }
@@ -66,15 +70,34 @@ input:focus, textarea:focus, select:focus { outline: 2px solid rgba(0,179,138,.1
 .ghost-button, .compact-primary { width: auto; margin: 0; padding: 6px 11px; border-radius: 6px; font-size: 12px; font-weight: 650; }
 .ghost-button { background: #eef2f3; color: #52636b; }
 .compact-primary { background: var(--boss-green); color: #fff; }
+.settings-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.settings-heading .section-title { margin-bottom: 4px; }
+.settings-heading .field-help { margin: 0; }
+.settings-badge { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #fff4dc; color: #8a5a00; font-size: 10px; font-weight: 700; }
+.advanced-settings { margin-top: 13px; padding-top: 10px; border-top: 1px solid #edf1f2; }
+.advanced-settings summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: #40545d; font-size: 12px; font-weight: 700; cursor: pointer; list-style: none; }
+.advanced-settings summary::-webkit-details-marker { display: none; }
+.advanced-settings summary::after { content: '展开'; margin-left: auto; color: var(--boss-green-dark); font-size: 10px; font-weight: 700; }
+.advanced-settings[open] summary::after { content: '收起'; }
+.advanced-settings summary > span { color: #7b898f; font-size: 10px; font-weight: 500; }
+.advanced-grid { margin-top: 10px; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid label { display: block; margin: 0; font-size: 12px; font-weight: 650; }
 .grid label input, .grid label select { margin-top: 5px; }
+.grid select { min-height: 38px; }
 fieldset { margin: 12px 0 0; padding: 8px 10px 6px; border: 1px solid #d8e0e4; border-radius: 8px; }
 fieldset legend { color: #52616b; font-size: 12px; font-weight: 700; }
 fieldset label { display: inline-flex; align-items: center; gap: 5px; margin-right: 10px; font-size: 12px; font-weight: 500; }
 fieldset input { width: auto; accent-color: var(--boss-green); }
 .task-estimate { margin: 9px 2px 0; color: #39545e; font-size: 12px; font-weight: 650; }
 .task-estimate.warning { color: #a45c00; }
+.guidance-card { margin: 8px 0 0; padding: 9px 10px; border: 1px solid #dfe8eb; border-radius: 8px; background: #fff; }
+.guidance-card strong { display: block; margin-bottom: 4px; color: #344750; font-size: 11px; }
+.guidance-card p { margin: 0; color: #60727a; font-size: 11px; line-height: 1.5; }
+.scarcity-card { background: #fffaf0; border-color: #f1dfb8; }
+.scarcity-card strong { color: #7b5200; }
+.scarcity-card ul { margin: 0; padding-left: 18px; color: #6d6047; font-size: 11px; line-height: 1.5; }
+.scarcity-card li + li { margin-top: 2px; }
 .notice { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: #f1f5f6; color: #53636b; font-size: 11px; line-height: 1.5; }
 .primary-button, .secondary { width: 100%; border: 0; border-radius: 8px; cursor: pointer; }
 .primary-button { margin-top: 5px; padding: 11px 12px; background: var(--boss-green); color: white; font-weight: 750; }

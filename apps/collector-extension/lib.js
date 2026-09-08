@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.7';
+  const VERSION = '1.4.8';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
   const CJK_RADICAL_FALLBACKS = Object.freeze({

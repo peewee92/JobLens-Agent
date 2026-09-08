@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>岗位筛选 v1.4.7</title>
+  <title>岗位筛选 v1.4.8</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main>
     <header class="app-header">
       <div>
-        <h1>岗位筛选 <small>v1.4.7</small></h1>
+        <h1>岗位筛选 <small>v1.4.8</small></h1>
         <p>适用于 BOSS 直聘的通用岗位搜索与筛选工具。</p>
       </div>
     </header>
 
     <section class="section city-section">
       <div class="section-title-row">
-        <label class="section-title">工作城市</label>
+        <label class="section-title">工作城市 <span class="help-icon" tabindex="0" data-tooltip="这里决定线下/到岗岗位在哪些城市搜索。只选武汉，就只会保留武汉的线下岗位。">?</span></label>
         <button id="openCityPicker" type="button" class="text-button">切换/添加城市</button>
       </div>
 
@@ -30,7 +30,7 @@
 
       <label class="remote-option">
         <input id="remote" type="checkbox" checked>
-        <span><strong>全国远程</strong><small>全国搜索后，再通过卡片与详情页识别远程岗位</small></span>
+        <span><strong>同时搜索全国远程岗位</strong><small>只保留明确支持远程的全国岗位；不会包含其他城市的线下岗位。</small></span>
       </label>
 
       <div id="cityPicker" class="city-picker" hidden>
@@ -67,64 +67,86 @@
     </section>
 
     <section class="section">
-      <label for="keywords" class="section-title">搜索词</label>
-      <p class="field-help">每行一个。默认内置 AI/大模型岗位关键词模板，也可直接替换为任意岗位；城市搜索和全国远程都使用原词，不自动追加“远程”。</p>
+      <label for="keywords" class="section-title">你想找什么岗位 <span class="help-icon" tabindex="0" data-tooltip="每行一个关键词，插件会分别去 BOSS 搜索。关键词越贴近真实岗位名称，结果通常越准。">?</span></label>
+      <p class="field-help">每行一个关键词，例如“视觉设计”“餐饮设计”“UI设计”。关键词太少、每个关键词只搜 1 页，都会让结果明显变少。</p>
       <textarea id="keywords" rows="9"></textarea>
     </section>
 
     <section class="section settings-section">
+      <div class="settings-heading">
+        <div>
+          <span class="section-title">筛选条件</span>
+          <p class="field-help">普通用户重点看这 4 项：薪资门槛、薪资判断方式、搜索页数、搜索词匹配门槛。</p>
+        </div>
+        <span class="settings-badge">决定结果数量</span>
+      </div>
+
       <div class="grid">
-        <label>最低薪资 K
+        <label>最低月薪门槛（K/月） <span class="help-icon" tabindex="0" data-tooltip="例如填 13 代表 13K/月。无法识别薪资的岗位也会被排除。">?</span>
           <input id="minSalaryK" type="number" min="1" value="14">
         </label>
-        <label>薪资过滤方式
+        <label>怎么判断薪资达标 <span class="help-icon" tabindex="0" data-tooltip="同一个 12–20K 岗位：看最低薪资时按 12K 判断；看中间值时按 16K 判断；看最高薪资时按 20K 判断。">?</span>
           <select id="salaryMode">
-            <option value="minGte">下限 ≥ 阈值（严格）</option>
-            <option value="midGte">区间中位数 ≥ 阈值</option>
-            <option value="maxGte">上限 ≥ 阈值（宽松）</option>
+            <option value="minGte">看最低薪资（最严格）</option>
+            <option value="midGte">看区间中间值（平衡）</option>
+            <option value="maxGte">只要最高薪资达到（最宽松）</option>
           </select>
         </label>
-        <label>每个搜索词页数
+        <label>每个关键词最多搜几页 <span class="help-icon" tabindex="0" data-tooltip="1 页速度快但覆盖少；一般建议 2–3 页。页数越多，BOSS 页面访问次数越多。">?</span>
           <input id="pagesPerQuery" type="number" min="1" max="10" value="2">
         </label>
-        <label>全国远程判定
-          <select id="remotePolicy">
-            <option value="cardOrDetail">卡片 + 详情确认</option>
-            <option value="cardOnly">仅卡片严格确认</option>
-            <option value="loose">不强制过滤，仅标注</option>
-          </select>
-        </label>
-        <label>详情补采范围
-          <select id="detailMode">
-            <option value="matched">筛选通过岗位 + 远程候选（JobLens 验收推荐）</option>
-            <option value="remote">仅补采远程候选</option>
-            <option value="off">关闭详情补采</option>
-          </select>
-        </label>
-        <label>详情补采上限
-          <input id="detailLimit" type="number" min="0" max="200" value="40">
-        </label>
-        <label>最低岗位相关度
+        <label>岗位与搜索词最低匹配分 <span class="help-icon" tabindex="0" data-tooltip="0=不按相关度过滤；20=推荐；40 以上会明显更严格。v1.4.7 起主要按你填写的搜索词判断。">?</span>
           <input id="minRelevanceScore" type="number" min="0" max="100" value="20">
-        </label>
-        <label>翻页策略
-          <select id="smartStop">
-            <option value="true">无新增时提前停止</option>
-            <option value="false">始终抓满页数</option>
-          </select>
         </label>
       </div>
 
+      <details class="advanced-settings">
+        <summary>高级设置（一般不用改） <span>远程确认、详情补采、提前停止</span></summary>
+        <div class="grid advanced-grid">
+          <label>远程岗位怎么确认 <span class="help-icon" tabindex="0" data-tooltip="推荐“卡片看不清时打开详情确认”。只看卡片更快，但容易漏掉详情里才写明远程的岗位。">?</span>
+            <select id="remotePolicy">
+              <option value="cardOrDetail">卡片看不清时，再打开详情确认（推荐）</option>
+              <option value="cardOnly">只看列表卡片（更快，但容易漏）</option>
+              <option value="loose">不筛远程，只做标记（最宽松）</option>
+            </select>
+          </label>
+          <label>哪些岗位要打开详情页 <span class="help-icon" tabindex="0" data-tooltip="打开详情主要用于确认远程和获得完整 JD。它不会替代搜索，只会补充已经搜到的岗位信息。">?</span>
+            <select id="detailMode">
+              <option value="matched">筛选通过岗位 + 待确认远程（推荐）</option>
+              <option value="remote">只打开待确认远程岗位</option>
+              <option value="off">不打开详情页</option>
+            </select>
+          </label>
+          <label>最多打开多少个详情页 <span class="help-icon" tabindex="0" data-tooltip="限制本次最多补采多少个岗位详情。太低会影响远程确认和完整 JD 数量，但不会扩大 BOSS 搜索范围。">?</span>
+            <input id="detailLimit" type="number" min="0" max="200" value="40">
+          </label>
+          <label>什么时候提前停止翻页 <span class="help-icon" tabindex="0" data-tooltip="推荐遇到连续没有新岗位时提前停，避免重复访问；如果你想强制把设定页数全部扫完，可关闭提前停止。">?</span>
+            <select id="smartStop">
+              <option value="true">连续没有新岗位就提前停止（推荐）</option>
+              <option value="false">按设定页数全部搜索</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
       <fieldset>
-        <legend>可选排除项</legend>
-        <label><input id="excludePartTime" type="checkbox" checked> 排除兼职/日结</label>
-        <label><input id="excludeIntern" type="checkbox"> 排除实习</label>
-        <label><input id="excludeAssistant" type="checkbox"> 排除助理</label>
+        <legend>排除这些岗位 <span class="help-icon" tabindex="0" data-tooltip="勾选后，对应岗位即使薪资和搜索词匹配也会被过滤。">?</span></legend>
+        <label><input id="excludePartTime" type="checkbox" checked> 兼职/日结</label>
+        <label><input id="excludeIntern" type="checkbox"> 实习</label>
+        <label><input id="excludeAssistant" type="checkbox"> 助理</label>
       </fieldset>
     </section>
 
     <p id="taskEstimate" class="task-estimate"></p>
-    <p class="notice">城市会作为独立搜索范围执行。选择越多城市，搜索页数和访问次数越多；最多同时选择 20 个城市。Requirement 正式验收需要 20 条完整 JD，建议选择“JobLens 验收推荐”并保持详情上限至少 40。</p>
+    <div class="guidance-card">
+      <strong>当前实际覆盖范围</strong>
+      <p id="coverageSummary"></p>
+    </div>
+    <div class="guidance-card scarcity-card">
+      <strong>结果可能偏少的原因</strong>
+      <ul id="scarcityHints"></ul>
+    </div>
+    <p class="notice">城市会作为独立搜索范围执行。选择越多城市，搜索页数和访问次数越多；最多同时选择 20 个城市。想先“多找一些”时，通常建议每个关键词搜 2–3 页、匹配分保持 20，再根据需要调整薪资门槛。</p>
 
     <button id="start" class="primary-button">开始搜索并自动导出</button>
     <div class="secondary-row">

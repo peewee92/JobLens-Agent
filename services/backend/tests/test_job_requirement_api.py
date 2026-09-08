@@ -359,7 +359,7 @@ def test_collector_v140_ineligible_description_is_blocked_before_model_call(
         ) == 0
 
 
-@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7"])
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8"])
 def test_collector_v14x_full_jd_can_run_requirement_extraction(
     api_environment: tuple[TestClient, sessionmaker[Session]],
     collector_version: str,
