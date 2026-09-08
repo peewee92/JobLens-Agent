@@ -225,6 +225,36 @@ assert.strictEqual(nationwideRemote.matched, true);
 assert.strictEqual(nationwideRemote.status, 'confirmed');
 assert.strictEqual(nationwideRemote.confidence, 'high');
 
+const exactDesignSearch = lib.scoreRelevance({
+  title: '视觉设计师资深视觉设计',
+  searchKeyword: '视觉设计'
+});
+assert.ok(exactDesignSearch.score >= 60, 'exact search keyword in title should be highly relevant');
+
+const separatedDesignSearch = lib.scoreRelevance({
+  title: '餐饮空间设计师',
+  searchKeyword: '餐饮设计'
+});
+assert.ok(separatedDesignSearch.score >= 40, 'domain + design intent should match across title words');
+
+const mixedDesignSearch = lib.scoreRelevance({
+  title: '教育-UI设计/创意/视觉设计师-武汉/合肥',
+  searchKeyword: '教育设计'
+});
+assert.ok(mixedDesignSearch.score >= 40, 'domain + design intent should match mixed design titles');
+
+const unrelatedEducationSolution = lib.scoreRelevance({
+  title: '解决方案专家（教育行业）',
+  searchKeyword: '教育设计'
+});
+assert.ok(unrelatedEducationSolution.score < 20, 'generic solution role must not pass an unrelated design query');
+
+const mergedKeywordSearch = lib.scoreRelevance({
+  title: '平面设计师',
+  searchKeywords: ['教育设计', '平面设计']
+});
+assert.ok(mergedKeywordSearch.score >= 60, 'any merged search keyword should be able to establish relevance');
+
 console.log('All lib tests passed.');
 
 const keywords = [

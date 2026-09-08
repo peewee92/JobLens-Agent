@@ -143,7 +143,7 @@ assert.strictEqual(readyDataset.qualityGate.nearDuplicateCount, 0);
 assert.strictEqual(readyDataset.jobs.length, 20);
 assert.ok(readyDataset.jobs.every(job => job.requirementReviewEligible));
 assert.ok(readyDataset.jobs.every(job => job.descriptionQuality === 'full_jd'));
-assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.6'));
+assert.ok(readyDataset.jobs.every(job => job.sourceVersion === '1.4.7'));
 
 const companyProfileOnlyJob = normalizeJob({
   scope: '武汉',

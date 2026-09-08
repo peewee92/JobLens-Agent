@@ -1,10 +1,19 @@
-# 岗位筛选 v1.4.6
+# 岗位筛选 v1.4.7
 
 一个运行在已登录 BOSS 直聘 Chrome 会话中的通用岗位搜索、采集、筛选与导出工具。
 
 产品名称不再限定为“AI 岗位整理器”。**AI/大模型只作为默认关键词模板和功能说明中的一个使用场景**：你可以把关键词替换为前端、产品、实施、交付、解决方案、FDE、销售或任何其他岗位。
 
 插件支持多城市搜索、全国远程识别、BOSS 私有字体薪资解码、薪资与相关度过滤、详情补采、JD 质量分级、去重统计，并导出 CSV、完整报告 JSON、诊断 JSON 与 JobLens Requirement 验收数据集。
+
+## v1.4.7：相关度改为以用户搜索词为主
+
+- 修复“插件支持任意岗位关键词，但相关度评分仍硬编码偏向 AI/研发岗位”的不一致；
+- 标题直接命中用户搜索词时给予高相关度，像 `视觉设计 / 平面设计 / UI设计` 这类非 AI 岗位不再被错误过滤；
+- 对 `餐饮设计 → 餐饮空间设计师`、`教育设计 → 教育-UI设计/视觉设计师` 这类“领域词 + 岗位词”组合进行有限的标题意图匹配；
+- `解决方案专家（教育行业）` 这类只碰到“教育”但没有“设计”意图的岗位，不再仅因为“解决方案”字样达到默认相关度阈值；
+- 原有 AI/大模型/Agent 分类评分继续保留，兼容默认 AI 岗位模板；
+- Collector 报告版本升级为 `1.4.7`，Backend 同时兼容 `1.3.1` 至 `1.4.7`。
 
 ## v1.4.6：补齐 CJK 部首文本规范化
 
@@ -135,24 +144,24 @@ Electron 开发工程师
 ## 新版导出文件名
 
 ```text
-boss-job-filter-v1.4.6-*.csv
-boss-job-filter-report-v1.4.6-*.json
-boss-job-filter-diagnostics-v1.4.6-*.json
-boss-job-filter-requirement-review-v1.4.6-*.json
-boss-job-filter-error-v1.4.6-*.json
+boss-job-filter-v1.4.7-*.csv
+boss-job-filter-report-v1.4.7-*.json
+boss-job-filter-diagnostics-v1.4.7-*.json
+boss-job-filter-requirement-review-v1.4.7-*.json
+boss-job-filter-error-v1.4.7-*.json
 ```
 
 旧版本已经保存的历史运行结果仍然可以通过插件读取和下载，不需要迁移。
 
 ## 安装或升级
 
-1. 解压 `boss-job-filter-extension-v1.4.6.zip`。
+1. 解压 `boss-job-filter-extension-v1.4.7.zip`。
 2. Chrome 打开 `chrome://extensions/`。
 3. 开启“开发者模式”。
 4. 删除或停用旧版，避免同时存在多个版本。
 5. 点击“加载已解压的扩展程序”。
-6. 选择解压后的 `boss-job-filter-extension-v1.4.6` 文件夹。
-7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.6`。
+6. 选择解压后的 `boss-job-filter-extension-v1.4.7` 文件夹。
+7. 确认插件显示名称为 `岗位筛选`，版本为 `1.4.7`。
 
 ## 安全与限制
 

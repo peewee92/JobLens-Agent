@@ -14,7 +14,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../runner.js'), 'utf8'), context);
 
-const { dedupe } = context.BossAiRunnerInternals;
+const { dedupe, classify } = context.BossAiRunnerInternals;
 const keywords = [
   'AI 应用开发工程师',
   'AI Agent 工程师',
@@ -46,4 +46,50 @@ assert.ok(result[0].searchKeyword.length < 500);
 assert.strictEqual(result[0].salaryMinK, 15);
 assert.strictEqual(result[0].salaryMaxK, 30);
 
-console.log('Runner merge stress test passed.');
+const designFilterConfig = {
+  minSalaryK: 13,
+  salaryMode: 'minGte',
+  minRelevanceScore: 20,
+  excludePartTime: false,
+  excludeIntern: false,
+  excludeAssistant: false,
+  remotePolicy: 'cardOrDetail',
+  detailMode: 'matched'
+};
+
+for (const job of [
+  { title: '视觉设计师资深视觉设计', salary: '15-25K', searchKeyword: '视觉设计' },
+  { title: '餐饮空间设计师', salary: '20-21K', searchKeyword: '餐饮设计' },
+  { title: '教育-UI设计/创意/视觉设计师-武汉/合肥', salary: '25-40K', searchKeyword: '教育设计' },
+  { title: '平面设计师', salary: '15-25K', searchKeywords: ['教育设计', '平面设计'] },
+  { title: 'UI设计师', salary: '15-30K', searchKeyword: 'ui设计' }
+]) {
+  const classified = classify({
+    ...job,
+    scope: '武汉',
+    scopeType: 'city',
+    cityName: '武汉',
+    cityCode: '101200100',
+    area: '武汉·洪山区',
+    company: '测试公司',
+    rawText: `${job.title} ${job.salary} 武汉·洪山区`
+  }, designFilterConfig);
+  assert.strictEqual(classified.keep, true, `${job.title} should pass relevance + salary filtering`);
+}
+
+const irrelevantSolution = classify({
+  title: '解决方案专家（教育行业）',
+  salary: '15-25K',
+  searchKeyword: '教育设计',
+  scope: '武汉',
+  scopeType: 'city',
+  cityName: '武汉',
+  cityCode: '101200100',
+  area: '武汉·洪山区',
+  company: '测试公司',
+  rawText: '解决方案专家（教育行业） 15-25K 武汉·洪山区'
+}, designFilterConfig);
+assert.strictEqual(irrelevantSolution.keep, false);
+assert.strictEqual(irrelevantSolution.reason, '岗位相关度低于阈值');
+
+console.log('Runner merge and query relevance tests passed.');

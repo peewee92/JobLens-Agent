@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.6';
+  const VERSION = '1.4.7';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
   const CJK_RADICAL_FALLBACKS = Object.freeze({
@@ -619,36 +619,103 @@
     return SKILL_RULES.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
   }
 
+  const QUERY_ROLE_TERMS = [
+    '设计', '开发', '工程师', '产品', '运营', '销售', '算法', '前端', '后端',
+    '测试', '架构', '实施', '顾问', '经理', '总监', '研究', '教师', '老师'
+  ];
+
+  function compactRelevanceText(value) {
+    return normalizeText(value || '')
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}\u3400-\u9FFF]+/gu, '');
+  }
+
+  function searchKeywordsForRelevance(job = {}) {
+    return normalizeStringList([job.searchKeywords, job.searchKeyword], {
+      separator: /\s*\|\s*/,
+      maxItems: 128,
+      maxItemLength: 200
+    });
+  }
+
+  function searchIntentRelevance(job, title, full) {
+    const compactTitle = compactRelevanceText(title);
+    const compactFull = compactRelevanceText(full);
+    let best = { score: 0, reason: '' };
+
+    for (const keyword of searchKeywordsForRelevance(job)) {
+      const normalizedKeyword = normalizeText(keyword).toLocaleLowerCase();
+      const compactKeyword = compactRelevanceText(normalizedKeyword);
+      if (!compactKeyword) continue;
+
+      if (compactTitle.includes(compactKeyword)) {
+        if (best.score < 70) best = { score: 70, reason: `标题直接命中搜索词：${keyword}` };
+        continue;
+      }
+
+      let componentMatched = false;
+      for (const roleTerm of QUERY_ROLE_TERMS) {
+        const compactRole = compactRelevanceText(roleTerm);
+        if (!compactKeyword.endsWith(compactRole)) continue;
+        const prefix = compactKeyword.slice(0, -compactRole.length);
+        if (prefix.length >= 2 && compactTitle.includes(prefix) && compactTitle.includes(compactRole)) {
+          componentMatched = true;
+          break;
+        }
+      }
+      if (componentMatched && best.score < 55) {
+        best = { score: 55, reason: `标题命中搜索意图核心词：${keyword}` };
+        continue;
+      }
+
+      if (compactFull.includes(compactKeyword) && best.score < 30) {
+        best = { score: 30, reason: `卡片或详情命中搜索词：${keyword}` };
+      }
+    }
+    return best;
+  }
+
   function scoreRelevance(job = {}) {
     const title = normalizeText(job.title || '');
     const full = normalizeText([title, job.tags, job.rawText, job.description].filter(Boolean).join(' '));
-    let score = 0;
-    const reasons = [];
+    const keywords = searchKeywordsForRelevance(job);
+    const searchIntent = searchIntentRelevance(job, title, full);
+    let score = searchIntent.score;
+    const reasons = searchIntent.reason ? [searchIntent.reason] : [];
 
-    if (/(ai|人工智能|大模型|\bllm\b|\bagent\b|智能体|\brag\b|\bfde\b)/i.test(title)) {
+    const aiTitleMatched = /(ai|人工智能|大模型|\bllm\b|\bagent\b|智能体|\brag\b|\bfde\b)/i.test(title);
+    const aiFullMatched = !aiTitleMatched && /(ai|人工智能|大模型|\bllm\b|\bagent\b|智能体|\brag\b|\bfde\b)/i.test(full);
+    if (aiTitleMatched) {
       score += 35;
       reasons.push('标题含 AI/大模型/Agent 等核心词');
-    } else if (/(ai|人工智能|大模型|\bllm\b|\bagent\b|智能体|\brag\b|\bfde\b)/i.test(full)) {
+    } else if (aiFullMatched) {
       score += 15;
       reasons.push('卡片或详情含 AI 核心词');
     }
 
     const categories = classifyCategory(job);
-    if (!categories.includes('其他 AI 相关')) {
+    const hasAiCategory = !categories.includes('其他 AI 相关');
+    if (hasAiCategory) {
       score += Math.min(30, categories.length * 15);
       reasons.push(`命中分类：${categories.join('、')}`);
     }
 
-    if (/(开发|研发|工程师|架构|解决方案|交付|实施|产品工程)/.test(title)) {
+    const hasSearchOrAiSignal = searchIntent.score > 0 || aiTitleMatched || aiFullMatched || hasAiCategory;
+    if (hasSearchOrAiSignal && /(开发|研发|工程师|架构|解决方案|交付|实施|产品工程)/.test(title)) {
       score += 20;
-      reasons.push('岗位形态符合工程/交付方向');
+      reasons.push('岗位形态与已命中的搜索/技术方向一致');
     }
 
-    if (/(销售|商务|运营|客服|数据标注|审核|行政|招聘|猎头)/.test(title)) {
+    const nonDevelopmentPattern = /(销售|商务|运营|客服|数据标注|审核|行政|招聘|猎头)/;
+    const explicitlyTargetsNonDevelopment = keywords.some(keyword => nonDevelopmentPattern.test(normalizeText(keyword)));
+    if (!explicitlyTargetsNonDevelopment && nonDevelopmentPattern.test(title)) {
       score -= 60;
-      reasons.push('标题偏非研发岗位');
+      reasons.push('标题偏离当前搜索方向（销售/商务/运营等）');
     }
-    if (/(助理|实习|兼职)/.test(title)) {
+
+    const juniorPattern = /(助理|实习|兼职)/;
+    const explicitlyTargetsJunior = keywords.some(keyword => juniorPattern.test(normalizeText(keyword)));
+    if (!explicitlyTargetsJunior && juniorPattern.test(title)) {
       score -= 15;
       reasons.push('标题含助理/实习/兼职');
     }
