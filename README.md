@@ -1,201 +1,318 @@
 # JobLens Agent
 
-> 基于真实招聘岗位数据的个人求职与职业转型 Agent。
+> Evidence-grounded AI career agent built on real job-market data.
+>
+> 基于真实招聘岗位与个人经历证据的 AI 求职 Agent：不是“让模型替你猜匹配度”，而是把 **Profile Evidence → Job Requirements → Match → Ranking → Feedback → Skill Gap → Preparation** 做成一条可评测、可追溯、可回归的工程闭环。
 
-JobLens Agent 不是一个只会“帮你改简历”的聊天机器人。它把 **个人经历、求职目标与真实岗位市场** 连接起来，帮助用户完成：
+[![CI](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## Why JobLens
+
+Most AI job-search demos do one thing:
 
 ```text
-MVP v0.1
-Profile
-→ SearchIntent
-→ Job Pool
-→ JobRequirement
-→ Eligibility
-→ Match
-→ Ranking
-→ UserFeedback
-
-MVP v0.2
-Target Cohort
-→ Skill Gap
-→ Action Plan
-→ Resume / Interview
-
-P1
-Career Agent
-→ 调用成熟 Workflow
+Resume + Job Description → Prompt → Match Score
 ```
 
-v0.1 的核心价值很窄但很硬：
+JobLens treats career recommendations as an evidence and quality problem instead:
 
-> **基于我的真实经历和一批真实目标岗位，告诉我哪些岗位最值得优先投，以及为什么。**
+```text
+Real Profile Evidence
+        +
+Real Job Postings
+        ↓
+Versioned JobRequirement Fact Base
+        ↓
+Eligibility + Evidence-grounded Match
+        ↓
+Ranking + User Feedback
+        ↓
+Target Cohort + Skill Gap
+        ↓
+Resume / Interview Preparation
+        ↓
+Eval → Human Review → Regression → Release Gate
+```
 
-## MVP v0.1 目标（首个可运行闭环）
+The product goal is deliberately narrow:
 
-只打通一个高价值问题：
+> **Given my real experience and a batch of real target jobs, which jobs should I apply to first, and what evidence supports that recommendation?**
 
-> 在我导入的这批真实岗位里，哪些最值得我优先投？理由能不能引用我的真实经历或真实 JD？
+## What is implemented
 
-v0.2 再回答“缺什么、怎么补、怎么改简历、怎么面试”。P1 才让 Career Agent 成为面向用户的统一入口。
+### 1. Real job collection
 
-## 项目结构
+`apps/collector-extension` is a Chrome extension used to collect real job postings and preserve source quality instead of feeding manually copied JD fragments into the model.
+
+It supports:
+
+- BOSS job search collection;
+- multi-city / remote filtering;
+- salary filtering and obfuscated-font decoding;
+- job deduplication;
+- detail-page enrichment and multiline JD preservation;
+- source-quality levels such as `full_jd / partial_jd / card_only / unavailable`;
+- export of raw jobs, diagnostics and Requirement-review datasets.
+
+### 2. Versioned career evidence
+
+JobLens does not let an LLM silently rewrite the user's career history.
+
+Profile, Evidence and SearchIntent are explicit, versioned facts. Resume extraction first produces a proposal, then a human-confirmed profile becomes the released source of truth.
+
+### 3. JobRequirement fact base
+
+Raw job descriptions are converted into structured, versioned `JobRequirement` facts. Downstream Match / Gap / Preparation flows consume this fact base rather than independently rereading the raw JD and producing inconsistent interpretations.
+
+### 4. Evidence-grounded matching
+
+Recommendations are grounded in:
+
+- confirmed profile evidence;
+- explicit search intent;
+- released job requirements;
+- current match facts and user feedback.
+
+A numeric score is treated as an internal ranking signal, **not a probability of getting the job**.
+
+### 5. Eval-first quality loop
+
+The project applies evaluation from the first LLM pipeline rather than adding an eval dashboard after the product is finished.
+
+```text
+Dataset
+  ↓
+Run
+  ↓
+Trace / Structured Output
+  ↓
+Deterministic Assertions + Human Review
+  ↓
+Accepted Baseline
+  ↓
+Bad Case Remediation
+  ↓
+Regression
+  ↓
+Release Gate
+```
+
+Real rejected cases are converted into regression tests before a new semantic policy is released.
+
+### 6. Governed Career Agent layer
+
+The current Career Agent is intentionally **workflow-first** instead of pretending every business action should be an autonomous agent tool.
+
+It already provides:
+
+- a governed Context Builder;
+- an explicit Tool Registry;
+- coarse-grained read-only tools for Ranking, Skill Gap and Job Preparation;
+- fail-closed context validation;
+- deterministic Agent routing / grounding evals.
+
+The next runtime step is natural-language tool routing and a bounded multi-turn Agent Loop on top of these mature workflows. The project deliberately does **not** claim this part is complete yet.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Chrome Job Collector] --> B[Next.js Web]
+    B --> C[FastAPI Backend]
+
+    C --> D[Career Context]
+    C --> E[JobRequirement Pipeline]
+    C --> F[Match / Ranking]
+    C --> G[Skill Gap / Preparation]
+
+    D --> H[Governed Career Agent]
+    E --> H
+    F --> H
+    G --> H
+
+    C --> I[(SQLite / SQLAlchemy)]
+    C --> J[LLM Providers]
+    J --> K[Trace + Eval]
+    K --> L[Human Review]
+    L --> M[Accepted Baseline / Release Gate]
+```
+
+### Backend structure
+
+The backend is a **Modular Monolith**, not a demo split into unnecessary microservices:
+
+```text
+services/backend/app/
+├── api/
+├── domain/
+├── application/
+├── repositories/
+├── llm/
+├── workflows/
+├── agent/
+├── evals/
+└── tracing/
+```
+
+The repository is a polyglot monorepo:
 
 ```text
 JobLens-Agent/
 ├── apps/
-│   ├── web/                    # 求职 Agent Web UI
-│   └── collector-extension/    # 已有“岗位筛选”Chrome 插件（Job Collector）
+│   ├── web/                  # Next.js user-facing application
+│   └── collector-extension/  # real-job collection Chrome extension
 ├── services/
-│   └── backend/                # 后端基线（FastAPI 单体分层，见 services/backend/README.md）
+│   └── backend/              # FastAPI modular monolith
 ├── packages/
-│   └── contracts/              # 跨端契约（JSON Schema + examples）
-├── docs/
-│   ├── product/                # MVP PRD / 阶段需求（P0-1 ...）
-│   ├── roadmap/                # 实施路线图
-│   ├── architecture/           # 系统架构 / 领域模型 / 评估与追踪
-│   ├── implementation/         # 每个阶段落地计划（P0-1 ...）
-│   ├── integration/            # Collector 接入协议
-│   └── decisions/              # ADR / 关键决策（0001..0007）
+│   └── contracts/            # cross-boundary contracts
 ├── data/
-│   ├── samples/                # 示例数据
-│   └── evals/                  # 评测数据集（ADR-0005：Eval 从第一天）
-└── scripts/                    # 开发与验证脚本
+│   ├── samples/              # safe sample / fixture data
+│   └── evals/                # evaluation datasets
+└── docs/                     # architecture, ADRs and implementation notes
 ```
 
-> 仓库策略：**Polyglot Monorepo + Modular Monolith**。MVP 不把 `services/api` 与 `services/agent` 拆成独立微服务；二者已合并为 **一个 FastAPI 进程** `services/backend`（内部分层 `api / domain / application / repositories / llm / workflows / agent / evals / tracing`）。Agent 当前是 Backend 内部能力，仅在出现独立生命周期 / 扩容需求时才拆出。详见 `docs/decisions/0006-repository-strategy.md` 与 `docs/architecture/SYSTEM-ARCHITECTURE.md`。
+## Engineering evidence
 
-## 仓库架构策略
+Current local verification on the main development environment:
 
-- **一个 Git 仓库**，多语言、多可运行应用：Web（TypeScript）、Collector Extension（JS）、Backend（Python）、Contracts（JSON Schema）。
-- 三类内容：`apps`（用户入口）/ `services`（后台服务）/ `packages`（共享资产）。
-- Backend 是 **Modular Monolith**：一个进程、一个数据库、逻辑分层；不拆微服务。
-- 工具链：JS/TS 用 `pnpm workspace`，Python 用 `uv`；暂不引入 Turborepo / Nx。
+- **1027 Backend tests passing** (`pytest`);
+- **153 Web tests passing**;
+- **1180 automated tests passing in total**;
+- Web TypeScript typecheck passes;
+- schema migrations are managed by Alembic;
+- LLM release paths use explicit eval / review / gate boundaries;
+- local runtime data, resumes, databases and secrets are excluded from Git.
 
-## 现有资产
+These numbers are a snapshot, not a substitute for the CI status above.
 
-`apps/collector-extension` 已包含岗位筛选插件 v1.4.6，当前负责：
+## Core design decisions
 
-- BOSS 岗位搜索与采集
-- 多城市与全国远程
-- 薪资过滤与 BOSS 字体混淆解码
-- 岗位去重
-- 详情补采与 JD 多行结构保真
-- `full_jd / partial_jd / card_only / unavailable` 质量分级
-- Requirement 验收资格、岗位职责/任职条件内容门禁、详情预取缓冲、近重复 JD 去重与 20 条独立样本门禁
-- 基础技能标签
-- CSV / JSON / diagnostics / Requirement review dataset 导出
+| Problem | Decision |
+|---|---|
+| LLM invents career evidence | Important recommendations must link back to confirmed Evidence or JobRequirement facts |
+| Every feature becomes an Agent tool | Stable business capabilities stay as Workflows; the Agent composes them |
+| Match score is misunderstood | Score is ranking-only, never presented as hiring probability |
+| Prompt/model change silently changes production behavior | Versioned eval run + baseline comparison + release gate |
+| Bad cases are fixed only by prompt tweaking | Convert real rejected cases into deterministic regression where possible |
+| Human decisions get overwritten | Reviews / final decisions are explicit and immutable at the governance boundary |
+| Agent receives too much raw context | Governed Context Builder exposes the minimum released facts required by the turn |
 
-在新系统中，它被定位为 **Job Collector**，只负责获取真实岗位数据，不承担职业判断与 LLM 分析。
+More detail:
 
-## 推荐技术栈
+- [System Architecture](docs/architecture/SYSTEM-ARCHITECTURE.md)
+- [Domain Model](docs/architecture/DOMAIN-MODEL.md)
+- [Eval & Trace](docs/architecture/EVAL-AND-TRACE.md)
+- [LLM / Workflow / Agent Boundary](docs/decisions/0004-llm-workflow-agent-boundary.md)
+- [Eval from Day One](docs/decisions/0005-eval-from-day-one.md)
+- [Repository Strategy](docs/decisions/0006-repository-strategy.md)
+- [Career Agent evolution plan](docs/implementation/P1-Career-Agent-Workflow-First-to-Governed-Agent-Evolution-Plan.md)
 
-第一阶段（已冻结，见 ADR-0002 / ADR-0003）：
+## Quick start
 
-- Web：Next.js + TypeScript
-- 后端：FastAPI + Pydantic（单体进程，不拆微服务）
-- ORM / 迁移：SQLAlchemy + Alembic
-- Database：SQLite（MVP）→ PostgreSQL（Production / P1）
-- LLM 结构化输出：Pydantic / JSON Schema
-- Eval：pytest + 固定评测数据集（从第一个 LLM Pipeline 开始，见 ADR-0005）
+### Backend
 
-## 文档入口
+Requirements: Python 3.12+ and [`uv`](https://docs.astral.sh/uv/).
 
-- [MVP 产品需求](docs/product/PRD-MVP.md)
-- [阶段需求：P0-1 Job Data Foundation](docs/product/P0-1-job-data-foundation.md)
-- [阶段实施计划：P0-1 Job Data Foundation](docs/implementation/P0-1-Job-Data-Foundation-Implementation-Plan.md)
-- [产品与工程路线图](docs/roadmap/ROADMAP.md)
-- [系统架构](docs/architecture/SYSTEM-ARCHITECTURE.md)
-- [领域模型](docs/architecture/DOMAIN-MODEL.md)
-- [评估与追踪](docs/architecture/EVAL-AND-TRACE.md)
-- [Collector 接入契约](docs/integration/COLLECTOR-CONTRACT.md)
-- [Collector v1.4.0 真实数据验收与 v1.4.1 修复记录](docs/implementation/Collector-v1.4.0-Real-Data-Acceptance-2026-08-04.md)
-- [Collector v1.4.1 真实数据验收与 v1.4.2 修复记录](docs/implementation/Collector-v1.4.1-Real-Data-Acceptance-2026-08-04.md)
-- [Collector v1.4.2 真实数据验收与 v1.4.3 修复记录](docs/implementation/Collector-v1.4.2-Real-Data-Acceptance-2026-08-04.md)
-- [Collector v1.4.3 真实数据验收与 v1.4.4 修复记录](docs/implementation/Collector-v1.4.3-Real-Data-Acceptance-2026-08-04.md)
-- [Collector v1.4.4 真实数据验收与 v1.4.5 修复记录](docs/implementation/Collector-v1.4.4-Real-Data-Acceptance-2026-08-04.md)
-- [Collector v1.4.5 真实数据验收与 v1.4.6 修复记录](docs/implementation/Collector-v1.4.5-Real-Data-Acceptance-2026-08-04.md)
-- [MVP 范围决策](docs/decisions/0001-mvp-scope.md)
-- [后端技术栈 ADR](docs/decisions/0002-backend-stack.md)
-- [数据库策略 ADR](docs/decisions/0003-database-strategy.md)
-- [LLM / Workflow / Agent 边界 ADR](docs/decisions/0004-llm-workflow-agent-boundary.md)
-- [Eval 从第一天开始 ADR](docs/decisions/0005-eval-from-day-one.md)
-- [仓库策略 ADR（Monorepo + Modular Monolith）](docs/decisions/0006-repository-strategy.md)
-- [Job 身份、来源与远程状态 ADR](docs/decisions/0007-job-identity-source-and-remote-model.md)
-- [Profile + SearchIntent 实施计划](docs/implementation/P0-2-Profile-SearchIntent-Implementation-Plan.md)
-- [版本化 Profile / Evidence / SearchIntent ADR](docs/decisions/0015-versioned-profile-evidence-and-search-intent.md)
-- [Profile Extraction Proposal / Eval / Trace ADR](docs/decisions/0016-profile-extraction-proposal-eval-and-trace.md)
-- [Resume Document Parsing / Privacy ADR](docs/decisions/0017-resume-document-parsing-and-privacy-boundary.md)
-- [Profile Eval Run / Gate / Live Eligibility ADR](docs/decisions/0018-profile-eval-runs-gates-and-live-eligibility.md)
-- [Profile Eval Human Review / Accepted Baseline ADR](docs/decisions/0019-profile-eval-human-review-and-accepted-baseline.md)
-- [Profile Eval Review Web Boundary ADR](docs/decisions/0020-profile-eval-review-web-boundary.md)
-- [Versioned JobRequirement Fact Base ADR](docs/decisions/0021-versioned-job-requirement-fact-base.md)
-- [Requirement Eval Run / Live Eligibility ADR](docs/decisions/0022-requirement-eval-runs-and-live-release-eligibility.md)
-- [Requirement Eval Governance API Contract](docs/integration/REQUIREMENT-EVAL-API-CONTRACT.md)
-- [Requirement Eval Human Review ADR](docs/decisions/0023-requirement-eval-human-review-and-accepted-baseline.md)
-- [Requirement Eval Human Review 实施计划](docs/implementation/P0-3B2-Requirement-Eval-Human-Review-Implementation-Plan.md)
-- [Requirement Manual Quality Review 实施计划](docs/implementation/P0-3B3A-Requirement-Manual-Quality-Review-Implementation-Plan.md)
-- [真实 Requirement 验收准备实施计划](docs/implementation/P0-3B3B-Requirement-Acceptance-Preparation-Implementation-Plan.md)
-- [Requirement 验收准备 CLI 契约](docs/integration/REQUIREMENT-ACCEPTANCE-PREPARATION-CLI.md)
-- [可恢复 Requirement 验收准备 ADR](docs/decisions/0024-resumable-requirement-acceptance-preparation.md)
-- [Requirement Acceptance Run Control 实施计划](docs/implementation/P0-3B3C-Requirement-Acceptance-Run-Control-Implementation-Plan.md)
-- [Requirement Acceptance Run / Canary Review API](docs/integration/REQUIREMENT-ACCEPTANCE-RUN-API.md)
-- [Persistent Acceptance Run / Canary Control ADR](docs/decisions/0025-persistent-requirement-acceptance-runs-and-canary-control.md)
-- [Requirement Canary Human Gate 实施计划](docs/implementation/P0-3B3D-Requirement-Canary-Human-Gate-Implementation-Plan.md)
-- [Immutable Requirement Canary Human Gate ADR](docs/decisions/0026-immutable-requirement-canary-human-gate.md)
-- [Requirement Canary Review Workbench 实施计划](docs/implementation/P0-3B3E-Requirement-Canary-Review-Workbench-Implementation-Plan.md)
-- [Requirement Canary Review Workbench ADR](docs/decisions/0027-requirement-canary-review-workbench.md)
-- [Requirement Live Readiness Gate 实施计划](docs/implementation/P0-3B3F-Requirement-Live-Readiness-Gate-Implementation-Plan.md)
-- [Requirement Live Readiness CLI](docs/integration/REQUIREMENT-ACCEPTANCE-READINESS-CLI.md)
-- [Requirement Live Readiness Gate ADR](docs/decisions/0028-requirement-live-readiness-gate.md)
-- [Requirement Live Session Manifest 实施计划](docs/implementation/P0-3B3G-Requirement-Live-Session-Manifest-Implementation-Plan.md)
-- [Requirement Acceptance Session Manifest 契约](docs/integration/REQUIREMENT-ACCEPTANCE-SESSION-MANIFEST.md)
-- [Requirement Live Session Manifest ADR](docs/decisions/0029-requirement-live-session-manifest.md)
-- [Requirement Local Live Bootstrap 实施计划](docs/implementation/P0-3B3H-Requirement-Local-Live-Bootstrap-Implementation-Plan.md)
-- [Requirement Local Live Bootstrap CLI](docs/integration/REQUIREMENT-ACCEPTANCE-LOCAL-BOOTSTRAP.md)
-- [Requirement Local Live Bootstrap ADR](docs/decisions/0030-requirement-local-live-bootstrap.md)
-- [Requirement Database Checkpoint 实施计划](docs/implementation/P0-3B3I-Requirement-Database-Checkpoint-Implementation-Plan.md)
-- [Requirement Database Checkpoint CLI](docs/integration/REQUIREMENT-ACCEPTANCE-DATABASE-CHECKPOINT.md)
-- [Requirement Database Checkpoint ADR](docs/decisions/0031-requirement-database-preparation-checkpoint.md)
-- [Explicit Live Canary Operator 实施计划](docs/implementation/P0-3B3J-Requirement-Explicit-Live-Canary-Operator-Implementation-Plan.md)
-- [Live Canary Operator CLI](docs/integration/REQUIREMENT-ACCEPTANCE-LIVE-CANARY-OPERATOR.md)
-- [Explicit Live Canary Operator ADR](docs/decisions/0032-explicit-live-requirement-canary-operator.md)
+```bash
+cd services/backend
+cp .env.example .env
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8000
+```
 
-## 当前阶段
+Run tests:
 
-Phase 0.5 已完成（产品与领域模型冻结）。当前主线（详见 [路线图](docs/roadmap/ROADMAP.md)）：
+```bash
+cd services/backend
+uv run pytest -q
+```
+
+### Web
+
+Requirements: Node.js and `pnpm`.
+
+```bash
+cd apps/web
+cp .env.example .env.local
+pnpm install
+pnpm dev
+```
+
+Run verification:
+
+```bash
+cd apps/web
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+> The repository intentionally ships only safe samples and fixtures. Personal resumes, local databases, raw private job datasets and Provider credentials should remain local.
+
+## Product workflow
 
 ```text
-Phase 0.5：产品与领域模型冻结 ✅
-Phase 1：Job Data Foundation   ✅ Backend + Minimal Web E2E
-Phase 2A：Confirmed Profile + SearchIntent ✅ 手工确认、版本化、Web 闭环
-Phase 2B-1：Resume Text Proposal + Eval + Trace ✅
-Phase 2B-2：PDF/DOCX Resume Input ✅
-Phase 2B-3：Eval Run + Gate + Baseline ✅
-Phase 2B-4：Human Review + Accepted Baseline ✅
-Phase 2B-5：Eval Review Web ✅
-Phase 2B-6：Credential-backed Live Provider Quality ⏳ 等待运行凭据
-Phase 3A：JobRequirement Fact Base + Fixture Eval + Web ✅
-Phase 3B-1：Requirement Eval Run + Baseline Comparison + Read API ✅
-Phase 3B-2：Human Review + Accepted Baseline + Web ✅
-Phase 3B-3A：20 Real Jobs Review Batch + Web ✅
-Phase 3B-3B：Resumable Real Acceptance Preparation CLI ✅
-Phase 3B-3C：Persistent Run + Preflight + Canary Control + Read API ✅
-Phase 3B-3D：Immutable Human Canary Gate ✅
-Phase 3B-3E：Canary Review Web Workbench ✅
-Phase 3B-3F：Live Acceptance Readiness Gate ✅
-Phase 3B-3G：Live Canary Session Manifest + Evidence Pack ✅
-Phase 3B-3H：Guarded Local Live Bootstrap ✅
-Phase 3B-3I：Resumable Database Preparation Checkpoint ✅
-Phase 3B-3J：Explicit Live Canary Operator ✅
-Phase 3B-3K：Formal Dataset Handoff + Credential-backed Canary + Human Decision ✅ HUMAN_DECISION_REJECTED（20/20 人审完成，最终 `reject_for_match` 已提交）
-Phase 4：Single Job Match ✅ ENGINEERING_COMPLETE / REAL_MATCH_VALIDATION_BLOCKED（运行时真实 20 岗位中 4 个已有 current MatchReport，16 个已具备 current Requirement 但尚无 MatchReport）
-Phase 5：Batch Ranking + UserFeedback ✅ ENGINEERING_COMPLETE / REAL_FEEDBACK_VALIDATION_ACTIVE（真实 20 岗位均已有 current v42.95 Requirement Extraction；当前 4 个 current MatchReport、0 个 current-report Feedback，16 个 match-ready-without-report）
-Phase 6：Target Cohort + Skill Gap ✅ ENGINEERING_COMPLETE / REAL_REQUIREMENT_REVALIDATION_HUMAN_GATE（20 个 v42.95 Requirement 已完成 20/20 人审并最终 `reject_for_match`；8 个 Reject Case 的 deterministic remediation 已收敛到 semantic v42.96，accepted baseline 仍关闭，下一步需要新版本真实验证证据）
-Phase 7：Job Preparation ✅ ENGINEERING_COMPLETE / REAL_JOB_VALIDATION_BLOCKED
-Phase 8：Career Agent ✅ ENGINEERING_COMPLETE（governed Context Builder + read-only Tool Registry + structured unified turn entrypoint + deterministic Agent Eval 已完成；自由文本路由未作为当前工程完成条件）
-Phase 9：Growth Loop / Collector Sync ✅ ENGINEERING_COMPLETE / REAL_LOOP_VALIDATION_BLOCKED
+1. Import / confirm career profile
+2. Define SearchIntent
+3. Collect or import real target jobs
+4. Extract JobRequirements
+5. Pass requirement quality gate
+6. Run eligibility + evidence-grounded Match
+7. Rank the batch
+8. Record explicit user feedback
+9. Build a target cohort and analyze Skill Gaps
+10. Prepare evidence-grounded resume / interview material
 ```
 
-截至 2026-09-04 的真实主循环已经从 Requirement deterministic remediation 推进到 v42.96 正式人工重验证阶段。历史 Batch `reqreviewbatch_e08cb34fa0444cbba781b50362ddb109` 已完成 20/20 人工 Review（12 Accept / 8 Reject）并由用户本人提交不可变 Final Decision=`reject_for_match`；8 个 Reject Case 的 deterministic remediation 已收敛到 `requirement-semantics-v42.96`。新的 Formal Revalidation Run `reqacceptrun_bc81e867629a45469969b5f265151abe` 已完成 20/20 v42.96 Requirement re-extraction；最后 Case「交付工程师（FDE）」的 coverage false negative 已由 commit `d249972` 确定性修复并在一次重新授权的 live retry 后成功完成。系统已自动创建新的正式 Review Batch `reqreviewbatch_59a74025a24b4653886dd6c6df28226c`。当前运行时为 `reviewed=0/20`、`semanticPolicyVersion=requirement-semantics-v42.96`、`matchReleaseEligible=false`、`next_priority=complete_requirement_review_cases`；Provider 已关闭，当前唯一主线是由用户本人完成这 20 个 Case 的人工 Accept/Reject，并在 20/20 后提交 Final Decision。自动任务不得代签人工 Review/Final Decision，也不得在此阶段恢复 Semantic Match。已用人工 Reject Case #4、#5、#6 和 #12 固化前五条 deterministic duplicate regression，并将 semantic policy 小步解冻到 `requirement-semantics-v42.96`：其一处理同一来源行父 constraint + 严格子句重复；其二处理同一完整复合能力句被 3+ 不同 normalizedCapability fan-out 后重复计数；其三处理同一 hard skill 原文/同一 evidence 被括号外 `/` 或 `／` 明确替代关系 fan-out 成多个 capability 的重复计数，并收敛为单一 constraint；其四处理 Case #6 的 `精通 LangChain` 子项被 `精通 LangChain、LlamaIndex 等大模型应用开发框架` umbrella 父项严格包含的重复，仅在同一 evidence、must-have skill、子项是父项开头且父项明确 `、…等…框架/工具/技术栈/平台/数据库/模型/语言` 时收敛为父 constraint；其五将 Case #12 的真实 `有 Agent / 多模态 / RAG 系统实际开发经验` 跨 `experience/domain` 重复锁为回归：现有显式【加分项】章节治理会先统一为 `bonus`，随后 exact same-source cross-type 去重只保留 canonical `experience`，因此不再新增一条重复事实。普通 `LangChain 和 LlamaIndex` 并列、括号内 capability list 和多技术能力并列继续保留。Case #6 人工指出的两类 duplicate 已全部有 deterministic regression；Case #12 的 duplicate 由现有 v42.96 规则组合直接关闭，无需新增语义规则；Case #16 进一步锁定“同一 evidence 下 hard skill 被递归拆成 3 层严格前缀子集”的真实失败形态，仅当三层都 exact-grounded、同为 must-have skill、共享唯一 evidence 且最长父项包含至少两段明确能力连接时，才收敛为单一 hard constraint，普通并列能力和两层父子结构不触发；Case #20 则锁定显式“加分项”能力组被保留为整句 + MCP / AutoGPT / LlamaIndex 子项的 fan-out，只在同一 evidence、全部 bonus skill、3+ capability、原文明确 `等…框架/工具/技术栈/平台/数据库/模型/语言/协议` umbrella 且父项 exact-grounded 时收敛为一个 bonus constraint，普通没有 umbrella 的多项加分技能继续独立保留。七条回归均为零 Provider 调用，不改变 `requirement-extractor-v42.95`。P0-1 duplicate Reject Case 已全部获得 deterministic regression 后，主线已切到 P0-2 explicit importance：正式 Case #15「AI Agent工程师」已锁定并修复“任职要求”章节中无任何软化措辞的 `扎实后端工程基础` 被 Provider 降为 `preferred` 的问题；v42.96 复用现有 `requirement_section_default_must_have` 治理，只把唯一 exact-grounded、显式 requirement-shaped 的条目恢复为 `must_have`，而 `扎实的软件工程基础者优先` 这类含明确 `优先` 的反例继续保持 `preferred`。Case #16「FDE(前沿部署工程师)」进一步把正式冻结 Extraction 中 `受限网络环境下独立部署与系统监控`、客户/研发双向沟通、Owner 心态、产品化抽象能力四个无软化任职条件从 `preferred` 错分固化为 deterministic regression；现有 v42.96 同一规则即可把四项恢复为 `must_have`，而 `Dify/Coze...者优先` 继续保持 `preferred`，因此本 slice 不新增第二套 importance 规则。Case #17「AIAgent 工程师 - AIOS 平台」继续锁定显式【加分项】误标：真实 JD 中 `有独立负责完整产品模块或独立开发AI产品的经验` 与 `熟悉AX（Agent体验）设计...` 被 Provider 标成 `must_have`；失败回归确认原 bonus heading 识别遗漏中文 `【】` 包裹，本轮只扩展显式 bonus section 标题识别，并在后续任意 `【...】` 新章节处终止 bonus scope，避免把【职位亮点】等内容错误继承为 bonus。两条真实加分要求现在确定性恢复为 `bonus`，任职硬条件及后续章节不受影响。以上修复仍为零 Provider 调用，Semantic Policy 保持 `requirement-semantics-v42.96`。为防止正式 v42.96 re-extraction 被当前同一 provider/model/extractor/prompt 的旧 v42.95 semantic Extraction 静默复用，Requirement acceptance 现在会从不可变 Trace 读取 `semanticPolicyVersion` 并纳入复用判定：只有 input 与 provider/model/extractor/prompt/semantic policy 全部一致才可复用；semantic policy 变化必须生成新的 Extraction。该回归先证明旧实现会错误复用 20/20 旧结果，修复后新 semantic cohort 20/20 重新抽取、同版本重复执行仍保持幂等。本 slice 不调用 Provider，下一 live 步骤仍受实时成本授权和人工 Review 门禁约束。正式 Review 证据链也同步收紧：Batch 创建、API 展示、Final Decision evidence fingerprint 与 accepted-baseline → Match Release cohort 现在都包含 `semanticPolicyVersion`；混合 semantic policy 的 Extraction 不能组成同一 Batch，accepted baseline 与 current Extraction 的 semantic policy 不一致时 Match Release 继续 fail-closed。Acceptance Run 复用也增加同一保护：已有 Run 只要已经绑定过成功 Extraction，就必须能证明这些 Extraction 的 semantic policy 与当前 target 一致；不一致或旧证据缺少可证明版本时，会在新的 import / Provider / DB 写入前 fail-closed，要求使用新的 Run identity，避免把 v42.95 Run 原地改写成 v42.96 证据。`check_mvp_progress` 现在也把 Review 的 `semanticPolicyVersion` 纳入真实进度判断：历史 v42.95 Reject Batch 不再让当前 v42.96 永久停在 `remediate_requirement_quality`，而是明确输出 `revalidate_requirement_quality`；只有同 semantic policy 的 Reject 才继续进入 deterministic remediation。完整复盘见 `docs/implementation/P0-3B3K-Requirement-AI-Human-Eval-Retrospective.md`。Phase 8 维持 `ENGINEERING_COMPLETE`，不进入 Multi-Agent。
+## Current Agent boundary
 
-> 开发原则：不要先做漂亮 Dashboard，也不要先做 Multi-Agent。先把 Phase 1–5（MVP v0.1）跑通，且每个 LLM Pipeline 从第一天接 Eval。进度优先看未完成验收项是否减少，而不是 commit 数。
+JobLens intentionally distinguishes **AI workflows** from an **Agent Runtime**.
+
+Implemented today:
+
+```text
+Governed Context
+      ↓
+Structured Career Agent turn
+      ↓
+Tool Registry
+      ↓
+Mature Workflows
+      ↓
+Grounded output
+```
+
+Runtime evolution target:
+
+```text
+Free-form user request
+      ↓
+LLM decision
+      ↓
+Tool call → validation → execution
+      ↑                    ↓
+      └──── tool result ───┘
+      ↓
+Bounded completion + grounded final answer
+```
+
+Planned runtime work focuses on tool routing, bounded turns, error classification, context budgeting, trace and Agent Eval — **not Multi-Agent for its own sake**.
+
+## Roadmap
+
+Near-term public-project priorities:
+
+- [ ] natural-language Career Agent tool routing;
+- [ ] bounded multi-turn Agent Loop with tool-result replay;
+- [ ] context budget / tool-output compaction;
+- [ ] Agent Trace and trajectory eval dataset;
+- [ ] JobLens MCP / external agent integration;
+- [ ] concise demo video and reproducible public sample dataset.
+
+The detailed engineering history remains in `docs/`; the README intentionally focuses on the product, architecture and verifiable engineering evidence rather than internal phase numbering.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
