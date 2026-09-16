@@ -14,7 +14,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../runner.js'), 'utf8'), context);
 
-const { dedupe, classify } = context.BossAiRunnerInternals;
+const { dedupe, classify, selectDetailTargets } = context.BossAiRunnerInternals;
 const keywords = [
   'AI 应用开发工程师',
   'AI Agent 工程师',
@@ -92,4 +92,101 @@ const irrelevantSolution = classify({
 assert.strictEqual(irrelevantSolution.keep, false);
 assert.strictEqual(irrelevantSolution.reason, '岗位相关度低于阈值');
 
-console.log('Runner merge and query relevance tests passed.');
+const recruiterFilterConfig = {
+  ...designFilterConfig,
+  recruiterActivityMaxDays: 30
+};
+const recruiterFresh = classify({
+  title: 'UI设计师',
+  salary: '15-30K',
+  searchKeyword: 'UI设计',
+  scope: '武汉',
+  scopeType: 'city',
+  cityName: '武汉',
+  cityCode: '101200100',
+  area: '武汉·洪山区',
+  company: '测试公司',
+  recruiterActive: '本月活跃',
+  rawText: 'UI设计师 15-30K 武汉·洪山区 本月活跃'
+}, recruiterFilterConfig, 'final');
+assert.strictEqual(recruiterFresh.keep, true);
+
+const recruiterStale = classify({
+  title: 'UI设计师',
+  salary: '15-30K',
+  searchKeyword: 'UI设计',
+  scope: '武汉',
+  scopeType: 'city',
+  cityName: '武汉',
+  cityCode: '101200100',
+  area: '武汉·洪山区',
+  company: '测试公司',
+  recruiterActive: '2月内活跃',
+  rawText: 'UI设计师 15-30K 武汉·洪山区 2月内活跃'
+}, recruiterFilterConfig, 'final');
+assert.strictEqual(recruiterStale.keep, false);
+assert.strictEqual(recruiterStale.reason, '招聘者活跃无法确认在30天内');
+
+const recruiterClearlyStale = classify({
+  title: 'UI设计师',
+  salary: '15-30K',
+  searchKeyword: 'UI设计',
+  scope: '武汉',
+  scopeType: 'city',
+  cityName: '武汉',
+  cityCode: '101200100',
+  area: '武汉·洪山区',
+  company: '测试公司',
+  recruiterActive: '半年前活跃',
+  rawText: 'UI设计师 15-30K 武汉·洪山区 半年前活跃'
+}, recruiterFilterConfig, 'final');
+assert.strictEqual(recruiterClearlyStale.keep, false);
+assert.strictEqual(recruiterClearlyStale.reason, '招聘者超过30天未活跃');
+
+const recruiterUnknownInitial = classify({
+  title: 'UI设计师',
+  salary: '15-30K',
+  searchKeyword: 'UI设计',
+  scope: '武汉',
+  scopeType: 'city',
+  cityName: '武汉',
+  cityCode: '101200100',
+  area: '武汉·洪山区',
+  company: '测试公司',
+  rawText: 'UI设计师 15-30K 武汉·洪山区'
+}, recruiterFilterConfig, 'initial');
+assert.strictEqual(recruiterUnknownInitial.keep, false);
+assert.strictEqual(recruiterUnknownInitial.pendingDetail, true);
+assert.strictEqual(recruiterUnknownInitial.reason, '待详情页确认招聘者活跃');
+
+const recruiterUnknownFinal = classify(recruiterUnknownInitial.job, recruiterFilterConfig, 'final');
+assert.strictEqual(recruiterUnknownFinal.keep, false);
+assert.strictEqual(recruiterUnknownFinal.pendingDetail, false);
+assert.strictEqual(recruiterUnknownFinal.reason, '招聘者活跃状态未知');
+
+const recruiterFilterDisabled = classify(recruiterUnknownInitial.job, {
+  ...recruiterFilterConfig,
+  recruiterActivityMaxDays: 0
+}, 'final');
+assert.strictEqual(recruiterFilterDisabled.keep, true);
+
+const detailTargets = selectDetailTargets([
+  {
+    job: { url: 'https://example.test/accepted', title: '已通过岗位', company: 'A', area: '武汉', salary: '20-30K' },
+    initialClass: { keep: true, pendingDetail: false, reason: '通过' }
+  },
+  {
+    job: { url: 'https://example.test/activity', title: '活跃待确认岗位', company: 'B', area: '武汉', salary: '20-30K' },
+    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认招聘者活跃' }
+  },
+  {
+    job: { url: 'https://example.test/remote', title: '远程待确认岗位', company: 'C', area: '全国', salary: '20-30K' },
+    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认远程' }
+  }
+], 'matched', 2);
+assert.deepStrictEqual(Array.from(detailTargets, target => target.job.url), [
+  'https://example.test/activity',
+  'https://example.test/accepted'
+]);
+
+console.log('Runner merge, query relevance and recruiter activity filter tests passed.');

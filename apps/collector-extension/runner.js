@@ -10,6 +10,8 @@
     mergeSearchMetadata,
     parseSalary,
     detectRemote,
+    parseRecruiterActivity,
+    recruiterActivityWithin,
     assessDescriptionQuality,
     classifyCategory,
     extractSkills,
@@ -32,6 +34,7 @@
     detailStats: {
       plannedAccepted: 0,
       plannedRemoteCandidates: 0,
+      plannedRecruiterActivityCandidates: 0,
       deferredAccepted: 0,
       attempted: 0,
       succeeded: 0,
@@ -91,7 +94,8 @@
       cityCodes: {
         ...config.cityCodes,
         nationwide: config.cityCodes?.nationwide || '100010000'
-      }
+      },
+      recruiterActivityMaxDays: Math.max(0, Number(config.recruiterActivityMaxDays ?? 0))
     };
   }
 
@@ -211,6 +215,7 @@
       detailSucceeded
     });
     const sourceUrl = limitText(String(raw.sourceUrl || raw.url || '').split('?')[0], 2000);
+    const recruiterActivity = parseRecruiterActivity(raw.recruiterActive || '');
 
     return {
       ...raw,
@@ -247,6 +252,10 @@
       remoteStatus: remote.status,
       remoteConfidence: remote.confidence,
       remoteEvidence: normalizeStringList(remote.evidence, { separator: null, maxItems: 16, maxItemLength: 80 }),
+      recruiterActive: recruiterActivity.label,
+      recruiterActivityStatus: recruiterActivity.status,
+      recruiterActivityMaxAgeDays: recruiterActivity.maxAgeDays,
+      recruiterActivityMinAgeDays: recruiterActivity.minAgeDays,
       categories: relevance.categories,
       relevanceScore: relevance.score,
       relevanceReasons: relevance.reasons,
@@ -356,6 +365,7 @@
       annualMinWan: preferredSalary.annualMinWan,
       annualMaxWan: preferredSalary.annualMaxWan,
       remoteMatched: previous.remoteMatched || next.remoteMatched,
+      recruiterActive: next.recruiterActive || previous.recruiterActive,
       detailAttempted: previous.detailAttempted || next.detailAttempted,
       detailSucceeded: previous.detailSucceeded || next.detailSucceeded,
       skills: normalizeStringList([previous.skills, next.skills], { separator: null, maxItems: 128, maxItemLength: 100 }),
@@ -411,6 +421,28 @@
     }
     if (config.excludeAssistant && flags.assistant) {
       return { keep: false, pendingDetail: false, reason: '排除助理岗位', job, salary, remote };
+    }
+
+    const recruiterActivityMaxDays = Math.max(0, Number(config.recruiterActivityMaxDays || 0));
+    const recruiterActivity = recruiterActivityWithin(job.recruiterActive, recruiterActivityMaxDays);
+    if (recruiterActivityMaxDays > 0 && !recruiterActivity.matched) {
+      if (recruiterActivity.reason === 'unknown' && phase === 'initial' && config.detailMode !== 'off') {
+        return {
+          keep: false,
+          pendingDetail: true,
+          reason: '待详情页确认招聘者活跃',
+          job,
+          salary,
+          remote,
+          recruiterActivity
+        };
+      }
+      const reason = recruiterActivity.reason === 'unknown'
+        ? '招聘者活跃状态未知'
+        : recruiterActivity.reason === 'stale'
+          ? `招聘者超过${recruiterActivityMaxDays}天未活跃`
+          : `招聘者活跃无法确认在${recruiterActivityMaxDays}天内`;
+      return { keep: false, pendingDetail: false, reason, job, salary, remote, recruiterActivity };
     }
 
     if (isCityJob(job) && !isRemoteJob(job)) {
@@ -535,6 +567,7 @@
         selectedCityCount: state.config?.selectedCities?.length || 0,
         wuhan: finalJobs.filter(job => job.searchCities?.includes('武汉') || job.scope.split('/').includes('武汉')).length,
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
+        recruiterActivityKnown: finalJobs.filter(job => job.recruiterActivityStatus === 'known').length,
         puaSalaryDecoded: candidates.filter(job => job.salaryHadPua && job.salaryMinK != null).length,
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
@@ -562,6 +595,7 @@
       bySkill: countBy(finalJobs, job => job.skills),
       bySearchKeyword: countBy(finalJobs, job => job.searchKeywords),
       byRemoteStatus: countBy(finalJobs, job => job.remoteStatus),
+      byRecruiterActivity: countBy(finalJobs, job => job.recruiterActive || '未知'),
       pageYield: state.pageStats
     };
   }
@@ -586,6 +620,10 @@
       categories: item.job.categories,
       remoteStatus: item.remote.status,
       remoteMatched: item.remote.matched,
+      recruiterActive: item.job.recruiterActive,
+      recruiterActivityStatus: item.job.recruiterActivityStatus,
+      recruiterActivityMaxAgeDays: item.job.recruiterActivityMaxAgeDays,
+      recruiterActivityMinAgeDays: item.job.recruiterActivityMinAgeDays,
       detailAttempted: item.job.detailAttempted,
       detailSucceeded: item.job.detailSucceeded,
       descriptionSource: item.job.descriptionSource,
@@ -647,8 +685,10 @@
         salaryPassed: classified.filter(item => item.salary.minK != null && salaryPasses(item.salary, config)).length,
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
         candidateRemoteConfirmed: classified.filter(item => item.remote.matched).length,
+        recruiterActivityKnownBeforeFinalFilter: uniqueJobs.filter(job => job.recruiterActivityStatus === 'known').length,
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
+        detailTargetsPlannedRecruiterActivityCandidates: state.detailStats.plannedRecruiterActivityCandidates,
         detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
         detailAttempted: state.detailStats.attempted,
         detailSucceeded: state.detailStats.succeeded,
@@ -712,6 +752,9 @@
       ['tags', '卡片标签'],
       ['publishedAt', '发布时间'],
       ['recruiterActive', '招聘者活跃'],
+      ['recruiterActivityStatus', '招聘者活跃解析状态'],
+      ['recruiterActivityMaxAgeDays', '招聘者活跃最大估算天数'],
+      ['recruiterActivityMinAgeDays', '招聘者活跃最小估算天数'],
       ['detailSucceeded', '详情页读取成功'],
       ['descriptionSource', 'JD来源'],
       ['descriptionSelectorTrust', 'JD选择器可信级别'],
@@ -916,6 +959,7 @@
 
   function detailPriority(job, initialClass) {
     let score = Number(job.relevanceScore || 0);
+    if (initialClass.reason === '待详情页确认招聘者活跃') score += 2000;
     if (isRemoteJob(job) && initialClass.pendingDetail) score += 1000;
     if (job.remoteMatched) score += 100;
     score += Number(job.salaryMinK || 0);
@@ -959,15 +1003,21 @@
     const acceptedTargets = prioritizeAcceptedTargetsForReview(
       uniqueTargets.filter(target => target.initialClass.keep)
     );
-    const pendingRemoteTargets = uniqueTargets.filter(target => target.initialClass.pendingDetail);
+    const pendingRecruiterActivityTargets = uniqueTargets.filter(target => (
+      target.initialClass.reason === '待详情页确认招聘者活跃'
+    ));
+    const pendingOtherTargets = uniqueTargets.filter(target => (
+      target.initialClass.pendingDetail && target.initialClass.reason !== '待详情页确认招聘者活跃'
+    ));
     const reviewQuota = Math.min(
       Math.ceil(REQUIREMENT_REVIEW_SAMPLE_SIZE * REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR),
       limit,
       acceptedTargets.length
     );
     const ordered = [
+      ...pendingRecruiterActivityTargets,
       ...acceptedTargets.slice(0, reviewQuota),
-      ...pendingRemoteTargets,
+      ...pendingOtherTargets,
       ...acceptedTargets.slice(reviewQuota)
     ];
     const selected = [];
@@ -1010,7 +1060,12 @@
       .sort((a, b) => detailPriority(b.job, b.initialClass) - detailPriority(a.job, a.initialClass));
     targets = selectDetailTargets(uniqueTargets, config.detailMode, detailLimit);
     state.detailStats.plannedAccepted = targets.filter(target => target.initialClass.keep).length;
-    state.detailStats.plannedRemoteCandidates = targets.filter(target => target.initialClass.pendingDetail).length;
+    state.detailStats.plannedRemoteCandidates = targets.filter(target => (
+      target.initialClass.pendingDetail && isRemoteJob(target.job)
+    )).length;
+    state.detailStats.plannedRecruiterActivityCandidates = targets.filter(target => (
+      target.initialClass.reason === '待详情页确认招聘者活跃'
+    )).length;
     state.detailStats.deferredAccepted = Math.max(
       0,
       uniqueTargets.filter(target => target.initialClass.keep).length - state.detailStats.plannedAccepted
@@ -1021,7 +1076,7 @@
       return uniqueJobs;
     }
 
-    log(`开始详情补采：${targets.length} 条。已通过岗位 ${state.detailStats.plannedAccepted} 条，全国远程候选 ${state.detailStats.plannedRemoteCandidates} 条；正式验收优先为通过岗位预取去重缓冲。`);
+    log(`开始详情补采：${targets.length} 条。已通过岗位 ${state.detailStats.plannedAccepted} 条，全国远程候选 ${state.detailStats.plannedRemoteCandidates} 条，招聘者活跃待确认 ${state.detailStats.plannedRecruiterActivityCandidates} 条；正式验收优先补齐真实性信号和通过岗位 JD。`);
     const detailsByUrl = new Map();
     let index = 0;
     for (const { job } of targets) {

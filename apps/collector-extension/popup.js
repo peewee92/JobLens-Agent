@@ -1,4 +1,4 @@
-const VERSION = '1.4.8';
+const VERSION = '1.4.9';
 const MAX_SELECTED_CITIES = 20;
 const DEFAULT_KEYWORDS = [
   'AI 应用开发工程师',
@@ -205,6 +205,7 @@ function updateSearchGuidance() {
   const pages = Math.max(1, Number(el('pagesPerQuery').value || 1));
   const salary = Math.max(1, Number(el('minSalaryK').value || 1));
   const relevance = Math.max(0, Number(el('minRelevanceScore').value || 0));
+  const recruiterActivityMaxDays = Math.max(0, Number(el('recruiterActivityMaxDays').value || 0));
   const detailLimit = Math.max(0, Number(el('detailLimit').value || 0));
 
   if (cityNames.length === 0 && remoteEnabled) {
@@ -222,6 +223,14 @@ function updateSearchGuidance() {
     hints.push(`搜索词匹配门槛 ${relevance} 分比较严格，可能漏掉标题写法不同但实际相关的岗位。`);
   } else if (relevance > 20) {
     hints.push(`搜索词匹配门槛 ${relevance} 分高于推荐值 20，结果会更少。`);
+  }
+  if (recruiterActivityMaxDays > 0) {
+    hints.push(`只保留能确认招聘者最近 ${recruiterActivityMaxDays} 天内活跃的岗位；活跃时间未知时会优先尝试详情确认。`);
+    if (el('detailMode').value === 'off') {
+      hints.push('你关闭了详情补采；卡片没有招聘者活跃信息的岗位会因无法确认新鲜度而被过滤。');
+    } else if (detailLimit < 20) {
+      hints.push(`详情页上限只有 ${detailLimit}，招聘者活跃待确认岗位可能来不及全部核实。`);
+    }
   }
   if (remoteEnabled && el('remotePolicy').value === 'cardOnly') {
     hints.push('全国远程目前只看列表卡片；详情里才写“可远程”的岗位可能被漏掉。');
@@ -294,6 +303,7 @@ async function loadState() {
   el('detailMode').value = config.version === VERSION ? (config.detailMode || 'matched') : 'matched';
   el('detailLimit').value = config.detailLimit ?? 40;
   el('minRelevanceScore').value = config.minRelevanceScore ?? 20;
+  el('recruiterActivityMaxDays').value = String(config.recruiterActivityMaxDays ?? 30);
   el('smartStop').value = String(config.smartStop ?? true);
   el('excludePartTime').checked = config.excludePartTime ?? true;
   el('excludeIntern').checked = config.excludeIntern ?? false;
@@ -331,7 +341,7 @@ el('keywords').addEventListener('input', updateTaskEstimate);
 el('pagesPerQuery').addEventListener('input', updateTaskEstimate);
 el('remote').addEventListener('change', updateTaskEstimate);
 for (const id of [
-  'minSalaryK', 'salaryMode', 'minRelevanceScore', 'remotePolicy', 'detailMode',
+  'minSalaryK', 'salaryMode', 'minRelevanceScore', 'recruiterActivityMaxDays', 'remotePolicy', 'detailMode',
   'detailLimit', 'smartStop', 'excludePartTime', 'excludeIntern', 'excludeAssistant'
 ]) {
   el(id).addEventListener(['minSalaryK', 'minRelevanceScore', 'detailLimit'].includes(id) ? 'input' : 'change', updateSearchGuidance);
@@ -365,6 +375,7 @@ el('start').addEventListener('click', async () => {
     detailMode: el('detailMode').value,
     detailLimit: Number(el('detailLimit').value || 0),
     minRelevanceScore: Number(el('minRelevanceScore').value || 0),
+    recruiterActivityMaxDays: Number(el('recruiterActivityMaxDays').value || 0),
     smartStop: el('smartStop').value === 'true',
     excludePartTime: el('excludePartTime').checked,
     excludeIntern: el('excludeIntern').checked,
@@ -431,7 +442,7 @@ el('downloadDiagnostics').addEventListener('click', async () => {
 el('downloadRequirementReview').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.requirementReviewJson) {
-    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.8 重新采集。');
+    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.9 重新采集。');
   }
   await downloadData(
     lastRun.requirementReviewFilename || 'boss-job-filter-requirement-review.json',

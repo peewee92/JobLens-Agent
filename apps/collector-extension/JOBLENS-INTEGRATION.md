@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.8, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.4.9, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -17,17 +17,17 @@ POST http://127.0.0.1:8000/api/v1/job-imports
 The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. On success the popup stores only the returned immutable `importId` and exposes **查看本次导入**, which opens the existing JobLens Web audit page at `http://127.0.0.1:3000/imports/{importId}`. Reopening the popup restores the most recent successful import link; a later failed sync does not erase that link. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
 
 ```text
-boss-job-filter-report-v1.4.8-*.json
+boss-job-filter-report-v1.4.9-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 through v1.4.8. Collector v1.4.8 keeps the v1.4.7 search-intent relevance behavior and adds user-facing guidance for filter semantics, actual coverage scope, and likely causes of low result counts. Collection and import contracts remain unchanged apart from the version tag.
+The backend remains compatible with Collector v1.3.1 through v1.4.9. Collector v1.4.9 keeps the v1.4.8 filter-guidance behavior and adds recruiter-activity freshness filtering. The report adds recruiter activity metadata (`recruiterActive`, parsed age bounds and diagnostics); the Backend import remains tolerant of those additive collector fields.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.8-*.json
+boss-job-filter-requirement-review-v1.4.9-*.json
 ```
 
 The dataset contains only jobs where:
@@ -44,7 +44,7 @@ The dataset contains only jobs where:
 
 `qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
 
-In `matched` detail mode, v1.4.8 keeps the v1.4.3 allocation policy and plans up to 30 accepted-job detail reads before remote candidates when `detailLimit=40`. Allocation is traceable through `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. In diagnostics, `remoteConfirmed` now uses the final-job scope and `candidateRemoteConfirmed` keeps the all-candidate scope.
+In `matched` detail mode, v1.4.9 gives jobs with unknown recruiter activity first priority when a recruiter-activity freshness window is enabled, then preserves the v1.4.3 accepted-job overfetch behavior and other pending detail candidates. Allocation is traceable through `detailTargetsPlannedRecruiterActivityCandidates`, `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. A missing recruiter-activity signal is never treated as proof of staleness before the configured detail-enrichment opportunity; if it remains unknown after enrichment, the final filter reports `招聘者活跃状态未知`.
 
 ## Runtime guard
 

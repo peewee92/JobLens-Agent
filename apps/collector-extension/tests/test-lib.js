@@ -225,6 +225,24 @@ assert.strictEqual(nationwideRemote.matched, true);
 assert.strictEqual(nationwideRemote.status, 'confirmed');
 assert.strictEqual(nationwideRemote.confidence, 'high');
 
+const recruiterToday = lib.parseRecruiterActivity('王女士 今日活跃 某科技公司 HR');
+assert.strictEqual(recruiterToday.label, '今日活跃');
+assert.strictEqual(recruiterToday.status, 'known');
+assert.strictEqual(recruiterToday.maxAgeDays, 1);
+assert.strictEqual(lib.recruiterActivityWithin('30天内活跃', 30).matched, true);
+assert.strictEqual(lib.recruiterActivityWithin('本月活跃', 30).matched, true);
+const recruiterTwoMonths = lib.recruiterActivityWithin('2月内活跃', 30);
+assert.strictEqual(recruiterTwoMonths.matched, false);
+assert.strictEqual(recruiterTwoMonths.reason, 'outside_window');
+const recruiterHalfYearAgo = lib.recruiterActivityWithin('半年前活跃', 30);
+assert.strictEqual(recruiterHalfYearAgo.matched, false);
+assert.strictEqual(recruiterHalfYearAgo.reason, 'stale');
+assert.strictEqual(recruiterHalfYearAgo.activity.minAgeDays, 180);
+const recruiterUnknown = lib.recruiterActivityWithin('招聘者暂无活跃信息', 30);
+assert.strictEqual(recruiterUnknown.matched, false);
+assert.strictEqual(recruiterUnknown.reason, 'unknown');
+assert.strictEqual(lib.recruiterActivityWithin('', 0).matched, true);
+
 const exactDesignSearch = lib.scoreRelevance({
   title: '视觉设计师资深视觉设计',
   searchKeyword: '视觉设计'

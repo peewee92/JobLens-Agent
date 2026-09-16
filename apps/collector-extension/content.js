@@ -11,6 +11,7 @@
     findSalaryInText,
     inferDigitMap,
     detectRemote,
+    parseRecruiterActivity,
     extractSkills
   } = globalThis.BossJobFilterLib;
 
@@ -230,6 +231,7 @@
       const experience = (rawText.match(/(经验不限|在校\/应届|应届生|1年以内|1-3年|3-5年|5-10年|10年以上)/) || [])[1] || '';
       const education = (rawText.match(/(学历不限|初中及以下|中专\/中技|高中|大专|本科|硕士|博士)/) || [])[1] || '';
       const remote = detectRemote({ title, area, tags, rawText });
+      const recruiterActive = parseRecruiterActivity(rawText).label;
 
       seen.add(url);
       jobs.push({
@@ -247,6 +249,7 @@
         remoteStatus: remote.status,
         remoteConfidence: remote.confidence,
         remoteEvidence: remote.evidence,
+        recruiterActive,
         url,
         rawText,
         originalRawText,
@@ -346,7 +349,7 @@
     // contains recommended jobs and operational phrases such as remote monitoring.
     const remote = detectRemote({ description });
     const publishedAt = (bodyText.match(/(?:发布于|更新于|最近更新)\s*([^\s]{2,20})/) || [])[1] || '';
-    const recruiterActive = (bodyText.match(/(刚刚活跃|今日活跃|本周活跃|近两周活跃|本月活跃)/) || [])[1] || '';
+    const recruiterActive = parseRecruiterActivity(bodyText).label;
     const skills = extractSkills({ description, detailText: bodyText });
 
     return {

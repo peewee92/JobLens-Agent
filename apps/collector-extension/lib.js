@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.4.8';
+  const VERSION = '1.4.9';
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
   const CJK_RADICAL_FALLBACKS = Object.freeze({
@@ -365,6 +365,44 @@
 
   function stripRemoteNegativePhrases(value = '') {
     return clean(String(value ?? '').replace(new RegExp(REMOTE_NEGATIVE.source, 'gi'), ' '));
+  }
+
+  function parseRecruiterActivity(value = '') {
+    const text = clean(value);
+    const match = text.match(/(刚刚活跃|今日活跃|昨日活跃|本周活跃|近两周活跃|本月活跃|近一个月活跃|\d+\s*(?:天|日)内活跃|\d+\s*(?:个)?月内活跃|半年内活跃|\d+\s*(?:个)?月前活跃|半年前活跃|\d+\s*年前活跃)/);
+    const label = match?.[1] || '';
+    if (!label) return { label: '', status: 'unknown', maxAgeDays: null, minAgeDays: null };
+    if (label === '刚刚活跃' || label === '今日活跃') return { label, status: 'known', maxAgeDays: 1, minAgeDays: 0 };
+    if (label === '昨日活跃') return { label, status: 'known', maxAgeDays: 2, minAgeDays: 1 };
+    if (label === '本周活跃') return { label, status: 'known', maxAgeDays: 7, minAgeDays: 0 };
+    if (label === '近两周活跃') return { label, status: 'known', maxAgeDays: 14, minAgeDays: 0 };
+    if (label === '本月活跃' || label === '近一个月活跃') return { label, status: 'known', maxAgeDays: 30, minAgeDays: 0 };
+    if (label === '半年内活跃') return { label, status: 'known', maxAgeDays: 180, minAgeDays: 0 };
+    if (label === '半年前活跃') return { label, status: 'known', maxAgeDays: null, minAgeDays: 180 };
+
+    const dayMatch = label.match(/(\d+)\s*(?:天|日)内活跃/);
+    if (dayMatch) return { label, status: 'known', maxAgeDays: Number(dayMatch[1]), minAgeDays: 0 };
+    const monthWithinMatch = label.match(/(\d+)\s*(?:个)?月内活跃/);
+    if (monthWithinMatch) return { label, status: 'known', maxAgeDays: Number(monthWithinMatch[1]) * 30, minAgeDays: 0 };
+    const monthBeforeMatch = label.match(/(\d+)\s*(?:个)?月前活跃/);
+    if (monthBeforeMatch) return { label, status: 'known', maxAgeDays: null, minAgeDays: Number(monthBeforeMatch[1]) * 30 };
+    const yearBeforeMatch = label.match(/(\d+)\s*年前活跃/);
+    if (yearBeforeMatch) return { label, status: 'known', maxAgeDays: null, minAgeDays: Number(yearBeforeMatch[1]) * 365 };
+    return { label, status: 'unknown', maxAgeDays: null, minAgeDays: null };
+  }
+
+  function recruiterActivityWithin(activityRaw, maxDays) {
+    const threshold = Number(maxDays || 0);
+    if (!threshold) return { matched: true, reason: 'disabled', activity: parseRecruiterActivity(activityRaw) };
+    const activity = parseRecruiterActivity(activityRaw);
+    if (activity.status !== 'known') return { matched: false, reason: 'unknown', activity };
+    if (activity.minAgeDays != null && activity.minAgeDays > threshold) {
+      return { matched: false, reason: 'stale', activity };
+    }
+    if (activity.maxAgeDays != null && activity.maxAgeDays <= threshold) {
+      return { matched: true, reason: 'fresh', activity };
+    }
+    return { matched: false, reason: 'outside_window', activity };
   }
 
   function detectRemote(input = {}) {
@@ -749,6 +787,8 @@
     extractPuaSalaryToken,
     inferDigitMap,
     detectRemote,
+    parseRecruiterActivity,
+    recruiterActivityWithin,
     extractJobDescriptionSegment,
     stableTextHash,
     assessDescriptionQuality,

@@ -12,6 +12,7 @@ for (const copy of [
   '哪些岗位要打开详情页',
   '最多打开多少个详情页',
   '岗位与搜索词最低匹配分',
+  '招聘者最近多久活跃',
   '什么时候提前停止翻页',
   '当前实际覆盖范围',
   '结果可能偏少的原因',
@@ -26,5 +27,7 @@ assert.ok(js.includes("el('coverageSummary')"), 'popup should render a live cove
 assert.ok(js.includes("el('scarcityHints')"), 'popup should render dynamic result scarcity hints');
 assert.ok(js.includes('12–20K'), 'strict salary explanation should include a concrete example');
 assert.ok(js.includes('建议 2–3 页'), 'one-page searches should explain that coverage is limited');
+assert.ok(html.includes('30天内（推荐）'), 'recruiter activity filter should default to the recommended 30-day window');
+assert.ok(js.includes('活跃时间未知时会优先尝试详情确认'), 'popup should explain unknown recruiter activity fallback');
 
 console.log('Popup UX copy and guidance tests passed.');

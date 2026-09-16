@@ -96,7 +96,7 @@ def test_post_job_imports_returns_201_and_persists_complete_batch(
         assert item.outcome is ImportOutcome.CREATED
 
 
-@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8"])
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9"])
 def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
     api_environment: tuple[TestClient, sessionmaker[Session]],
     collector_version: str,
@@ -119,6 +119,15 @@ def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
             "requirementReviewIneligibilityReasons": [],
         }
     )
+    if collector_version == "1.4.9":
+        payload["jobs"][0].update(
+            {
+                "recruiterActive": "本月活跃",
+                "recruiterActivityStatus": "known",
+                "recruiterActivityMaxAgeDays": 30,
+                "recruiterActivityMinAgeDays": 0,
+            }
+        )
 
     response = client.post("/api/v1/job-imports", json=payload)
 
@@ -132,6 +141,10 @@ def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
         assert source.source_raw["descriptionSelectorTrust"] == "trusted"
         assert source.source_raw["descriptionNoiseCount"] == 0
         assert source.source_raw["requirementReviewEligible"] is True
+        if collector_version == "1.4.9":
+            assert source.source_raw["recruiterActive"] == "本月活跃"
+            assert source.source_raw["recruiterActivityStatus"] == "known"
+            assert source.source_raw["recruiterActivityMaxAgeDays"] == 30
 
 
 def test_reimport_returns_updated_without_duplicate_job(
