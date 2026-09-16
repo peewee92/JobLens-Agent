@@ -324,10 +324,7 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
             provider_text = output_text(payload)
             parsed = _RequirementsOutput.model_validate_json(provider_text)
             _validate_source_candidate_ids(parsed, source_candidates)
-            _validate_unique_source_facts(
-                parsed,
-                provider_calls=provider_call_counter[0],
-            )
+            parsed = _canonicalize_duplicate_source_facts(parsed)
         except RequirementExtractorFailedError:
             raise
         except httpx.HTTPStatusError as error:
@@ -535,32 +532,55 @@ def _validate_source_candidate_ids(
         )
 
 
-def _validate_unique_source_facts(
-    output: _RequirementsOutput,
-    *,
-    provider_calls: int,
-) -> None:
-    """Fail closed when one Provider source fact is copied into multiple rows.
+def _canonicalize_duplicate_source_facts(output: _RequirementsOutput) -> _RequirementsOutput:
+    """Collapse exact Provider fan-out without duplicating downstream matching weight.
 
-    v42.96 human review showed the same source candidate + original text being emitted
-    repeatedly with only type/capability changed. That creates duplicate matching weight
-    downstream. A Provider may still emit multiple Requirements from one source candidate,
-    but each row must own a distinct verbatim ``originalText`` slice.
+    The Provider sometimes repeats one exact source fact as several rows merely to attach
+    different types or capabilities. The source fact is the durable unit, so keep one
+    canonical row. Prefer the strongest explicit importance; within that scope prefer a
+    skill representation because it remains actionable for Match/Gap. When several skills
+    at the same importance describe genuinely parallel capabilities from the same fact,
+    preserve them in one compound normalized capability rather than dropping information.
+    Distinct originalText slices are never merged here.
     """
-    seen: dict[tuple[str, str], int] = {}
-    for index, item in enumerate(output.requirements):
-        original_identity = re.sub(r"\s+", "", item.original_text).casefold()
-        identity = (item.source_candidate_id, original_identity)
-        previous = seen.get(identity)
-        if previous is not None:
-            raise RequirementExtractorFailedError(
-                "OpenAI Requirement extractor violated source-fact uniqueness: "
-                f"Requirement {index} reuses sourceCandidateId={item.source_candidate_id} "
-                f"and the same originalText as Requirement {previous}",
-                failure_stage="provider_contract_source_fact_uniqueness",
-                provider_calls=provider_calls,
+    importance_rank = {
+        RequirementImportance.MUST_HAVE: 3,
+        RequirementImportance.PREFERRED: 2,
+        RequirementImportance.BONUS: 1,
+    }
+    grouped: dict[tuple[str, str], list[_RequirementOutputBase]] = {}
+    order: list[tuple[str, str]] = []
+    for item in output.requirements:
+        identity = (
+            item.source_candidate_id,
+            re.sub(r"\s+", "", item.original_text).casefold(),
+        )
+        if identity not in grouped:
+            grouped[identity] = []
+            order.append(identity)
+        grouped[identity].append(item)
+
+    canonical: list[_RequirementOutput] = []
+    for identity in order:
+        items = grouped[identity]
+        if len(items) == 1:
+            canonical.append(items[0])
+            continue
+
+        strongest = max(importance_rank[item.importance] for item in items)
+        scoped = [item for item in items if importance_rank[item.importance] == strongest]
+        skills = [item for item in scoped if item.type == RequirementType.SKILL]
+        chosen = max(skills or scoped, key=lambda item: item.confidence)
+        if skills:
+            capabilities = list(
+                dict.fromkeys(item.normalized_capability for item in skills)
             )
-        seen[identity] = index
+            compound = " + ".join(capabilities)
+            if len(compound) <= 255:
+                chosen = chosen.model_copy(update={"normalized_capability": compound})
+        canonical.append(chosen)
+
+    return _RequirementsOutput(requirements=canonical)
 
 
 _CAPABILITY_ALIASES = (

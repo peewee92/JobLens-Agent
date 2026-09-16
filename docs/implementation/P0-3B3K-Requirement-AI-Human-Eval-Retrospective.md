@@ -305,3 +305,20 @@ JobLens 的自动任务应该自动推进“工程能力”，但不能自动推
 - 12 个 Accept → 保留已有 grounding / coverage，不进行无目的大改。
 
 这比继续随机调 Prompt 更接近可持续的 Agent / AI 产品工程：**每一次人工判断都应该变成下一轮可回归、可定位、可验证的改进证据。**
+
+---
+
+## 13. 2026-09-16 v42.96 Revalidation 收口补充
+
+新的 v42.96 Formal Revalidation 在 15/20 时暴露出 5 个跨 Case 的同类 Provider Contract 失败：模型会把同一个 `sourceCandidateId + exact originalText` 重复输出成多条 Requirement，仅改变 type / normalized capability。继续盲目重试不能推进 Milestone。
+
+本轮将该失败从“整次 Extraction fail-closed”收敛为确定性 canonicalization：
+
+- exact source fact 仍然只能形成一个下游 Requirement，避免 Match / Ranking 重复计权；
+- 不同 `originalText` slice 永不合并；
+- 同一 exact fact 出现不同 importance 时保留最强的明确约束；
+- 同 importance 的多个 skill capability 合并为一个 compound normalized capability，避免丢掉真正并列的能力信息；
+- 同 scope 存在 skill 与其他 type fan-out 时优先保留可用于 Match / Gap 的 skill representation；
+- Provider Prompt 仍保留“不重复 exact source fact”的合同要求，canonicalization 是防御性边界，不替代 Provider Contract。
+
+Adapter 回归与 Requirement Workflow / Release / Acceptance Resume / Readiness 共 307 项相关回归通过，`compileall` 与 `git diff --check` 通过。随后对原 5 个失败 Case 做一次 bounded live resume，5/5 成功，Run `reqacceptrun_b012943f30484f2aa6a742983aae2f79` 达到 20/20，并生成 Formal Review Batch `reqreviewbatch_c8aa653601bf48c2b5b61cf9cb38c6cd`。从这一刻起停止 Requirement Provider 重跑，主线进入人工 Case Review / Final Decision HUMAN_GATE。

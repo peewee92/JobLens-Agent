@@ -116,7 +116,7 @@ def test_openai_requirement_adapter_allows_raw_buffer_above_final_requirement_li
     assert len(result.output.requirements) == 51
 
 
-def test_openai_requirement_adapter_rejects_formal_v4296_case_8_same_source_capability_fanout() -> None:
+def test_openai_requirement_adapter_canonicalizes_formal_v4296_case_8_same_source_capability_fanout() -> None:
     evidence = "•对RAG和agent框架有基本了解,包括但不限于 langChain、llama index、autoGen、metaGPT等。"
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -149,20 +149,21 @@ def test_openai_requirement_adapter_rejects_formal_v4296_case_8_same_source_capa
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        with pytest.raises(RequirementExtractorFailedError, match="source-fact uniqueness") as captured:
-            OpenAIJobRequirementExtractor(
-                api_key="test-key",
-                model="test-model",
-                base_url="https://example.test/v1",
-                api_style="chat_completions",
-                client=client,
-            ).extract(evidence)
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            client=client,
+        ).extract(evidence)
 
-    assert captured.value.failure_stage == "provider_contract_source_fact_uniqueness"
-    assert captured.value.provider_calls == 1
+    assert len(result.output.requirements) == 1
+    assert result.output.requirements[0].normalized_capability == "RAG"
+    assert result.output.requirements[0].importance.value == "must_have"
+    assert result.provider_calls == 1
 
 
-def test_openai_requirement_adapter_rejects_formal_v4296_case_16_cross_type_same_source_fact() -> None:
+def test_openai_requirement_adapter_canonicalizes_formal_v4296_case_16_cross_type_same_source_fact() -> None:
     evidence = "- 具备扎实的算法基础,熟悉自然语言处理(NLP)、机器学习(ML)核心技术"
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -204,17 +205,19 @@ def test_openai_requirement_adapter_rejects_formal_v4296_case_16_cross_type_same
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        with pytest.raises(RequirementExtractorFailedError, match="source-fact uniqueness") as captured:
-            OpenAIJobRequirementExtractor(
-                api_key="test-key",
-                model="test-model",
-                base_url="https://example.test/v1",
-                api_style="chat_completions",
-                client=client,
-            ).extract(evidence)
+        result = OpenAIJobRequirementExtractor(
+            api_key="test-key",
+            model="test-model",
+            base_url="https://example.test/v1",
+            api_style="chat_completions",
+            client=client,
+        ).extract(evidence)
 
-    assert captured.value.failure_stage == "provider_contract_source_fact_uniqueness"
-    assert captured.value.provider_calls == 1
+    assert len(result.output.requirements) == 1
+    assert result.output.requirements[0].type.value == "skill"
+    assert result.output.requirements[0].normalized_capability == "NLP + Machine Learning"
+    assert result.output.requirements[0].importance.value == "must_have"
+    assert result.provider_calls == 1
 
 
 def test_openai_requirement_adapter_normalizes_blank_non_skill_capability_to_none() -> None:
