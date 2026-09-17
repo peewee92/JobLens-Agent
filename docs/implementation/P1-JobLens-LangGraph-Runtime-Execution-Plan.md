@@ -509,6 +509,10 @@ Done：
 
 ### LG-2：HITL + Resume + Stale Guard
 
+**状态：IN PROGRESS**
+
+第一纵向切片已关闭“人工决定本身不是 durable runtime contract”的缺口：Rank→Interrupt 现在生成并持久化稳定 `interrupt_id`；`TargetCohortDecisionHandler` 显式消费 Approve/Edit/Reject，Approve 固定采用 proposal，Edit 只允许本 Run requested scope 内 1..10 个岗位，Reject 正常进入 cancelled 且不执行下游 Tool。成功消费会冻结 `decision_action_id`；相同 action replay 幂等返回原 checkpoint，不同 action 在已消费 interrupt 上 fail-closed 为 conflict。Approve/Edit 当前只推进到 `resuming / target_cohort_resume`，刻意不提前调用 Gap；下一 slice 先实现 Resume 前 Profile/SearchIntent/MatchReport stale check，再把确认集合交给现有 Skill Gap Workflow。
+
 **预计：6～8h**
 
 产出：

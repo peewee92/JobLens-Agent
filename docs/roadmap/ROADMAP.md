@@ -57,7 +57,7 @@ vNext 2.0 Continuous Career Agent
 
 - `LG-0 Runtime Boundary`：**COMPLETE**。已新增框架无关 `CareerAgentRuntime.run()` Protocol 与 `WorkflowCareerAgentRuntime` adapter；现有 `/career-agent/turn` 改为依赖 Runtime seam，但底层 `CareerAgentEntrypoint`、Tool Registry 与业务 Workflow 行为保持不变。Backend 全量 1035 tests 通过，compileall 通过；未引入 LangGraph、Provider 调用或业务状态写入。
 - `LG-1 LangGraph State + Persistent Checkpoint`：**COMPLETE**。已落地框架无关 `CareerAgentState`、SQLite-first `SQLiteCareerAgentCheckpointStore`、确定性的 `Ranking → Top-N Target Cohort Proposal → persisted interrupt` 合同，并正式加入 `langgraph` 依赖与 lockfile；`LangGraphRankToTargetCohortInterrupt` 现在用真实 `StateGraph` 执行 Ranking node、conditional edge 与 interrupt checkpoint node，空 Ranking 继续 fail-closed 为 `match_not_ready`。Graph 只编排现有 read-only Ranking Tool，不复制业务逻辑；Checkpoint 只保存 MatchReport IDs/fingerprint 与 runtime control fields，保持 `provider_calls=0 / business_state_writes=0`。
-- 下一主线：进入 `LG-2 Durable HITL`，在已持久化的 `target_cohort_confirmation` 上增加显式 Approve/Edit/Reject → Resume 合同；Resume 前必须验证 Profile/SearchIntent/MatchReport fingerprint 未 stale，重复 decision/resume 必须幂等，仍保持用户决定不可代签。
+- `LG-2 Durable HITL`：**IN PROGRESS**。第一纵向切片已为 `target_cohort_confirmation` 增加稳定 `interrupt_id` 与显式 `approve / edit / reject` 决策消费合同：Approve 使用原 proposal，Edit 仅允许本 Run requested scope 内 1..10 个岗位并去重，Reject 正常进入 cancelled；首次成功决定持久化 `decision_action_id`，相同 action replay 返回原状态，不同后续决定 fail-closed 为 conflict。Approve/Edit 只推进到 `resuming`，本 slice 不提前执行 Gap，因此仍保持 `provider_calls=0 / business_state_writes=0`。下一 slice 必须在真正 Resume/Gap 前补 Profile/SearchIntent/MatchReport stale validation，然后再接 Skill Gap execution 与 duplicate resume side-effect guard。
 
 ### 当前冻结的四个主要缺口
 

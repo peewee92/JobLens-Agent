@@ -143,11 +143,16 @@ class LangGraphRankToTargetCohortInterrupt:
         return "blocked" if state.status is CareerAgentStatus.BLOCKED else "interrupt"
 
     def _persist_interrupt(self, graph_state: _GraphState) -> dict[str, CareerAgentState]:
+        state = graph_state["runtime_state"]
+        interrupt_id = "interrupt_" + hashlib.sha256(
+            f"{state.thread_id}:{state.run_id}:target_cohort_confirmation".encode("utf-8")
+        ).hexdigest()[:24]
         interrupted = replace(
-            graph_state["runtime_state"],
+            state,
             status=CareerAgentStatus.INTERRUPTED,
             current_step="target_cohort_confirmation",
             pending_approval=True,
+            interrupt_id=interrupt_id,
             node_count=2,
         )
         self._checkpoints.save(interrupted)

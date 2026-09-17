@@ -102,6 +102,7 @@ def test_rank_to_target_cohort_interrupt_persists_only_runtime_references(tmp_pa
     assert result.proposed_target_job_ids == ("job_2", "job_1")
     assert result.current_match_report_ids == ("mr_2", "mr_1")
     assert result.pending_approval is True
+    assert result.interrupt_id is not None
     assert result.provider_call_count == 0
     assert result.tool_call_count == 1
     assert ranking.calls == [(('job_3', 'job_2', 'job_1'), False, 2)]
@@ -146,6 +147,7 @@ def test_langgraph_rank_to_target_cohort_interrupt_executes_frozen_nodes(tmp_pat
     assert result.proposed_target_job_ids == ("job_2", "job_1")
     assert result.current_match_report_ids == ("mr_2", "mr_1")
     assert result.node_count == 2
+    assert result.interrupt_id is not None
     assert result.tool_call_count == 1
     assert result.provider_call_count == 0
     assert store.load(thread_id="thread_langgraph") == result

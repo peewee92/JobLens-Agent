@@ -42,7 +42,9 @@ class CareerAgentState:
     proposed_target_job_ids: tuple[str, ...] = ()
     confirmed_target_job_ids: tuple[str, ...] = ()
     pending_approval: bool = False
+    interrupt_id: str | None = None
     human_decision: str | None = None
+    decision_action_id: str | None = None
     node_count: int = 0
     tool_call_count: int = 0
     provider_call_count: int = 0

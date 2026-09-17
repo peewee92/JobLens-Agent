@@ -100,6 +100,9 @@ class RankToTargetCohortInterrupt:
         fingerprint = hashlib.sha256(
             "\n".join(report_refs).encode("utf-8")
         ).hexdigest()
+        interrupt_id = "interrupt_" + hashlib.sha256(
+            f"{state.thread_id}:{state.run_id}:target_cohort_confirmation".encode("utf-8")
+        ).hexdigest()[:24]
         interrupted = replace(
             state,
             status=CareerAgentStatus.INTERRUPTED,
@@ -109,6 +112,7 @@ class RankToTargetCohortInterrupt:
             ranked_job_ids=tuple(ranked_job_ids),
             proposed_target_job_ids=tuple(ranked_job_ids),
             pending_approval=True,
+            interrupt_id=interrupt_id,
             node_count=2,
         )
         self._checkpoints.save(interrupted)
