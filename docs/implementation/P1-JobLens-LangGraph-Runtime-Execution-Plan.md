@@ -509,13 +509,15 @@ Done：
 
 ### LG-2：HITL + Resume + Stale Guard
 
-**状态：IN PROGRESS**
+**状态：COMPLETE**
 
 第一纵向切片已关闭“人工决定本身不是 durable runtime contract”的缺口：Rank→Interrupt 现在生成并持久化稳定 `interrupt_id`；`TargetCohortDecisionHandler` 显式消费 Approve/Edit/Reject，Approve 固定采用 proposal，Edit 只允许本 Run requested scope 内 1..10 个岗位，Reject 正常进入 cancelled 且不执行下游 Tool。成功消费会冻结 `decision_action_id`；相同 action replay 幂等返回原 checkpoint，不同 action 在已消费 interrupt 上 fail-closed 为 conflict。
 
 第二纵向切片关闭 Resume 前 stale validation：LG-1 interrupt 快照从“仅 Top-N proposal reports”扩展为“本 Run 全部可排序 current MatchReport IDs/fingerprint + Top-N proposal”，确保用户 Edit 加入 run scope 内非 proposal 岗位时仍有 frozen fact identity 可比。`ResumeStaleGuard` 只接受 `resuming / target_cohort_resume`，重新读取 Governed Profile/SearchIntent 与 current immutable MatchReports；Profile/SearchIntent identity/version、MatchReport IDs/order/fingerprint 任一变化都持久化为明确 `STALE`，不调用 Gap。完全一致时只推进到 `skill_gap_ready`；VALID/STALE 后重复 validate 直接返回 checkpoint，不重复读取或执行 Tool。该 slice 仍为 `provider_calls=0 / business_state_writes=0`。
 
-第三纵向切片关闭 stale-safe Resume 到业务结果的最后一跳：`SkillGapResumeExecutor` 只消费 `resuming / skill_gap_ready` checkpoint，把 `confirmed_target_job_ids` 作为显式人工 Job selection 交给 Tool Registry；Registry 复用既有 `CreateManualTargetCohortCommand → Target Cohort Gap` 确定性 pipeline，不新增 Gap 算法或职业事实。成功结果只冻结 compact `gap_result_fingerprint` 后进入 `completed`；重复 execute 直接返回 completed checkpoint，不再次读取 Context 或调用 Gap Workflow。执行前再次校验 Profile identity/version，防止 stale guard 与 Gap 调用之间的 Profile 变化；任何 Provider call / business DB write 都 fail-closed。LG-2 仍需最后一条跨 Store/process 重建回归，证明 Decision → stale validation → Gap completion 可以从持久化 checkpoint 完整恢复。
+第三纵向切片关闭 stale-safe Resume 到业务结果的最后一跳：`SkillGapResumeExecutor` 只消费 `resuming / skill_gap_ready` checkpoint，把 `confirmed_target_job_ids` 作为显式人工 Job selection 交给 Tool Registry；Registry 复用既有 `CreateManualTargetCohortCommand → Target Cohort Gap` 确定性 pipeline，不新增 Gap 算法或职业事实。成功结果只冻结 compact `gap_result_fingerprint` 后进入 `completed`；重复 execute 直接返回 completed checkpoint，不再次读取 Context 或调用 Gap Workflow。执行前再次校验 Profile identity/version，防止 stale guard 与 Gap 调用之间的 Profile 变化；任何 Provider call / business DB write 都 fail-closed。
+
+最终 restart regression 关闭 LG-2 的 durable recovery 验收：同一 SQLite checkpoint 文件在 `Ranking → interrupt`、Human Decision、stale validation、Gap resume 以及 completed replay 之间逐次重建 `SQLiteCareerAgentCheckpointStore`，不依赖旧 Runtime/Store 内存即可恢复 thread；重建后的 duplicate resume 仍直接返回 completed checkpoint，Gap Workflow 只执行一次。由此 `Browser close / Runtime or process restart / duplicate resume / stale facts` 四类行为均已有确定性证据，LG-2 正式 COMPLETE，主线进入 LG-3。
 
 **预计：6～8h**
 
