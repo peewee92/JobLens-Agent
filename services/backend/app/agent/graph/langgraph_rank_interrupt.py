@@ -98,7 +98,7 @@ class LangGraphRankToTargetCohortInterrupt:
             request=RankMatchReportsRequest(
                 job_ids=state.requested_job_ids,
                 include_blocked=False,
-                top_n=graph_state["top_n"],
+                top_n=None,
             ),
         )
         ranked_reports = tuple(ranked) if isinstance(ranked, Iterable) else ()
@@ -131,7 +131,7 @@ class LangGraphRankToTargetCohortInterrupt:
                 current_match_report_ids=tuple(report_refs),
                 match_fingerprint=fingerprint,
                 ranked_job_ids=tuple(ranked_job_ids),
-                proposed_target_job_ids=tuple(ranked_job_ids),
+                proposed_target_job_ids=tuple(ranked_job_ids[: graph_state["top_n"]]),
                 tool_call_count=1,
                 node_count=1,
             )

@@ -98,14 +98,14 @@ def test_rank_to_target_cohort_interrupt_persists_only_runtime_references(tmp_pa
 
     assert result.status is CareerAgentStatus.INTERRUPTED
     assert result.current_step == "target_cohort_confirmation"
-    assert result.ranked_job_ids == ("job_2", "job_1")
+    assert result.ranked_job_ids == ("job_2", "job_1", "job_3")
     assert result.proposed_target_job_ids == ("job_2", "job_1")
-    assert result.current_match_report_ids == ("mr_2", "mr_1")
+    assert result.current_match_report_ids == ("mr_2", "mr_1", "mr_3")
     assert result.pending_approval is True
     assert result.interrupt_id is not None
     assert result.provider_call_count == 0
     assert result.tool_call_count == 1
-    assert ranking.calls == [(('job_3', 'job_2', 'job_1'), False, 2)]
+    assert ranking.calls == [(('job_3', 'job_2', 'job_1'), False, None)]
 
     restored = SQLiteCareerAgentCheckpointStore(tmp_path / "agent.sqlite3").load(
         thread_id="thread_1"

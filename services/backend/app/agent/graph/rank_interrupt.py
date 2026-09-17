@@ -71,7 +71,7 @@ class RankToTargetCohortInterrupt:
             request=RankMatchReportsRequest(
                 job_ids=requested_job_ids,
                 include_blocked=False,
-                top_n=top_n,
+                top_n=None,
             ),
         )
         ranked_reports = tuple(ranked) if isinstance(ranked, Iterable) else ()
@@ -110,7 +110,7 @@ class RankToTargetCohortInterrupt:
             current_match_report_ids=tuple(report_refs),
             match_fingerprint=fingerprint,
             ranked_job_ids=tuple(ranked_job_ids),
-            proposed_target_job_ids=tuple(ranked_job_ids),
+            proposed_target_job_ids=tuple(ranked_job_ids[:top_n]),
             pending_approval=True,
             interrupt_id=interrupt_id,
             node_count=2,

@@ -511,7 +511,9 @@ Done：
 
 **状态：IN PROGRESS**
 
-第一纵向切片已关闭“人工决定本身不是 durable runtime contract”的缺口：Rank→Interrupt 现在生成并持久化稳定 `interrupt_id`；`TargetCohortDecisionHandler` 显式消费 Approve/Edit/Reject，Approve 固定采用 proposal，Edit 只允许本 Run requested scope 内 1..10 个岗位，Reject 正常进入 cancelled 且不执行下游 Tool。成功消费会冻结 `decision_action_id`；相同 action replay 幂等返回原 checkpoint，不同 action 在已消费 interrupt 上 fail-closed 为 conflict。Approve/Edit 当前只推进到 `resuming / target_cohort_resume`，刻意不提前调用 Gap；下一 slice 先实现 Resume 前 Profile/SearchIntent/MatchReport stale check，再把确认集合交给现有 Skill Gap Workflow。
+第一纵向切片已关闭“人工决定本身不是 durable runtime contract”的缺口：Rank→Interrupt 现在生成并持久化稳定 `interrupt_id`；`TargetCohortDecisionHandler` 显式消费 Approve/Edit/Reject，Approve 固定采用 proposal，Edit 只允许本 Run requested scope 内 1..10 个岗位，Reject 正常进入 cancelled 且不执行下游 Tool。成功消费会冻结 `decision_action_id`；相同 action replay 幂等返回原 checkpoint，不同 action 在已消费 interrupt 上 fail-closed 为 conflict。
+
+第二纵向切片关闭 Resume 前 stale validation：LG-1 interrupt 快照从“仅 Top-N proposal reports”扩展为“本 Run 全部可排序 current MatchReport IDs/fingerprint + Top-N proposal”，确保用户 Edit 加入 run scope 内非 proposal 岗位时仍有 frozen fact identity 可比。`ResumeStaleGuard` 只接受 `resuming / target_cohort_resume`，重新读取 Governed Profile/SearchIntent 与 current immutable MatchReports；Profile/SearchIntent identity/version、MatchReport IDs/order/fingerprint 任一变化都持久化为明确 `STALE`，不调用 Gap。完全一致时只推进到 `skill_gap_ready`；VALID/STALE 后重复 validate 直接返回 checkpoint，不重复读取或执行 Tool。该 slice 仍为 `provider_calls=0 / business_state_writes=0`。下一 slice 才执行现有 Skill Gap Workflow，并锁定 duplicate resume 的下游 side-effect guard。
 
 **预计：6～8h**
 
