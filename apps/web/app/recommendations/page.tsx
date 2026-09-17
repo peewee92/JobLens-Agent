@@ -623,6 +623,17 @@ export default async function RecommendationsPage({
           ) : null}
           {focusImprovement?.comparable ? (
             <div className="focus-improvement">
+              {focusImprovement.previousRecommendation ? (
+                <div className="focus-improvement-facts">
+                  <strong>本次岗位建议变化</strong>
+                  <p>
+                    从「{matchRecommendationLabels[focusImprovement.previousRecommendation]}」变为「{matchRecommendationLabels[focusImprovement.currentRecommendation]}」。
+                  </p>
+                  <p className="muted">
+                    这是同一岗位、同一 Requirement Extraction 在前后 Profile 版本上的 Match 建议变化，也是当前 Ranking 的直接输入；这里只报告建议层级变化，不伪造无法从历史快照证明的具体名次升降。
+                  </p>
+                </div>
+              ) : null}
               <p className="focus-job-note">
                 {focusImprovement.resolvedRequirementIds.length > 0
                   ? `和上一次资料版本相比，已经少了 ${focusImprovement.resolvedRequirementIds.length} 条硬条件缺口（${focusImprovement.previousMissingRequirementCount} → ${focusImprovement.currentMissingRequirementCount}）。`
