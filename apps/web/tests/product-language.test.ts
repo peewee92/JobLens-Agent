@@ -412,7 +412,9 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /evidenceActionHistory=/);
   assert.match(page, /最近连续两次核实同类事实后都拿到了可比较但未改善的结果/);
   assert.match(page, /行动前预期影响 vs\. 这次重算结果/);
-  assert.match(page, /拿到了可比较的前后 MatchReport，其中 .* 个出现可验证改善/);
+  assert.match(page, /拿到了可比较的前后 MatchReport，其中 .* 个明确解除本次行动针对的 Requirement/);
+  assert.match(page, /只观察到其他改善/);
+  assert.match(page, /不能归因成本次目标 Requirement 已补齐/);
   assert.match(page, /当前缺少可比较的前后 MatchReport，暂不下结论/);
   assert.match(page, /不会冒充“没有改善”/);
   assert.match(page, /未改善也不代表这项经历无价值/);

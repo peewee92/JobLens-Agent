@@ -28,6 +28,7 @@ import {
 } from "@/lib/evidence-priority";
 import {formatSalary} from "@/lib/format";
 import {
+  classifyExpectedImpactOutcome,
   classifyMatchImprovementOutcome,
   diagnoseFocusedRequirementOutcome,
   listNewlySupportedRequirements,
@@ -440,11 +441,12 @@ export default async function RecommendationsPage({
       return {
         jobId,
         title: recommendationJobTitleById.get(jobId) ?? jobId,
-        outcome: classifyMatchImprovementOutcome(improvement),
+        outcome: classifyExpectedImpactOutcome(improvement, focusImpactRequirementIds),
       };
     }),
   );
-  const expectedImpactImprovedCount = expectedImpactResults.filter((item) => item.outcome === "improved").length;
+  const expectedImpactResolvedCount = expectedImpactResults.filter((item) => item.outcome === "target_resolved").length;
+  const expectedImpactOtherImprovedCount = expectedImpactResults.filter((item) => item.outcome === "other_improved").length;
   const expectedImpactVerifiedCount = expectedImpactResults.filter((item) => item.outcome !== "unverifiable").length;
   const evidenceActionHasSuccessor = Boolean(
     focusRequirementId
@@ -595,17 +597,19 @@ export default async function RecommendationsPage({
             <div className="focus-improvement-facts">
               <strong>行动前预期影响 vs. 这次重算结果</strong>
               <p>
-                行动前你优先核实了 {expectedImpactResults.length} 个仍在考虑岗位；目前有 {expectedImpactVerifiedCount} 个拿到了可比较的前后 MatchReport，其中 {expectedImpactImprovedCount} 个出现可验证改善。
+                行动前你优先核实了 {expectedImpactResults.length} 个仍在考虑岗位；目前有 {expectedImpactVerifiedCount} 个拿到了可比较的前后 MatchReport，其中 {expectedImpactResolvedCount} 个明确解除本次行动针对的 Requirement，{expectedImpactOtherImprovedCount} 个只观察到其他改善。
               </p>
               <ul>
                 {expectedImpactResults.map((item) => (
                   <li key={item.jobId}>
                     <Link href={`/jobs/${item.jobId}`}>{item.title}</Link>
-                    {item.outcome === "improved"
-                      ? "：这次有可验证改善"
-                      : item.outcome === "unchanged"
-                        ? "：已完成前后比较，这次暂未观察到可验证改善"
-                        : "：当前缺少可比较的前后 MatchReport，暂不下结论"}
+                    {item.outcome === "target_resolved"
+                      ? "：本次行动针对的 Requirement 已解除"
+                      : item.outcome === "other_improved"
+                        ? "：有其他可验证改善，但不能归因成本次目标 Requirement 已补齐"
+                        : item.outcome === "unchanged"
+                          ? "：已完成前后比较，本次目标 Requirement 暂未观察到改善"
+                          : "：当前缺少可比较的前后 MatchReport，暂不下结论"}
                   </li>
                 ))}
               </ul>

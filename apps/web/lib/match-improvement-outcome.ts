@@ -1,6 +1,7 @@
 import type {MatchImprovement} from "@/lib/contracts";
 
 export type MatchImprovementOutcome = "improved" | "unchanged" | "unverifiable";
+export type ExpectedImpactOutcome = "target_resolved" | "other_improved" | "unchanged" | "unverifiable";
 
 export type FocusedRequirementOutcomeReason =
   | "unverifiable"
@@ -46,6 +47,20 @@ export function classifyMatchImprovementOutcome(
   }
 
   return "unchanged";
+}
+
+export function classifyExpectedImpactOutcome(
+  improvement: MatchImprovement | null,
+  expectedRequirementIds: ReadonlyArray<string>,
+): ExpectedImpactOutcome {
+  const outcome = classifyMatchImprovementOutcome(improvement);
+  if (outcome === "unverifiable" || !improvement) return "unverifiable";
+
+  const expectedIds = new Set(expectedRequirementIds);
+  if (improvement.resolvedRequirementIds.some((requirementId) => expectedIds.has(requirementId))) {
+    return "target_resolved";
+  }
+  return outcome === "improved" ? "other_improved" : "unchanged";
 }
 
 export function diagnoseFocusedRequirementOutcome(

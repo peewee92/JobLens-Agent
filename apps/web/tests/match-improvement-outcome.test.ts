@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type {MatchImprovement} from "../lib/contracts";
 import {
+  classifyExpectedImpactOutcome,
   classifyMatchImprovementOutcome,
   diagnoseFocusedRequirementOutcome,
   listNewlySupportedRequirements,
@@ -49,6 +50,23 @@ test("reports improved when recommendation changes", () => {
 
 test("reports unchanged only after a comparable profile-version change", () => {
   assert.equal(classifyMatchImprovementOutcome(improvement()), "unchanged");
+});
+
+test("expected impact distinguishes the targeted requirement from unrelated improvement", () => {
+  assert.equal(
+    classifyExpectedImpactOutcome(improvement({resolvedRequirementIds: ["req-target"]}), ["req-target", "req-other"]),
+    "target_resolved",
+  );
+  assert.equal(
+    classifyExpectedImpactOutcome(improvement({resolvedRequirementIds: ["req-unrelated"]}), ["req-target"]),
+    "other_improved",
+  );
+  assert.equal(
+    classifyExpectedImpactOutcome(improvement({currentRecommendation: "good"}), ["req-target"]),
+    "other_improved",
+  );
+  assert.equal(classifyExpectedImpactOutcome(improvement(), ["req-target"]), "unchanged");
+  assert.equal(classifyExpectedImpactOutcome(null, ["req-target"]), "unverifiable");
 });
 
 test("verified unchanged focused requirement pauses immediate repeat", () => {
