@@ -591,6 +591,8 @@ test("focused evidence action returns with exact requirement identity and report
 
   assert.match(recommendations, /nextEvidenceRequirement/);
   assert.match(recommendations, /focusRequirementId=/);
+  assert.match(recommendations, /nextEvidenceImpactRequirementIds/);
+  assert.match(recommendations, /focusImpactRequirementIds=\$\{encodeURIComponent\(nextEvidenceImpactRequirementIds\.join\(","\)\)\}/);
   assert.match(recommendations, /resolvedRequirementIds\.includes\(focusRequirementId\)/);
   assert.match(recommendations, /missingRequirementIds\.includes\(focusRequirementId\)/);
   assert.match(recommendations, /刚才核实的要求：现在已有匹配依据/);

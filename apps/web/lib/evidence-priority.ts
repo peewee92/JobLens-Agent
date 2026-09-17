@@ -2,6 +2,7 @@ import type {MatchBlockerJob, MatchBlockerPriorityAction, UserFeedbackRecord} fr
 
 export interface EvidencePriorityImpactTarget {
   jobId: string;
+  requirementIds: string[];
   requirementTexts: string[];
 }
 
@@ -57,12 +58,15 @@ export function listEvidencePriorityImpactTargets(
   const affectedJobOrder = new Map(action.affectedJobIds.map((jobId, index) => [jobId, index]));
   return jobBlockers
     .filter((job) => affectedJobOrder.has(job.jobId) && isStillConsidered(job.jobId, feedbackByJobId))
-    .map((job) => ({
-      jobId: job.jobId,
-      requirementTexts: job.requirements
-        .filter((requirement) => action.requirementIds.includes(requirement.requirementId))
-        .map((requirement) => requirement.originalText),
-    }))
+    .map((job) => {
+      const requirements = job.requirements
+        .filter((requirement) => action.requirementIds.includes(requirement.requirementId));
+      return {
+        jobId: job.jobId,
+        requirementIds: requirements.map((requirement) => requirement.requirementId),
+        requirementTexts: requirements.map((requirement) => requirement.originalText),
+      };
+    })
     .filter((target) => target.requirementTexts.length > 0)
     .sort((left, right) => {
       const feedbackDelta = feedbackWeight(feedbackByJobId.get(right.jobId)?.decision ?? "rejected")

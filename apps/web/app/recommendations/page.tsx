@@ -418,8 +418,11 @@ export default async function RecommendationsPage({
       evidenceFeedbackByJobId,
     )
     : [];
+  const nextEvidenceImpactRequirementIds = Array.from(new Set(
+    nextEvidenceImpactTargets.slice(0, 3).flatMap((target) => target.requirementIds),
+  )).slice(0, 20);
   const nextEvidenceProfileHref = nextEvidencePriority
-    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}${nextEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(nextEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${evidenceActionHistory.length > 0 ? `&evidenceActionHistory=${encodeURIComponent(evidenceActionHistory.join(","))}` : ""}#profile-evidence-focus`
+    ? `/profile?next=/recommendations&focusRequirement=${encodeURIComponent(nextEvidencePriority.requirementType)}&focusJob=${encodeURIComponent(nextEvidenceJobId ?? "")}${nextEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(nextEvidenceRequirement.requirementId)}` : ""}${nextEvidencePriority.normalizedCapability ? `&focusCapability=${encodeURIComponent(nextEvidencePriority.normalizedCapability)}` : ""}${nextEvidencePriority.examples[0] ? `&focusRequirementText=${encodeURIComponent(nextEvidencePriority.examples[0])}` : ""}${nextEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(nextEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${nextEvidenceImpactRequirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(nextEvidenceImpactRequirementIds.join(","))}` : ""}${evidenceActionHistory.length > 0 ? `&evidenceActionHistory=${encodeURIComponent(evidenceActionHistory.join(","))}` : ""}#profile-evidence-focus`
     : null;
   const recommendationJobTitleById = new Map(
     jobs.items.map((job) => [job.id, job.title] as const),

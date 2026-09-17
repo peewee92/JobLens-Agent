@@ -231,8 +231,8 @@ test("impact preview lists only still-considered jobs with exact requirement tex
   assert.deepEqual(
     listEvidencePriorityImpactTargets(selected, blockers, feedbackByJobId),
     [
-      {jobId: "job-favorite", requirementTexts: ["有智能体落地经验"]},
-      {jobId: "job-open", requirementTexts: ["熟悉 Agent 工作流"]},
+      {jobId: "job-favorite", requirementIds: ["req-favorite"], requirementTexts: ["有智能体落地经验"]},
+      {jobId: "job-open", requirementIds: ["req-open"], requirementTexts: ["熟悉 Agent 工作流"]},
     ],
   );
 });
