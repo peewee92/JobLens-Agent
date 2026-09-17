@@ -129,6 +129,19 @@ function buildGapEvidenceHref(item: GapItem): string | null {
   return `/profile?${query.toString()}`;
 }
 
+function buildGapPreparationHref(item: GapItem, jobId: string): string {
+  const query = new URLSearchParams();
+  const supportingJobIds = Array.from(new Set(item.supportingJobIds.filter((id) => SAFE_FACT_ID.test(id))));
+  const supportingRequirementIds = Array.from(
+    new Set(item.supportingRequirementIds.filter((id) => SAFE_FACT_ID.test(id))),
+  );
+  if (supportingJobIds.length > 0) query.set("focusImpactJobs", supportingJobIds.slice(0, 3).join(","));
+  if (supportingRequirementIds.length > 0) {
+    query.set("focusImpactRequirementIds", supportingRequirementIds.slice(0, 20).join(","));
+  }
+  return `/jobs/${jobId}/prepare?${query.toString()}`;
+}
+
 function parseGapBlocker(value: string): ParsedGapBlocker {
   const separatorIndex = value.indexOf(":");
   if (separatorIndex <= 0) {
@@ -636,7 +649,7 @@ export function TargetCohortGapPanel() {
                         <p>直接进入受这项首要差距影响的岗位准备页，用同一组已确认 Requirement 检查简历、面试与学习清单。</p>
                         <div className="gap-supporting-jobs">
                           {supportingJobs.map((job) => (
-                            <Link href={`/jobs/${job.jobId}/prepare`} key={job.jobId}>
+                            <Link href={buildGapPreparationHref(item, job.jobId)} key={job.jobId}>
                               准备 {job.title} · {job.company}
                             </Link>
                           ))}

@@ -709,6 +709,7 @@ test("match report card leads with a recommendation and keeps AI execution expli
 test("Target Cohort Gap page is phrased around choosing Jobs instead of internal IDs", async () => {
   const page = await source("app/gaps/page.tsx");
   const panel = await source("components/target-cohort-gap-panel.tsx");
+  const preparation = await source("app/jobs/[id]/prepare/page.tsx");
 
   assert.match(page, /别按感觉补技能/);
   assert.match(panel, /选择目标岗位/);
@@ -718,12 +719,14 @@ test("Target Cohort Gap page is phrased around choosing Jobs instead of internal
   assert.match(panel, /分析这些岗位的共同能力差距/);
   assert.match(panel, /做到什么算补齐/);
   assert.match(panel, /针对这些岗位开始准备/);
-  assert.match(panel, /\/jobs\/\$\{job\.jobId\}\/prepare/);
+  assert.match(panel, /buildGapPreparationHref\(item, job\.jobId\)/);
   assert.match(panel, /核实并补充真实经历/);
   assert.match(panel, /focusRequirementId/);
   assert.match(panel, /focusImpactJobs/);
   assert.match(panel, /focusImpactRequirementIds/);
   assert.match(panel, /查看技术依据/);
+  assert.match(preparation, /本次首要能力差距/);
+  assert.match(preparation, /focusImpactRequirementIds\.includes\(item\.requirementId\)/);
   assert.doesNotMatch(panel, /已选择岗位的反馈 ID|可用逗号、空格或换行分隔/);
 });
 

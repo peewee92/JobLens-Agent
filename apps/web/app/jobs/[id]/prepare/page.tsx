@@ -137,6 +137,9 @@ export default async function JobPreparationPage({
     const preparationChecklistItems = buildApplicationChecklistItems(preparation);
     const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
     const preparationStudyItems = preparation.studyChecklist?.items ?? [];
+    const focusedGapStudyItem = preparationStudyItems.find((item) =>
+      focusImpactRequirementIds.includes(item.requirementId),
+    ) ?? null;
     const preparationInterviewItems = preparation.interviewFacts?.items ?? [];
     const topPreparationEvidenceGap = preparationEvidenceGaps[0] ?? null;
     const topPreparationEvidenceGapRequirementText = topPreparationEvidenceGap
@@ -335,9 +338,15 @@ export default async function JobPreparationPage({
                   <h2>面试前补习清单</h2>
                   <span>{preparation.studyChecklist?.items.length ?? 0} 项</span>
                 </div>
+                {focusedGapStudyItem ? (
+                  <div className="notice">
+                    <strong>本次首要能力差距：{focusedGapStudyItem.capability}</strong>
+                    <p className="muted">你是从 Target Cohort 的 P0 差距进入这个岗位；这里用同一组 Requirement ID 定位对应学习项，不根据岗位标题或关键词重新猜测。</p>
+                  </div>
+                ) : null}
                 {(preparation.studyChecklist?.items ?? []).map((item) => (
                   <article className="eligibility-result-card" key={item.requirementId}>
-                    <strong>{item.capability}</strong>
+                    <strong>{focusImpactRequirementIds.includes(item.requirementId) ? "首要差距 · " : ""}{item.capability}</strong>
                     <p>{item.requirementText}</p>
                     <p>补齐标准：{item.completionCriteria.join("；")}</p>
                   </article>
