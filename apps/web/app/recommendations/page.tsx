@@ -209,9 +209,14 @@ export default async function RecommendationsPage({
     // Existing ranking remains readable even when the refresh readiness check is unavailable.
   }
 
-  // Prioritize the job the user just supplemented evidence for, then the rest of the ready pool.
+  // Recompute the exact jobs the evidence action was expected to affect before the rest of the ready pool.
+  // This keeps a bounded batch from validating only the first focused job while leaving sibling impact jobs stale.
+  const focusedImpactJobIds = focusJobId
+    ? focusImpactJobIds.filter((id) => id !== focusJobId && reviewableJobIds.includes(id))
+    : [];
+  const prioritizedJobIds = new Set([focusJobId, ...focusedImpactJobIds].filter((id): id is string => Boolean(id)));
   const recomputeJobIds = focusJobId
-    ? [focusJobId, ...reviewableJobIds.filter((id) => id !== focusJobId)]
+    ? [focusJobId, ...focusedImpactJobIds, ...reviewableJobIds.filter((id) => !prioritizedJobIds.has(id))]
     : reviewableJobIds;
   const focusJobTitle = focusJobId ? (jobById.get(focusJobId)?.title ?? null) : null;
   const focusJobReport = focusJobId
