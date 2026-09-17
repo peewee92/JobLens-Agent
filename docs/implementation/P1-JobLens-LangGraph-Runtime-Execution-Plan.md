@@ -486,7 +486,9 @@ Done：
 
 **状态：IN PROGRESS**
 
-已完成第一纵向切片：新增显式、框架无关 `CareerAgentState` 与 SQLite-first checkpoint store；State 只保存 released fact identity/version/fingerprint 和 runtime control fields。专项回归已证明使用同一 SQLite 文件重新创建 Store 后仍可恢复 interrupted thread，并锁定 checkpoint 不复制 raw resume/raw JD/完整 Requirement payload。尚未接入 LangGraph graph、Ranking node、Target Cohort Proposal 与 interrupt，因此本 Work Package 仍未完成。
+已完成第一纵向切片：新增显式、框架无关 `CareerAgentState` 与 SQLite-first checkpoint store；State 只保存 released fact identity/version/fingerprint 和 runtime control fields。专项回归已证明使用同一 SQLite 文件重新创建 Store 后仍可恢复 interrupted thread，并锁定 checkpoint 不复制 raw resume/raw JD/完整 Requirement payload。
+
+第二纵向切片已冻结真实前半图合同：复用 `CareerAgentToolRegistry.rank_match_reports`，按请求范围执行 read-only Ranking，确定性取 Top-N 形成 Target Cohort Proposal，保存 current MatchReport IDs + fingerprint 后进入 `target_cohort_confirmation` interrupted state；没有 current Ranking 时 fail-closed 为 `match_not_ready`，不自动补 Match/Requirement。该路径专项回归同时锁定 `provider_calls=0`、不触发 Gap/Preparation。当前 Backend `.venv` 尚未安装 `langgraph`，因此此切片没有把自研顺序调用伪称为 LangGraph；下一切片必须在依赖/lockfile 一致后用实际 `StateGraph` adapter 执行同一合同并接入真实 interrupt，LG-1 才能关闭。
 
 **预计：5～8h**
 
