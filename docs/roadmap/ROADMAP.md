@@ -10,6 +10,64 @@ Profile → SearchIntent → JobRequirement → Eligibility → Match → Rankin
 
 路线图强调先形成可验证闭环，再增加能力广度与平台规模。**Eval 从 Phase 1 就介入，不是最后一个 Phase。**
 
+## v0.2 Freeze → Agent vNext 新主线（2026-09-17 冻结）
+
+当前真实运行时已经满足：Requirement Review 20/20 且用户 Final Decision=`accept_for_match`、Match Release Eligible=true、真实 20 个岗位 MatchReport=20/20、UserFeedback=20/20、Top-N evidence 完整。因此项目主线从“继续补业务 Workflow”正式切换为“在稳定 Workflow 之上建设 Agent Runtime”。
+
+后续开发顺序以本节为最高优先级；下方旧 Phase 记录保留作为历史与能力明细，不再代表当前默认开发顺序。
+
+```text
+v0.2 Freeze Candidate
+  └─ 只修真实 P0/P1 闭环 blocker、grounding、stale、安全问题
+
+vNext 1.0 Agent Runtime
+  LG-0 Runtime Boundary
+  → LG-1 LangGraph State + Persistent Checkpoint
+  → LG-2 Durable HITL / Resume / Stale / Idempotency
+  → LG-3 Trajectory Eval + Trace Release Gate
+  → LG-4 Minimal Web Demo / Docs
+
+vNext 1.1 Natural Language + Bounded Tool Calling
+  Career Intent
+  → Dynamic Tool Selection
+  → Multi-turn Tool Loop
+  → Context Budget / Error Classification
+  → Effect / Cost / Human Gate
+
+vNext 1.2 Job Search Execution Layer
+  Application Workspace
+  → Resume Variant
+  → Interview / Mock
+  → Study / Evidence Action
+  → Application Status / Timeline
+  → Evidence → Re-match → Ranking Signal 回流
+
+vNext 1.3 MCP / External Agent Integration
+  JobLens MCP Server
+  → Pi / Claude / 其他 Consumer
+
+vNext 2.0 Continuous Career Agent
+  Periodic Job Refresh
+  → Proactive Notification
+  → Long-term Plan / Memory
+  → Re-evaluation
+```
+
+### 当前冻结的四个主要缺口
+
+1. **真正的 Agent Runtime**：当前只有 Context Builder / Tool Registry / structured single-turn entrypoint，缺 State / Checkpoint / Conditional Routing / Runtime Control；主 PRD：`docs/product/P1-career-agent-langgraph-vnext.md`。
+2. **自然语言理解 + 多轮 Tool Calling**：必须等 Runtime Release Gate 通过后再接入；PRD：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`。
+3. **Durable Human-in-the-loop**：把 Target Cohort 等人工决策升级为可跨请求恢复、幂等、stale-safe 的 Runtime 状态；PRD：`docs/product/P1-career-agent-durable-hitl-prd.md`。
+4. **求职执行层**：把 Ranking / Gap / Preparation 推进到 Resume Variant、Mock Interview、ActionItem、Application Status，并重新回流 Growth Loop；PRD：`docs/product/P1-job-search-execution-layer-prd.md`。
+
+### 开发停止规则
+
+- vNext 1.0 完成前，不提前开发自由聊天式 Agent；
+- Durable HITL / stale / idempotency / trajectory eval 未通过前，不允许开放动态多轮 Tool Loop；
+- vNext 1.1 稳定前，不把自动投递、Recruiter Messaging 或其他外部副作用加入 Tool Registry；
+- Multi-Agent 不进入 vNext 1.x；
+- Growth Loop 进入维护态，不再以增加页面分支或 commit 数作为进度。
+
 ## 当前真实 Active Milestone（2026-09-03）
 
 当前不再把 Requirement live governance 的下一人工步骤误当成整个项目唯一主线：

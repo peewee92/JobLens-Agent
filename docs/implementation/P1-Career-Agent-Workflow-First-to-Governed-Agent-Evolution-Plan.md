@@ -5,6 +5,8 @@
 > 适用范围：Phase 8 Career Agent 及其后续演进。
 >
 > 相关决策：`docs/decisions/0004-llm-workflow-agent-boundary.md`
+>
+> LangGraph Runtime 专项实施规划：`docs/implementation/P1-Career-Agent-LangGraph-Runtime-Integration-Plan.md`
 
 ---
 
@@ -697,22 +699,201 @@ Tool Result
 
 ---
 
-# 10. 分阶段实现建议
+# 10. 重新冻结后的开发顺序（2026-09-17）
 
-不要直接重构成复杂 Multi-Agent。
+当前 v0.1 / v0.2 主业务 Workflow 已经具备真实运行证据：Requirement Review 已放行，真实岗位已有完整 MatchReport / UserFeedback 覆盖，Target Cohort、Skill Gap、Action Plan、Job Preparation 与 Growth Loop 的工程主链均已存在。因此从本版本开始，**不再把继续增加 Growth Loop 小分支作为默认主线**。
 
-## P1-A：自由文本 → 结构化 Career Intent
+新的版本顺序冻结为：
 
-新增一个最小路由层。
+```text
+v0.2 Freeze Candidate
+  ↓
+vNext 1.0 Agent Runtime
+  ├─ Runtime Boundary
+  ├─ LangGraph State / Checkpoint
+  ├─ Durable HITL / Resume / Stale Guard
+  └─ Trajectory Eval / Trace
+  ↓
+vNext 1.1 Natural Language + Bounded Tool Loop
+  ├─ Career Intent
+  ├─ Dynamic Tool Selection
+  ├─ Multi-turn Tool Calling
+  └─ Cost / Effect Gate
+  ↓
+vNext 1.2 Job Search Execution Layer
+  ├─ Application Workspace
+  ├─ Resume Proposal / Review
+  ├─ Interview / Mock
+  ├─ Study / Evidence Actions
+  └─ Application Status
+  ↓
+vNext 1.3 MCP / External Agent Integration
+  ↓
+vNext 2.0 Continuous Career Agent
+```
+
+核心原则：
+
+> **先让 Agent Runtime 可恢复、可中断、可评测，再让 LLM 拥有动态 Tool 决策；先把产品求职执行闭环做实，再做外部协议和长期自主运行。**
+
+Growth Loop 从此进入“真实 blocker 驱动维护”模式：只处理 P0 用户价值 blocker、Evidence grounding / 数据一致性 / 安全问题，不再为了增加 commit 或页面分支继续横向扩张。
+
+---
+
+## P1-0：v0.2 Freeze Gate
+
+目标：冻结当前 Workflow MVP，使后续 Agent 化不会同时改变业务事实层和 Runtime 层。
+
+必须保持：
+
+- Profile / SearchIntent / JobRequirement / MatchReport 的版本化事实边界；
+- Eligibility / Ranking / Gap / Preparation 的现有 Workflow；
+- Requirement Review / Release Gate；
+- Evidence grounding；
+- UserFeedback 由用户显式提交；
+- Growth Loop 已有 `Evidence → Re-match → Improvement → Next Action` 主链。
+
+只允许继续修：
+
+- 真实 P0 / P1 用户闭环 blocker；
+- 数据不一致；
+- stale / provenance / grounding 问题；
+- 安全问题；
+- Agent Runtime 接入必须的稳定接口缺口。
+
+不再做：
+
+- 为 Growth Loop 增加低价值展示分支；
+- 新的 Requirement semantic tuning（除非真实 P0 bad case）；
+- Multi-Agent；
+- 自动投递 / 自动联系招聘者。
+
+---
+
+## P1-A：Agent Runtime Boundary（vNext 1.0 / LG-0）
+
+在任何自然语言路由之前先抽象框架无关 Runtime Port：
+
+```python
+class CareerAgentRuntime(Protocol):
+    def run(self, request): ...
+    def resume(self, request): ...
+    def get_state(self, thread_id): ...
+    def cancel(self, thread_id): ...
+```
+
+实现分为：
+
+```text
+WorkflowCareerAgentRuntime
+LangGraphCareerAgentRuntime
+```
+
+简单只读查询继续走 Workflow Runtime；只有跨步骤、需要 State / Checkpoint / HITL 的任务才进入 LangGraph。
+
+### 验收
+
+- 当前 `CareerAgentEntrypoint` 行为不变；
+- 上层 API 不依赖 LangGraph 类型；
+- Runtime contract 有单元测试；
+- 现有 Agent / Workflow tests 全绿。
+
+---
+
+## P1-B：LangGraph State + Checkpoint（vNext 1.0 / LG-1）
+
+第一条真实 Vertical Slice 固定为：
+
+```text
+Ranking
+→ propose Target Cohort
+→ interrupt
+→ human decision
+→ Skill Gap
+```
+
+第一阶段只使用已经发布的 Profile / SearchIntent / MatchReport / JobRequirement，`provider_calls = 0`。
+
+必须实现：
+
+- 显式 State，不使用 messages-only；
+- conditional routing；
+- SQLite-first persistent checkpoint；
+- thread / run 状态查询；
+- Runtime step / tool / retry limits；
+- Runtime Trace。
+
+### 验收
+
+- 进程重启后仍能读取 pending thread；
+- Checkpoint 只保存事实引用 / version / fingerprint，不复制 raw Resume / JD；
+- business-state writes = 0；
+- Runtime state write 与业务事实 write 指标分离。
+
+---
+
+## P1-C：Durable Human-in-the-loop（vNext 1.0 / LG-2）
+
+HITL 不再只是页面按钮或 URL handoff，而是 Runtime 的正式状态边界。
+
+第一版审批对象：`Target Cohort Proposal`。
+
+支持：
+
+```text
+approve
+edit
+reject
+```
+
+并实现：
+
+- Interrupt Payload；
+-跨请求 Resume；
+- stale Profile / SearchIntent / MatchReport 校验；
+- duplicate resume 幂等；
+- cancel；
+- browser close / service restart recovery；
+- Human Decision 不可由 Agent 代签。
+
+详细需求见：`docs/product/P1-career-agent-durable-hitl-prd.md`。
+
+---
+
+## P1-D：Trajectory Eval + Trace Release Gate（vNext 1.0 / LG-3～LG-4）
+
+LangGraph Runtime 只有在轨迹可评测后才算完成。
+
+至少覆盖：
+
+- expected / forbidden nodes；
+- expected / forbidden tools；
+- interrupt / resume；
+- stale state；
+- duplicate resume；
+- runtime limits；
+- provider_calls；
+- business_state_writes；
+- grounding refs；
+- terminal state。
+
+第一版至少 20 条 deterministic trajectory cases，全部通过才允许进入自然语言 Agent Loop。
+
+---
+
+## P1-E：自由文本 → 结构化 Career Intent（vNext 1.1）
+
+Runtime / HITL / Eval 稳定以后，才允许引入自然语言变量。
 
 输入：
 
 ```text
 用户自然语言
-+ Career Context 摘要
++ Governed Career Context Summary
++ 当前页面 / Job scope（若有）
 ```
 
-输出：
+输出结构化 Intent：
 
 ```json
 {
@@ -720,171 +901,141 @@ Tool Result
   "job_ids": [],
   "current_job_id": null,
   "needs_clarification": false,
+  "clarification_question": null,
   "confidence": 0.0
 }
 ```
 
-第一阶段只负责理解，不执行 Workflow。
+第一步仍只理解，不执行有副作用 Workflow。
 
 ### 验收
 
-至少建立 50 条路由 Eval：
+至少 60 条 NLU Eval，覆盖单目标、多目标、模糊表达、当前岗位引用、越界请求、需要澄清与不可处理请求。
 
-- 单目标；
-- 多目标；
-- 模糊表达；
-- 当前岗位依赖；
-- 无法确认；
-- 不属于 Career Agent 的请求。
+详细需求见：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`。
 
 ---
 
-## P1-B：模型动态 Tool Selection
+## P1-F：Dynamic Tool Selection + Bounded Multi-turn Tool Loop（vNext 1.1）
 
-将当前显式 `CareerAgentGoal -> Tool` 改为：
-
-```text
-Agent
-↓
-Tool Definitions
-↓
-模型选择 Tool
-↓
-Registry.invoke()
-```
-
-但 Tool 仍只暴露已经成熟的只读 Workflow。
-
-### 验收
-
-评测：
-
-- 是否选择正确 Tool；
-- 是否产生不存在的 Tool；
-- 是否错误切换 current Job；
-- 是否绕过 confirmed context；
-- 是否出现不必要调用。
-
----
-
-## P1-C：多轮 Tool Loop
-
-允许：
+把当前显式 `CareerAgentGoal → Tool` 演进为：
 
 ```text
-Tool Result
-↓
-Agent
-↓
-再次 Tool Call
+Goal / State
+→ Model selects Tool
+→ Registry.invoke()
+→ Tool Result
+→ Model decides next step
+→ Tool / Ask Human / Finish
 ```
 
-增加：
+但 Tool 继续只暴露稳定的粗粒度 Workflow，不把 Repository / 内部函数全部 Tool 化。
+
+必须加入：
 
 - maxTurns；
-- timeout；
-- Tool Error；
-- 重复调用检测；
-- Trace。
+- maxToolCalls；
+- unknown tool fail-fast；
+- duplicate call detection；
+- tool replay / idempotency；
+- context budget；
+- timeout / cancellation；
+- structured tool error；
+- execution trace；
+- no-op / loop detection。
 
-### 验收
-
-至少覆盖：
-
-```text
-Ranking → Gap
-Ranking → Prepare
-Ranking → Gap → Action Plan
-Tool empty result → alternative path
-Tool error → fail gracefully
-```
+第一阶段动态 Tool Loop 只开放 read-only / transient tools。产生 Provider 成本或业务写入的 Tool 必须进入下一层 Effect Gate。
 
 ---
 
-## P1-D：Human Gate / Cost Gate
+## P1-G：Effect / Cost / Human Gate（vNext 1.1）
 
-只在 Agent Loop 稳定之后开放有成本工具。
+对以下动作统一产生 `PendingAction`：
 
-执行前生成：
+- Provider 成本动作；
+- Profile / SearchIntent 修改；
+- UserFeedback 写入；
+- Application 状态变化；
+- 未来外部系统动作。
 
-```text
-Pending Action
-```
+`PendingAction` 至少说明：
 
-包括：
+- action type；
+- why；
+- scope；
+- estimated provider calls / cost class；
+- business writes；
+- required human decision；
+- expiration / fingerprint。
 
-- 要调用什么；
-- 为什么需要；
-- 最大范围；
-- 是否产生 Provider 成本；
-- 预计会修改什么状态。
-
-等待用户明确确认后恢复原 Run。
-
-### 验收
-
-- 拒绝后不能偷偷继续；
-- 允许 5 个不能执行 6 个；
-- Provider 异常必须立即停止；
-- 旧授权不能跨 Run 继承；
-- Resume 后不能重复执行已经成功的步骤。
+Agent 可以提出，不能代签。
 
 ---
 
-## P1-E：Agent Eval
+## P1-H：Job Search Execution Layer（vNext 1.2）
 
-不能只评最终回答。
+当 Agent Runtime 和 Tool Loop 稳定后，才把“分析”推进到“执行准备”。
 
-需要分层评测。
-
-### 1. 路由评测
+第一阶段包含：
 
 ```text
-用户请求
-→ goals 是否正确
+Job Application Workspace
+→ Resume Delta Proposal
+→ Human Review / Save Variant
+→ Interview / Mock Preparation
+→ Study / Evidence Action
+→ Application Status Tracking
 ```
 
-### 2. 工具选择评测
+明确不包含自动投递和自动联系招聘者。
+
+所有生成内容必须引用确认的 Profile Evidence / released JobRequirement；生成内容首先是 Proposal，不自动回写确认事实。
+
+详细需求见：`docs/product/P1-job-search-execution-layer-prd.md`。
+
+---
+
+## P1-I：MCP / External Agent Integration（vNext 1.3）
+
+在内部 Runtime / Tool Registry 已稳定后，再将粗粒度只读能力通过 MCP 暴露给外部 Agent。
+
+第一阶段仍坚持：
+
+- local-first / STDIO；
+- read-only / transient；
+- 不自动触发 Provider；
+- 不复制业务规则；
+- JobLens Backend 仍是事实与 Policy 来源。
+
+已有需求见：`docs/product/P1-joblens-mcp-pi-extension.md`。
+
+---
+
+## P2：Continuous Career Agent（vNext 2.0）
+
+只有 vNext 1.x 在真实使用中稳定后才进入长期自主 Agent：
 
 ```text
-当前状态
-→ Tool 是否正确
+Career Goal
+→ Periodic Job Refresh
+→ Compare / Rank
+→ Notify
+→ Gap / Action Plan
+→ New Evidence
+→ Re-match
+→ Plan Update
 ```
 
-### 3. 执行轨迹评测
+此阶段才评估：
 
-也就是评估 Agent 整个行动过程：
+- scheduler / background jobs；
+- durable long-term memory；
+- proactive notifications；
+- periodic re-evaluation；
+- cross-session plan；
+- 远程 MCP / 多用户权限。
 
-```text
-是否调用了不必要工具
-是否顺序错误
-是否绕过人工门禁
-是否重复调用
-是否在证据不足时乱回答
-```
-
-### 4. 最终回答评测
-
-```text
-结论正确性
-Evidence 覆盖
-引用正确性
-是否把 Match Score 当概率
-是否虚构经历
-```
-
-### 5. 系统指标
-
-```text
-成功率
-P50 / P95 延迟
-Token
-Provider 成本
-平均 Tool Calls
-平均 Turns
-Human Gate 触发率
-失败类型分布
-```
+仍不默认等价于自动投递或 Multi-Agent。
 
 ---
 
