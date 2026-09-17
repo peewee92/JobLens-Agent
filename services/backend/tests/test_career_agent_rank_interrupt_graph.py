@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from app.agent.context import CareerAgentContext, CareerAgentProfileContext
 from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.agent.graph.langgraph_rank_interrupt import LangGraphRankToTargetCohortInterrupt
 from app.agent.graph.rank_interrupt import RankToTargetCohortInterrupt
 from app.agent.graph.state import CareerAgentStatus
 from app.agent.tool_registry import CareerAgentToolRegistry
@@ -115,6 +116,39 @@ def test_rank_to_target_cohort_interrupt_persists_only_runtime_references(tmp_pa
     assert "raw_resume" not in serialized
     assert "raw_jd" not in serialized
     assert "api_key" not in serialized
+
+
+def test_langgraph_rank_to_target_cohort_interrupt_executes_frozen_nodes(tmp_path) -> None:
+    ranking = _RankingWorkflow(
+        reports=(_stored("mr_2", "job_2"), _stored("mr_1", "job_1")),
+        calls=[],
+    )
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=_UnusedWorkflow(),
+        job_preparation=_UnusedWorkflow(),
+    )
+    store = SQLiteCareerAgentCheckpointStore(tmp_path / "agent.sqlite3")
+    graph = LangGraphRankToTargetCohortInterrupt(tool_registry=registry, checkpoints=store)
+
+    result = graph.run(
+        context=_context(),
+        thread_id="thread_langgraph",
+        run_id="run_langgraph",
+        request_id="request_langgraph",
+        job_ids=("job_2", "job_1"),
+        top_n=2,
+    )
+
+    assert result.status is CareerAgentStatus.INTERRUPTED
+    assert result.current_step == "target_cohort_confirmation"
+    assert result.ranked_job_ids == ("job_2", "job_1")
+    assert result.proposed_target_job_ids == ("job_2", "job_1")
+    assert result.current_match_report_ids == ("mr_2", "mr_1")
+    assert result.node_count == 2
+    assert result.tool_call_count == 1
+    assert result.provider_call_count == 0
+    assert store.load(thread_id="thread_langgraph") == result
 
 
 def test_rank_to_target_cohort_interrupt_fails_closed_when_no_current_reports(tmp_path) -> None:

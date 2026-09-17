@@ -56,8 +56,8 @@ vNext 2.0 Continuous Career Agent
 ### 当前 vNext 1.0 进度
 
 - `LG-0 Runtime Boundary`：**COMPLETE**。已新增框架无关 `CareerAgentRuntime.run()` Protocol 与 `WorkflowCareerAgentRuntime` adapter；现有 `/career-agent/turn` 改为依赖 Runtime seam，但底层 `CareerAgentEntrypoint`、Tool Registry 与业务 Workflow 行为保持不变。Backend 全量 1035 tests 通过，compileall 通过；未引入 LangGraph、Provider 调用或业务状态写入。
-- `LG-1 LangGraph State + Persistent Checkpoint`：**IN PROGRESS**。第一纵向切片已落地框架无关 `CareerAgentState` 与 SQLite-first `SQLiteCareerAgentCheckpointStore`；第二纵向切片已把现有 read-only Ranking Tool 接成确定性的 `Ranking → Top-N Target Cohort Proposal → persisted interrupt` 前半图，空 Ranking fail-closed 为 `match_not_ready`，Checkpoint 只保存 MatchReport IDs/fingerprint 与 runtime control fields，且保持 `provider_calls=0 / business_state_writes=0`。当前 Backend 环境尚未安装 `langgraph` 包，因此这一步先冻结真实 Node/State/Checkpoint 合同而不伪装成 LangGraph；LG-1 仍需完成实际 `StateGraph` adapter / interrupt 接入后才能关闭。
-- 下一主线：继续 `LG-1`，在正式依赖与 lockfile 一致的前提下增加实际 LangGraph `StateGraph` adapter，使当前 deterministic rank → proposal → checkpoint 合同由 Graph 执行并停在真实 interrupt；继续保持 `provider_calls=0 / business_state_writes=0`。
+- `LG-1 LangGraph State + Persistent Checkpoint`：**COMPLETE**。已落地框架无关 `CareerAgentState`、SQLite-first `SQLiteCareerAgentCheckpointStore`、确定性的 `Ranking → Top-N Target Cohort Proposal → persisted interrupt` 合同，并正式加入 `langgraph` 依赖与 lockfile；`LangGraphRankToTargetCohortInterrupt` 现在用真实 `StateGraph` 执行 Ranking node、conditional edge 与 interrupt checkpoint node，空 Ranking 继续 fail-closed 为 `match_not_ready`。Graph 只编排现有 read-only Ranking Tool，不复制业务逻辑；Checkpoint 只保存 MatchReport IDs/fingerprint 与 runtime control fields，保持 `provider_calls=0 / business_state_writes=0`。
+- 下一主线：进入 `LG-2 Durable HITL`，在已持久化的 `target_cohort_confirmation` 上增加显式 Approve/Edit/Reject → Resume 合同；Resume 前必须验证 Profile/SearchIntent/MatchReport fingerprint 未 stale，重复 decision/resume 必须幂等，仍保持用户决定不可代签。
 
 ### 当前冻结的四个主要缺口
 
