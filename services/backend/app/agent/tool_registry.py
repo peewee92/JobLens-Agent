@@ -12,7 +12,10 @@ from enum import StrEnum
 from typing import Protocol
 
 from app.agent.context import CareerAgentContext
-from app.application.create_target_cohort import CreateFeedbackTargetCohortCommand
+from app.application.create_target_cohort import (
+    CreateFeedbackTargetCohortCommand,
+    CreateManualTargetCohortCommand,
+)
 
 
 class CareerAgentToolName(StrEnum):
@@ -45,7 +48,8 @@ class RankMatchReportsRequest:
 class TargetCohortGapsRequest:
     cohort_id: str
     name: str
-    selected_feedback_ids: tuple[str, ...]
+    selected_feedback_ids: tuple[str, ...] = ()
+    selected_job_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,9 +146,22 @@ class CareerAgentToolRegistry:
             if not isinstance(request, TargetCohortGapsRequest):
                 raise CareerAgentToolError("target_cohort_gaps requires TargetCohortGapsRequest")
             selected_feedback_ids = tuple(dict.fromkeys(request.selected_feedback_ids))
-            if not selected_feedback_ids:
+            selected_job_ids = tuple(dict.fromkeys(request.selected_job_ids))
+            if not selected_feedback_ids and not selected_job_ids:
                 raise CareerAgentToolError(
-                    "target_cohort_gaps requires explicit current UserFeedback selection"
+                    "target_cohort_gaps requires explicit current UserFeedback or Job selection"
+                )
+            if selected_feedback_ids and selected_job_ids:
+                raise CareerAgentToolError(
+                    "target_cohort_gaps accepts exactly one explicit feedback or Job selection"
+                )
+            if selected_job_ids:
+                return self._target_cohort_gaps.execute(
+                    CreateManualTargetCohortCommand(
+                        cohort_id=request.cohort_id,
+                        name=request.name,
+                        selected_job_ids=selected_job_ids,
+                    )
                 )
             return self._target_cohort_gaps.execute(
                 CreateFeedbackTargetCohortCommand(

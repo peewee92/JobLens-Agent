@@ -154,6 +154,23 @@ def test_gap_tool_requires_explicit_feedback_selection_and_preserves_it() -> Non
     assert command.selected_feedback_ids == ("feedback_2", "feedback_1")  # type: ignore[attr-defined]
 
 
+def test_gap_tool_accepts_explicit_human_confirmed_job_selection() -> None:
+    registry, _, gaps, _ = _registry()
+
+    registry.invoke(
+        context=_context(),
+        tool=CareerAgentToolName.TARGET_COHORT_GAPS,
+        request=TargetCohortGapsRequest(
+            cohort_id="cohort_agent_run",
+            name="Confirmed target cohort",
+            selected_job_ids=("job_3", "job_1", "job_3"),
+        ),
+    )
+
+    command = gaps.commands[0]
+    assert command.selected_job_ids == ("job_3", "job_1")  # type: ignore[attr-defined]
+
+
 def test_preparation_is_pinned_to_governed_current_job() -> None:
     registry, _, _, preparation = _registry()
 
