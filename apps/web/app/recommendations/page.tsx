@@ -37,6 +37,7 @@ import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
   matchRecommendationLabels,
+  selectFeedbackDisplayItems,
 } from "@/lib/match-report";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
@@ -184,13 +185,15 @@ export default async function RecommendationsPage({
     : rankedItems;
 
   const blockedCandidates = availableReports.filter(({report}) => report.recommendation === "blocked");
-  const blockedItems = blockedCandidates.slice(0, 5);
   const focusBlockedItem = focusJobId
     ? blockedCandidates.find(({report}) => report.jobId === focusJobId) ?? null
     : null;
-  const blockedDisplayItems = focusBlockedItem && !blockedItems.some(({report}) => report.jobId === focusJobId)
-    ? [...blockedItems, focusBlockedItem]
-    : blockedItems;
+  let blockedDisplayItems = selectFeedbackDisplayItems(
+    blockedCandidates,
+    null,
+    5,
+    focusBlockedItem ? [focusBlockedItem.report.reportId] : [],
+  );
   let blockerSummary = null;
   try {
     blockerSummary = await fetchMatchBlockerSummary(jobs.items.map((job) => job.id));
@@ -341,6 +344,12 @@ export default async function RecommendationsPage({
   const nextFeedbackReportId = feedbackStateAvailable
     ? availableReports.find(({report}) => feedbackByReportId.get(report.reportId) === null)?.report.reportId ?? null
     : null;
+  blockedDisplayItems = selectFeedbackDisplayItems(
+    blockedCandidates,
+    nextFeedbackReportId,
+    5,
+    focusBlockedItem ? [focusBlockedItem.report.reportId] : [],
+  );
   const allCurrentReportsRejected = feedbackStateAvailable
     && availableReports.length > 0
     && availableReports.every(({report}) => feedbackByReportId.get(report.reportId)?.decision === "rejected");

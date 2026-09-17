@@ -1,5 +1,27 @@
 import type {MatchRecommendation} from "@/lib/contracts";
 
+export function selectFeedbackDisplayItems<
+  T extends {report: {reportId: string}},
+>(
+  items: readonly T[],
+  nextPendingReportId: string | null,
+  limit: number,
+  pinnedReportIds: readonly string[] = [],
+): T[] {
+  const visible = items.slice(0, limit);
+  const requiredIds = [nextPendingReportId, ...pinnedReportIds].filter(
+    (reportId): reportId is string => Boolean(reportId),
+  );
+
+  for (const reportId of requiredIds) {
+    if (visible.some((item) => item.report.reportId === reportId)) continue;
+    const requiredItem = items.find((item) => item.report.reportId === reportId);
+    if (requiredItem) visible.push(requiredItem);
+  }
+
+  return visible;
+}
+
 export const matchRecommendationLabels: Record<MatchRecommendation, string> = {
   strong: "值得优先投",
   good: "值得投",
