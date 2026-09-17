@@ -484,6 +484,10 @@ Done：
 
 ### LG-1：State + Graph + Checkpoint
 
+**状态：IN PROGRESS**
+
+已完成第一纵向切片：新增显式、框架无关 `CareerAgentState` 与 SQLite-first checkpoint store；State 只保存 released fact identity/version/fingerprint 和 runtime control fields。专项回归已证明使用同一 SQLite 文件重新创建 Store 后仍可恢复 interrupted thread，并锁定 checkpoint 不复制 raw resume/raw JD/完整 Requirement payload。尚未接入 LangGraph graph、Ranking node、Target Cohort Proposal 与 interrupt，因此本 Work Package 仍未完成。
+
 **预计：5～8h**
 
 产出：
