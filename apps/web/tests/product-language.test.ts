@@ -714,6 +714,8 @@ test("Target Cohort Gap page is phrased around choosing Jobs instead of internal
   assert.match(panel, /再看看/);
   assert.match(panel, /分析这些岗位的共同能力差距/);
   assert.match(panel, /做到什么算补齐/);
+  assert.match(panel, /针对这些岗位开始准备/);
+  assert.match(panel, /\/jobs\/\$\{job\.jobId\}\/prepare/);
   assert.match(panel, /查看技术依据/);
   assert.doesNotMatch(panel, /已选择岗位的反馈 ID|可用逗号、空格或换行分隔/);
 });

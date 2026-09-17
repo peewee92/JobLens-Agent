@@ -595,6 +595,20 @@ export function TargetCohortGapPanel() {
                       </ol>
                     </div>
 
+                    {item.priority === "P0" && supportingJobs.length > 0 ? (
+                      <div className="gap-result-section">
+                        <span className="gap-result-label">针对这些岗位开始准备</span>
+                        <p>直接进入受这项首要差距影响的岗位准备页，用同一组已确认 Requirement 检查简历、面试与学习清单。</p>
+                        <div className="gap-supporting-jobs">
+                          {supportingJobs.map((job) => (
+                            <Link href={`/jobs/${job.jobId}/prepare`} key={job.jobId}>
+                              准备 {job.title} · {job.company}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <details className="gap-technical-details">
                       <summary>查看技术依据</summary>
                       <dl>
