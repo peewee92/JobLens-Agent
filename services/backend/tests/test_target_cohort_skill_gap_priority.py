@@ -113,6 +113,40 @@ def test_priority_is_derived_from_gap_severity_not_market_frequency_alone() -> N
     assert result.items[1].priority is SkillGapPriority.P1
 
 
+def test_repeated_top_gap_becomes_p0_when_small_real_cohort_cannot_reach_absolute_threshold() -> None:
+    result = PrioritizeTargetCohortSkillGapsUseCase().execute(
+        TargetCohortSkillGapMetricsResult(
+            cohort_id="cohort_9",
+            job_ids=tuple(f"job_{index}" for index in range(9)),
+            facts_usable=True,
+            profile_id="profile_1",
+            profile_version=3,
+            items=(
+                _metric(
+                    "AI Coding Tools",
+                    status=ProfileCapabilityCoverageStatus.MISSING,
+                    target_coverage=2 / 9,
+                    must_have_ratio=1.0,
+                    evidence_coverage=0.0,
+                    gap_severity=2 / 9,
+                ),
+                _metric(
+                    "SingleJobGap",
+                    status=ProfileCapabilityCoverageStatus.MISSING,
+                    target_coverage=1 / 9,
+                    must_have_ratio=1.0,
+                    evidence_coverage=0.0,
+                    gap_severity=1 / 9,
+                ),
+            ),
+        )
+    )
+
+    assert result.items[0].capability == "AI Coding Tools"
+    assert result.items[0].priority is SkillGapPriority.P0
+    assert result.items[1].priority is SkillGapPriority.P1
+
+
 def test_unusable_metrics_fail_closed_without_partial_priority_output() -> None:
     metrics = TargetCohortSkillGapMetricsResult(
         cohort_id="cohort_blocked",

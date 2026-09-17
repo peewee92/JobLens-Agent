@@ -45,11 +45,12 @@ class PrioritizeTargetCohortSkillGapsResult:
 class PrioritizeTargetCohortSkillGapsUseCase:
     """Turn transparent gap metrics into a stable P0/P1 backlog.
 
-    P0 is reserved for gaps whose existing ``gap_severity`` is at least 0.5.
-    That signal already combines target-job coverage, must-have importance, and the
-    user's explicit evidence deficit, so priority is not based on market frequency
-    alone. Remaining real gaps are P1. Fully evidenced capabilities are not gaps and
-    are omitted.
+    P0 normally means an existing ``gap_severity`` of at least 0.5. For a small
+    real TargetCohort, fragmented requirements can make that absolute threshold
+    unreachable even when one missing must-have capability is the clear repeated
+    top gap. If there is no absolute P0, the unique highest-severity missing
+    must-have gap is promoted to P0 only when it appears in at least two cohort
+    jobs. Single-job gaps remain P1. Fully evidenced capabilities are omitted.
 
     This layer deliberately does not generate actions or completion criteria.
     """
@@ -63,16 +64,46 @@ class PrioritizeTargetCohortSkillGapsUseCase:
         if not metrics.facts_usable:
             return self._blocked(metrics)
 
-        items: list[PrioritizedTargetCohortSkillGap] = []
-        for metric in metrics.items:
-            if metric.coverage_status is ProfileCapabilityCoverageStatus.EVIDENCED:
-                continue
-            if metric.gap_severity <= 0:
-                continue
+        gap_metrics = [
+            metric
+            for metric in metrics.items
+            if metric.coverage_status is not ProfileCapabilityCoverageStatus.EVIDENCED
+            and metric.gap_severity > 0
+        ]
+        has_absolute_p0 = any(
+            metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
+            for metric in gap_metrics
+        )
+        relative_p0_capability: str | None = None
+        if not has_absolute_p0 and gap_metrics:
+            ranked = sorted(
+                gap_metrics,
+                key=lambda metric: (
+                    -metric.gap_severity,
+                    -metric.target_coverage,
+                    metric.capability.casefold(),
+                    metric.capability,
+                ),
+            )
+            top = ranked[0]
+            next_severity = ranked[1].gap_severity if len(ranked) > 1 else 0.0
+            estimated_job_count = round(top.target_coverage * len(metrics.job_ids))
+            if (
+                top.coverage_status is ProfileCapabilityCoverageStatus.MISSING
+                and top.must_have_ratio == 1.0
+                and estimated_job_count >= 2
+                and top.gap_severity > next_severity
+            ):
+                relative_p0_capability = top.capability
 
+        items: list[PrioritizedTargetCohortSkillGap] = []
+        for metric in gap_metrics:
             priority = (
                 SkillGapPriority.P0
-                if metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
+                if (
+                    metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
+                    or metric.capability == relative_p0_capability
+                )
                 else SkillGapPriority.P1
             )
             items.append(
