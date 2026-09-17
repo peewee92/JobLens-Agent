@@ -53,6 +53,11 @@ vNext 2.0 Continuous Career Agent
   → Re-evaluation
 ```
 
+### 当前 vNext 1.0 进度
+
+- `LG-0 Runtime Boundary`：**COMPLETE**。已新增框架无关 `CareerAgentRuntime.run()` Protocol 与 `WorkflowCareerAgentRuntime` adapter；现有 `/career-agent/turn` 改为依赖 Runtime seam，但底层 `CareerAgentEntrypoint`、Tool Registry 与业务 Workflow 行为保持不变。Backend 全量 1035 tests 通过，compileall 通过；未引入 LangGraph、Provider 调用或业务状态写入。
+- 下一主线：`LG-1 LangGraph State + Persistent Checkpoint`，只实现显式 Runtime State、deterministic graph、SQLite-first checkpoint 与 `Ranking → Target Cohort Proposal → interrupt`，继续保持 `provider_calls=0 / business_state_writes=0`。
+
 ### 当前冻结的四个主要缺口
 
 1. **真正的 Agent Runtime**：当前只有 Context Builder / Tool Registry / structured single-turn entrypoint，缺 State / Checkpoint / Conditional Routing / Runtime Control；主 PRD：`docs/product/P1-career-agent-langgraph-vnext.md`。

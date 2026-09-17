@@ -463,6 +463,10 @@ expected_provider_calls
 
 ### LG-0：Runtime Boundary
 
+**状态：COMPLETE**
+
+已完成工程证据：框架无关 `CareerAgentRuntime.run()` Protocol、`WorkflowCareerAgentRuntime` adapter、FastAPI `/career-agent/turn` Runtime 注入；现有 `CareerAgentEntrypoint` 行为保持不变。专项回归 11 passed，Backend 全量 1035 passed，compileall 通过；零 Provider、零业务状态写入、未引入 LangGraph 类型到 API。
+
 **预计：2～3h**
 
 产出：

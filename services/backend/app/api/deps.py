@@ -7,6 +7,7 @@ from sqlalchemy import inspect
 
 from app.agent.context import CareerAgentContextBuilder
 from app.agent.entrypoint import CareerAgentEntrypoint
+from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.career_context.release import (
@@ -944,6 +945,12 @@ def get_career_agent_entrypoint(
         job_preparation=job_preparation,
     )
     return CareerAgentEntrypoint(context_builder=context_builder, tools=tools)
+
+
+def get_career_agent_runtime(
+    entrypoint: CareerAgentEntrypoint = Depends(get_career_agent_entrypoint),
+) -> CareerAgentRuntime:
+    return WorkflowCareerAgentRuntime(entrypoint=entrypoint)
 
 
 def get_match_review_readiness_use_case(

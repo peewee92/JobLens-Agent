@@ -3,12 +3,12 @@ from fastapi.testclient import TestClient
 from app.agent.context import CareerAgentContext
 from app.agent.entrypoint import CareerAgentGoal, CareerAgentTurnResult
 from app.agent.tool_registry import CareerAgentToolName
-from app.api.deps import get_career_agent_entrypoint
+from app.api.deps import get_career_agent_runtime
 from app.main import app
 
 
-class _Entrypoint:
-    def execute(self, turn):
+class _Runtime:
+    def run(self, turn):
         return CareerAgentTurnResult(
             context=CareerAgentContext(
                 usable=True,
@@ -27,7 +27,7 @@ class _Entrypoint:
 
 
 def test_career_agent_turn_exposes_one_governed_entrypoint() -> None:
-    app.dependency_overrides[get_career_agent_entrypoint] = lambda: _Entrypoint()
+    app.dependency_overrides[get_career_agent_runtime] = lambda: _Runtime()
     try:
         with TestClient(app) as client:
             response = client.post(
