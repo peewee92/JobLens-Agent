@@ -25,7 +25,13 @@ def _normalization(*capabilities: TargetCohortCapability) -> TargetCohortCapabil
     )
 
 
-def _capability(name: str, *, requirement_ids: tuple[str, ...], job_ids: tuple[str, ...]) -> TargetCohortCapability:
+def _capability(
+    name: str,
+    *,
+    requirement_ids: tuple[str, ...],
+    job_ids: tuple[str, ...],
+    member_options: tuple[str, ...] = (),
+) -> TargetCohortCapability:
     return TargetCohortCapability(
         capability=name,
         source_capabilities=(name,),
@@ -36,6 +42,7 @@ def _capability(name: str, *, requirement_ids: tuple[str, ...], job_ids: tuple[s
         must_have_count=1,
         preferred_count=max(0, len(requirement_ids) - 1),
         bonus_count=0,
+        member_options=member_options,
     )
 
 
@@ -103,6 +110,33 @@ def test_comparison_matches_explicit_alias_and_preserves_both_sides_provenance()
     assert kafka.status is ProfileCapabilityCoverageStatus.MISSING
     assert kafka.profile_skill_ids == ()
     assert kafka.evidence_ids == ()
+
+
+def test_explicit_compound_member_option_reuses_exact_confirmed_profile_skill() -> None:
+    result = CompareTargetCohortCapabilitiesToProfileUseCase().execute(
+        _normalization(
+            _capability(
+                "Shell/Python/Java/Go/TypeScript",
+                requirement_ids=("req_1",),
+                job_ids=("job_1",),
+                member_options=("Shell", "Python", "Java", "Go", "TypeScript"),
+            ),
+            _capability(
+                "Python、Java",
+                requirement_ids=("req_2",),
+                job_ids=("job_2",),
+            ),
+        ),
+        _profile(),
+    )
+
+    alternative, conjunctive = result.capabilities
+    assert alternative.status is ProfileCapabilityCoverageStatus.EVIDENCED
+    assert alternative.profile_skill_ids == ("skill_ts",)
+    assert alternative.evidence_ids == ("evidence_ts",)
+    assert conjunctive.status is ProfileCapabilityCoverageStatus.MISSING
+    assert conjunctive.profile_skill_ids == ()
+    assert conjunctive.evidence_ids == ()
 
 
 def test_profile_skill_without_evidence_is_not_upgraded_to_evidenced() -> None:

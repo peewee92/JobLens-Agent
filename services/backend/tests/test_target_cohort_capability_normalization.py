@@ -89,6 +89,58 @@ def test_unknown_capability_is_not_fuzzily_merged_and_non_skill_facts_are_ignore
     assert [item.requirement_ids for item in result.capabilities] == [("req_1",), ("req_2",)]
 
 
+def test_explicit_example_or_alternative_lists_expose_exact_member_options_without_fuzzy_inference() -> None:
+    facts = (
+        replace(
+            _fact("req_1", job_id="job_1", capability="LangChain, RAG, Agent", importance=RequirementImportance.MUST_HAVE),
+            original_text="熟悉当前主流AI技术栈,包括但不限于 LangChain、RAG、Agent 等",
+        ),
+        replace(
+            _fact("req_2", job_id="job_2", capability="Dify、Coze"),
+            original_text="熟悉Dify、Coze等低代码/无代码AI平台",
+        ),
+        replace(
+            _fact("req_3", job_id="job_3", capability="Shell/Python/Java/Go/TypeScript"),
+            original_text="Shell / Python / Java / Go / TypeScript 任意一种基础开发能力",
+        ),
+        replace(
+            _fact("req_4", job_id="job_3", capability="LLM, Prompt Engineering, Fine-tuning, RAG, Agent"),
+            original_text="熟悉大语言模型相关技术,有 Prompt Engineering、Fine-tuning、RAG、Agent 等实践经验者优先",
+        ),
+    )
+
+    result = NormalizeTargetCohortCapabilitiesUseCase().execute(_aggregation(*facts))
+
+    by_name = {item.capability: item for item in result.capabilities}
+    assert by_name["LangChain, RAG, Agent"].member_options == ("LangChain", "RAG", "Agent")
+    assert by_name["Dify、Coze"].member_options == ("Dify", "Coze")
+    assert by_name["Shell/Python/Java/Go/TypeScript"].member_options == (
+        "Shell",
+        "Python",
+        "Java",
+        "Go",
+        "TypeScript",
+    )
+    assert by_name["LLM, Prompt Engineering, Fine-tuning, RAG, Agent"].member_options == (
+        "LLM",
+        "Prompt Engineering",
+        "Fine-tuning",
+        "RAG",
+        "Agent",
+    )
+
+
+def test_plain_conjunctive_compound_does_not_become_an_any_member_option() -> None:
+    fact = replace(
+        _fact("req_1", job_id="job_1", capability="Python、Java", importance=RequirementImportance.MUST_HAVE),
+        original_text="同时熟悉 Python、Java 服务端开发",
+    )
+
+    result = NormalizeTargetCohortCapabilitiesUseCase().execute(_aggregation(fact))
+
+    assert result.capabilities[0].member_options == ()
+
+
 def test_blocked_requirement_aggregation_fails_closed_without_capabilities() -> None:
     blocked = replace(
         _aggregation(_fact("req_1", job_id="job_1", capability="ReactJS")),

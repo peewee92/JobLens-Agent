@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from app.application.target_cohort_requirement_aggregation import (
     TargetCohortRequirementAggregationResult,
@@ -22,6 +23,30 @@ _EXPLICIT_CAPABILITY_ALIASES: dict[str, str] = {
     "vuejs": "Vue.js",
 }
 
+_EXPLICIT_MEMBER_SCOPE_MARKERS = (
+    "包括但不限于",
+    "任意一种",
+    "任意一个",
+    "任一种",
+    "任一个",
+    "任一",
+    "至少一个",
+    "至少一种",
+    "之一",
+    "including but not limited to",
+    "such as",
+    "for example",
+    "e.g.",
+    "e.g",
+    "any one",
+    "one of",
+    "either",
+)
+_EXAMPLE_CATEGORY_SCOPE = re.compile(
+    r"等[^，,。；;]{0,24}(?:平台|框架|技术栈|工具|概念|能力|语言|数据库|模型|协议|实践经验)",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class TargetCohortCapability:
@@ -34,6 +59,7 @@ class TargetCohortCapability:
     must_have_count: int
     preferred_count: int
     bonus_count: int
+    member_options: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +83,7 @@ class _CapabilityAccumulator:
     must_have_count: int = 0
     preferred_count: int = 0
     bonus_count: int = 0
+    member_options: list[str] | None = None
 
 
 class NormalizeTargetCohortCapabilitiesUseCase:
@@ -96,11 +123,15 @@ class NormalizeTargetCohortCapabilitiesUseCase:
                     source_capabilities=[],
                     requirement_ids=[],
                     job_ids=[],
+                    member_options=[],
                 )
                 accumulators[capability] = accumulator
 
             if source_capability not in accumulator.source_capabilities:
                 accumulator.source_capabilities.append(source_capability)
+            for member in _explicit_member_options(fact.original_text, source_capability):
+                if member not in accumulator.member_options:
+                    accumulator.member_options.append(member)
             accumulator.requirement_ids.append(fact.requirement_id)
             if fact.job_id not in accumulator.job_ids:
                 accumulator.job_ids.append(fact.job_id)
@@ -123,6 +154,7 @@ class NormalizeTargetCohortCapabilitiesUseCase:
                 must_have_count=item.must_have_count,
                 preferred_count=item.preferred_count,
                 bonus_count=item.bonus_count,
+                member_options=tuple(item.member_options or ()),
             )
             for item in accumulators.values()
         )
@@ -133,6 +165,29 @@ class NormalizeTargetCohortCapabilitiesUseCase:
             capabilities=capabilities,
             blockers=(),
         )
+
+
+def _explicit_member_options(original_text: str, capability: str) -> tuple[str, ...]:
+    """Expose exact list members only when the JD explicitly declares option/example scope.
+
+    This is deliberately narrower than generic tokenization. A plain conjunctive
+    requirement such as ``Python、Java`` remains one capability unless the source
+    text itself says the list is optional/alternative/example-based.
+    """
+    scope = original_text.casefold()
+    if not any(marker in scope for marker in _EXPLICIT_MEMBER_SCOPE_MARKERS) and not _EXAMPLE_CATEGORY_SCOPE.search(original_text):
+        return ()
+
+    split_pattern = r"\s*[,，、]\s*"
+    if capability.count("/") >= 2:
+        split_pattern = r"\s*[,，、/]\s*"
+    members = [
+        canonicalize_target_cohort_capability(part.strip(" `*"))
+        for part in re.split(split_pattern, capability)
+        if part.strip(" `*")
+    ]
+    members = list(dict.fromkeys(members))
+    return tuple(members) if len(members) >= 2 else ()
 
 
 def canonicalize_target_cohort_capability(value: str) -> str:

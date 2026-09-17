@@ -79,7 +79,11 @@ class CompareTargetCohortCapabilitiesToProfileUseCase:
 
         comparisons: list[TargetCohortProfileCapabilityComparison] = []
         for capability in market.capabilities:
-            matched_skills = skills_by_capability.get(capability.capability, [])
+            matched_skills = list(skills_by_capability.get(capability.capability, []))
+            if not matched_skills and capability.member_options:
+                for member in capability.member_options:
+                    matched_skills.extend(skills_by_capability.get(member, []))
+                matched_skills = list(dict.fromkeys(matched_skills))
             skill_ids = tuple(item[0] for item in matched_skills)
             evidence_ids = tuple(
                 dict.fromkeys(
