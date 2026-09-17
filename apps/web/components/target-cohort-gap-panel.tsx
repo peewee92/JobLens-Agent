@@ -92,7 +92,7 @@ const completionCriteriaLabels: Record<string, string> = {
 };
 
 function currentStateLabel(value: string): string {
-  if (value === "missing") return "当前职业背景里还没有确认这项能力。";
+  if (value === "missing" || value === "capability_missing") return "当前职业背景里还没有确认这项能力。";
   if (value === "skill_exists_without_confirmed_evidence") {
     return "你已经写过这项能力，但还缺少可核验的项目或工作证据。";
   }
@@ -101,6 +101,32 @@ function currentStateLabel(value: string): string {
 
 function completionCriterionLabel(value: string): string {
   return completionCriteriaLabels[value] ?? value;
+}
+
+const SAFE_FACT_ID = /^[A-Za-z0-9_-]{1,120}$/;
+
+function buildGapEvidenceHref(item: GapItem): string | null {
+  if (item.priority !== "P0") return null;
+
+  const supportingJobIds = Array.from(new Set(item.supportingJobIds.filter((id) => SAFE_FACT_ID.test(id))));
+  const supportingRequirementIds = Array.from(
+    new Set(item.supportingRequirementIds.filter((id) => SAFE_FACT_ID.test(id))),
+  );
+  const focusJobId = supportingJobIds[0];
+  const focusRequirementId = supportingRequirementIds[0];
+  const focusCapability = item.capability.trim().slice(0, 120);
+  if (!focusJobId || !focusRequirementId || !focusCapability) return null;
+
+  const query = new URLSearchParams({
+    next: "/recommendations",
+    focusRequirement: "skill",
+    focusJob: focusJobId,
+    focusRequirementId,
+    focusCapability,
+    focusImpactJobs: supportingJobIds.slice(0, 3).join(","),
+    focusImpactRequirementIds: supportingRequirementIds.slice(0, 20).join(","),
+  });
+  return `/profile?${query.toString()}`;
 }
 
 function parseGapBlocker(value: string): ParsedGapBlocker {
@@ -552,6 +578,7 @@ export function TargetCohortGapPanel() {
                   .filter((candidate): candidate is CohortCandidate => Boolean(candidate));
                 const coverage = Math.round((item.whyImportant.targetCoverage ?? 0) * 100);
                 const mustHaveRatio = Math.round((item.whyImportant.mustHaveRatio ?? 0) * 100);
+                const evidenceHref = buildGapEvidenceHref(item);
                 return (
                   <article className="gap-result-card" key={item.capability}>
                     <div className="gap-result-topline">
@@ -593,6 +620,14 @@ export function TargetCohortGapPanel() {
                           <li key={criterion}>{completionCriterionLabel(criterion)}</li>
                         ))}
                       </ol>
+                      {evidenceHref ? (
+                        <div className="actions">
+                          <Link className="button" href={evidenceHref}>核实并补充真实经历</Link>
+                          <p className="muted">
+                            只有你确实做过时才补 Skill / Evidence；保存后回到推荐页显式 Re-match，JobLens 会用这些 Requirement 重新验证这次资料是否真的带来改善。
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
 
                     {item.priority === "P0" && supportingJobs.length > 0 ? (
