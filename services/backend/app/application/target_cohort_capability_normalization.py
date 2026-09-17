@@ -21,6 +21,8 @@ _EXPLICIT_CAPABILITY_ALIASES: dict[str, str] = {
     "nextjs": "Next.js",
     "vue.js": "Vue.js",
     "vuejs": "Vue.js",
+    "ai coding工具": "AI Coding Tools",
+    "ai编码工具": "AI Coding Tools",
 }
 
 _EXPLICIT_MEMBER_SCOPE_MARKERS = (

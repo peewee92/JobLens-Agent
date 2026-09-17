@@ -71,6 +71,23 @@ def test_explicit_aliases_collapse_to_one_capability_and_preserve_provenance() -
     assert capability.bonus_count == 0
 
 
+def test_bilingual_labels_for_the_same_explicit_capability_collapse_without_fuzzy_matching() -> None:
+    result = NormalizeTargetCohortCapabilitiesUseCase().execute(
+        _aggregation(
+            _fact("req_1", job_id="job_1", capability="AI Coding工具", importance=RequirementImportance.MUST_HAVE),
+            _fact("req_2", job_id="job_2", capability="AI编码工具", importance=RequirementImportance.MUST_HAVE),
+        )
+    )
+
+    assert len(result.capabilities) == 1
+    capability = result.capabilities[0]
+    assert capability.capability == "AI Coding Tools"
+    assert capability.source_capabilities == ("AI Coding工具", "AI编码工具")
+    assert capability.requirement_ids == ("req_1", "req_2")
+    assert capability.job_ids == ("job_1", "job_2")
+    assert capability.must_have_count == 2
+
+
 def test_unknown_capability_is_not_fuzzily_merged_and_non_skill_facts_are_ignored() -> None:
     result = NormalizeTargetCohortCapabilitiesUseCase().execute(
         _aggregation(
