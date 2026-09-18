@@ -566,7 +566,9 @@ Done：
 
 ### LG-4：Minimal Web HITL Demo / Evidence
 
-**状态：NEXT**
+**状态：IN PROGRESS**
+
+第一纵向切片已完成最小 durable HTTP seam：`POST /career-agent/runs` 创建并执行到真实 Target Cohort interrupt，`GET /career-agent/runs/{thread_id}` 从 SQLite checkpoint 恢复 compact pending/terminal state，`POST /career-agent/runs/{thread_id}/resume` 显式消费 Approve/Edit/Reject 后执行 stale guard，并仅在事实仍 current 时进入现有 Skill Gap Workflow。API 通过框架无关 `CareerAgentHitlService` 组合现有 LG-1/LG-2 handlers，不向 FastAPI 暴露 LangGraph 类型；重复 Start 的相同 thread/run/request 幂等返回已有 checkpoint，不重复 Ranking。公开状态只包含 Runtime status/step、Job IDs、interrupt/decision 与 Gap fingerprint，不复制 raw Resume/JD/Requirement/大 Tool Output。专项 API + Runtime 回归 21 passed。下一 slice 是最小 Web Run/Interrupt/Decision/Resume UI 与页面刷新后的 pending thread 恢复。
 
 **预计：2～3h**
 

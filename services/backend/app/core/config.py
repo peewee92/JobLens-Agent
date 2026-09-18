@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     database_url: str = "sqlite:///./data/joblens.db"
+    career_agent_checkpoint_path: str = "./data/career-agent-runtime.db"
     profile_extractor_provider: str = "disabled"
     profile_extractor_model: str = ""
     profile_extractor_api_style: Literal["responses", "chat_completions"] = "responses"

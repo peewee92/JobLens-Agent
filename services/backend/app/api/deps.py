@@ -7,6 +7,8 @@ from sqlalchemy import inspect
 
 from app.agent.context import CareerAgentContextBuilder
 from app.agent.entrypoint import CareerAgentEntrypoint
+from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.agent.graph.hitl_service import CareerAgentHitlService
 from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
@@ -951,6 +953,34 @@ def get_career_agent_runtime(
     entrypoint: CareerAgentEntrypoint = Depends(get_career_agent_entrypoint),
 ) -> CareerAgentRuntime:
     return WorkflowCareerAgentRuntime(entrypoint=entrypoint)
+
+
+def get_career_agent_hitl_service(
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    target_cohort_gaps: BuildSelectedFeedbackTargetCohortGapDetailsUseCase = Depends(
+        get_target_cohort_gap_query_use_case
+    ),
+    job_preparation: BuildJobPreparationBundleUseCase = Depends(
+        get_job_preparation_bundle_use_case
+    ),
+) -> CareerAgentHitlService:
+    settings = get_settings()
+    context_builder = CareerAgentContextBuilder(career_context=career_context, jobs=jobs)
+    tools = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=target_cohort_gaps,
+        job_preparation=job_preparation,
+    )
+    checkpoints = SQLiteCareerAgentCheckpointStore(settings.career_agent_checkpoint_path)
+    return CareerAgentHitlService(
+        checkpoints=checkpoints,
+        context_builder=context_builder,
+        tool_registry=tools,
+    )
 
 
 def get_match_review_readiness_use_case(
