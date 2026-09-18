@@ -537,6 +537,10 @@ Done：
 
 ### LG-3：Trajectory Eval + Trace
 
+**状态：IN PROGRESS**
+
+第一纵向切片已建立 Runtime Release Gate 的确定性 grader foundation：新增 `CareerAgentTrajectorySnapshot / Case / EvalReport`，以显式 Runtime State、visited node sequence、Provider call counter 与 business-state-write counter 为输入；Release Gate 强制至少 20 个唯一 Case ID，并支持 expected status、expected node ordering、forbidden node、`max_provider_calls`、`max_business_state_writes` 断言。测试先证明模块缺失，再验证 20-case all-pass gate，以及注入 forbidden Provider node + Provider call + business write 后能精确指出三类 guardrail failure。该 slice 只建立 grader 合同，不把 20 个重复 happy-path fixture 冒充正式 trajectory dataset；下一 slice 必须冻结 20 个有差异的真实 Runtime trajectory cases，并把运行路径产生的 Trace snapshot 接入 grader。
+
 **预计：5～7h**
 
 产出：
