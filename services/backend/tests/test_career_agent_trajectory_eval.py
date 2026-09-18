@@ -12,6 +12,7 @@ from app.evals.career_agent_runtime import (
     build_persisted_trajectory_snapshot,
     evaluate_career_agent_trajectories,
 )
+from app.evals.career_agent_runtime_dataset import build_frozen_runtime_trajectory_cases
 
 
 def _state(**overrides) -> CareerAgentState:
@@ -103,24 +104,20 @@ def test_trajectory_eval_requires_twenty_cases() -> None:
         evaluate_career_agent_trajectories(cases=(case,))
 
 
-def test_twenty_case_release_gate_passes_and_reports_guardrail_failures() -> None:
-    happy = CareerAgentTrajectorySnapshot(
-        state=_state(),
-        visited_nodes=("rank_jobs", "persist_interrupt", "resume", "skill_gap"),
-        business_state_writes=0,
-    )
-    cases = tuple(
-        CareerAgentTrajectoryCase(
-            case_id=f"case_{index:02d}",
-            snapshot=happy,
-            expected_status=CareerAgentStatus.COMPLETED,
-            expected_nodes=("rank_jobs", "persist_interrupt", "resume", "skill_gap"),
-            forbidden_nodes=("provider", "requirement_extraction", "semantic_match"),
-            max_provider_calls=0,
-            max_business_state_writes=0,
-        )
-        for index in range(20)
-    )
+def test_frozen_twenty_case_release_gate_passes_and_reports_guardrail_failures(tmp_path) -> None:
+    cases = build_frozen_runtime_trajectory_cases(database_path=tmp_path / "trajectory_dataset.sqlite3")
+
+    assert len(cases) == 20
+    assert len({case.snapshot.visited_nodes for case in cases}) >= 8
+    assert {case.expected_status for case in cases} >= {
+        CareerAgentStatus.COMPLETED,
+        CareerAgentStatus.CANCELLED,
+        CareerAgentStatus.STALE,
+        CareerAgentStatus.BLOCKED,
+        CareerAgentStatus.INTERRUPTED,
+    }
+    assert any(case.snapshot.state.human_decision == "edit" for case in cases)
+    assert any(case.snapshot.state.human_decision == "reject" for case in cases)
 
     report = evaluate_career_agent_trajectories(cases=cases)
 
@@ -131,8 +128,8 @@ def test_twenty_case_release_gate_passes_and_reports_guardrail_failures() -> Non
     unsafe = replace(
         cases[-1],
         snapshot=CareerAgentTrajectorySnapshot(
-            state=_state(provider_call_count=1),
-            visited_nodes=("rank_jobs", "provider", "persist_interrupt", "resume", "skill_gap"),
+            state=replace(cases[-1].snapshot.state, provider_call_count=1),
+            visited_nodes=cases[-1].snapshot.visited_nodes + ("provider",),
             business_state_writes=1,
         ),
     )
