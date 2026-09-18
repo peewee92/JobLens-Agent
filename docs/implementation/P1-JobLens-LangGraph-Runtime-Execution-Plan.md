@@ -568,7 +568,7 @@ Done：
 
 **状态：IN PROGRESS**
 
-第一纵向切片已完成最小 durable HTTP seam：`POST /career-agent/runs` 创建并执行到真实 Target Cohort interrupt，`GET /career-agent/runs/{thread_id}` 从 SQLite checkpoint 恢复 compact pending/terminal state，`POST /career-agent/runs/{thread_id}/resume` 显式消费 Approve/Edit/Reject 后执行 stale guard，并仅在事实仍 current 时进入现有 Skill Gap Workflow。API 通过框架无关 `CareerAgentHitlService` 组合现有 LG-1/LG-2 handlers，不向 FastAPI 暴露 LangGraph 类型；重复 Start 的相同 thread/run/request 幂等返回已有 checkpoint，不重复 Ranking。公开状态只包含 Runtime status/step、Job IDs、interrupt/decision 与 Gap fingerprint，不复制 raw Resume/JD/Requirement/大 Tool Output。专项 API + Runtime 回归 21 passed。下一 slice 是最小 Web Run/Interrupt/Decision/Resume UI 与页面刷新后的 pending thread 恢复。
+第一纵向切片已完成最小 durable HTTP seam：`POST /career-agent/runs` 创建并执行到真实 Target Cohort interrupt，`GET /career-agent/runs/{thread_id}` 从 SQLite checkpoint 恢复 compact pending/terminal state，`POST /career-agent/runs/{thread_id}/resume` 显式消费 Approve/Edit/Reject 后执行 stale guard，并仅在事实仍 current 时进入现有 Skill Gap Workflow。API 通过框架无关 `CareerAgentHitlService` 组合现有 LG-1/LG-2 handlers，不向 FastAPI 暴露 LangGraph 类型；重复 Start 的相同 thread/run/request 幂等返回已有 checkpoint，不重复 Ranking。公开状态只包含 Runtime status/step、Job IDs、interrupt/decision 与 Gap fingerprint，不复制 raw Resume/JD/Requirement/大 Tool Output。第二纵向切片已新增最小 `/agent` Web UI：真实 Job Pool 中最多选择 10 个岗位后 Start，pending interrupt 展示 requested/proposed selection，并允许 Approve/Edit/Reject；浏览器只在 localStorage 保存 `thread_id`，刷新/重新进入后用 GET run 恢复 Backend durable state，terminal 后清除该引用。所有浏览器命令都经过 same-origin Route Handler，Web 全量 160 tests、typecheck、production build 通过。下一 slice 只补一条可重复的 failure/recovery E2E 证据，之后关闭 LG-4。
 
 **预计：2～3h**
 

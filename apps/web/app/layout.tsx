@@ -32,6 +32,7 @@ export default function RootLayout({children}: {children: ReactNode}) {
               <NavLink href="/jobs">我的岗位</NavLink>
               <NavLink href="/recommendations">优先投递</NavLink>
               <NavLink href="/gaps">能力差距</NavLink>
+              <NavLink href="/agent">Career Agent</NavLink>
               <NavLink href="/import">添加岗位</NavLink>
             </nav>
           </div>
