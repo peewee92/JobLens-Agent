@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
 from app.agent.graph.state import CareerAgentState, CareerAgentStatus
 
 
@@ -47,6 +48,21 @@ class CareerAgentTrajectoryEvalReport:
     failed_cases: int
     gate_passed: bool
     case_results: tuple[CareerAgentTrajectoryCaseResult, ...]
+
+
+def build_persisted_trajectory_snapshot(
+    *, checkpoints: SQLiteCareerAgentCheckpointStore, thread_id: str
+) -> CareerAgentTrajectorySnapshot:
+    """Build a compact trace from durable state transitions, not process memory."""
+
+    history = checkpoints.load_history(thread_id=thread_id)
+    if not history:
+        raise ValueError(f"no persisted Career Agent trajectory for thread {thread_id!r}")
+    return CareerAgentTrajectorySnapshot(
+        state=history[-1],
+        visited_nodes=tuple(state.current_step for state in history),
+        business_state_writes=0,
+    )
 
 
 def evaluate_career_agent_trajectories(
@@ -119,5 +135,6 @@ __all__ = [
     "CareerAgentTrajectoryEvalReport",
     "CareerAgentTrajectorySnapshot",
     "MIN_RELEASE_GATE_CASES",
+    "build_persisted_trajectory_snapshot",
     "evaluate_career_agent_trajectories",
 ]

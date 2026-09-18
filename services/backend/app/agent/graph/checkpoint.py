@@ -34,6 +34,17 @@ class SQLiteCareerAgentCheckpointStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS career_agent_checkpoint_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    thread_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(thread_id, payload_json)
+                )
+                """
+            )
 
     def save(self, state: CareerAgentState) -> None:
         payload_json = json.dumps(
@@ -63,6 +74,13 @@ class SQLiteCareerAgentCheckpointStore:
                     payload_json,
                 ),
             )
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO career_agent_checkpoint_events (thread_id, payload_json)
+                VALUES (?, ?)
+                """,
+                (state.thread_id, payload_json),
+            )
 
     def load(self, *, thread_id: str) -> CareerAgentState | None:
         payload = self.load_payload(thread_id=thread_id)
@@ -82,6 +100,21 @@ class SQLiteCareerAgentCheckpointStore:
         if not isinstance(payload, dict):
             raise ValueError("career agent checkpoint payload must be an object")
         return payload
+
+    def load_history(self, *, thread_id: str) -> tuple[CareerAgentState, ...]:
+        """Return unique persisted state transitions in first-seen order."""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM career_agent_checkpoint_events
+                WHERE thread_id = ?
+                ORDER BY event_id ASC
+                """,
+                (thread_id,),
+            ).fetchall()
+        return tuple(CareerAgentState.from_payload(json.loads(row[0])) for row in rows)
 
 
 __all__ = ["SQLiteCareerAgentCheckpointStore"]
