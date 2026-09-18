@@ -537,13 +537,15 @@ Done：
 
 ### LG-3：Trajectory Eval + Trace
 
-**状态：IN PROGRESS**
+**状态：COMPLETE**
 
 第一纵向切片已建立 Runtime Release Gate 的确定性 grader foundation：新增 `CareerAgentTrajectorySnapshot / Case / EvalReport`，以显式 Runtime State、visited node sequence、Provider call counter 与 business-state-write counter 为输入；Release Gate 强制至少 20 个唯一 Case ID，并支持 expected status、expected node ordering、forbidden node、`max_provider_calls`、`max_business_state_writes` 断言。测试先证明模块缺失，再验证 20-case all-pass gate，以及注入 forbidden Provider node + Provider call + business write 后能精确指出三类 guardrail failure。
 
 第二纵向切片把 Trace 从测试手写数组接到真实 durable checkpoint：`SQLiteCareerAgentCheckpointStore.save()` 除维护 latest checkpoint 外，还会 append-only 保存去重后的状态转换事件；`build_persisted_trajectory_snapshot()` 可在 Runtime/Store 重建后仅凭 SQLite history 还原 final state 与 visited step sequence，重复保存同一状态不会制造重复 Trace event。该 history 仍只保存原有 compact `CareerAgentState` payload，不复制 raw Resume/JD/Secret/大 Tool Output，也不新增业务状态写入。
 
-第三纵向切片用 `career_agent_runtime_dataset.py` 冻结正式 20-case cohort，替换原先 20 个重复 happy-path fixture。Case 覆盖 approve 单/多岗位、edit 单/重排、reject、Profile identity/version stale、SearchIntent identity/version stale、Match fingerprint/order stale、missing Match、empty Ranking、invalid target selection、pending/restart interrupt、duplicate approve/edit/reject replay、restart completed 等控制路径，至少产生 8 种不同 persisted trace shape。每条 Case 都通过 `SQLiteCareerAgentCheckpointStore` 写入 durable history，再由 `build_persisted_trajectory_snapshot()` 回读进入同一 Release Gate，统一断言 forbidden Provider/Requirement/Semantic Match/business-write node、`provider_calls=0` 与 `business_state_writes=0`。这关闭了“20 个重复 fixture 冒充 dataset”的缺口；LG-3 最后一项是增加直接驱动现有 Runtime handlers 的 trajectory runner，让关键 cohort Case 的状态转换由真实 handler 产生，而不是由冻结 dataset materializer 写入。
+第三纵向切片用 `career_agent_runtime_dataset.py` 冻结正式 20-case cohort，替换原先 20 个重复 happy-path fixture。Case 覆盖 approve 单/多岗位、edit 单/重排、reject、Profile identity/version stale、SearchIntent identity/version stale、Match fingerprint/order stale、missing Match、empty Ranking、invalid target selection、pending/restart interrupt、duplicate approve/edit/reject replay、restart completed 等控制路径，至少产生 8 种不同 persisted trace shape。每条 Case 都通过 `SQLiteCareerAgentCheckpointStore` 写入 durable history，再由 `build_persisted_trajectory_snapshot()` 回读进入同一 Release Gate，统一断言 forbidden Provider/Requirement/Semantic Match/business-write node、`provider_calls=0` 与 `business_state_writes=0`。
+
+第四纵向切片关闭最后的“合成 checkpoint transitions”缺口：新增 `CareerAgentRuntimeTrajectoryRunner`，代表性 approve + duplicate resume、reject、missing Match、stale Profile Case 直接驱动现有 `LangGraphRankToTargetCohortInterrupt → TargetCohortDecisionHandler → ResumeStaleGuard → SkillGapResumeExecutor`，最终只从 SQLite persisted history 构建 snapshot。真实 Ranking node 现在也保存允许的 runtime trace checkpoint，因此 happy path 的 persisted trajectory 可明确看到 `rank_jobs → target_cohort_confirmation → target_cohort_resume → skill_gap_ready → skill_gap_completed`，而不是由 Eval 层补写节点。代表性真实 handler trajectories 与冻结 20-case release cohort 共同证明 route/state/resume/guardrail 均可重复验证；LG-3 正式 COMPLETE。
 
 **预计：5～7h**
 
@@ -562,16 +564,19 @@ Done：
 
 ---
 
-### LG-4：README / Demo / Interview Evidence
+### LG-4：Minimal Web HITL Demo / Evidence
+
+**状态：NEXT**
 
 **预计：2～3h**
 
 产出：
 
-- architecture diagram；
+- 最小 Web `Run → Interrupt → Approve/Edit/Reject → Resume → Gap` Demo；
 - one reproducible demo；
 - one failure/recovery example；
-- README 更新；
+- architecture / interview evidence；
+- README 仅在现有用户修改可安全合并时更新；
 - Evidence Ledger J6 从 L0 升级到 L3。
 
 ---

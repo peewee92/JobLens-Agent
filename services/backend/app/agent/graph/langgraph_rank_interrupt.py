@@ -113,29 +113,32 @@ class LangGraphRankToTargetCohortInterrupt:
                 ranked_job_ids.append(job_id)
 
         if not ranked_job_ids:
-            return {
-                "runtime_state": replace(
-                    state,
-                    status=CareerAgentStatus.BLOCKED,
-                    current_step="match_not_ready",
-                    pending_approval=False,
-                    tool_call_count=1,
-                    node_count=1,
-                )
-            }
-
-        fingerprint = hashlib.sha256("\n".join(report_refs).encode("utf-8")).hexdigest()
-        return {
-            "runtime_state": replace(
+            blocked = replace(
                 state,
-                current_match_report_ids=tuple(report_refs),
-                match_fingerprint=fingerprint,
-                ranked_job_ids=tuple(ranked_job_ids),
-                proposed_target_job_ids=tuple(ranked_job_ids[: graph_state["top_n"]]),
+                status=CareerAgentStatus.BLOCKED,
+                current_step="match_not_ready",
+                pending_approval=False,
                 tool_call_count=1,
                 node_count=1,
             )
-        }
+            self._checkpoints.save(blocked)
+            return {"runtime_state": blocked}
+
+        fingerprint = hashlib.sha256("\n".join(report_refs).encode("utf-8")).hexdigest()
+        ranked_state = replace(
+            state,
+            current_match_report_ids=tuple(report_refs),
+            match_fingerprint=fingerprint,
+            ranked_job_ids=tuple(ranked_job_ids),
+            proposed_target_job_ids=tuple(ranked_job_ids[: graph_state["top_n"]]),
+            tool_call_count=1,
+            node_count=1,
+        )
+        # LG-3 trace must be produced by real runtime transitions, not inferred
+        # later from the final interrupt. Runtime checkpoint/trace writes are
+        # explicitly allowed; no business fact is changed here.
+        self._checkpoints.save(ranked_state)
+        return {"runtime_state": ranked_state}
 
     @staticmethod
     def _route_after_ranking(graph_state: _GraphState) -> str:
