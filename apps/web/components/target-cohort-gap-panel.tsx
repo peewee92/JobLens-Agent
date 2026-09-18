@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {FormEvent, useEffect, useMemo, useState} from "react";
+import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
 import {formatDateTime, formatSalary} from "@/lib/format";
 import {matchRecommendationLabels} from "@/lib/match-report";
@@ -215,7 +215,8 @@ function gapBlockerCopy(code: string): GapBlockerCopy {
   };
 }
 
-export function TargetCohortGapPanel() {
+export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: string[]}) {
+  const appliedInitialSelection = useRef(false);
   const [candidates, setCandidates] = useState<CandidateResponse | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
   const [loadingCandidates, setLoadingCandidates] = useState(true);
@@ -237,7 +238,15 @@ export function TargetCohortGapPanel() {
         if (!response.ok) {
           throw new Error(payload?.error?.message ?? "暂时无法读取可选岗位。");
         }
-        if (!cancelled) setCandidates(payload as CandidateResponse);
+        if (!cancelled) {
+          const candidateResponse = payload as CandidateResponse;
+          setCandidates(candidateResponse);
+          if (!appliedInitialSelection.current && initialJobIds.length > 0) {
+            const availableJobIds = new Set(candidateResponse.items.map((item) => item.jobId));
+            setSelectedJobIds(new Set(initialJobIds.filter((jobId) => availableJobIds.has(jobId))));
+            appliedInitialSelection.current = true;
+          }
+        }
       } catch (caught) {
         if (!cancelled) {
           setCandidateError(caught instanceof Error ? caught.message : "暂时无法读取可选岗位。");
@@ -250,7 +259,7 @@ export function TargetCohortGapPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialJobIds]);
 
   const visibleCandidates = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
@@ -411,6 +420,12 @@ export function TargetCohortGapPanel() {
                 />
               </label>
             </div>
+
+            {initialJobIds.length > 0 && selectedJobIds.size > 0 ? (
+              <div className="gap-empty-state">
+                已带入 Agent 确认的 {selectedJobIds.size} 个目标岗位。确认无误后，继续查看同一组岗位的用户可读能力差距结果。
+              </div>
+            ) : null}
 
             <div className="gap-quick-actions">
               <button className="button-ghost" onClick={selectInterested} type="button">选择全部“感兴趣”</button>

@@ -1,7 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import {useEffect, useMemo, useState} from "react";
 
+import {
+  CareerAgentRunHttpError,
+  buildGapHandoffHref,
+  shouldForgetPendingThread,
+} from "@/lib/career-agent-run";
 import type {JobListItem} from "@/lib/contracts";
 
 type RunState = {
@@ -33,13 +39,14 @@ async function parseResponse(response: Response): Promise<RunState> {
     const body = (await response.json()) as {detail?: string};
     if (body.detail) message = body.detail;
   } catch {}
-  throw new Error(message);
+  throw new CareerAgentRunHttpError(response.status, message);
 }
 
 export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
   const [selected, setSelected] = useState<string[]>(() => jobs.slice(0, 5).map((job) => job.id));
   const [edited, setEdited] = useState<string[]>([]);
   const [run, setRun] = useState<RunState | null>(null);
+  const [recoverableThreadId, setRecoverableThreadId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("选择已有匹配结果的岗位，然后让 Agent 给出目标岗位建议。");
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
@@ -47,17 +54,37 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
   useEffect(() => {
     const threadId = window.localStorage.getItem(STORAGE_KEY);
     if (!threadId) return;
-    setBusy(true);
-    fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"})
-      .then(parseResponse)
-      .then((state) => {
-        setRun(state);
-        setEdited(state.proposedTargetJobIds);
-        setMessage(state.pendingApproval ? "已恢复上次等待你确认的 Agent Run。" : "已恢复上次 Agent Run。 ");
-      })
-      .catch(() => window.localStorage.removeItem(STORAGE_KEY))
-      .finally(() => setBusy(false));
+    setRecoverableThreadId(threadId);
+    void recoverRun(threadId);
   }, []);
+
+  async function recoverRun(threadId: string) {
+    setBusy(true);
+    setMessage("正在恢复上次 Agent Run…");
+    try {
+      const state = await parseResponse(
+        await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"}),
+      );
+      setRun(state);
+      setEdited(state.proposedTargetJobIds);
+      setRecoverableThreadId(null);
+      if (["completed", "cancelled", "blocked", "failed", "stale"].includes(state.status)) {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+      setMessage(state.pendingApproval ? "已恢复上次等待你确认的 Agent Run。" : "已恢复上次 Agent Run。");
+    } catch (error) {
+      if (shouldForgetPendingThread(error)) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        setRecoverableThreadId(null);
+        setMessage("上次 Agent Run 已不存在，可以开始新的 Run。");
+      } else {
+        setRecoverableThreadId(threadId);
+        setMessage("暂时无法恢复上次 Agent Run。恢复引用已保留，请重试，不会重新启动 Ranking。");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function startRun() {
     if (selected.length === 0) return;
@@ -77,6 +104,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
         }),
       }));
       window.localStorage.setItem(STORAGE_KEY, threadId);
+      setRecoverableThreadId(null);
       setRun(state);
       setEdited(state.proposedTargetJobIds);
       setMessage(state.pendingApproval ? "Agent 已暂停，等待你确认目标岗位。" : "Agent Run 已更新。");
@@ -123,9 +151,40 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
     }
   }
 
+  const gapHandoffHref = run?.status === "completed"
+    ? buildGapHandoffHref(run.confirmedTargetJobIds)
+    : null;
+
   return (
     <div className="stack-lg">
-      {!run && (
+      {!run && recoverableThreadId && (
+        <section className="card stack-md">
+          <div>
+            <p className="eyebrow">恢复已有 Run</p>
+            <h2>上次 Agent Run 仍可恢复</h2>
+            <p className="muted">刚才可能只是网络或服务暂时不可用。JobLens 已保留 durable thread 引用，不会因为一次恢复失败就重新 Ranking。</p>
+          </div>
+          <div className="button-row">
+            <button className="button primary" disabled={busy} onClick={() => void recoverRun(recoverableThreadId)} type="button">
+              {busy ? "正在恢复…" : "重试恢复"}
+            </button>
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                window.localStorage.removeItem(STORAGE_KEY);
+                setRecoverableThreadId(null);
+                setMessage("已放弃本地旧 Run 引用，可以开始新的 Agent Run。");
+              }}
+              type="button"
+            >
+              放弃旧 Run
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!run && !recoverableThreadId && (
         <section className="card stack-md">
           <div>
             <p className="eyebrow">Step 1 · 选择岗位</p>
@@ -191,6 +250,12 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
           <p>{message}</p>
           {run.confirmedTargetJobIds.length > 0 && <p className="muted">已确认目标岗位：{run.confirmedTargetJobIds.map((id) => jobsById.get(id)?.title ?? id).join("、")}</p>}
           {run.gapResultFingerprint && <p className="muted">Gap 结果已持久化并可追踪（{run.gapResultFingerprint.slice(0, 12)}…）。</p>}
+          {gapHandoffHref && (
+            <div className="actions">
+              <Link className="button primary" href={gapHandoffHref}>查看能力差距结果</Link>
+              <p className="muted">已确认的目标岗位会直接带入现有能力差距工作区，由同一套 JobRequirement / Profile Evidence 规则展示 P0/P1、影响岗位和补齐标准。</p>
+            </div>
+          )}
           <button className="button" type="button" onClick={() => {setRun(null); setMessage("可以开始新的 Agent Run。");}}>开始新的 Run</button>
         </section>
       )}
