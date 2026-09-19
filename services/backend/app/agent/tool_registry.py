@@ -30,14 +30,21 @@ class CareerAgentToolAccess(StrEnum):
 
 class CareerAgentSideEffectClass(StrEnum):
     READ_ONLY = "read_only"
+    TRANSIENT_COMPUTE = "transient_compute"
+    PROVIDER_COMPUTE = "provider_compute"
+    BUSINESS_WRITE = "business_write"
+    EXTERNAL_ACTION = "external_action"
 
 
 class CareerAgentProviderCostClass(StrEnum):
     NONE = "none"
+    BOUNDED = "bounded"
 
 
 class CareerAgentHumanGateRequirement(StrEnum):
     NONE = "none"
+    COST_APPROVAL = "cost_approval"
+    EXPLICIT_APPROVAL = "explicit_approval"
 
 
 class CareerAgentTimeoutClass(StrEnum):
