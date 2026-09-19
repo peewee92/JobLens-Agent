@@ -4,6 +4,7 @@
 - 目标：在不破坏里程碑顺序、事实边界和 Git 可审计性的前提下，让两台电脑上的 AI Agent 并行推进 JobLens。
 - 当前主线：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
 - 前置事实：`vNext 1.0 Agent Runtime` 的 LG-0～LG-4 已完成。
+- 当前双电脑具体任务分工与 Agent B 启动说明：`docs/implementation/P1-JobLens-Dual-Agent-Work-Allocation.md`
 
 ---
 
