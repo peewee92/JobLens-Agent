@@ -64,7 +64,8 @@ vNext 2.0 Continuous Career Agent
 ### 当前 vNext 1.1 进度
 
 - `NL-0 CareerIntent Contract + Grounded Reference Boundary`：**COMPLETE**。新增 provider-independent `CareerIntent` 合同，显式保存有序 `goals[]`、受治理 Job 引用、clarification / unsupported 状态、bounded confidence 与短审计理由；新增 `CareerIntentResolver`，只允许显式 Job ID、合法 current job 和 frozen run scope 内引用，缺 current job 时 fail-closed 为 clarification，scope 外 Job 直接拒绝。Unsupported request 不能同时携带可执行 goal，避免后续 Router 把自动投递等越界请求降级成普通 Tool Call。本 slice 不调用 Provider、不执行 Tool、不写业务状态，为 Agent B 的 60+ Intent Eval Dataset 和下一步 Intent Router 提供冻结 Contract。
-- 下一 A 类 Slice：`Intent Router`。只能产出上述 Contract，并首先覆盖单目标/多目标顺序、current-job、clarification、unsupported；在 Agent B Eval Gate 可消费前不进入 Dynamic Tool Selection。
+- `NL-1 Intent Router Boundary`：**COMPLETE**。新增 provider/framework-independent `CareerIntentModel` seam 与 `CareerIntentRouter`，模型层只能返回严格字段集合，Router 将字符串 goal 转成冻结的 `CareerIntentGoal`、保留单/多目标顺序，并在任何 Tool 执行前统一经过 `CareerIntentResolver` 做 current-job/run-scope grounding。未知 goal、额外字段、错误类型和 malformed output 都 fail-closed；clarification 与 unsupported 状态禁止同时携带可执行 goal，缺 current job 时 Resolver 会清空待执行 goals 并返回 clarification，确保后续 Runtime 不会在上下文不足时误调用 Tool。本 slice 仍不绑定真实 Provider、不执行 Tool、不写业务状态；11 条 targeted regression 已覆盖 ordered goals、current-job、clarification、unsupported 与 malformed output。
+- 下一 A 类 Slice：`Dynamic coarse-grained Tool Selection`。基于已冻结 Intent Contract/Router 只映射现有稳定 Workflow Tool，首先关闭 Registry policy、unknown tool 与 invalid args fail-closed；不得在同一 slice 提前进入 bounded multi-turn loop。
 
 ### 当前冻结的四个主要缺口
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 
 class CareerIntentGoal(StrEnum):
@@ -20,6 +21,12 @@ class CareerIntentGoal(StrEnum):
 
 class CareerIntentValidationError(ValueError):
     """Raised when an intent would cross a governed execution boundary."""
+
+
+class CareerIntentModel(Protocol):
+    """Provider-independent seam for structured natural-language routing."""
+
+    def route(self, user_message: str) -> dict[str, object]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +53,12 @@ class CareerIntent:
             raise CareerIntentValidationError(
                 "needs_clarification requires clarification_question"
             )
+        if self.needs_clarification and any(
+            goal not in (CareerIntentGoal.UNKNOWN,) for goal in self.goals
+        ):
+            raise CareerIntentValidationError(
+                "clarification cannot carry executable goals"
+            )
         if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise CareerIntentValidationError("confidence must be between 0 and 1")
         if len(self.reasoning_summary) > 500:
@@ -60,6 +73,75 @@ class CareerIntentResolutionContext:
 
     current_job_id: str | None = None
     run_job_ids: tuple[str, ...] = ()
+
+
+class CareerIntentRouter:
+    """Convert model output into the governed intent contract, then ground it."""
+
+    _FIELDS = frozenset(
+        {
+            "goals",
+            "referenced_job_ids",
+            "current_job_required",
+            "needs_clarification",
+            "clarification_question",
+            "unsupported_request",
+            "confidence",
+            "reasoning_summary",
+        }
+    )
+
+    def __init__(
+        self,
+        *,
+        model: CareerIntentModel,
+        resolver: CareerIntentResolver | None = None,
+    ) -> None:
+        self._model = model
+        self._resolver = resolver or CareerIntentResolver()
+
+    def route(
+        self,
+        *,
+        user_message: str,
+        context: CareerIntentResolutionContext,
+    ) -> CareerIntent:
+        if not user_message.strip():
+            raise CareerIntentValidationError("user message must not be empty")
+        payload = self._model.route(user_message)
+        try:
+            intent = self._parse(payload)
+        except CareerIntentValidationError:
+            raise
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CareerIntentValidationError("invalid intent model output") from exc
+        return self._resolver.resolve(intent=intent, context=context)
+
+    def _parse(self, payload: dict[str, object]) -> CareerIntent:
+        if not isinstance(payload, dict) or set(payload) - self._FIELDS:
+            raise ValueError("unexpected intent fields")
+        goals_value = payload.get("goals", [])
+        referenced_value = payload.get("referenced_job_ids", [])
+        if not isinstance(goals_value, list) or not all(
+            isinstance(value, str) for value in goals_value
+        ):
+            raise TypeError("goals must be a string list")
+        if not isinstance(referenced_value, list) or not all(
+            isinstance(value, str) and value.strip() for value in referenced_value
+        ):
+            raise TypeError("referenced_job_ids must be a non-empty string list")
+
+        goals = tuple(CareerIntentGoal(value) for value in goals_value)
+        return CareerIntent(
+            goals=goals,
+            referenced_job_ids=tuple(referenced_value),
+            current_job_required=_strict_bool(payload, "current_job_required", False),
+            needs_clarification=_strict_bool(payload, "needs_clarification", False),
+            clarification_question=_optional_string(payload, "clarification_question"),
+            unsupported_request=_optional_string(payload, "unsupported_request"),
+            confidence=_optional_confidence(payload),
+            reasoning_summary=_optional_string(payload, "reasoning_summary") or "",
+        )
 
 
 class CareerIntentResolver:
@@ -85,7 +167,7 @@ class CareerIntentResolver:
             current_job_id = context.current_job_id
             if current_job_id is None:
                 return CareerIntent(
-                    goals=intent.goals,
+                    goals=(),
                     referenced_job_ids=(),
                     current_job_required=True,
                     needs_clarification=True,
@@ -112,10 +194,37 @@ class CareerIntentResolver:
         )
 
 
+def _strict_bool(payload: dict[str, object], key: str, default: bool) -> bool:
+    value = payload.get(key, default)
+    if not isinstance(value, bool):
+        raise TypeError(f"{key} must be a boolean")
+    return value
+
+
+def _optional_string(payload: dict[str, object], key: str) -> str | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise TypeError(f"{key} must be a non-empty string or null")
+    return value.strip()
+
+
+def _optional_confidence(payload: dict[str, object]) -> float | None:
+    value = payload.get("confidence")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError("confidence must be numeric or null")
+    return float(value)
+
+
 __all__ = [
     "CareerIntent",
     "CareerIntentGoal",
+    "CareerIntentModel",
     "CareerIntentResolutionContext",
+    "CareerIntentRouter",
     "CareerIntentResolver",
     "CareerIntentValidationError",
 ]
