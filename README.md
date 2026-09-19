@@ -207,6 +207,8 @@ More detail:
 - [Eval from Day One](docs/decisions/0005-eval-from-day-one.md)
 - [Repository Strategy](docs/decisions/0006-repository-strategy.md)
 - [Career Agent evolution plan](docs/implementation/P1-Career-Agent-Workflow-First-to-Governed-Agent-Evolution-Plan.md)
+- [Career Agent LangGraph vNext PRD](docs/product/P1-career-agent-langgraph-vnext.md)
+- [JobLens MCP Server + Pi Extension PRD](docs/product/P1-joblens-mcp-pi-extension.md)
 
 ## Quick start
 
@@ -287,28 +289,240 @@ Grounded output
 Runtime evolution target:
 
 ```text
-Free-form user request
+Existing Ranking / Gap / Preparation Workflows
       ↓
-LLM decision
+AgentRuntime boundary
       ↓
-Tool call → validation → execution
-      ↑                    ↓
-      └──── tool result ───┘
+LangGraph Career Runtime
       ↓
-Bounded completion + grounded final answer
+Explicit State + Conditional Routing
+      ↓
+Persistent Checkpoint
+      ↓
+Target Cohort Human Interrupt
+      ↓
+Approve / Edit / Reject
+      ↓
+Resume + stale-state validation
+      ↓
+Skill Gap
+      ↓
+Trajectory Eval / Release Gate
 ```
 
-Planned runtime work focuses on tool routing, bounded turns, error classification, context budgeting, trace and Agent Eval — **not Multi-Agent for its own sake**.
+The first LangGraph slice is intentionally **not** a free-form chat demo. It focuses on a real long-running product path — `Ranking → Target Cohort → HITL → Resume → Skill Gap` — so State, Checkpoint and recovery are exercised against existing JobLens Workflows. Natural-language routing comes later, after the runtime path is recoverable and evaluable.
+
+Detailed plans:
+
+- [Career Agent LangGraph Runtime Integration Plan](docs/implementation/P1-Career-Agent-LangGraph-Runtime-Integration-Plan.md)
+- [JobLens LangGraph Runtime Interview Execution Plan](docs/implementation/P1-JobLens-LangGraph-Runtime-Execution-Plan.md)
+- [Multi-Agent Development Collaboration Plan](docs/implementation/P1-JobLens-Multi-Agent-Development-Collaboration-Plan.md)
+
+## Interview-oriented Backend Labs (local learning track)
+
+> This section is a local learning / interview-preparation track built on the real JobLens codebase. It is **not** a separate product roadmap and should not create parallel demo services. Each lab must end with a runnable experiment, a short design note, and interview questions answered from this repository.
+
+### Lab 1 — Trace one FastAPI request from HTTP to DB
+
+Use a real read path such as `GET /api/v1/jobs` or `GET /api/v1/match-ranking`.
+
+```text
+HTTP request
+→ FastAPI Router
+→ Depends / dependency provider
+→ Application Use Case
+→ Repository Port
+→ SQLAlchemy Repository
+→ Session / DB
+→ Response Schema
+```
+
+Concrete anchors:
+
+- `services/backend/app/api/v1/jobs.py`
+- `services/backend/app/api/deps.py#get_list_jobs_use_case`
+- `services/backend/app/application/job_queries/`
+- `services/backend/app/application/ports/job_query_repository.py`
+- `services/backend/app/repositories/sqlalchemy_job_query_repository.py`
+- `services/backend/app/db/models.py`
+
+Deliverables:
+
+- draw the actual call path with concrete JobLens classes/files;
+- explain why Router does not contain SQL/business rules;
+- explain Pydantic request/response validation and dependency injection;
+- explain the difference between 404 / 409 / 422 / 500 in this API;
+- add or identify one test that proves the boundary;
+- record one **60–90 second interview answer** without reading notes.
+
+Target effort: **~2h**.
+
+### Lab 2 — `asyncio`: concurrency, timeout and backpressure
+
+Build a tiny JobLens-side experiment around three simulated or real I/O calls.
+
+Compare:
+
+```text
+sequential awaits
+vs
+asyncio.gather
+vs
+bounded concurrency with Semaphore
+```
+
+Add:
+
+- per-call timeout;
+- cancellation behavior;
+- one CPU-heavy example showing why it should not block the event loop;
+- a short note on where JobLens/AI Provider calls benefit from async and where they do not.
+
+Interview outcome: be able to explain that async mainly improves I/O concurrency, not the speed of one model call.
+
+Target effort: **2–3h**.
+
+### Lab 3 — SQLAlchemy Session / Transaction / Idempotency
+
+Use a real write path such as UserFeedback, Eval Review, Final Decision or another immutable JobLens command.
+
+Study and demonstrate:
+
+```text
+Session
+→ flush
+→ commit
+→ rollback
+→ transaction boundary
+→ unique constraint
+→ duplicate request handling
+```
+
+Concrete anchors:
+
+- `services/backend/app/repositories/sqlalchemy_job_requirement_unit_of_work.py`
+- `services/backend/app/repositories/sqlalchemy_career_context_unit_of_work.py`
+- `services/backend/app/repositories/sqlalchemy_trace_unit_of_work.py`
+- `services/backend/app/api/deps.py` UoW factories
+
+Required failure scenario:
+
+> A Tool/HTTP request writes successfully, but the client times out and retries. How does JobLens avoid creating a duplicate business fact?
+
+Answer using a concrete combination of idempotency identity, query-before-write where appropriate, database uniqueness, transaction boundaries and HTTP conflict semantics.
+
+Required experiment: inject an exception after one staged write and prove the transaction rolls back instead of leaving a half-written business state.
+
+Target effort: **~3h**.
+
+### Lab 4 — Index / Pagination / Slow-query reasoning
+
+Pick real tables such as:
+
+- Job / JobSource;
+- MatchReport;
+- UserFeedback;
+- Eval Run / Case Result;
+- Trace spans.
+
+Start from the real Job Pool query in `services/backend/app/repositories/sqlalchemy_job_query_repository.py`, which combines `LIKE` filters, source existence, latest-source ordering, `LIMIT` and `OFFSET`.
+
+For at least two queries:
+
+- write the filter/order pattern;
+- identify a plausible index;
+- inspect it with SQLite `EXPLAIN QUERY PLAN` (or PostgreSQL `EXPLAIN ANALYZE` when available);
+- explain why `%keyword%` search is not rescued by an ordinary B-tree index;
+- explain composite-index prefix rules;
+- explain why deep `OFFSET` pagination becomes expensive and when cursor/keyset pagination is preferable;
+- state the write-amplification cost of extra indexes.
+
+Target effort: **~2h**.
+
+### Lab 5 — Redis for Agent systems: what belongs there and what does not
+
+JobLens remains SQLite-first locally; this lab is a design + minimal runnable Redis exercise, not a mandate to migrate domain truth into Redis.
+
+Implement or prototype 2–3 of:
+
+```text
+rate limit
+short-lived run progress
+hot read cache
+distributed lock / lease
+idempotency token
+```
+
+Then explain why these facts should **not** live only in Redis:
+
+```text
+Confirmed Profile / Evidence
+Released JobRequirement
+MatchReport
+Human Review / Final Decision
+```
+
+Those are durable auditable business facts and need the primary database/system of record.
+
+Target effort: **2–3h**.
+
+### Lab 6 — Long-running Run + SSE progress / reconnect
+
+Map an AI run into an explicit backend lifecycle:
+
+```text
+POST /runs
+→ run_id
+→ worker/runtime
+→ persisted run state
+→ SSE progress events
+→ completed / failed / cancelled
+```
+
+Design and, where practical, implement a minimal JobLens experiment covering:
+
+- SSE vs WebSocket selection;
+- client disconnect without silently corrupting the run;
+- reconnect using `run_id`;
+- whether events need replay / sequence numbers;
+- cancel semantics;
+- final state persisted independently of the browser connection.
+
+Connect this lab back to the LangGraph checkpoint/resume work rather than creating another isolated runtime. The target state machine should line up with `docs/implementation/P1-JobLens-LangGraph-Runtime-Execution-Plan.md`:
+
+```text
+created
+→ running
+→ waiting_human
+→ running
+→ completed / failed / cancelled / stale
+```
+
+Target effort: **2–3h**.
+
+### Backend Lab completion rule
+
+A lab is complete only when all four artifacts exist:
+
+```text
+1. concrete JobLens code path or runnable experiment
+2. one failure case
+3. one verification/test
+4. a 60–90 second interview answer
+```
+
+Do **not** spend the month completing a generic Python backend course before touching these labs. The goal is to make the backend concepts answerable from JobLens itself.
 
 ## Roadmap
 
-Near-term public-project priorities:
+Near-term public-project priorities, in execution order:
 
-- [ ] natural-language Career Agent tool routing;
-- [ ] bounded multi-turn Agent Loop with tool-result replay;
-- [ ] context budget / tool-output compaction;
-- [ ] Agent Trace and trajectory eval dataset;
-- [ ] JobLens MCP / external agent integration;
+- [ ] `LG-0`: isolate an `AgentRuntime` boundary without changing current behavior;
+- [ ] `LG-1`: implement `Ranking → Target Cohort → HITL → Resume → Skill Gap` with LangGraph State / Checkpoint;
+- [ ] `LG-2`: add explicit error classes, bounded retry, cancellation and runtime limits;
+- [ ] `LG-4`: freeze 20+ deterministic trajectory eval cases and a runtime release gate;
+- [ ] only then add natural-language Career Agent routing / bounded multi-turn tool replay;
+- [ ] JobLens MCP Server / external agent integration;
 - [ ] concise demo video and reproducible public sample dataset.
 
 The detailed engineering history remains in `docs/`; the README intentionally focuses on the product, architecture and verifiable engineering evidence rather than internal phase numbering.
