@@ -10,6 +10,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 from app.agent.context import CareerAgentContext
 from app.agent.execution_gate import (
@@ -17,7 +18,12 @@ from app.agent.execution_gate import (
     CareerAgentGovernedToolExecutor,
     CareerAgentPendingAction,
 )
-from app.agent.intent import CareerIntentResolutionContext, CareerIntentRouter
+from app.agent.intent import (
+    CareerIntent,
+    CareerIntentGoal,
+    CareerIntentResolutionContext,
+    CareerIntentRouter,
+)
 from app.agent.tool_loop import (
     CareerAgentLoopBudget,
     CareerAgentLoopDecision,
@@ -28,7 +34,7 @@ from app.agent.tool_loop import (
 )
 from app.agent.tool_registry import CareerAgentToolName, CareerAgentToolRequest
 from app.agent.tool_result import AgentToolResult, AgentToolResultStatus
-from app.agent.tool_selection import CareerAgentToolSelector
+from app.agent.tool_selection import CareerAgentToolSelectionError, CareerAgentToolSelector
 
 
 class CareerAgentGovernedLoopStatus(StrEnum):
@@ -54,8 +60,45 @@ class CareerAgentPlannedToolRequest:
     expires_at: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.fact_fingerprint:
-            raise ValueError("planned tool request requires fact_fingerprint")
+        if not _is_sha256_digest(self.fact_fingerprint):
+            raise ValueError(
+                "planned tool request fact_fingerprint must be a 64-character lowercase sha256 digest"
+            )
+
+
+class CareerAgentLoopRecoveryPlanner(Protocol):
+    """Provide one corrected governed request after a retryable tool-level error."""
+
+    def recover_tool_request(
+        self,
+        *,
+        tool: CareerAgentToolName,
+        error_code: str,
+        previous_plan: CareerAgentPlannedToolRequest | None,
+        attempt: int,
+    ) -> CareerAgentPlannedToolRequest | None: ...
+
+
+class CareerAgentUnknownToolReplanner(Protocol):
+    """Replace only unknown goals without widening grounded references."""
+
+    def replan_unknown_tool(
+        self,
+        *,
+        previous_goals: tuple[CareerIntentGoal, ...],
+        attempt: int,
+    ) -> tuple[CareerIntentGoal, ...] | None: ...
+
+
+class CareerAgentStalenessGuard(Protocol):
+    """Revalidate the planned request against current governed facts before execution."""
+
+    def is_stale(
+        self,
+        *,
+        context: CareerAgentContext,
+        plan: CareerAgentPlannedToolRequest,
+    ) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,12 +131,18 @@ class CareerAgentGovernedLoopRuntime:
         router: CareerIntentRouter,
         selector: CareerAgentToolSelector,
         executor: CareerAgentGovernedToolExecutor,
+        staleness_guard: CareerAgentStalenessGuard,
         budget: CareerAgentLoopBudget | None = None,
+        recovery_planner: CareerAgentLoopRecoveryPlanner | None = None,
+        unknown_tool_replanner: CareerAgentUnknownToolReplanner | None = None,
     ) -> None:
         self._router = router
         self._selector = selector
         self._executor = executor
+        self._staleness_guard = staleness_guard
         self._budget = budget or CareerAgentLoopBudget()
+        self._recovery_planner = recovery_planner
+        self._unknown_tool_replanner = unknown_tool_replanner
 
     def run(
         self,
@@ -151,30 +200,82 @@ class CareerAgentGovernedLoopRuntime:
                 message="Career Agent context is not usable.",
             )
 
+        unknown_replan_attempt = 0
+        while True:
+            try:
+                selections = self._selector.select(intent)
+                break
+            except CareerAgentToolSelectionError:
+                if CareerIntentGoal.UNKNOWN not in intent.goals:
+                    error = guard.record_error(
+                        CareerAgentLoopError(
+                            code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
+                            message="Career Agent tool selection is invalid",
+                            retryable=True,
+                        )
+                    )
+                    return self._failed(trace, results, input_fingerprint, error)
+
+                error = guard.record_error(
+                    CareerAgentLoopError.unknown_tool(CareerIntentGoal.UNKNOWN.value)
+                )
+                if not error.retryable or self._unknown_tool_replanner is None:
+                    return self._failed(trace, results, input_fingerprint, error)
+                unknown_replan_attempt += 1
+                replanned_goals = self._unknown_tool_replanner.replan_unknown_tool(
+                    previous_goals=intent.goals,
+                    attempt=unknown_replan_attempt,
+                )
+                if not replanned_goals:
+                    return self._failed(
+                        trace,
+                        results,
+                        input_fingerprint,
+                        CareerAgentLoopError(
+                            code=CareerAgentLoopErrorCode.UNKNOWN_TOOL,
+                            message="Career Agent unknown tool could not be replanned",
+                            retryable=False,
+                        ),
+                    )
+                self._trace(
+                    trace,
+                    "recovery",
+                    input_fingerprint=input_fingerprint,
+                    error_code=error.code.value,
+                )
+                intent = _replace_intent_goals(intent, replanned_goals)
+            except ValueError:
+                error = guard.record_error(
+                    CareerAgentLoopError(
+                        code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
+                        message="Career Agent tool selection is invalid",
+                        retryable=True,
+                    )
+                )
+                return self._failed(trace, results, input_fingerprint, error)
+
+        if not selections:
+            self._trace(trace, "clarification", input_fingerprint=input_fingerprint)
+            return CareerAgentGovernedLoopResult(
+                status=CareerAgentGovernedLoopStatus.CLARIFICATION_REQUIRED,
+                tool_results=(),
+                trace=tuple(trace),
+                message="No executable Career Agent tool was selected. Please clarify the next action.",
+            )
+
         try:
-            selections = self._selector.select(intent)
             plans = _index_plans(planned_requests)
         except ValueError:
             error = guard.record_error(
                 CareerAgentLoopError(
                     code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
-                    message="Career Agent plan or tool selection is invalid",
+                    message="Career Agent tool plan is invalid",
                     retryable=True,
                 )
             )
             return self._failed(trace, results, input_fingerprint, error)
 
         for selection in selections:
-            try:
-                guard.record_turn()
-            except CareerAgentLoopError as error:
-                return self._failed(
-                    trace,
-                    results,
-                    input_fingerprint,
-                    guard.record_error(error),
-                    tool=selection.tool.name,
-                )
             self._trace(
                 trace,
                 "tool_selected",
@@ -188,37 +289,100 @@ class CareerAgentGovernedLoopRuntime:
                 )
                 return self._failed(trace, results, input_fingerprint, error)
 
-            arguments_fingerprint = _fingerprint(plan.normalized_params)
-            decision = CareerAgentLoopDecision.call_tool(
-                tool=selection.tool.name,
-                arguments_fingerprint=arguments_fingerprint,
-            )
-            try:
-                guard.record_tool_call(
-                    decision,
-                    input_fingerprint=plan.fact_fingerprint,
-                    transient_retry=False,
-                )
-                execution = self._executor.execute(
-                    context=context,
-                    tool=plan.tool,
-                    request=plan.request,
-                    normalized_params=plan.normalized_params,
-                    fact_fingerprint=plan.fact_fingerprint,
-                    expected_provider_calls=plan.expected_provider_calls,
-                    business_writes=plan.business_writes,
-                    external_effects=plan.external_effects,
-                    expires_at=plan.expires_at,
-                )
-            except (CareerAgentLoopError, ValueError) as exc:
-                error = exc if isinstance(exc, CareerAgentLoopError) else CareerAgentLoopError.invalid_tool_params(selection.tool.name)
-                return self._failed(
-                    trace,
-                    results,
-                    plan.fact_fingerprint,
-                    guard.record_error(error),
+            recovery_attempt = 0
+            transient_retry = False
+            while True:
+                if self._staleness_guard.is_stale(context=context, plan=plan):
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        CareerAgentLoopError.stale_state(selection.tool.name),
+                        tool=selection.tool.name,
+                    )
+                try:
+                    guard.record_turn()
+                except CareerAgentLoopError as error:
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        guard.record_error(error),
+                        tool=selection.tool.name,
+                    )
+
+                arguments_fingerprint = _fingerprint(plan.normalized_params)
+                decision = CareerAgentLoopDecision.call_tool(
                     tool=selection.tool.name,
+                    arguments_fingerprint=arguments_fingerprint,
                 )
+                try:
+                    guard.record_tool_call(
+                        decision,
+                        input_fingerprint=plan.fact_fingerprint,
+                        transient_retry=transient_retry,
+                    )
+                    execution = self._executor.execute(
+                        context=context,
+                        tool=plan.tool,
+                        request=plan.request,
+                        normalized_params=plan.normalized_params,
+                        fact_fingerprint=plan.fact_fingerprint,
+                        expected_provider_calls=plan.expected_provider_calls,
+                        business_writes=plan.business_writes,
+                        external_effects=plan.external_effects,
+                        expires_at=plan.expires_at,
+                    )
+                    break
+                except (ConnectionError, TimeoutError):
+                    error = guard.record_error(CareerAgentLoopError.transient_network(selection.tool.name))
+                    if not error.retryable:
+                        return self._failed(trace, results, plan.fact_fingerprint, error, tool=selection.tool.name)
+                    recovery_attempt += 1
+                    self._trace(
+                        trace,
+                        "recovery",
+                        tool=selection.tool.name,
+                        input_fingerprint=plan.fact_fingerprint,
+                        error_code=error.code.value,
+                    )
+                    transient_retry = True
+                except CareerAgentLoopError as error:
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        guard.record_error(error),
+                        tool=selection.tool.name,
+                    )
+                except ValueError:
+                    error = guard.record_error(CareerAgentLoopError.invalid_tool_params(selection.tool.name))
+                    if not error.retryable or self._recovery_planner is None:
+                        return self._failed(trace, results, plan.fact_fingerprint, error, tool=selection.tool.name)
+                    recovery_attempt += 1
+                    recovered_plan = self._recovery_planner.recover_tool_request(
+                        tool=selection.tool.name,
+                        error_code=error.code.value,
+                        previous_plan=plan,
+                        attempt=recovery_attempt,
+                    )
+                    if recovered_plan is None or recovered_plan.tool is not selection.tool.name:
+                        return self._failed(
+                            trace,
+                            results,
+                            plan.fact_fingerprint,
+                            CareerAgentLoopError(code=error.code, message=str(error), retryable=False),
+                            tool=selection.tool.name,
+                        )
+                    self._trace(
+                        trace,
+                        "recovery",
+                        tool=selection.tool.name,
+                        input_fingerprint=recovered_plan.fact_fingerprint,
+                        error_code=error.code.value,
+                    )
+                    plan = recovered_plan
+                    transient_retry = False
 
             self._trace(
                 trace,
@@ -334,6 +498,22 @@ class CareerAgentGovernedLoopRuntime:
         )
 
 
+def _replace_intent_goals(
+    intent: CareerIntent,
+    goals: tuple[CareerIntentGoal, ...],
+) -> CareerIntent:
+    return CareerIntent(
+        goals=goals,
+        referenced_job_ids=intent.referenced_job_ids,
+        current_job_required=intent.current_job_required,
+        needs_clarification=intent.needs_clarification,
+        clarification_question=intent.clarification_question,
+        unsupported_request=intent.unsupported_request,
+        confidence=intent.confidence,
+        reasoning_summary=intent.reasoning_summary,
+    )
+
+
 def _index_plans(
     plans: tuple[CareerAgentPlannedToolRequest, ...],
 ) -> dict[CareerAgentToolName, CareerAgentPlannedToolRequest]:
@@ -354,6 +534,10 @@ def _structured_success_result(*, tool: CareerAgentToolName, output: object) -> 
     )
 
 
+def _is_sha256_digest(value: str) -> bool:
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+
+
 def _fingerprint(value: object) -> str:
     encoded = json.dumps(
         value,
@@ -370,5 +554,8 @@ __all__ = [
     "CareerAgentGovernedLoopRuntime",
     "CareerAgentGovernedLoopStatus",
     "CareerAgentGovernedLoopTraceEvent",
+    "CareerAgentLoopRecoveryPlanner",
     "CareerAgentPlannedToolRequest",
+    "CareerAgentStalenessGuard",
+    "CareerAgentUnknownToolReplanner",
 ]

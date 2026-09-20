@@ -23,9 +23,9 @@ CareerIntentRouter
 → CareerAgentGovernedLoopTraceEvent
 ```
 
-冻结的 Runtime 结果状态：`completed / clarification_required / unsupported / pending_action / blocked / failed`。失败必须返回结构化 `error_code`；malformed model intent 固定为 `invalid_intent_output`，plan/参数错误为 `invalid_tool_params`，预算耗尽为 `budget_exhausted`，loop/no-progress 继续使用既有 guard code。上述治理失败不得作为未捕获异常泄漏到调用方；失败 Trace 保留发生阶段的 Tool（若已选中）、输入事实 fingerprint 与 error code，但不保存 CoT、raw Resume/JD 或大 Tool Output。
+冻结的 Runtime 结果状态：`completed / clarification_required / unsupported / pending_action / blocked / failed`。失败必须返回结构化 `error_code`；malformed model intent 固定为 `invalid_intent_output`，plan/参数错误为 `invalid_tool_params`，未知 Tool 为 `unknown_tool`，事实过期为 `stale_state`，预算耗尽为 `budget_exhausted`，loop/no-progress 继续使用既有 guard code。上述治理失败不得作为未捕获异常泄漏到调用方；失败 Trace 保留发生阶段的 Tool（若已选中）、输入事实 fingerprint 与 error code，但不保存 CoT、raw Resume/JD 或大 Tool Output。`CareerAgentGovernedLoopRuntime` 现在要求 Integration 显式注入 Staleness Guard：每次 Tool 执行、transient retry、corrected replan 前都必须重新验证当前 governed facts，stale 时 fail-closed 且不得再次触达 Workflow。
 
-Agent B 负责在此合同上继续 Intent / Tool Selection / Loop Guard / Trajectory Eval 与 Release Gate。Agent A 在 Release Gate 给出真实 Core blocker 前，不继续扩展新 Tool、不进入 vNext 1.2，也不修改 Agent B 的大规模 Eval Dataset。
+Agent B 负责在此合同上继续 Intent / Tool Selection / Loop Guard / Trajectory Eval 与 Release Gate。最新 trajectory/replay Gate 需要在 Agent A 当前 Core 上重新适配必填 Staleness Guard，并重跑 `Tool empty → clarification`、`invalid params → corrected retry`、`transient error → bounded retry`、`unknown tool → replan` 与 `stale → terminate` 形态。Agent A 在新的 Release Gate 给出真实 Core blocker 前，不继续扩展新 Tool、不进入 vNext 1.2，也不修改 Agent B 的大规模 Eval Dataset。
 
 ---
 
