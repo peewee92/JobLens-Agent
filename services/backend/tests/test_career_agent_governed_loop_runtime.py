@@ -32,13 +32,33 @@ class _IntentModel:
 
 
 class _Workflow:
-    def __init__(self, output: object) -> None:
+    def __init__(self, output: object, *, failures: tuple[Exception, ...] = ()) -> None:
         self.output = output
+        self.failures = list(failures)
         self.calls: list[object] = []
 
     def execute(self, *args: object, **kwargs: object) -> object:
         self.calls.append((args, kwargs))
+        if self.failures:
+            raise self.failures.pop(0)
         return self.output
+
+
+class _RecoveryPlanner:
+    def __init__(self, recovered_plan: CareerAgentPlannedToolRequest) -> None:
+        self.recovered_plan = recovered_plan
+        self.calls: list[tuple[CareerAgentToolName, str, int]] = []
+
+    def recover_tool_request(
+        self,
+        *,
+        tool: CareerAgentToolName,
+        error_code: str,
+        previous_plan: CareerAgentPlannedToolRequest | None,
+        attempt: int,
+    ) -> CareerAgentPlannedToolRequest | None:
+        self.calls.append((tool, error_code, attempt))
+        return self.recovered_plan
 
 
 def _context() -> CareerAgentContext:
@@ -103,6 +123,22 @@ def test_runtime_routes_selects_gates_executes_and_traces_structured_result() ->
         "finished",
     )
     assert all(event.trace_fingerprint for event in result.trace)
+
+
+def test_runtime_requires_clarification_when_intent_selects_no_tool() -> None:
+    runtime, ranking = _runtime({"goals": [], "reasoning_summary": "No workflow is necessary yet."})
+
+    result = runtime.run(
+        user_message="先看看情况",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.CLARIFICATION_REQUIRED
+    assert result.message == "No executable Career Agent tool was selected. Please clarify the next action."
+    assert ranking.calls == []
+    assert tuple(event.event for event in result.trace) == ("intent_routed", "clarification")
 
 
 def test_runtime_returns_clarification_without_tool_execution() -> None:
@@ -216,6 +252,100 @@ def test_runtime_returns_structured_failure_for_malformed_intent_output() -> Non
     assert result.error_code == "invalid_intent_output"
     assert ranking.calls == []
     assert tuple(event.event for event in result.trace) == ("failed",)
+
+
+def test_runtime_replans_invalid_tool_params_once_with_corrected_request() -> None:
+    invalid_plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=()),
+        normalized_params=(("job_ids", ""),),
+        fact_fingerprint="facts-invalid",
+    )
+    recovered_plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint="facts-corrected",
+    )
+    recovery = _RecoveryPlanner(recovered_plan)
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3),
+        recovery_planner=recovery,
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(invalid_plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.COMPLETED
+    assert len(ranking.calls) == 1
+    assert recovery.calls == [(CareerAgentToolName.RANK_MATCH_REPORTS, "invalid_tool_params", 1)]
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "tool_called",
+        "tool_result",
+        "finished",
+    )
+    assert result.trace[2].error_code == "invalid_tool_params"
+
+
+def test_runtime_retries_transient_tool_error_once_with_same_grounded_request() -> None:
+    ranking = _Workflow(
+        {"jobs": ["job-1"]},
+        failures=(ConnectionError("temporary ranking backend failure"),),
+    )
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint="facts-rank",
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.COMPLETED
+    assert len(ranking.calls) == 2
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "tool_called",
+        "tool_result",
+        "finished",
+    )
+    assert result.trace[2].error_code == "transient_network"
 
 
 def test_runtime_fails_closed_when_selected_tool_has_no_exact_planned_request() -> None:

@@ -10,6 +10,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 from app.agent.context import CareerAgentContext
 from app.agent.execution_gate import (
@@ -58,6 +59,19 @@ class CareerAgentPlannedToolRequest:
             raise ValueError("planned tool request requires fact_fingerprint")
 
 
+class CareerAgentLoopRecoveryPlanner(Protocol):
+    """Provide one corrected governed request after a retryable tool-level error."""
+
+    def recover_tool_request(
+        self,
+        *,
+        tool: CareerAgentToolName,
+        error_code: str,
+        previous_plan: CareerAgentPlannedToolRequest | None,
+        attempt: int,
+    ) -> CareerAgentPlannedToolRequest | None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class CareerAgentGovernedLoopTraceEvent:
     sequence: int
@@ -89,11 +103,13 @@ class CareerAgentGovernedLoopRuntime:
         selector: CareerAgentToolSelector,
         executor: CareerAgentGovernedToolExecutor,
         budget: CareerAgentLoopBudget | None = None,
+        recovery_planner: CareerAgentLoopRecoveryPlanner | None = None,
     ) -> None:
         self._router = router
         self._selector = selector
         self._executor = executor
         self._budget = budget or CareerAgentLoopBudget()
+        self._recovery_planner = recovery_planner
 
     def run(
         self,
@@ -153,28 +169,38 @@ class CareerAgentGovernedLoopRuntime:
 
         try:
             selections = self._selector.select(intent)
+        except ValueError:
+            error = guard.record_error(
+                CareerAgentLoopError(
+                    code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
+                    message="Career Agent tool selection is invalid",
+                    retryable=True,
+                )
+            )
+            return self._failed(trace, results, input_fingerprint, error)
+
+        if not selections:
+            self._trace(trace, "clarification", input_fingerprint=input_fingerprint)
+            return CareerAgentGovernedLoopResult(
+                status=CareerAgentGovernedLoopStatus.CLARIFICATION_REQUIRED,
+                tool_results=(),
+                trace=tuple(trace),
+                message="No executable Career Agent tool was selected. Please clarify the next action.",
+            )
+
+        try:
             plans = _index_plans(planned_requests)
         except ValueError:
             error = guard.record_error(
                 CareerAgentLoopError(
                     code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
-                    message="Career Agent plan or tool selection is invalid",
+                    message="Career Agent tool plan is invalid",
                     retryable=True,
                 )
             )
             return self._failed(trace, results, input_fingerprint, error)
 
         for selection in selections:
-            try:
-                guard.record_turn()
-            except CareerAgentLoopError as error:
-                return self._failed(
-                    trace,
-                    results,
-                    input_fingerprint,
-                    guard.record_error(error),
-                    tool=selection.tool.name,
-                )
             self._trace(
                 trace,
                 "tool_selected",
@@ -188,37 +214,92 @@ class CareerAgentGovernedLoopRuntime:
                 )
                 return self._failed(trace, results, input_fingerprint, error)
 
-            arguments_fingerprint = _fingerprint(plan.normalized_params)
-            decision = CareerAgentLoopDecision.call_tool(
-                tool=selection.tool.name,
-                arguments_fingerprint=arguments_fingerprint,
-            )
-            try:
-                guard.record_tool_call(
-                    decision,
-                    input_fingerprint=plan.fact_fingerprint,
-                    transient_retry=False,
-                )
-                execution = self._executor.execute(
-                    context=context,
-                    tool=plan.tool,
-                    request=plan.request,
-                    normalized_params=plan.normalized_params,
-                    fact_fingerprint=plan.fact_fingerprint,
-                    expected_provider_calls=plan.expected_provider_calls,
-                    business_writes=plan.business_writes,
-                    external_effects=plan.external_effects,
-                    expires_at=plan.expires_at,
-                )
-            except (CareerAgentLoopError, ValueError) as exc:
-                error = exc if isinstance(exc, CareerAgentLoopError) else CareerAgentLoopError.invalid_tool_params(selection.tool.name)
-                return self._failed(
-                    trace,
-                    results,
-                    plan.fact_fingerprint,
-                    guard.record_error(error),
+            recovery_attempt = 0
+            transient_retry = False
+            while True:
+                try:
+                    guard.record_turn()
+                except CareerAgentLoopError as error:
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        guard.record_error(error),
+                        tool=selection.tool.name,
+                    )
+
+                arguments_fingerprint = _fingerprint(plan.normalized_params)
+                decision = CareerAgentLoopDecision.call_tool(
                     tool=selection.tool.name,
+                    arguments_fingerprint=arguments_fingerprint,
                 )
+                try:
+                    guard.record_tool_call(
+                        decision,
+                        input_fingerprint=plan.fact_fingerprint,
+                        transient_retry=transient_retry,
+                    )
+                    execution = self._executor.execute(
+                        context=context,
+                        tool=plan.tool,
+                        request=plan.request,
+                        normalized_params=plan.normalized_params,
+                        fact_fingerprint=plan.fact_fingerprint,
+                        expected_provider_calls=plan.expected_provider_calls,
+                        business_writes=plan.business_writes,
+                        external_effects=plan.external_effects,
+                        expires_at=plan.expires_at,
+                    )
+                    break
+                except (ConnectionError, TimeoutError):
+                    error = guard.record_error(CareerAgentLoopError.transient_network(selection.tool.name))
+                    if not error.retryable:
+                        return self._failed(trace, results, plan.fact_fingerprint, error, tool=selection.tool.name)
+                    recovery_attempt += 1
+                    self._trace(
+                        trace,
+                        "recovery",
+                        tool=selection.tool.name,
+                        input_fingerprint=plan.fact_fingerprint,
+                        error_code=error.code.value,
+                    )
+                    transient_retry = True
+                except CareerAgentLoopError as error:
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        guard.record_error(error),
+                        tool=selection.tool.name,
+                    )
+                except ValueError:
+                    error = guard.record_error(CareerAgentLoopError.invalid_tool_params(selection.tool.name))
+                    if not error.retryable or self._recovery_planner is None:
+                        return self._failed(trace, results, plan.fact_fingerprint, error, tool=selection.tool.name)
+                    recovery_attempt += 1
+                    recovered_plan = self._recovery_planner.recover_tool_request(
+                        tool=selection.tool.name,
+                        error_code=error.code.value,
+                        previous_plan=plan,
+                        attempt=recovery_attempt,
+                    )
+                    if recovered_plan is None or recovered_plan.tool is not selection.tool.name:
+                        return self._failed(
+                            trace,
+                            results,
+                            plan.fact_fingerprint,
+                            CareerAgentLoopError(code=error.code, message=str(error), retryable=False),
+                            tool=selection.tool.name,
+                        )
+                    self._trace(
+                        trace,
+                        "recovery",
+                        tool=selection.tool.name,
+                        input_fingerprint=recovered_plan.fact_fingerprint,
+                        error_code=error.code.value,
+                    )
+                    plan = recovered_plan
+                    transient_retry = False
 
             self._trace(
                 trace,
