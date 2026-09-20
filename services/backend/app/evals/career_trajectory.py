@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, field, fields, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import Mapping
@@ -39,14 +39,22 @@ from app.agent.context import CareerAgentContext, CareerAgentJobContext
 from app.agent.execution_gate import CareerAgentGovernedToolExecutor
 from app.agent.governed_loop_runtime import (
     CareerAgentGovernedLoopRuntime,
+    CareerAgentLoopRecoveryPlanner,
     CareerAgentPlannedToolRequest,
+    CareerAgentStalenessGuard,
+    CareerAgentUnknownToolReplanner,
 )
-from app.agent.intent import CareerIntentResolutionContext, CareerIntentRouter
+from app.agent.intent import (
+    CareerIntentGoal,
+    CareerIntentResolutionContext,
+    CareerIntentRouter,
+)
 from app.agent.tool_loop import CareerAgentLoopBudget
 from app.agent.tool_registry import (
     CareerAgentToolError,
     CareerAgentToolName,
     CareerAgentToolRegistry,
+    CareerAgentToolRequest,
     JobPreparationRequest,
     RankMatchReportsRequest,
     TargetCohortGapsRequest,
@@ -61,6 +69,7 @@ _TRACE_VOCABULARY = frozenset(
         "clarification",
         "unsupported",
         "blocked",
+        "recovery",
         "tool_selected",
         "tool_called",
         "pending_action",
@@ -77,7 +86,7 @@ _TOOL_REQUEST_REQUEST_TYPE: dict[str, type[object]] = {
 }
 
 _TOOL_REQUIRED_EVENTS = ("tool_selected", "tool_called", "pending_action", "tool_result")
-_TOOL_OPTIONAL_EVENTS = ("failed",)
+_TOOL_OPTIONAL_EVENTS = ("failed", "recovery")
 
 
 class CareerTrajectoryShape(StrEnum):
@@ -137,47 +146,36 @@ _SHAPE_COVERAGE: tuple[CareerTrajectoryShapeCoverage, ...] = (
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.TOOL_EMPTY_CLARIFICATION,
-        status=CareerTrajectoryShapeStatus.BLOCKED,
-        evidence="probe: empty goals -> status=completed, trace=intent_routed > finished, no clarification event",
-        reason=(
-            "An intent that selects no tool completes silently instead of asking for "
-            "clarification. clarification_required is only reachable when the intent "
-            "already carries needs_clarification, so 'tool empty implies clarification' "
-            "is not implemented."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: empty goals -> status=clarification_required, "
+            "trace=intent_routed > clarification"
         ),
-        gap_id="GAP-5",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.INVALID_PARAMS_CORRECTED_RETRY,
-        status=CareerTrajectoryShapeStatus.PARTIAL,
-        evidence="probe: malformed args -> status=failed, error_code=invalid_tool_params (structured, non-retryable)",
-        reason=(
-            "Invalid parameters fail closed structurally, but no in-runtime corrected "
-            "retry exists. A retry would have to be caller-driven across separate runs."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: malformed args -> recovery event -> corrected plan executes, "
+            "trace=intent_routed > tool_selected:X > recovery:X > tool_called:X > "
+            "tool_result:X > finished"
         ),
-        gap_id="GAP-7",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.TRANSIENT_ERROR_BOUNDED_RETRY,
-        status=CareerTrajectoryShapeStatus.BLOCKED,
-        evidence="the runtime has no transient-error branch and never re-invokes a tool",
-        reason=(
-            "CareerAgentGovernedLoopRuntime.run iterates the selection list exactly once; "
-            "there is no retry loop and no transient-error classification, so bounded "
-            "retry cannot be observed."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: workflow raises ConnectionError once -> recovery event -> retry succeeds; "
+            "second failure terminates with transient_network"
         ),
-        gap_id="GAP-7",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.UNKNOWN_TOOL_REPLAN,
-        status=CareerTrajectoryShapeStatus.BLOCKED,
-        evidence="probe: unregistered goal -> status=failed, error_code=invalid_tool_params (never unknown_tool)",
-        reason=(
-            "An unknown tool surfaces as invalid_tool_params because selection failure is "
-            "caught as a plan error. CareerAgentLoopErrorCode.UNKNOWN_TOOL is unreachable "
-            "on this path, and there is no replan step."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: unknown goal -> recovery event (no tool) -> replanned goals resolve; "
+            "exhausted replan terminates with unknown_tool"
         ),
-        gap_id="GAP-8",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.SAME_TOOL_LOOP_STOPPED,
@@ -186,14 +184,11 @@ _SHAPE_COVERAGE: tuple[CareerTrajectoryShapeCoverage, ...] = (
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.STALE_TERMINATE,
-        status=CareerTrajectoryShapeStatus.BLOCKED,
-        evidence="no stale status, stale error code, or stale check exists in the 1.1 loop",
-        reason=(
-            "Staleness is detected in the vNext 1.0 LangGraph durable runtime, not in the "
-            "vNext 1.1 governed loop. Core must decide where staleness is detected before "
-            "this shape can be evaluated here."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: stale before execution -> failed/stale_state without touching a workflow; "
+            "stale detected after a transient recovery also terminates before re-execution"
         ),
-        gap_id="GAP-3",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.COST_ACTION_PENDING_ACTION,
@@ -218,12 +213,17 @@ _RELEASE_MINIMUMS: dict[str, int] = {
     "completed_multi": 3,
     "completed_triple": 2,
     "clarification": 2,
+    "tool_empty": 2,
     "unsupported": 2,
     "blocked": 2,
     "invalid_intent_output": 2,
     "invalid_tool_params": 4,
     "loop_detected": 2,
     "budget_exhausted": 2,
+    "transient_retry": 3,
+    "corrected_retry": 3,
+    "unknown_tool_replan": 3,
+    "stale_terminate": 3,
 }
 _RELEASE_MINIMUM_TOTAL = sum(_RELEASE_MINIMUMS.values())
 
@@ -279,6 +279,10 @@ class CareerTrajectoryEvalCase:
     planned_requests: tuple[CareerTrajectoryEvalPlan, ...]
     budget_overrides: Mapping[str, int]
     expected: CareerTrajectoryEvalExpected
+    stale_checks: tuple[bool, ...] = ()
+    transient_faults: Mapping[str, tuple[bool, ...]] = field(default_factory=dict)
+    recovery_plans: tuple[CareerTrajectoryEvalPlan, ...] = ()
+    replan_goals: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,10 +341,26 @@ class _ReplayIntentModel:
         return dict(self._payloads[user_message])
 
 
-class _CountingRanking:
-    def __init__(self) -> None:
+class _FaultingWorkflow:
+    """Record-only workflow that can raise a scripted transient failure per attempt."""
+
+    def __init__(self, faults: tuple[bool, ...], label: str) -> None:
+        self._faults = faults
+        self._label = label
         self.calls = 0
 
+    @property
+    def invoked(self) -> int:
+        return self.calls
+
+    def _advance(self) -> None:
+        index = self.calls
+        self.calls += 1
+        if index < len(self._faults) and self._faults[index]:
+            raise ConnectionError(f"simulated transient network failure in {self._label}")
+
+
+class _FaultingRanking(_FaultingWorkflow):
     def execute(
         self,
         job_ids: tuple[str, ...],
@@ -348,26 +368,80 @@ class _CountingRanking:
         include_blocked: bool = False,
         top_n: int | None = None,
     ) -> object:
-        self.calls += 1
+        self._advance()
         return {"jobIds": list(job_ids)}
 
 
-class _CountingGaps:
-    def __init__(self) -> None:
-        self.calls = 0
-
+class _FaultingGaps(_FaultingWorkflow):
     def execute(self, command: object) -> object:
-        self.calls += 1
+        self._advance()
         return {"cohortId": getattr(command, "cohort_id", None)}
 
 
-class _CountingPreparation:
-    def __init__(self) -> None:
+class _FaultingPreparation(_FaultingWorkflow):
+    def execute(self, job_id: str) -> object:
+        self._advance()
+        return {"jobId": job_id}
+
+
+class _ScriptedStalenessGuard:
+    """Consume a frozen staleness script; anything past the script is fresh."""
+
+    def __init__(self, script: tuple[bool, ...]) -> None:
+        self._script = script
         self.calls = 0
 
-    def execute(self, job_id: str) -> object:
+    def is_stale(
+        self,
+        *,
+        context: CareerAgentContext,
+        plan: CareerAgentPlannedToolRequest,
+    ) -> bool:
+        index = self.calls
         self.calls += 1
-        return {"jobId": job_id}
+        return self._script[index] if index < len(self._script) else False
+
+
+class _ScriptedRecoveryPlanner:
+    """Return frozen corrected plans in order, then refuse further recovery."""
+
+    def __init__(self, plans: tuple[CareerAgentPlannedToolRequest, ...]) -> None:
+        self._plans = plans
+        self.calls = 0
+
+    def recover_tool_request(
+        self,
+        *,
+        tool: CareerAgentToolName,
+        error_code: str,
+        previous_plan: CareerAgentPlannedToolRequest | None,
+        attempt: int,
+    ) -> CareerAgentPlannedToolRequest | None:
+        if self.calls >= len(self._plans):
+            return None
+        plan = self._plans[self.calls]
+        self.calls += 1
+        return plan
+
+
+class _ScriptedUnknownToolReplanner:
+    """Return frozen goal sets in order, then refuse further replanning."""
+
+    def __init__(self, goal_sets: tuple[tuple[CareerIntentGoal, ...], ...]) -> None:
+        self._goal_sets = goal_sets
+        self.calls = 0
+
+    def replan_unknown_tool(
+        self,
+        *,
+        previous_goals: tuple[CareerIntentGoal, ...],
+        attempt: int,
+    ) -> tuple[CareerIntentGoal, ...] | None:
+        if self.calls >= len(self._goal_sets):
+            return None
+        goals = self._goal_sets[self.calls]
+        self.calls += 1
+        return goals
 
 
 class CareerTrajectoryEvalDriver:
@@ -375,8 +449,9 @@ class CareerTrajectoryEvalDriver:
 
     The driver only builds a record-only fixture, replays one frozen case, counts
     the workflow invocations the runtime actually caused, and re-runs the case to
-    check trace replay determinism.  It contains no runtime, planner, or retry
-    logic.
+    check trace replay determinism.  It contains no runtime, planner, staleness,
+    or retry logic of its own; staleness, recovery and replanning are injected as
+    frozen scripts so the Core decisions stay observable.
     """
 
     def run(self, *, case: CareerTrajectoryEvalCase) -> CareerTrajectoryEvalExecution:
@@ -404,7 +479,12 @@ class CareerTrajectoryEvalDriver:
         return replace(first, replay_stable=replay_stable)
 
     def _drive(self, case: CareerTrajectoryEvalCase) -> CareerTrajectoryEvalExecution:
-        ranking, gaps, preparation = _CountingRanking(), _CountingGaps(), _CountingPreparation()
+        def faults_for(tool: CareerAgentToolName) -> tuple[bool, ...]:
+            return tuple(case.transient_faults.get(tool.value, ()))
+
+        ranking = _FaultingRanking(faults_for(CareerAgentToolName.RANK_MATCH_REPORTS), "ranking")
+        gaps = _FaultingGaps(faults_for(CareerAgentToolName.TARGET_COHORT_GAPS), "gaps")
+        preparation = _FaultingPreparation(faults_for(CareerAgentToolName.JOB_PREPARATION), "prep")
         registry = CareerAgentToolRegistry(
             ranking=ranking,
             target_cohort_gaps=gaps,
@@ -414,7 +494,25 @@ class CareerTrajectoryEvalDriver:
             router=CareerIntentRouter(model=_ReplayIntentModel({case.message: case.intent_payload})),
             selector=CareerAgentToolSelector(registry=registry),
             executor=CareerAgentGovernedToolExecutor(registry=registry),
+            staleness_guard=_ScriptedStalenessGuard(case.stale_checks),
             budget=replace(CareerAgentLoopBudget(), **dict(case.budget_overrides)),
+            recovery_planner=(
+                _ScriptedRecoveryPlanner(
+                    tuple(_build_plan(plan) for plan in case.recovery_plans)
+                )
+                if case.recovery_plans
+                else None
+            ),
+            unknown_tool_replanner=(
+                _ScriptedUnknownToolReplanner(
+                    tuple(
+                        tuple(CareerIntentGoal(goal) for goal in goals)
+                        for goals in case.replan_goals
+                    )
+                )
+                if case.replan_goals
+                else None
+            ),
         )
 
         result = runtime.run(
@@ -436,7 +534,7 @@ class CareerTrajectoryEvalDriver:
             trace=_render_trace(result.trace),
             trace_fingerprints=tuple(event.trace_fingerprint for event in result.trace),
             tool_results=len(result.tool_results),
-            workflow_invocations=ranking.calls + gaps.calls + preparation.calls,
+            workflow_invocations=ranking.invoked + gaps.invoked + preparation.invoked,
             pending_action_present=result.pending_action is not None,
             replay_stable=True,
             trace_leak=leak,
@@ -777,7 +875,29 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         _parse_plan(item, line_number=line_number, index=index)
         for index, item in enumerate(plans_payload)
     )
+    recovery_payload = payload.get("recoveryPlans", [])
+    if not isinstance(recovery_payload, list):
+        raise ValueError(
+            f"Trajectory Eval line {line_number} field recoveryPlans must be an array"
+        )
+    recovery_plans = tuple(
+        _parse_plan(item, line_number=line_number, index=index, field_name="recoveryPlans")
+        for index, item in enumerate(recovery_payload)
+    )
     budget_overrides = _parse_budget(payload.get("budget", {}), line_number=line_number)
+    stale_checks = _parse_bool_list(
+        payload.get("staleChecks", []),
+        field="staleChecks",
+        line_number=line_number,
+    )
+    transient_faults = _parse_transient_faults(
+        payload.get("transientFaults", {}),
+        line_number=line_number,
+    )
+    replan_goals = _parse_replan_goals(
+        payload.get("replanGoals", []),
+        line_number=line_number,
+    )
 
     expected_payload = _object(payload.get("expected"), field="expected", line_number=line_number)
     expected = CareerTrajectoryEvalExpected(
@@ -810,9 +930,71 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         planned_requests=plans,
         budget_overrides=budget_overrides,
         expected=expected,
+        stale_checks=stale_checks,
+        transient_faults=transient_faults,
+        recovery_plans=recovery_plans,
+        replan_goals=replan_goals,
     )
     _validate_case_semantics(case)
     return case
+
+
+def _parse_bool_list(value: object, *, field: str, line_number: int) -> tuple[bool, ...]:
+    if not isinstance(value, list) or not all(isinstance(item, bool) for item in value):
+        raise ValueError(
+            f"Trajectory Eval line {line_number} field {field} must be a boolean array"
+        )
+    return tuple(value)
+
+
+def _parse_transient_faults(
+    value: object,
+    *,
+    line_number: int,
+) -> dict[str, tuple[bool, ...]]:
+    payload = _object(value, field="transientFaults", line_number=line_number)
+    faults: dict[str, tuple[bool, ...]] = {}
+    for tool, flags in payload.items():
+        try:
+            CareerAgentToolName(tool)
+        except ValueError as exc:
+            raise ValueError(
+                f"Trajectory Eval line {line_number} transientFaults references unknown tool "
+                f"{tool!r}"
+            ) from exc
+        faults[tool] = _parse_bool_list(
+            flags,
+            field=f"transientFaults.{tool}",
+            line_number=line_number,
+        )
+    return faults
+
+
+def _parse_replan_goals(
+    value: object,
+    *,
+    line_number: int,
+) -> tuple[tuple[str, ...], ...]:
+    if not isinstance(value, list):
+        raise ValueError(
+            f"Trajectory Eval line {line_number} field replanGoals must be an array"
+        )
+    goal_sets: list[tuple[str, ...]] = []
+    for entry in value:
+        if not isinstance(entry, list) or not all(isinstance(item, str) for item in entry):
+            raise ValueError(
+                f"Trajectory Eval line {line_number} replanGoals entries must be string arrays"
+            )
+        for goal in entry:
+            try:
+                CareerIntentGoal(goal)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Trajectory Eval line {line_number} replanGoals references unknown goal "
+                    f"{goal!r}"
+                ) from exc
+        goal_sets.append(tuple(entry))
+    return tuple(goal_sets)
 
 
 def _validate_case_semantics(case: CareerTrajectoryEvalCase) -> None:
@@ -847,17 +1029,69 @@ def _validate_case_semantics(case: CareerTrajectoryEvalCase) -> None:
     if expected.status != "failed" and expected.trace and expected.trace[-1].startswith("failed"):
         raise ValueError(f"{case_id}: a non-failed trajectory must not end with a failed event")
 
-    if expected.workflow_invocations > len(case.planned_requests):
+    fault_attempts = sum(
+        1 for flags in case.transient_faults.values() for flag in flags if flag
+    )
+    allowed_invocations = (
+        len(case.planned_requests) + len(case.recovery_plans) + fault_attempts
+    )
+    if expected.workflow_invocations > allowed_invocations:
         raise ValueError(
-            f"{case_id}: workflow invocations cannot exceed the declared planned requests"
+            f"{case_id}: workflow invocations cannot exceed the declared plans, recovery "
+            "plans and injected transient faults"
         )
-    for plan in case.planned_requests:
+    for plan in case.planned_requests + case.recovery_plans:
         if plan.request_payload.get("kind") not in _TOOL_REQUEST_REQUEST_TYPE:
             raise ValueError(
                 f"{case_id}: planned request for {plan.tool} has an invalid request kind"
             )
     if case.family == "completed_single" and len(case.planned_requests) != 1:
         raise ValueError(f"{case_id}: completed_single requires exactly one planned request")
+
+    goals = case.intent_payload.get("goals")
+    if case.family == "tool_empty":
+        if goals:
+            raise ValueError(f"{case_id}: tool_empty case must declare no intent goals")
+        if expected.status != "clarification_required":
+            raise ValueError(
+                f"{case_id}: tool_empty case must expect clarification_required"
+            )
+
+    if case.recovery_plans and case.family != "corrected_retry":
+        raise ValueError(
+            f"{case_id}: recoveryPlans are only valid for corrected_retry cases"
+        )
+    if case.family == "corrected_retry" and not case.recovery_plans:
+        raise ValueError(f"{case_id}: corrected_retry case requires recoveryPlans")
+    if case.replan_goals and case.family != "unknown_tool_replan":
+        raise ValueError(
+            f"{case_id}: replanGoals are only valid for unknown_tool_replan cases"
+        )
+    if case.family == "unknown_tool_replan" and not case.replan_goals:
+        raise ValueError(f"{case_id}: unknown_tool_replan case requires replanGoals")
+    if case.transient_faults and case.family not in ("transient_retry", "stale_terminate"):
+        raise ValueError(
+            f"{case_id}: transientFaults are only valid for transient_retry or "
+            "stale_terminate cases"
+        )
+    if case.family == "transient_retry" and not case.transient_faults:
+        raise ValueError(f"{case_id}: transient_retry case requires transientFaults")
+    if case.stale_checks and case.family != "stale_terminate":
+        raise ValueError(
+            f"{case_id}: staleChecks are only valid for stale_terminate cases"
+        )
+    if case.family == "stale_terminate":
+        if not case.stale_checks:
+            raise ValueError(f"{case_id}: stale_terminate case requires staleChecks")
+        if expected.error_code != "stale_state":
+            raise ValueError(f"{case_id}: stale_terminate case must fail with stale_state")
+
+    recovering_families = ("corrected_retry", "transient_retry", "unknown_tool_replan")
+    if case.family in recovering_families and expected.status == "completed":
+        if not any(event.startswith("recovery") for event in expected.trace):
+            raise ValueError(
+                f"{case_id}: a recovered {case.family} trajectory must trace a recovery event"
+            )
 
 
 def _parse_shapes(value: object, *, line_number: int) -> tuple[CareerTrajectoryShape, ...]:
@@ -880,14 +1114,20 @@ def _parse_shapes(value: object, *, line_number: int) -> tuple[CareerTrajectoryS
     return tuple(shapes)
 
 
-def _parse_plan(payload: object, *, line_number: int, index: int) -> CareerTrajectoryEvalPlan:
-    plan_payload = _object(payload, field=f"plannedRequests[{index}]", line_number=line_number)
+def _parse_plan(
+    payload: object,
+    *,
+    line_number: int,
+    index: int,
+    field_name: str = "plannedRequests",
+) -> CareerTrajectoryEvalPlan:
+    plan_payload = _object(payload, field=f"{field_name}[{index}]", line_number=line_number)
     tool = _required_string(plan_payload, "tool", line_number=line_number)
     try:
         CareerAgentToolName(tool)
     except ValueError as exc:
         raise ValueError(
-            f"Trajectory Eval line {line_number} plannedRequests[{index}] references unknown "
+            f"Trajectory Eval line {line_number} {field_name}[{index}] references unknown "
             f"tool {tool!r}"
         ) from exc
 

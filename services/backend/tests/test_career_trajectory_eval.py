@@ -20,6 +20,7 @@ from app.evals.career_trajectory import (
 
 _NON_EXECUTING_FAMILIES = (
     "clarification",
+    "tool_empty",
     "unsupported",
     "blocked",
     "invalid_intent_output",
@@ -32,25 +33,30 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
     for case in cases:
         counts[case.family] = counts.get(case.family, 0) + 1
 
-    assert len(cases) == 24
+    assert len(cases) == 38
     assert counts == {
         "completed_single": 3,
         "completed_multi": 3,
         "completed_triple": 2,
         "clarification": 2,
+        "tool_empty": 2,
         "unsupported": 2,
         "blocked": 2,
         "invalid_intent_output": 2,
         "invalid_tool_params": 4,
         "loop_detected": 2,
         "budget_exhausted": 2,
+        "transient_retry": 3,
+        "corrected_retry": 3,
+        "unknown_tool_replan": 3,
+        "stale_terminate": 3,
     }
 
 
 def test_release_dataset_validation_rejects_missing_family_minimums() -> None:
     cases = load_career_trajectory_eval_dataset()
 
-    with pytest.raises(ValueError, match="at least 24"):
+    with pytest.raises(ValueError, match="at least 38"):
         validate_career_trajectory_release_dataset(cases=(cases[0],))
 
 
@@ -66,7 +72,7 @@ def test_trajectory_gate_passes_for_frozen_cohort_against_real_core() -> None:
     }
     assert failures == {}
     assert report.gate_passed is True
-    assert report.total_cases == 24
+    assert report.total_cases == 38
     assert report.unclassified_errors == 0
     assert report.trace_leaks == 0
     assert report.unstable_traces == 0
@@ -75,17 +81,82 @@ def test_trajectory_gate_passes_for_frozen_cohort_against_real_core() -> None:
     assert report.business_writes == 0
 
 
-def test_trajectory_gate_reports_incomplete_prd_153_coverage() -> None:
+def test_trajectory_gate_still_reports_the_two_remaining_prd_153_gaps() -> None:
     cases = load_career_trajectory_eval_dataset()
 
     report = evaluate_career_trajectories(driver=CareerTrajectoryEvalDriver(), cases=cases)
 
-    assert report.covered_shapes == 3
-    assert report.partial_shapes == 2
-    assert report.blocked_shapes == 5
+    assert report.covered_shapes == 8
+    assert report.partial_shapes == 1
+    assert report.blocked_shapes == 1
     assert report.covered_shapes + report.partial_shapes + report.blocked_shapes == 10
+    assert report.prd_153_case_minimum_met is True
     assert report.prd_153_shape_coverage_complete is False
-    assert report.prd_153_case_minimum_met is False
+    remaining = {
+        item.shape: item.gap_id
+        for item in report.coverage
+        if item.gap_id is not None
+    }
+    assert remaining == {
+        CareerTrajectoryShape.RANKING_HITL_GAP: "GAP-6",
+        CareerTrajectoryShape.COST_ACTION_PENDING_ACTION: "GAP-1",
+    }
+
+
+def test_the_five_remediated_shapes_are_now_covered() -> None:
+    remediated = (
+        CareerTrajectoryShape.TOOL_EMPTY_CLARIFICATION,
+        CareerTrajectoryShape.INVALID_PARAMS_CORRECTED_RETRY,
+        CareerTrajectoryShape.TRANSIENT_ERROR_BOUNDED_RETRY,
+        CareerTrajectoryShape.UNKNOWN_TOOL_REPLAN,
+        CareerTrajectoryShape.STALE_TERMINATE,
+    )
+    statuses = {
+        item.shape: item.status
+        for item in career_trajectory_shape_coverage()
+        if item.shape in remediated
+    }
+
+    assert len(statuses) == 5
+    assert all(
+        status is CareerTrajectoryShapeStatus.COVERED for status in statuses.values()
+    )
+
+
+def test_stale_recheck_closes_the_recovery_window() -> None:
+    """Core re-checks staleness after a recovery, before re-executing."""
+
+    cases = load_career_trajectory_eval_dataset()
+    window = next(case for case in cases if case.case_id == "traj-stale-02")
+    assert window.stale_checks == (False, True)
+    assert window.transient_faults
+
+    execution = CareerTrajectoryEvalDriver().run(case=window)
+
+    assert execution.status == "failed"
+    assert execution.error_code == "stale_state"
+    assert execution.trace == (
+        "intent_routed",
+        "tool_selected:rank_match_reports",
+        "recovery:rank_match_reports",
+        "failed:rank_match_reports",
+    )
+    # The faulted attempt ran the workflow once, but the stale re-check stopped
+    # the retry before it could touch business code a second time.
+    assert execution.workflow_invocations == 1
+    assert execution.tool_results == 0
+
+
+def test_transient_retry_is_bounded_and_then_terminates() -> None:
+    cases = load_career_trajectory_eval_dataset()
+    bounded = next(case for case in cases if case.case_id == "traj-transient-03")
+
+    execution = CareerTrajectoryEvalDriver().run(case=bounded)
+
+    assert execution.status == "failed"
+    assert execution.error_code == "transient_network"
+    assert execution.workflow_invocations == 2
+    assert execution.tool_results == 0
 
 
 def test_every_covered_and_partial_shape_is_evidenced_by_a_case() -> None:
@@ -135,7 +206,7 @@ def test_trace_fingerprints_are_digests_and_vocabulary_is_closed() -> None:
         assert result.execution.trace_leak is None
         for event in result.execution.trace:
             assert event.split(":", 1)[0] in {
-                "intent_routed", "clarification", "unsupported", "blocked",
+                "intent_routed", "clarification", "unsupported", "blocked", "recovery",
                 "tool_selected", "tool_called", "pending_action", "tool_result",
                 "failed", "finished",
             }
@@ -153,7 +224,7 @@ def test_business_code_is_reached_exactly_when_the_trajectory_says_so() -> None:
 def test_non_executing_trajectories_never_reach_business_code() -> None:
     cases = load_career_trajectory_eval_dataset()
     non_executing = tuple(case for case in cases if case.family in _NON_EXECUTING_FAMILIES)
-    assert len(non_executing) == 8
+    assert len(non_executing) == 10
 
     report = evaluate_career_trajectories(
         driver=CareerTrajectoryEvalDriver(),
@@ -174,7 +245,7 @@ def test_failed_trajectories_after_a_successful_tool_still_report_their_results(
         for case in cases
         if case.expected.status == "failed" and case.expected.tool_results > 0
     )
-    assert len(partial) == 4
+    assert len(partial) == 5
 
     report = evaluate_career_trajectories(
         driver=CareerTrajectoryEvalDriver(),
