@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+
+import pytest
 
 from app.agent.context import CareerAgentContext
 from app.agent.execution_gate import CareerAgentGovernedToolExecutor
-from app.agent.intent import CareerIntentResolutionContext, CareerIntentRouter
+from app.agent.intent import CareerIntentGoal, CareerIntentResolutionContext, CareerIntentRouter
 from app.agent.tool_loop import CareerAgentLoopBudget
 from app.agent.tool_registry import (
     CareerAgentToolName,
@@ -61,6 +64,25 @@ class _RecoveryPlanner:
         return self.recovered_plan
 
 
+def _fp(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+class _UnknownToolReplanner:
+    def __init__(self, goals: tuple[CareerIntentGoal, ...]) -> None:
+        self.goals = goals
+        self.calls: list[tuple[tuple[CareerIntentGoal, ...], int]] = []
+
+    def replan_unknown_tool(
+        self,
+        *,
+        previous_goals: tuple[CareerIntentGoal, ...],
+        attempt: int,
+    ) -> tuple[CareerIntentGoal, ...] | None:
+        self.calls.append((previous_goals, attempt))
+        return self.goals
+
+
 def _context() -> CareerAgentContext:
     return CareerAgentContext(
         usable=True,
@@ -105,7 +127,7 @@ def test_runtime_routes_selects_gates_executes_and_traces_structured_result() ->
                 tool=CareerAgentToolName.RANK_MATCH_REPORTS,
                 request=RankMatchReportsRequest(job_ids=("job-1", "job-2")),
                 normalized_params=(("job_ids", "job-1,job-2"),),
-                fact_fingerprint="facts-1",
+                fact_fingerprint=_fp("facts-1"),
             ),
         ),
     )
@@ -169,7 +191,7 @@ def test_runtime_returns_structured_failure_when_planned_requests_are_duplicated
         tool=CareerAgentToolName.RANK_MATCH_REPORTS,
         request=RankMatchReportsRequest(job_ids=("job-1",)),
         normalized_params=(("job_ids", "job-1"),),
-        fact_fingerprint="facts-1",
+        fact_fingerprint=_fp("facts-1"),
     )
 
     result = runtime.run(
@@ -216,7 +238,7 @@ def test_runtime_returns_structured_failure_when_turn_budget_is_exhausted() -> N
                 tool=CareerAgentToolName.RANK_MATCH_REPORTS,
                 request=RankMatchReportsRequest(job_ids=("job-1",)),
                 normalized_params=(("job_ids", "job-1"),),
-                fact_fingerprint="facts-rank",
+                fact_fingerprint=_fp("facts-rank"),
             ),
             CareerAgentPlannedToolRequest(
                 tool=CareerAgentToolName.TARGET_COHORT_GAPS,
@@ -226,7 +248,7 @@ def test_runtime_returns_structured_failure_when_turn_budget_is_exhausted() -> N
                     selected_job_ids=("job-1",),
                 ),
                 normalized_params=(("selected_job_ids", "job-1"),),
-                fact_fingerprint="facts-gap",
+                fact_fingerprint=_fp("facts-gap"),
             ),
         ),
     )
@@ -259,13 +281,13 @@ def test_runtime_replans_invalid_tool_params_once_with_corrected_request() -> No
         tool=CareerAgentToolName.RANK_MATCH_REPORTS,
         request=RankMatchReportsRequest(job_ids=()),
         normalized_params=(("job_ids", ""),),
-        fact_fingerprint="facts-invalid",
+        fact_fingerprint=_fp("facts-invalid"),
     )
     recovered_plan = CareerAgentPlannedToolRequest(
         tool=CareerAgentToolName.RANK_MATCH_REPORTS,
         request=RankMatchReportsRequest(job_ids=("job-1",)),
         normalized_params=(("job_ids", "job-1"),),
-        fact_fingerprint="facts-corrected",
+        fact_fingerprint=_fp("facts-corrected"),
     )
     recovery = _RecoveryPlanner(recovered_plan)
     ranking = _Workflow({"jobs": ["job-1"]})
@@ -325,7 +347,7 @@ def test_runtime_retries_transient_tool_error_once_with_same_grounded_request() 
         tool=CareerAgentToolName.RANK_MATCH_REPORTS,
         request=RankMatchReportsRequest(job_ids=("job-1",)),
         normalized_params=(("job_ids", "job-1"),),
-        fact_fingerprint="facts-rank",
+        fact_fingerprint=_fp("facts-rank"),
     )
 
     result = runtime.run(
@@ -348,6 +370,125 @@ def test_runtime_retries_transient_tool_error_once_with_same_grounded_request() 
     assert result.trace[2].error_code == "transient_network"
 
 
+def test_runtime_replans_unknown_tool_once_into_registered_goal() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    replanner = _UnknownToolReplanner((CareerIntentGoal.RANK_JOBS,))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["unknown"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
+        unknown_tool_replanner=replanner,
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("facts-rank"),
+    )
+
+    result = runtime.run(
+        user_message="帮我处理一下这批岗位",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.COMPLETED
+    assert len(ranking.calls) == 1
+    assert replanner.calls == [((CareerIntentGoal.UNKNOWN,), 1)]
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "recovery",
+        "tool_selected",
+        "tool_called",
+        "tool_result",
+        "finished",
+    )
+    assert result.trace[1].error_code == "unknown_tool"
+
+
+def test_runtime_fails_closed_when_unknown_tool_replan_is_still_unknown() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    replanner = _UnknownToolReplanner((CareerIntentGoal.UNKNOWN,))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["unknown"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
+        unknown_tool_replanner=replanner,
+    )
+
+    result = runtime.run(
+        user_message="调用一个不存在的工具",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "unknown_tool"
+    assert ranking.calls == []
+    assert replanner.calls == [((CareerIntentGoal.UNKNOWN,), 1)]
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "recovery",
+        "failed",
+    )
+    assert result.trace[-1].error_code == "unknown_tool"
+
+
+def test_runtime_keeps_unavailable_future_goal_fail_closed_without_unknown_replan() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    replanner = _UnknownToolReplanner((CareerIntentGoal.RANK_JOBS,))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["review_application"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        unknown_tool_replanner=replanner,
+    )
+
+    result = runtime.run(
+        user_message="查看申请执行情况",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "invalid_tool_params"
+    assert ranking.calls == []
+    assert replanner.calls == []
+
+
+def test_planned_request_rejects_non_digest_fact_fingerprint() -> None:
+    with pytest.raises(ValueError, match="64-character lowercase sha256"):
+        CareerAgentPlannedToolRequest(
+            tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+            request=RankMatchReportsRequest(job_ids=("job-1",)),
+            normalized_params=(("job_ids", "job-1"),),
+            fact_fingerprint="raw job facts must never enter trace",
+        )
+
+
 def test_runtime_fails_closed_when_selected_tool_has_no_exact_planned_request() -> None:
     runtime, ranking = _runtime({"goals": ["rank_jobs"]})
 
@@ -360,7 +501,7 @@ def test_runtime_fails_closed_when_selected_tool_has_no_exact_planned_request() 
                 tool=CareerAgentToolName.JOB_PREPARATION,
                 request=JobPreparationRequest(job_id="job-1"),
                 normalized_params=(("job_id", "job-1"),),
-                fact_fingerprint="facts-1",
+                fact_fingerprint=_fp("facts-1"),
             ),
         ),
     )
