@@ -29,25 +29,47 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 from collections import Counter
 from dataclasses import dataclass, field, fields, replace
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Mapping
 
-from app.agent.context import CareerAgentContext, CareerAgentJobContext
+from app.agent.context import (
+    CareerAgentContext,
+    CareerAgentJobContext,
+    CareerAgentProfileContext,
+)
 from app.agent.execution_gate import CareerAgentGovernedToolExecutor
 from app.agent.governed_loop_runtime import (
+    CareerAgentGovernedLoopResult,
     CareerAgentGovernedLoopRuntime,
+    CareerAgentGovernedLoopStatus,
     CareerAgentLoopRecoveryPlanner,
     CareerAgentPlannedToolRequest,
     CareerAgentStalenessGuard,
     CareerAgentUnknownToolReplanner,
 )
+from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.agent.graph.hitl_service import (
+    CareerAgentHitlService,
+    ResumeCareerAgentRunRequest,
+)
+from app.agent.graph.state import CareerAgentState
 from app.agent.intent import (
+    CareerIntent,
     CareerIntentGoal,
     CareerIntentResolutionContext,
     CareerIntentRouter,
+)
+from app.agent.runtime_dispatch import (
+    CareerAgentDurableRunIdentity,
+    CareerAgentRuntimeDispatchError,
+    CareerAgentRuntimeDispatchKind,
+    CareerAgentRuntimeDispatchRequest,
+    CareerAgentRuntimeDispatcher,
 )
 from app.agent.tool_loop import CareerAgentLoopBudget
 from app.agent.tool_registry import (
@@ -60,6 +82,11 @@ from app.agent.tool_registry import (
     TargetCohortGapsRequest,
 )
 from app.agent.tool_selection import CareerAgentToolSelector
+from app.application.match_report.models import (
+    MatchRecommendation,
+    MatchReport,
+    StoredMatchReport,
+)
 
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
@@ -87,6 +114,25 @@ _TOOL_REQUEST_REQUEST_TYPE: dict[str, type[object]] = {
 
 _TOOL_REQUIRED_EVENTS = ("tool_selected", "tool_called", "pending_action", "tool_result")
 _TOOL_OPTIONAL_EVENTS = ("failed", "recovery")
+
+_DURABLE_DISPATCH_EVENTS = frozenset(
+    {
+        "dispatch",
+        "start",
+        "step",
+        "interrupt",
+        "ranking",
+        "gaps",
+        "governed",
+        "resume",
+        "resume_step",
+        "confirmed",
+        "provider",
+        "dispatch_error",
+    }
+)
+
+_DRIVERS = ("governed_loop", "durable_dispatch")
 
 
 class CareerTrajectoryShape(StrEnum):
@@ -129,15 +175,13 @@ _SHAPE_COVERAGE: tuple[CareerTrajectoryShapeCoverage, ...] = (
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.RANKING_HITL_GAP,
-        status=CareerTrajectoryShapeStatus.PARTIAL,
-        evidence="probe: status=completed for rank+gaps; no interrupt/resume event exists in the 1.1 loop",
-        reason=(
-            "The two-tool ordering Ranking -> Gap is covered, but the HITL interrupt "
-            "between them is not representable: CareerAgentGovernedLoopStatus has no "
-            "interrupt state and the runtime has no resume path. HITL lives in the "
-            "vNext 1.0 LangGraph durable runtime."
+        status=CareerTrajectoryShapeStatus.COVERED,
+        evidence=(
+            "cohort: rank+gaps intent -> CareerAgentRuntimeDispatcher -> real "
+            "CareerAgentHitlService over SQLite -> Ranking -> durable interrupt -> "
+            "approve/reject -> stale validation -> Gap, with the governed loop never "
+            "invoked (governed=0)"
         ),
-        gap_id="GAP-6",
     ),
     CareerTrajectoryShapeCoverage(
         shape=CareerTrajectoryShape.RANKING_GAP_PREPARATION,
@@ -224,6 +268,7 @@ _RELEASE_MINIMUMS: dict[str, int] = {
     "corrected_retry": 3,
     "unknown_tool_replan": 3,
     "stale_terminate": 3,
+    "durable_dispatch": 8,
 }
 _RELEASE_MINIMUM_TOTAL = sum(_RELEASE_MINIMUMS.values())
 
@@ -269,6 +314,44 @@ class CareerTrajectoryEvalExpected:
 
 
 @dataclass(frozen=True, slots=True)
+class CareerTrajectoryEvalDispatchConfig:
+    """Frozen inputs for the durable HITL dispatch leg.
+
+    The resume is always performed through a freshly constructed
+    ``CareerAgentHitlService`` over the same SQLite checkpoint store, so a
+    surviving interrupt is real durable persistence rather than in-memory state.
+    """
+
+    thread_id: str
+    run_id: str
+    request_id: str
+    top_n: int = 5
+    resume_decision: str | None = None
+    selected_job_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CareerTrajectoryEvalDispatchExpected:
+    """Assertions on the dispatch handoff, observed from real durable state."""
+
+    dispatch_kind: str
+    start_status: str | None = None
+    start_step: str | None = None
+    interrupt_persisted: bool = False
+    proposed_target_job_ids: tuple[str, ...] = ()
+    resume_status: str | None = None
+    resume_step: str | None = None
+    confirmed_target_job_ids: tuple[str, ...] = ()
+    ranking_invocations: int = 0
+    gap_invocations: int = 0
+    governed_loop_invocations: int = 0
+    provider_calls: int = 0
+    dispatch_error_kind: str | None = None
+    dispatch_error_contains: str | None = None
+    resumed_by_fresh_service: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class CareerTrajectoryEvalCase:
     case_id: str
     family: str
@@ -283,6 +366,9 @@ class CareerTrajectoryEvalCase:
     transient_faults: Mapping[str, tuple[bool, ...]] = field(default_factory=dict)
     recovery_plans: tuple[CareerTrajectoryEvalPlan, ...] = ()
     replan_goals: tuple[tuple[str, ...], ...] = ()
+    driver: str = "governed_loop"
+    dispatch: CareerTrajectoryEvalDispatchConfig | None = None
+    dispatch_expected: CareerTrajectoryEvalDispatchExpected | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,6 +386,7 @@ class CareerTrajectoryEvalExecution:
     provider_attempts: int = 0
     provider_completed: int = 0
     business_writes: int = 0
+    dispatch: CareerTrajectoryEvalDispatchExpected | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -444,14 +531,131 @@ class _ScriptedUnknownToolReplanner:
         return goals
 
 
-class CareerTrajectoryEvalDriver:
-    """Drive the real governed loop runtime over frozen trajectory cases.
+class _DispatchContextBuilder:
+    """Minimal governed context for the durable HITL fixture."""
 
-    The driver only builds a record-only fixture, replays one frozen case, counts
-    the workflow invocations the runtime actually caused, and re-runs the case to
-    check trace replay determinism.  It contains no runtime, planner, staleness,
-    or retry logic of its own; staleness, recovery and replanning are injected as
-    frozen scripts so the Core decisions stay observable.
+    def build(self) -> CareerAgentContext:
+        return CareerAgentContext(
+            usable=True,
+            confirmation_boundary="confirmed",
+            profile=CareerAgentProfileContext(
+                id="profile_1",
+                version=3,
+                headline="Eval fixture profile",
+                years_of_experience=8,
+                skills=(),
+            ),
+            search_intent=None,
+            current_job=None,
+            relevant_evidence=(),
+            blockers=(),
+            blocker_messages=(),
+        )
+
+
+class _DispatchRankingWorkflow:
+    """Return grounded MatchReports for the requested jobs, counting invocations."""
+
+    def __init__(self, job_ids: tuple[str, ...]) -> None:
+        self._job_ids = job_ids
+        self.calls = 0
+
+    def execute(
+        self,
+        job_ids: tuple[str, ...],
+        *,
+        include_blocked: bool = False,
+        top_n: int | None = None,
+    ) -> object:
+        self.calls += 1
+        rows = tuple(
+            _stored_report(job_id)
+            for job_id in self._job_ids
+            if job_id in set(job_ids)
+        )
+        return rows if top_n is None else rows[:top_n]
+
+
+class _DispatchGapWorkflow:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def execute(self, command: object) -> object:
+        self.calls += 1
+        return _DispatchGapResult(
+            cohort_id=getattr(command, "cohort_id", ""),
+            job_ids=tuple(getattr(command, "selected_job_ids", ()) or ()),
+        )
+
+
+class _UnusedDispatchWorkflow:
+    def execute(self, *args: object, **kwargs: object) -> object:  # pragma: no cover
+        raise AssertionError("unrelated workflow must not run during dispatch eval")
+
+
+class _GovernedLoopSpy:
+    """Record whether the dispatcher wrongly fell back to the governed loop."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run(self, **kwargs: object) -> CareerAgentGovernedLoopResult:
+        self.calls += 1
+        return CareerAgentGovernedLoopResult(
+            status=CareerAgentGovernedLoopStatus.COMPLETED,
+            tool_results=(),
+            trace=(),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _DispatchGapResult:
+    cohort_id: str
+    job_ids: tuple[str, ...]
+    facts_usable: bool = True
+    blockers: tuple[str, ...] = ()
+    provider_calls: int = 0
+    db_writes: int = 0
+
+
+def _stored_report(job_id: str) -> StoredMatchReport:
+    return StoredMatchReport(
+        id=f"mr_{job_id}",
+        report=MatchReport(
+            job_id=job_id,
+            profile_id="profile_1",
+            profile_version=3,
+            extraction_id=f"ext_{job_id}",
+            eligibility=None,  # type: ignore[arg-type]
+            recommendation=MatchRecommendation.STRONG,
+            summary="grounded",
+            strengths=(),
+            risks=(),
+            requirement_results=(),
+            matched_requirement_ids=(),
+            partial_requirement_ids=(),
+            missing_requirement_ids=(),
+            evidence_links=(),
+            matcher_version="eval_fixture",
+            prompt_version="eval_fixture",
+            model=None,
+            trace_run_id=None,
+        ),
+        created_at=datetime.now(UTC),
+    )
+
+
+class CareerTrajectoryEvalDriver:
+    """Drive the frozen Core runtime chain over frozen trajectory cases.
+
+    For ``governed_loop`` cases the driver drives ``CareerAgentGovernedLoopRuntime``.
+    For ``durable_dispatch`` cases it drives the real ``CareerAgentRuntimeDispatcher``
+    into the real ``CareerAgentHitlService`` over a throwaway SQLite checkpoint
+    store, then resumes through a *second* service instance so the durable
+    interrupt is proven to survive the service being replaced.
+
+    The driver contains no routing, planner, staleness, or retry logic of its own;
+    every such decision stays in Core and is observed from real state.
     """
 
     def run(self, *, case: CareerTrajectoryEvalCase) -> CareerTrajectoryEvalExecution:
@@ -479,6 +683,134 @@ class CareerTrajectoryEvalDriver:
         return replace(first, replay_stable=replay_stable)
 
     def _drive(self, case: CareerTrajectoryEvalCase) -> CareerTrajectoryEvalExecution:
+        if case.driver == "durable_dispatch":
+            return self._drive_durable_dispatch(case)
+        return self._drive_governed_loop(case)
+
+    def _drive_durable_dispatch(
+        self,
+        case: CareerTrajectoryEvalCase,
+    ) -> CareerTrajectoryEvalExecution:
+        config = case.dispatch
+        assert config is not None
+
+        with tempfile.TemporaryDirectory() as workspace:
+            checkpoint_path = Path(workspace) / "durable-dispatch.sqlite3"
+            ranking = _DispatchRankingWorkflow(case.context.run_job_ids)
+            gaps = _DispatchGapWorkflow()
+            governed = _GovernedLoopSpy()
+            registry = CareerAgentToolRegistry(
+                ranking=ranking,
+                target_cohort_gaps=gaps,  # type: ignore[arg-type]
+                job_preparation=_UnusedDispatchWorkflow(),
+            )
+            dispatcher = CareerAgentRuntimeDispatcher(
+                governed_runtime=governed,  # type: ignore[arg-type]
+                hitl_service=_build_hitl_service(checkpoint_path, registry),
+            )
+
+            dispatch_error_kind: str | None = None
+            dispatch_error_message: str | None = None
+            try:
+                dispatched = dispatcher.run(
+                    CareerAgentRuntimeDispatchRequest(
+                        user_message=case.message,
+                        intent=_build_intent(case.intent_payload),
+                        context=_DispatchContextBuilder().build(),
+                        resolution_context=CareerIntentResolutionContext(
+                            current_job_id=case.context.current_job_id,
+                            run_job_ids=case.context.run_job_ids,
+                        ),
+                        durable_run=CareerAgentDurableRunIdentity(
+                            thread_id=config.thread_id,
+                            run_id=config.run_id,
+                            request_id=config.request_id,
+                            top_n=config.top_n,
+                        ),
+                    )
+                )
+            except CareerAgentRuntimeDispatchError as exc:
+                dispatch_error_kind = "dispatch_error"
+                dispatch_error_message = str(exc)
+                dispatched = None
+            except ValueError as exc:
+                dispatch_error_kind = type(exc).__name__
+                dispatch_error_message = str(exc)
+                dispatched = None
+
+            if dispatched is None:
+                return CareerTrajectoryEvalExecution(
+                    status=dispatch_error_kind,
+                    error_code=None,
+                    trace=("dispatch_error",),
+                    trace_fingerprints=("dispatch_error",),
+                    tool_results=0,
+                    workflow_invocations=ranking.calls + gaps.calls,
+                    pending_action_present=False,
+                    replay_stable=True,
+                    dispatch=CareerTrajectoryEvalDispatchExpected(
+                        dispatch_kind="none",
+                        ranking_invocations=ranking.calls,
+                        gap_invocations=gaps.calls,
+                        governed_loop_invocations=governed.calls,
+                        dispatch_error_kind=dispatch_error_kind,
+                        dispatch_error_contains=dispatch_error_message,
+                    ),
+                )
+
+            observed = _observe_dispatch(
+                dispatched=dispatched,
+                ranking=ranking,
+                gaps=gaps,
+                governed=governed,
+                dispatched_kind=dispatched.kind.value,
+            )
+
+            if (
+                config.resume_decision is not None
+                and dispatched.durable_state is not None
+                and dispatched.durable_state.interrupt_id is not None
+            ):
+                # Resume through a freshly constructed service so a surviving
+                # interrupt proves real durable persistence, not in-memory state.
+                resumed = _build_hitl_service(checkpoint_path, registry).resume(
+                    ResumeCareerAgentRunRequest(
+                        thread_id=config.thread_id,
+                        interrupt_id=dispatched.durable_state.interrupt_id,
+                        action_id=f"eval-{case.case_id}",
+                        decision=config.resume_decision,  # type: ignore[arg-type]
+                        selected_job_ids=config.selected_job_ids,
+                    )
+                )
+                observed = replace(
+                    observed,
+                    resume_status=resumed.status.value,
+                    resume_step=resumed.current_step,
+                    confirmed_target_job_ids=tuple(resumed.confirmed_target_job_ids),
+                    provider_calls=resumed.provider_call_count,
+                    ranking_invocations=ranking.calls,
+                    gap_invocations=gaps.calls,
+                    governed_loop_invocations=governed.calls,
+                    resumed_by_fresh_service=True,
+                )
+
+            trace = _render_dispatch_trace(observed)
+            return CareerTrajectoryEvalExecution(
+                status=observed.dispatch_kind,
+                error_code=None,
+                trace=trace,
+                trace_fingerprints=trace,
+                tool_results=0,
+                workflow_invocations=observed.ranking_invocations + observed.gap_invocations,
+                pending_action_present=False,
+                replay_stable=True,
+                dispatch=observed,
+            )
+
+    def _drive_governed_loop(
+        self,
+        case: CareerTrajectoryEvalCase,
+    ) -> CareerTrajectoryEvalExecution:
         def faults_for(tool: CareerAgentToolName) -> tuple[bool, ...]:
             return tuple(case.transient_faults.get(tool.value, ()))
 
@@ -539,6 +871,83 @@ class CareerTrajectoryEvalDriver:
             replay_stable=True,
             trace_leak=leak,
         )
+
+
+def _build_hitl_service(
+    checkpoint_path: Path,
+    registry: CareerAgentToolRegistry,
+) -> CareerAgentHitlService:
+    """Build a real durable HITL service over a throwaway SQLite store."""
+
+    return CareerAgentHitlService(
+        checkpoints=SQLiteCareerAgentCheckpointStore(checkpoint_path),
+        context_builder=_DispatchContextBuilder(),  # type: ignore[arg-type]
+        tool_registry=registry,
+    )
+
+
+def _build_intent(payload: Mapping[str, object]) -> CareerIntent:
+    goals = tuple(CareerIntentGoal(goal) for goal in payload.get("goals", ()))  # type: ignore[arg-type]
+    referenced = tuple(payload.get("referenced_job_ids", ()))  # type: ignore[arg-type]
+    return CareerIntent(goals=goals, referenced_job_ids=referenced)
+
+
+def _observe_dispatch(
+    *,
+    dispatched: object,
+    ranking: _DispatchRankingWorkflow,
+    gaps: _DispatchGapWorkflow,
+    governed: _GovernedLoopSpy,
+    dispatched_kind: str,
+) -> CareerTrajectoryEvalDispatchExpected:
+    """Read the dispatch outcome from real state, not from declared intent."""
+
+    state = getattr(dispatched, "durable_state", None)
+    start_status: str | None = None
+    start_step: str | None = None
+    interrupt_persisted = False
+    proposed: tuple[str, ...] = ()
+    if state is not None:
+        start_status = state.status.value
+        start_step = state.current_step
+        interrupt_persisted = state.interrupt_id is not None
+        proposed = tuple(state.proposed_target_job_ids)
+        provider_calls = state.provider_call_count
+    else:
+        provider_calls = 0
+
+    return CareerTrajectoryEvalDispatchExpected(
+        dispatch_kind=dispatched_kind,
+        start_status=start_status,
+        start_step=start_step,
+        interrupt_persisted=interrupt_persisted,
+        proposed_target_job_ids=proposed,
+        ranking_invocations=ranking.calls,
+        gap_invocations=gaps.calls,
+        governed_loop_invocations=governed.calls,
+        provider_calls=provider_calls,
+    )
+
+
+def _render_dispatch_trace(observed: CareerTrajectoryEvalDispatchExpected) -> tuple[str, ...]:
+    """Render the observed dispatch facts as an ordered, replay-checkable trace."""
+
+    trace = [
+        f"dispatch:{observed.dispatch_kind}",
+        f"ranking:{observed.ranking_invocations}",
+        f"gaps:{observed.gap_invocations}",
+        f"governed:{observed.governed_loop_invocations}",
+        f"provider:{observed.provider_calls}",
+    ]
+    if observed.start_status is not None:
+        trace.insert(1, f"start:{observed.start_status}")
+        trace.insert(2, f"step:{observed.start_step}")
+        trace.insert(3, f"interrupt:{'present' if observed.interrupt_persisted else 'absent'}")
+    if observed.resume_status is not None:
+        trace.append(f"resume:{observed.resume_status}")
+        trace.append(f"resume_step:{observed.resume_step}")
+        trace.append("confirmed:" + "|".join(observed.confirmed_target_job_ids))
+    return tuple(trace)
 
 
 def _render_trace(trace: object) -> tuple[str, ...]:
@@ -822,7 +1231,7 @@ def _assert_matches_expectation(
         failures.append(
             f"error_code expected {expected.error_code!r}, got {execution.error_code!r}"
         )
-    if execution.trace != expected.trace:
+    if case.driver == "governed_loop" and execution.trace != expected.trace:
         failures.append(f"trace expected {expected.trace!r}, got {execution.trace!r}")
     if execution.tool_results != expected.tool_results:
         failures.append(
@@ -833,6 +1242,67 @@ def _assert_matches_expectation(
             f"workflow invocations expected {expected.workflow_invocations}, "
             f"got {execution.workflow_invocations}"
         )
+    _assert_dispatch_matches(case=case, execution=execution, failures=failures)
+
+
+def _assert_dispatch_matches(
+    *,
+    case: CareerTrajectoryEvalCase,
+    execution: CareerTrajectoryEvalExecution,
+    failures: list[str],
+) -> None:
+    if case.driver != "durable_dispatch":
+        if execution.dispatch is not None:
+            failures.append("only a durable_dispatch case may report dispatch observations")
+        return
+
+    expected = case.dispatch_expected
+    observed = execution.dispatch
+    if expected is None:
+        failures.append("a durable_dispatch case requires expected.dispatch")
+        return
+    if observed is None:
+        failures.append("durable_dispatch execution must report dispatch observations")
+        return
+
+    for field_name in (
+        "dispatch_kind",
+        "start_status",
+        "start_step",
+        "interrupt_persisted",
+        "proposed_target_job_ids",
+        "resume_status",
+        "resume_step",
+        "confirmed_target_job_ids",
+        "ranking_invocations",
+        "gap_invocations",
+        "governed_loop_invocations",
+        "provider_calls",
+        "dispatch_error_kind",
+    ):
+        actual_value = getattr(observed, field_name)
+        expected_value = getattr(expected, field_name)
+        if actual_value != expected_value:
+            failures.append(
+                f"dispatch.{field_name} expected {expected_value!r}, got {actual_value!r}"
+            )
+
+    if (
+        expected.dispatch_error_contains is not None
+        and (
+            observed.dispatch_error_contains is None
+            or expected.dispatch_error_contains not in observed.dispatch_error_contains
+        )
+    ):
+        failures.append(
+            "dispatch error message must contain "
+            f"{expected.dispatch_error_contains!r}, got {observed.dispatch_error_contains!r}"
+        )
+
+    for event in execution.trace:
+        name = event.split(":", 1)[0]
+        if name not in _DURABLE_DISPATCH_EVENTS:
+            failures.append(f"dispatch trace event {event!r} is not in the dispatch vocabulary")
 
 
 def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCase:
@@ -885,6 +1355,16 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         for index, item in enumerate(recovery_payload)
     )
     budget_overrides = _parse_budget(payload.get("budget", {}), line_number=line_number)
+    driver = str(payload.get("driver", "governed_loop"))
+    if driver not in _DRIVERS:
+        raise ValueError(
+            f"Trajectory Eval line {line_number} has unknown driver {driver!r}"
+        )
+    dispatch = _parse_dispatch_config(
+        payload.get("dispatch"),
+        line_number=line_number,
+        case_id=case_id,
+    )
     stale_checks = _parse_bool_list(
         payload.get("staleChecks", []),
         field="staleChecks",
@@ -934,9 +1414,128 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         transient_faults=transient_faults,
         recovery_plans=recovery_plans,
         replan_goals=replan_goals,
+        driver=driver,
+        dispatch=dispatch,
+        dispatch_expected=_parse_dispatch_expected(
+            expected_payload.get("dispatch"),
+            line_number=line_number,
+            case_id=case_id,
+        ),
     )
     _validate_case_semantics(case)
     return case
+
+
+def _parse_dispatch_config(
+    payload: object,
+    *,
+    line_number: int,
+    case_id: str,
+) -> CareerTrajectoryEvalDispatchConfig | None:
+    if payload is None:
+        return None
+    config_payload = _object(payload, field="dispatch", line_number=line_number)
+    decision = _optional_string(
+        config_payload.get("resume"),
+        field="dispatch.resume",
+        line_number=line_number,
+    )
+    if decision is not None and decision not in ("approve", "edit", "reject"):
+        raise ValueError(
+            f"{case_id}: dispatch.resume must be approve, edit, or reject"
+        )
+    top_n = config_payload.get("topN", 5)
+    if isinstance(top_n, bool) or not isinstance(top_n, int) or top_n <= 0:
+        raise ValueError(f"{case_id}: dispatch.topN must be a positive int")
+    return CareerTrajectoryEvalDispatchConfig(
+        thread_id=_required_string(config_payload, "threadId", line_number=line_number),
+        run_id=_required_string(config_payload, "runId", line_number=line_number),
+        request_id=_required_string(config_payload, "requestId", line_number=line_number),
+        top_n=top_n,
+        resume_decision=decision,
+        selected_job_ids=tuple(
+            _string_list_field(
+                config_payload.get("selectedJobIds", []),
+                field="dispatch.selectedJobIds",
+                line_number=line_number,
+            )
+        ),
+    )
+
+
+def _parse_dispatch_expected(
+    payload: object,
+    *,
+    line_number: int,
+    case_id: str,
+) -> CareerTrajectoryEvalDispatchExpected | None:
+    if payload is None:
+        return None
+    expected_payload = _object(payload, field="expected.dispatch", line_number=line_number)
+    return CareerTrajectoryEvalDispatchExpected(
+        dispatch_kind=_required_string(
+            expected_payload, "dispatchKind", line_number=line_number
+        ),
+        start_status=_optional_string(
+            expected_payload.get("startStatus"),
+            field="expected.dispatch.startStatus",
+            line_number=line_number,
+        ),
+        start_step=_optional_string(
+            expected_payload.get("startStep"),
+            field="expected.dispatch.startStep",
+            line_number=line_number,
+        ),
+        interrupt_persisted=_required_bool(
+            expected_payload, "interruptPersisted", line_number=line_number
+        ),
+        proposed_target_job_ids=tuple(
+            _string_list_field(
+                expected_payload.get("proposedTargetJobIds", []),
+                field="expected.dispatch.proposedTargetJobIds",
+                line_number=line_number,
+            )
+        ),
+        resume_status=_optional_string(
+            expected_payload.get("resumeStatus"),
+            field="expected.dispatch.resumeStatus",
+            line_number=line_number,
+        ),
+        resume_step=_optional_string(
+            expected_payload.get("resumeStep"),
+            field="expected.dispatch.resumeStep",
+            line_number=line_number,
+        ),
+        confirmed_target_job_ids=tuple(
+            _string_list_field(
+                expected_payload.get("confirmedTargetJobIds", []),
+                field="expected.dispatch.confirmedTargetJobIds",
+                line_number=line_number,
+            )
+        ),
+        ranking_invocations=_required_int(
+            expected_payload, "rankingInvocations", line_number=line_number
+        ),
+        gap_invocations=_required_int(
+            expected_payload, "gapInvocations", line_number=line_number
+        ),
+        governed_loop_invocations=_required_int(
+            expected_payload, "governedLoopInvocations", line_number=line_number
+        ),
+        provider_calls=_required_int(
+            expected_payload, "providerCalls", line_number=line_number
+        ),
+        dispatch_error_kind=_optional_string(
+            expected_payload.get("dispatchErrorKind"),
+            field="expected.dispatch.dispatchErrorKind",
+            line_number=line_number,
+        ),
+        dispatch_error_contains=_optional_string(
+            expected_payload.get("dispatchErrorContains"),
+            field="expected.dispatch.dispatchErrorContains",
+            line_number=line_number,
+        ),
+    )
 
 
 def _parse_bool_list(value: object, *, field: str, line_number: int) -> tuple[bool, ...]:
@@ -1001,6 +1600,94 @@ def _validate_case_semantics(case: CareerTrajectoryEvalCase) -> None:
     case_id = case.case_id
     expected = case.expected
 
+    if case.driver == "durable_dispatch":
+        _validate_dispatch_case(case)
+        return
+
+    if case.dispatch is not None or case.dispatch_expected is not None:
+        raise ValueError(
+            f"{case_id}: only a durable_dispatch case may declare dispatch fields"
+        )
+    _validate_governed_loop_case(case)
+    _validate_injection_case(case)
+
+
+def _validate_dispatch_case(case: CareerTrajectoryEvalCase) -> None:
+    case_id = case.case_id
+    expected = case.expected
+
+    if case.dispatch is None:
+        raise ValueError(f"{case_id}: durable_dispatch case requires a dispatch config")
+    if case.dispatch_expected is None:
+        raise ValueError(f"{case_id}: durable_dispatch case requires expected.dispatch")
+    if expected.trace:
+        raise ValueError(
+            f"{case_id}: durable_dispatch traces are derived from observed state and must "
+            "not be declared"
+        )
+    if expected.error_code is not None:
+        raise ValueError(f"{case_id}: durable_dispatch case must not declare an errorCode")
+    if expected.tool_results != 0:
+        raise ValueError(
+            f"{case_id}: durable_dispatch reports no governed-loop tool results"
+        )
+    for field_name, value in (
+        ("staleChecks", case.stale_checks),
+        ("transientFaults", case.transient_faults),
+        ("recoveryPlans", case.recovery_plans),
+        ("replanGoals", case.replan_goals),
+    ):
+        if value:
+            raise ValueError(
+                f"{case_id}: {field_name} is a governed-loop injection and is not valid "
+                "for durable_dispatch cases"
+            )
+    if case.planned_requests:
+        raise ValueError(
+            f"{case_id}: durable_dispatch case must not declare governed-loop plans"
+        )
+
+    observed = case.dispatch_expected
+    if observed.dispatch_error_kind is not None:
+        if expected.status != observed.dispatch_error_kind:
+            raise ValueError(
+                f"{case_id}: a dispatch error case must set status to the error kind"
+            )
+        if observed.start_status is not None or observed.resume_status is not None:
+            raise ValueError(
+                f"{case_id}: a dispatch error case must not expect durable start or resume"
+            )
+    elif expected.status != observed.dispatch_kind:
+        raise ValueError(
+            f"{case_id}: durable_dispatch status must equal the expected dispatchKind"
+        )
+
+    if observed.dispatch_kind == CareerAgentRuntimeDispatchKind.DURABLE_HITL.value:
+        if not observed.interrupt_persisted:
+            raise ValueError(
+                f"{case_id}: a durable_hitl case must observe a persisted interrupt"
+            )
+        if observed.governed_loop_invocations != 0:
+            raise ValueError(
+                f"{case_id}: durable_hitl must not invoke the governed loop"
+            )
+    if observed.dispatch_kind == CareerAgentRuntimeDispatchKind.GOVERNED_LOOP.value:
+        if observed.start_status is not None or observed.resume_status is not None:
+            raise ValueError(
+                f"{case_id}: a governed_loop dispatch must not report durable state"
+            )
+    if observed.ranking_invocations + observed.gap_invocations != expected.workflow_invocations:
+        raise ValueError(
+            f"{case_id}: expected.workflowInvocations must equal ranking + gap invocations"
+        )
+    if observed.provider_calls != 0:
+        raise ValueError(f"{case_id}: dispatch eval must observe zero provider calls")
+
+
+def _validate_governed_loop_case(case: CareerTrajectoryEvalCase) -> None:
+    case_id = case.case_id
+    expected = case.expected
+
     for event in expected.trace:
         name = event.split(":", 1)[0]
         if name not in _TRACE_VOCABULARY:
@@ -1028,6 +1715,11 @@ def _validate_case_semantics(case: CareerTrajectoryEvalCase) -> None:
         raise ValueError(f"{case_id}: only a failed trajectory may declare an errorCode")
     if expected.status != "failed" and expected.trace and expected.trace[-1].startswith("failed"):
         raise ValueError(f"{case_id}: a non-failed trajectory must not end with a failed event")
+
+
+def _validate_injection_case(case: CareerTrajectoryEvalCase) -> None:
+    case_id = case.case_id
+    expected = case.expected
 
     fault_attempts = sum(
         1 for flags in case.transient_faults.values() for flag in flags if flag
@@ -1216,6 +1908,13 @@ def _optional_string(value: object, *, field: str, line_number: int) -> str | No
 def _optional_bool(value: object, *, line_number: int) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"Trajectory Eval line {line_number} field usable must be bool")
+    return value
+
+
+def _required_bool(payload: Mapping[str, object], field: str, *, line_number: int) -> bool:
+    value = payload.get(field)
+    if not isinstance(value, bool):
+        raise ValueError(f"Trajectory Eval line {line_number} field {field} must be bool")
     return value
 
 

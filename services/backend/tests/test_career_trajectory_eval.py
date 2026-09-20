@@ -33,7 +33,7 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
     for case in cases:
         counts[case.family] = counts.get(case.family, 0) + 1
 
-    assert len(cases) == 38
+    assert len(cases) == 46
     assert counts == {
         "completed_single": 3,
         "completed_multi": 3,
@@ -50,13 +50,14 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
         "corrected_retry": 3,
         "unknown_tool_replan": 3,
         "stale_terminate": 3,
+        "durable_dispatch": 8,
     }
 
 
 def test_release_dataset_validation_rejects_missing_family_minimums() -> None:
     cases = load_career_trajectory_eval_dataset()
 
-    with pytest.raises(ValueError, match="at least 38"):
+    with pytest.raises(ValueError, match="at least 46"):
         validate_career_trajectory_release_dataset(cases=(cases[0],))
 
 
@@ -72,7 +73,7 @@ def test_trajectory_gate_passes_for_frozen_cohort_against_real_core() -> None:
     }
     assert failures == {}
     assert report.gate_passed is True
-    assert report.total_cases == 38
+    assert report.total_cases == 46
     assert report.unclassified_errors == 0
     assert report.trace_leaks == 0
     assert report.unstable_traces == 0
@@ -81,13 +82,13 @@ def test_trajectory_gate_passes_for_frozen_cohort_against_real_core() -> None:
     assert report.business_writes == 0
 
 
-def test_trajectory_gate_still_reports_the_two_remaining_prd_153_gaps() -> None:
+def test_trajectory_gate_reports_only_gap_1_as_remaining() -> None:
     cases = load_career_trajectory_eval_dataset()
 
     report = evaluate_career_trajectories(driver=CareerTrajectoryEvalDriver(), cases=cases)
 
-    assert report.covered_shapes == 8
-    assert report.partial_shapes == 1
+    assert report.covered_shapes == 9
+    assert report.partial_shapes == 0
     assert report.blocked_shapes == 1
     assert report.covered_shapes + report.partial_shapes + report.blocked_shapes == 10
     assert report.prd_153_case_minimum_met is True
@@ -97,14 +98,12 @@ def test_trajectory_gate_still_reports_the_two_remaining_prd_153_gaps() -> None:
         for item in report.coverage
         if item.gap_id is not None
     }
-    assert remaining == {
-        CareerTrajectoryShape.RANKING_HITL_GAP: "GAP-6",
-        CareerTrajectoryShape.COST_ACTION_PENDING_ACTION: "GAP-1",
-    }
+    assert remaining == {CareerTrajectoryShape.COST_ACTION_PENDING_ACTION: "GAP-1"}
 
 
-def test_the_five_remediated_shapes_are_now_covered() -> None:
+def test_the_six_remediated_shapes_are_now_covered() -> None:
     remediated = (
+        CareerTrajectoryShape.RANKING_HITL_GAP,
         CareerTrajectoryShape.TOOL_EMPTY_CLARIFICATION,
         CareerTrajectoryShape.INVALID_PARAMS_CORRECTED_RETRY,
         CareerTrajectoryShape.TRANSIENT_ERROR_BOUNDED_RETRY,
@@ -117,10 +116,121 @@ def test_the_five_remediated_shapes_are_now_covered() -> None:
         if item.shape in remediated
     }
 
-    assert len(statuses) == 5
+    assert len(statuses) == 6
     assert all(
         status is CareerTrajectoryShapeStatus.COVERED for status in statuses.values()
     )
+
+
+def test_durable_hitl_dispatch_never_invokes_the_governed_loop() -> None:
+    cases = load_career_trajectory_eval_dataset()
+    durable = tuple(
+        case
+        for case in cases
+        if case.driver == "durable_dispatch"
+        and case.dispatch_expected is not None
+        and case.dispatch_expected.dispatch_kind == "durable_hitl"
+    )
+    assert len(durable) == 4
+
+    report = evaluate_career_trajectories(
+        driver=CareerTrajectoryEvalDriver(),
+        cases=durable,
+        require_release_dataset=False,
+    )
+
+    assert all(result.passed for result in report.case_results)
+    for result in report.case_results:
+        observed = result.execution.dispatch
+        assert observed is not None
+        assert observed.governed_loop_invocations == 0, result.case_id
+        assert observed.interrupt_persisted is True, result.case_id
+        assert result.execution.status == "durable_hitl"
+
+
+def test_durable_hitl_resume_runs_through_a_fresh_service_instance() -> None:
+    """The interrupt must survive the service being replaced, or it is not durable."""
+
+    cases = load_career_trajectory_eval_dataset()
+    approve = next(case for case in cases if case.case_id == "traj-dispatch-01")
+
+    execution = CareerTrajectoryEvalDriver().run(case=approve)
+
+    observed = execution.dispatch
+    assert observed is not None
+    assert observed.resumed_by_fresh_service is True
+    assert observed.resume_status == "completed"
+    assert observed.resume_step == "skill_gap_completed"
+    assert observed.confirmed_target_job_ids == ("job-1",)
+    assert observed.ranking_invocations == 2  # initial ranking + stale validation readback
+    assert observed.gap_invocations == 1
+
+
+def test_durable_hitl_reject_never_runs_the_gap_workflow() -> None:
+    cases = load_career_trajectory_eval_dataset()
+    reject = next(case for case in cases if case.case_id == "traj-dispatch-04")
+
+    execution = CareerTrajectoryEvalDriver().run(case=reject)
+
+    observed = execution.dispatch
+    assert observed is not None
+    assert observed.resume_status == "cancelled"
+    assert observed.resume_step == "target_cohort_rejected"
+    assert observed.confirmed_target_job_ids == ()
+    assert observed.gap_invocations == 0
+    assert observed.ranking_invocations == 1
+
+
+def test_dispatch_is_order_sensitive_and_requires_the_exact_goal_tuple() -> None:
+    cases = load_career_trajectory_eval_dataset()
+    governed = tuple(
+        case
+        for case in cases
+        if case.driver == "durable_dispatch"
+        and case.dispatch_expected is not None
+        and case.dispatch_expected.dispatch_kind == "governed_loop"
+    )
+    assert len(governed) == 2
+
+    report = evaluate_career_trajectories(
+        driver=CareerTrajectoryEvalDriver(),
+        cases=governed,
+        require_release_dataset=False,
+    )
+
+    assert all(result.passed for result in report.case_results)
+    for result in report.case_results:
+        observed = result.execution.dispatch
+        assert observed is not None
+        assert observed.governed_loop_invocations == 1
+        assert observed.ranking_invocations == 0
+        assert observed.start_status is None
+
+
+def test_dispatch_error_cases_fail_closed_before_any_execution() -> None:
+    cases = load_career_trajectory_eval_dataset()
+    errors = tuple(
+        case
+        for case in cases
+        if case.dispatch_expected is not None
+        and case.dispatch_expected.dispatch_error_kind is not None
+    )
+    assert len(errors) == 2
+
+    report = evaluate_career_trajectories(
+        driver=CareerTrajectoryEvalDriver(),
+        cases=errors,
+        require_release_dataset=False,
+    )
+
+    assert all(result.passed for result in report.case_results)
+    for result in report.case_results:
+        observed = result.execution.dispatch
+        assert observed is not None
+        assert observed.ranking_invocations == 0
+        assert observed.gap_invocations == 0
+        assert observed.governed_loop_invocations == 0
+        assert result.execution.workflow_invocations == 0
 
 
 def test_stale_recheck_closes_the_recovery_window() -> None:
@@ -198,18 +308,26 @@ def test_trace_replay_is_deterministic_for_every_case() -> None:
 
 def test_trace_fingerprints_are_digests_and_vocabulary_is_closed() -> None:
     cases = load_career_trajectory_eval_dataset()
+    governed_vocabulary = {
+        "intent_routed", "clarification", "unsupported", "blocked", "recovery",
+        "tool_selected", "tool_called", "pending_action", "tool_result",
+        "failed", "finished",
+    }
+    dispatch_vocabulary = {
+        "dispatch", "start", "step", "interrupt", "ranking", "gaps", "governed",
+        "resume", "resume_step", "confirmed", "provider", "dispatch_error",
+    }
 
     report = evaluate_career_trajectories(driver=CareerTrajectoryEvalDriver(), cases=cases)
 
     assert report.trace_leaks == 0
-    for result in report.case_results:
+    for case, result in zip(cases, report.case_results):
         assert result.execution.trace_leak is None
+        allowed = (
+            dispatch_vocabulary if case.driver == "durable_dispatch" else governed_vocabulary
+        )
         for event in result.execution.trace:
-            assert event.split(":", 1)[0] in {
-                "intent_routed", "clarification", "unsupported", "blocked", "recovery",
-                "tool_selected", "tool_called", "pending_action", "tool_result",
-                "failed", "finished",
-            }
+            assert event.split(":", 1)[0] in allowed, case.case_id
 
 
 def test_business_code_is_reached_exactly_when_the_trajectory_says_so() -> None:
