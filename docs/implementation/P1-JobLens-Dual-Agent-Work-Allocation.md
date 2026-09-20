@@ -1,7 +1,7 @@
 # JobLens 双电脑双 Agent 分工执行文档
 
 - 状态：Active
-- 当前共享基线：`main @ 23af078`
+- 当前本地共享基线：Agent B 四个确定性 A 门已线性集成至 `main @ d957bc0`；`origin/main` 仍待 Integration Owner 后续显式同步
 - 当前主线：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
 - 目标：两台电脑并行推进同一 Milestone，但避免重复开发、互相覆盖和跨阶段抢跑。
 - 上位协作方案：`docs/implementation/P1-JobLens-Multi-Agent-Development-Collaboration-Plan.md`
@@ -11,21 +11,27 @@
 
 ## 0. 当前 Core → Eval Handoff（2026-09-20）
 
-Agent A 的 vNext 1.1 Core 主链已冻结到 `CareerAgentGovernedLoopRuntime`。Agent B 应以以下边界作为 Eval / Safety 输入，不另造第二套 Runtime：
+Agent A 与 Agent B 的 vNext 1.1 确定性主链现已在本地 `main` 收敛：Intent 60-case、Tool Selection 44-case、Loop Guard 26-case 与 Trajectory 38-case 已和最新 Core 同树验证。Agent B Cycle 4 v2 已确认 GAP-5 / GAP-7 / GAP-8 / GAP-3 修复真实生效，四个 A 门合计 69 tests 全绿。
+
+当前新的 Core → Eval 边界为：
 
 ```text
-CareerIntentRouter
-→ CareerAgentToolSelector
-→ CareerAgentExecutionGate
-→ CareerAgentToolRegistry
-→ AgentToolResult
-→ CareerAgentLoopGuard
-→ CareerAgentGovernedLoopTraceEvent
+CareerIntentRouter / CareerIntentResolver
+→ CareerAgentRuntimeDispatcher
+   ├─ simple / read-only intent
+   │    → CareerAgentGovernedLoopRuntime
+   │    → Tool Selector → Execution Gate → Registry → AgentToolResult → LoopGuard / Trace
+   └─ rank_jobs → review_gaps
+        → existing CareerAgentHitlService
+        → Ranking → durable Target Cohort interrupt
+        → approve / edit / reject
+        → stale validation
+        → Skill Gap resume
 ```
 
-冻结的 Runtime 结果状态：`completed / clarification_required / unsupported / pending_action / blocked / failed`。失败必须返回结构化 `error_code`；malformed model intent 固定为 `invalid_intent_output`，plan/参数错误为 `invalid_tool_params`，未知 Tool 为 `unknown_tool`，事实过期为 `stale_state`，预算耗尽为 `budget_exhausted`，loop/no-progress 继续使用既有 guard code。上述治理失败不得作为未捕获异常泄漏到调用方；失败 Trace 保留发生阶段的 Tool（若已选中）、输入事实 fingerprint 与 error code，但不保存 CoT、raw Resume/JD 或大 Tool Output。`CareerAgentGovernedLoopRuntime` 现在要求 Integration 显式注入 Staleness Guard：每次 Tool 执行、transient retry、corrected replan 前都必须重新验证当前 governed facts，stale 时 fail-closed 且不得再次触达 Workflow。
+`CareerAgentRuntimeDispatcher` 不重新解释自然语言，只接收已经结构化的 `CareerIntent`，并再次执行 deterministic Job-scope resolution。显式 Job refs 只能缩小当前 frozen run scope；scope 外 Job 必须在任何 Durable Runtime / Workflow 执行前拒绝。`rank_jobs → review_gaps` 必须携带显式 thread/run/request identity，并直接复用 vNext 1.0 Durable HITL，禁止在 governed loop 内复制第二套 interrupt/resume。其他 Intent 通过 `resolved_intent` seam 进入 governed loop，避免模型 Router 被重复调用，同时保留 resolver / stale / Tool Registry / Human Gate 边界。
 
-Agent B 负责在此合同上继续 Intent / Tool Selection / Loop Guard / Trajectory Eval 与 Release Gate。最新 trajectory/replay Gate 需要在 Agent A 当前 Core 上重新适配必填 Staleness Guard，并重跑 `Tool empty → clarification`、`invalid params → corrected retry`、`transient error → bounded retry`、`unknown tool → replan` 与 `stale → terminate` 形态。Agent A 在新的 Release Gate 给出真实 Core blocker 前，不继续扩展新 Tool、不进入 vNext 1.2，也不修改 Agent B 的大规模 Eval Dataset。
+Agent B 下一步不再重复 GAP-5/7/8/3 Dataset 工作，而是把 Dispatcher 纳入 Trajectory Gate，新增真实 `Ranking → HITL → Gap` 轨迹并重跑，确认 GAP-6 从 partial 变为 covered。之后只剩：1) GAP-1 `cost action → PendingAction` 的产品边界（没有真实成熟 cost-gated Workflow 时不得造假 Tool）；2) Provider B 门的 Intent / Tool Selection 模型层准确率与 PRD Release Gate。Agent A 在这两项没有暴露新 Core bad case 前保持 vNext 1.1 边界，不进入 vNext 1.2。
 
 ---
 

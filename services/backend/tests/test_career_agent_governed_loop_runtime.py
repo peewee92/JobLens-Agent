@@ -8,7 +8,12 @@ import pytest
 
 from app.agent.context import CareerAgentContext
 from app.agent.execution_gate import CareerAgentGovernedToolExecutor
-from app.agent.intent import CareerIntentGoal, CareerIntentResolutionContext, CareerIntentRouter
+from app.agent.intent import (
+    CareerIntent,
+    CareerIntentGoal,
+    CareerIntentResolutionContext,
+    CareerIntentRouter,
+)
 from app.agent.tool_loop import CareerAgentLoopBudget
 from app.agent.tool_registry import (
     CareerAgentToolName,
@@ -144,6 +149,46 @@ def _runtime(payload: dict[str, object], *, ranking: _Workflow | None = None):
         ),
         ranking,
     )
+
+
+def test_runtime_uses_already_resolved_intent_without_routing_model_again() -> None:
+    class _ExplodingIntentModel:
+        def route(self, user_message: str) -> dict[str, object]:
+            raise AssertionError("resolved intent must not route the model again")
+
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_ExplodingIntentModel()),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+    )
+    resolution_context = CareerIntentResolutionContext(run_job_ids=("job-1",))
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=resolution_context,
+        planned_requests=(
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+                request=RankMatchReportsRequest(job_ids=("job-1",)),
+                normalized_params=(("job_ids", "job-1"),),
+                fact_fingerprint=_fp("resolved-intent-facts"),
+            ),
+        ),
+        resolved_intent=CareerIntent(goals=(CareerIntentGoal.RANK_JOBS,)),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.COMPLETED
+    assert len(ranking.calls) == 1
+    assert result.trace[0].event == "intent_routed"
 
 
 def test_runtime_routes_selects_gates_executes_and_traces_structured_result() -> None:

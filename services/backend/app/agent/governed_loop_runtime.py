@@ -22,6 +22,7 @@ from app.agent.intent import (
     CareerIntent,
     CareerIntentGoal,
     CareerIntentResolutionContext,
+    CareerIntentResolver,
     CareerIntentRouter,
 )
 from app.agent.tool_loop import (
@@ -151,6 +152,7 @@ class CareerAgentGovernedLoopRuntime:
         context: CareerAgentContext,
         resolution_context: CareerIntentResolutionContext,
         planned_requests: tuple[CareerAgentPlannedToolRequest, ...],
+        resolved_intent: CareerIntent | None = None,
     ) -> CareerAgentGovernedLoopResult:
         guard = CareerAgentLoopGuard(self._budget)
         trace: list[CareerAgentGovernedLoopTraceEvent] = []
@@ -164,7 +166,13 @@ class CareerAgentGovernedLoopRuntime:
         )
 
         try:
-            intent = self._router.route(user_message=user_message, context=resolution_context)
+            if resolved_intent is None:
+                intent = self._router.route(user_message=user_message, context=resolution_context)
+            else:
+                intent = CareerIntentResolver().resolve(
+                    intent=resolved_intent,
+                    context=resolution_context,
+                )
         except ValueError:
             error = guard.record_error(
                 CareerAgentLoopError(
