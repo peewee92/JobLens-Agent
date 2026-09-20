@@ -23,6 +23,7 @@ class CareerAgentLoopErrorCode(StrEnum):
     INVALID_INTENT_OUTPUT = "invalid_intent_output"
     UNKNOWN_TOOL = "unknown_tool"
     INVALID_TOOL_PARAMS = "invalid_tool_params"
+    STALE_STATE = "stale_state"
     TRANSIENT_NETWORK = "transient_network"
     LOOP_DETECTED = "loop_detected"
     NO_PROGRESS = "no_progress"
@@ -51,6 +52,14 @@ class CareerAgentLoopError(ValueError):
             code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
             message=f"invalid parameters for Career Agent tool: {tool.value}",
             retryable=True,
+        )
+
+    @classmethod
+    def stale_state(cls, tool: CareerAgentToolName) -> "CareerAgentLoopError":
+        return cls(
+            code=CareerAgentLoopErrorCode.STALE_STATE,
+            message=f"governed facts changed before Career Agent tool execution: {tool.value}",
+            retryable=False,
         )
 
     @classmethod

@@ -83,6 +83,36 @@ class _UnknownToolReplanner:
         return self.goals
 
 
+class _CurrentStalenessGuard:
+    def is_stale(
+        self,
+        *,
+        context: CareerAgentContext,
+        plan: CareerAgentPlannedToolRequest,
+    ) -> bool:
+        assert context.usable
+        assert plan.fact_fingerprint
+        return False
+
+
+class _StalenessGuard:
+    def __init__(self, answers: tuple[bool, ...]) -> None:
+        self.answers = list(answers)
+        self.calls: list[tuple[CareerAgentToolName, str]] = []
+
+    def is_stale(
+        self,
+        *,
+        context: CareerAgentContext,
+        plan: CareerAgentPlannedToolRequest,
+    ) -> bool:
+        assert context.usable
+        self.calls.append((plan.tool, plan.fact_fingerprint))
+        if not self.answers:
+            raise AssertionError("unexpected stale check")
+        return self.answers.pop(0)
+
+
 def _context() -> CareerAgentContext:
     return CareerAgentContext(
         usable=True,
@@ -109,6 +139,7 @@ def _runtime(payload: dict[str, object], *, ranking: _Workflow | None = None):
             router=CareerIntentRouter(model=_IntentModel(payload)),
             selector=CareerAgentToolSelector(registry=registry),
             executor=CareerAgentGovernedToolExecutor(registry=registry),
+            staleness_guard=_CurrentStalenessGuard(),
             budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3),
         ),
         ranking,
@@ -226,6 +257,7 @@ def test_runtime_returns_structured_failure_when_turn_budget_is_exhausted() -> N
         ),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         budget=CareerAgentLoopBudget(max_turns=1, max_tool_calls=2),
     )
 
@@ -301,6 +333,7 @@ def test_runtime_replans_invalid_tool_params_once_with_corrected_request() -> No
         router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3),
         recovery_planner=recovery,
     )
@@ -341,6 +374,7 @@ def test_runtime_retries_transient_tool_error_once_with_same_grounded_request() 
         router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
     )
     plan = CareerAgentPlannedToolRequest(
@@ -383,6 +417,7 @@ def test_runtime_replans_unknown_tool_once_into_registered_goal() -> None:
         router=CareerIntentRouter(model=_IntentModel({"goals": ["unknown"]})),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
         unknown_tool_replanner=replanner,
     )
@@ -427,6 +462,7 @@ def test_runtime_fails_closed_when_unknown_tool_replan_is_still_unknown() -> Non
         router=CareerIntentRouter(model=_IntentModel({"goals": ["unknown"]})),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
         unknown_tool_replanner=replanner,
     )
@@ -463,6 +499,7 @@ def test_runtime_keeps_unavailable_future_goal_fail_closed_without_unknown_repla
         router=CareerIntentRouter(model=_IntentModel({"goals": ["review_application"]})),
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
         unknown_tool_replanner=replanner,
     )
 
@@ -487,6 +524,146 @@ def test_planned_request_rejects_non_digest_fact_fingerprint() -> None:
             normalized_params=(("job_ids", "job-1"),),
             fact_fingerprint="raw job facts must never enter trace",
         )
+
+
+def test_runtime_terminates_stale_plan_before_workflow_execution() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    stale = _StalenessGuard((True,))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=stale,
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("stale-ranking-facts"),
+    )
+
+    result = runtime.run(
+        user_message="重新看这批岗位",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "stale_state"
+    assert ranking.calls == []
+    assert stale.calls == [(CareerAgentToolName.RANK_MATCH_REPORTS, plan.fact_fingerprint)]
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "failed",
+    )
+    assert result.trace[-1].tool is CareerAgentToolName.RANK_MATCH_REPORTS
+    assert result.trace[-1].input_fingerprint == plan.fact_fingerprint
+
+
+def test_runtime_rechecks_staleness_before_transient_retry() -> None:
+    ranking = _Workflow(
+        {"jobs": ["job-1"]},
+        failures=(ConnectionError("temporary ranking backend failure"),),
+    )
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    stale = _StalenessGuard((False, True))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
+        staleness_guard=stale,
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("retry-ranking-facts"),
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "stale_state"
+    assert len(ranking.calls) == 1
+    assert len(stale.calls) == 2
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "failed",
+    )
+
+
+def test_runtime_rechecks_staleness_after_corrected_replan() -> None:
+    invalid_plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=()),
+        normalized_params=(("job_ids", ""),),
+        fact_fingerprint=_fp("invalid-stale-facts"),
+    )
+    recovered_plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("corrected-but-stale-facts"),
+    )
+    recovery = _RecoveryPlanner(recovered_plan)
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    stale = _StalenessGuard((False, True))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        recovery_planner=recovery,
+        staleness_guard=stale,
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(invalid_plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "stale_state"
+    assert ranking.calls == []
+    assert recovery.calls == [(CareerAgentToolName.RANK_MATCH_REPORTS, "invalid_tool_params", 1)]
+    assert stale.calls[-1] == (
+        CareerAgentToolName.RANK_MATCH_REPORTS,
+        recovered_plan.fact_fingerprint,
+    )
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "failed",
+    )
 
 
 def test_runtime_fails_closed_when_selected_tool_has_no_exact_planned_request() -> None:

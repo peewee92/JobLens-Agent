@@ -90,6 +90,17 @@ class CareerAgentUnknownToolReplanner(Protocol):
     ) -> tuple[CareerIntentGoal, ...] | None: ...
 
 
+class CareerAgentStalenessGuard(Protocol):
+    """Revalidate the planned request against current governed facts before execution."""
+
+    def is_stale(
+        self,
+        *,
+        context: CareerAgentContext,
+        plan: CareerAgentPlannedToolRequest,
+    ) -> bool: ...
+
+
 @dataclass(frozen=True, slots=True)
 class CareerAgentGovernedLoopTraceEvent:
     sequence: int
@@ -120,6 +131,7 @@ class CareerAgentGovernedLoopRuntime:
         router: CareerIntentRouter,
         selector: CareerAgentToolSelector,
         executor: CareerAgentGovernedToolExecutor,
+        staleness_guard: CareerAgentStalenessGuard,
         budget: CareerAgentLoopBudget | None = None,
         recovery_planner: CareerAgentLoopRecoveryPlanner | None = None,
         unknown_tool_replanner: CareerAgentUnknownToolReplanner | None = None,
@@ -127,6 +139,7 @@ class CareerAgentGovernedLoopRuntime:
         self._router = router
         self._selector = selector
         self._executor = executor
+        self._staleness_guard = staleness_guard
         self._budget = budget or CareerAgentLoopBudget()
         self._recovery_planner = recovery_planner
         self._unknown_tool_replanner = unknown_tool_replanner
@@ -279,6 +292,14 @@ class CareerAgentGovernedLoopRuntime:
             recovery_attempt = 0
             transient_retry = False
             while True:
+                if self._staleness_guard.is_stale(context=context, plan=plan):
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        CareerAgentLoopError.stale_state(selection.tool.name),
+                        tool=selection.tool.name,
+                    )
                 try:
                     guard.record_turn()
                 except CareerAgentLoopError as error:
@@ -535,5 +556,6 @@ __all__ = [
     "CareerAgentGovernedLoopTraceEvent",
     "CareerAgentLoopRecoveryPlanner",
     "CareerAgentPlannedToolRequest",
+    "CareerAgentStalenessGuard",
     "CareerAgentUnknownToolReplanner",
 ]
