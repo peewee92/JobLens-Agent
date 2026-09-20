@@ -24,6 +24,7 @@ class CareerAgentLoopErrorCode(StrEnum):
     UNKNOWN_TOOL = "unknown_tool"
     INVALID_TOOL_PARAMS = "invalid_tool_params"
     STALE_STATE = "stale_state"
+    RUNTIME_TIMEOUT = "runtime_timeout"
     TRANSIENT_NETWORK = "transient_network"
     LOOP_DETECTED = "loop_detected"
     NO_PROGRESS = "no_progress"
@@ -59,6 +60,14 @@ class CareerAgentLoopError(ValueError):
         return cls(
             code=CareerAgentLoopErrorCode.STALE_STATE,
             message=f"governed facts changed before Career Agent tool execution: {tool.value}",
+            retryable=False,
+        )
+
+    @classmethod
+    def runtime_timeout(cls) -> "CareerAgentLoopError":
+        return cls(
+            code=CareerAgentLoopErrorCode.RUNTIME_TIMEOUT,
+            message="Career Agent runtime budget exhausted",
             retryable=False,
         )
 

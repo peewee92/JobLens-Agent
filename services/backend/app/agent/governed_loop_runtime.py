@@ -161,12 +161,14 @@ class CareerAgentGovernedLoopRuntime:
         resolved_intent: CareerIntent | None = None,
     ) -> CareerAgentGovernedLoopResult:
         started_at = self._monotonic_clock()
+        deadline_at = started_at + self._budget.max_runtime_seconds
         result = self._run_once(
             user_message=user_message,
             context=context,
             resolution_context=resolution_context,
             planned_requests=planned_requests,
             resolved_intent=resolved_intent,
+            deadline_at=deadline_at,
         )
         runtime_latency_ms = max(0.0, (self._monotonic_clock() - started_at) * 1000.0)
         return replace(
@@ -183,6 +185,7 @@ class CareerAgentGovernedLoopRuntime:
         resolution_context: CareerIntentResolutionContext,
         planned_requests: tuple[CareerAgentPlannedToolRequest, ...],
         resolved_intent: CareerIntent | None = None,
+        deadline_at: float,
     ) -> CareerAgentGovernedLoopResult:
         guard = CareerAgentLoopGuard(self._budget)
         trace: list[CareerAgentGovernedLoopTraceEvent] = []
@@ -330,6 +333,14 @@ class CareerAgentGovernedLoopRuntime:
             recovery_attempt = 0
             transient_retry = False
             while True:
+                if self._monotonic_clock() >= deadline_at:
+                    return self._failed(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        CareerAgentLoopError.runtime_timeout(),
+                        tool=selection.tool.name,
+                    )
                 if self._staleness_guard.is_stale(context=context, plan=plan):
                     return self._failed(
                         trace,

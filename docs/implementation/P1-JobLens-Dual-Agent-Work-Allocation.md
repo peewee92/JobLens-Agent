@@ -1,7 +1,7 @@
 # JobLens 双电脑双 Agent 分工执行文档
 
 - 状态：Active
-- 当前本地共享基线：Agent B 四个确定性 A 门已线性集成至 `main @ d957bc0`；`origin/main` 仍待 Integration Owner 后续显式同步
+- 当前本地共享基线：Agent B 确定性 A 门、Durable HITL Dispatch Trajectory 与 Agent A latency/deadline evidence 已收敛到本地 `main`；`origin/main` 仍待 Integration Owner 后续显式同步
 - 当前主线：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
 - 目标：两台电脑并行推进同一 Milestone，但避免重复开发、互相覆盖和跨阶段抢跑。
 - 上位协作方案：`docs/implementation/P1-JobLens-Multi-Agent-Development-Collaboration-Plan.md`
@@ -33,7 +33,7 @@ CareerIntentRouter / CareerIntentResolver
 
 Agent B 已把 Dispatcher 纳入 Trajectory Gate，并以真实 SQLite durable path 证明 `Ranking → HITL → Gap`，GAP-6 已从 partial 收敛为 covered。当前确定性 Trajectory 为 9 covered / 0 partial / 1 blocked；唯一剩余 GAP-1 `cost action → PendingAction` 不是 Core 治理能力缺失：Execution Gate 已对 `provider_compute / business_write / external_action` 生成 PendingAction 并阻止 Workflow 自动执行，但当前 v1.1 Registry 按产品边界只注册成熟 read-only Workflow，因此不得为了 Eval 伪造收费 Tool。未来首个真实 cost-gated Workflow 进入 Registry 时必须重新激活该轨迹 Gate。
 
-Agent A 随后补齐 Release Gate 所需的 Runtime 可观测 seam：`CareerAgentGovernedLoopResult` 现在暴露总 `runtime_latency_ms` 与统一 `terminal_reason`，计时使用可注入 monotonic clock，并刻意不进入 deterministic trace fingerprint；因此同一轨迹即使运行耗时不同仍保持可回放 fingerprint，Agent B 可以直接聚合 P95 Tool Loop latency 基线。剩余 vNext 1.1 Gate 集中为：1) Provider B 门的 Intent / Tool Selection 模型层准确率（目标 >=95%）；2) Agent B 基于真实运行样本产出 P95 latency 基线并解释；3) Integration Owner 对 GAP-1 当前 Registry 范围作最终 Release Gate 裁决。Agent A 在这些 Gate 没有暴露新 Core bad case 前保持 vNext 1.1 边界，不进入 vNext 1.2。
+Agent A 随后补齐 Release Gate 所需的 Runtime 可观测与总时限 seam：`CareerAgentGovernedLoopResult` 暴露总 `runtime_latency_ms` 与统一 `terminal_reason`，计时使用可注入 monotonic clock，并刻意不进入 deterministic trace fingerprint；同时 `max_runtime_seconds` 现在会建立单一 deadline，并在每次 Tool attempt（含 retry/replan 后的下一次执行）开始前强制检查，耗尽即 `failed/runtime_timeout`，不得再启动新的 Workflow 调用。因此 Agent B 可以直接聚合 P95 Tool Loop latency 基线，也能验证 runtime timeout 不被绕过。剩余 vNext 1.1 Gate/DoD 集中为：1) Provider B 门的 Intent / Tool Selection 模型层准确率（目标 >=95%）；2) Agent B 基于真实运行样本产出 P95 latency 基线并解释；3) Integration Owner 对 GAP-1 当前 Registry 范围作最终 Release Gate 裁决；4) 主动 cancellation 与最小 Chat UI 仍需 Agent A 独立收口。Agent A 不因这些剩余项提前进入 vNext 1.2。
 
 ---
 

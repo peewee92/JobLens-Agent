@@ -214,7 +214,7 @@ def test_runtime_reports_total_latency_and_completed_terminal_reason() -> None:
         selector=CareerAgentToolSelector(registry=registry),
         executor=CareerAgentGovernedToolExecutor(registry=registry),
         staleness_guard=_CurrentStalenessGuard(),
-        monotonic_clock=_StepClock((10.0, 10.125)),
+        monotonic_clock=_StepClock((10.0, 10.05, 10.125)),
     )
 
     result = runtime.run(
@@ -234,6 +234,89 @@ def test_runtime_reports_total_latency_and_completed_terminal_reason() -> None:
     assert result.status is CareerAgentGovernedLoopStatus.COMPLETED
     assert result.runtime_latency_ms == 125.0
     assert result.terminal_reason == "completed"
+
+
+def test_runtime_stops_before_tool_call_when_runtime_budget_is_exhausted() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+        budget=CareerAgentLoopBudget(max_runtime_seconds=1),
+        monotonic_clock=_StepClock((10.0, 11.1, 11.2)),
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+                request=RankMatchReportsRequest(job_ids=("job-1",)),
+                normalized_params=(("job_ids", "job-1"),),
+                fact_fingerprint=_fp("timeout-before-tool"),
+            ),
+        ),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "runtime_timeout"
+    assert result.terminal_reason == "runtime_timeout"
+    assert ranking.calls == []
+    assert result.trace[-1].event == "failed"
+    assert result.trace[-1].error_code == "runtime_timeout"
+
+
+def test_runtime_does_not_start_transient_retry_after_runtime_budget_expires() -> None:
+    ranking = _Workflow(
+        {"jobs": ["job-1"]},
+        failures=(ConnectionError("temporary ranking backend failure"),),
+    )
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1, max_runtime_seconds=1),
+        monotonic_clock=_StepClock((20.0, 20.1, 21.2, 21.3)),
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("timeout-before-retry"),
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "runtime_timeout"
+    assert len(ranking.calls) == 1
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "failed",
+    )
 
 
 def test_runtime_reports_error_terminal_reason_without_changing_trace_fingerprint() -> None:
