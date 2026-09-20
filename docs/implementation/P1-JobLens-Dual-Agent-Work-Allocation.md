@@ -31,7 +31,9 @@ CareerIntentRouter / CareerIntentResolver
 
 `CareerAgentRuntimeDispatcher` 不重新解释自然语言，只接收已经结构化的 `CareerIntent`，并再次执行 deterministic Job-scope resolution。显式 Job refs 只能缩小当前 frozen run scope；scope 外 Job 必须在任何 Durable Runtime / Workflow 执行前拒绝。`rank_jobs → review_gaps` 必须携带显式 thread/run/request identity，并直接复用 vNext 1.0 Durable HITL，禁止在 governed loop 内复制第二套 interrupt/resume。其他 Intent 通过 `resolved_intent` seam 进入 governed loop，避免模型 Router 被重复调用，同时保留 resolver / stale / Tool Registry / Human Gate 边界。
 
-Agent B 下一步不再重复 GAP-5/7/8/3 Dataset 工作，而是把 Dispatcher 纳入 Trajectory Gate，新增真实 `Ranking → HITL → Gap` 轨迹并重跑，确认 GAP-6 从 partial 变为 covered。之后只剩：1) GAP-1 `cost action → PendingAction` 的产品边界（没有真实成熟 cost-gated Workflow 时不得造假 Tool）；2) Provider B 门的 Intent / Tool Selection 模型层准确率与 PRD Release Gate。Agent A 在这两项没有暴露新 Core bad case 前保持 vNext 1.1 边界，不进入 vNext 1.2。
+Agent B 已把 Dispatcher 纳入 Trajectory Gate，并以真实 SQLite durable path 证明 `Ranking → HITL → Gap`，GAP-6 已从 partial 收敛为 covered。当前确定性 Trajectory 为 9 covered / 0 partial / 1 blocked；唯一剩余 GAP-1 `cost action → PendingAction` 不是 Core 治理能力缺失：Execution Gate 已对 `provider_compute / business_write / external_action` 生成 PendingAction 并阻止 Workflow 自动执行，但当前 v1.1 Registry 按产品边界只注册成熟 read-only Workflow，因此不得为了 Eval 伪造收费 Tool。未来首个真实 cost-gated Workflow 进入 Registry 时必须重新激活该轨迹 Gate。
+
+Agent A 随后补齐 Release Gate 所需的 Runtime 可观测 seam：`CareerAgentGovernedLoopResult` 现在暴露总 `runtime_latency_ms` 与统一 `terminal_reason`，计时使用可注入 monotonic clock，并刻意不进入 deterministic trace fingerprint；因此同一轨迹即使运行耗时不同仍保持可回放 fingerprint，Agent B 可以直接聚合 P95 Tool Loop latency 基线。剩余 vNext 1.1 Gate 集中为：1) Provider B 门的 Intent / Tool Selection 模型层准确率（目标 >=95%）；2) Agent B 基于真实运行样本产出 P95 latency 基线并解释；3) Integration Owner 对 GAP-1 当前 Registry 范围作最终 Release Gate 裁决。Agent A 在这些 Gate 没有暴露新 Core bad case 前保持 vNext 1.1 边界，不进入 vNext 1.2。
 
 ---
 

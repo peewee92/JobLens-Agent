@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol
 
@@ -121,6 +123,8 @@ class CareerAgentGovernedLoopResult:
     message: str | None = None
     pending_action: CareerAgentPendingAction | None = None
     error_code: str | None = None
+    runtime_latency_ms: float = 0.0
+    terminal_reason: str | None = None
 
 
 class CareerAgentGovernedLoopRuntime:
@@ -136,6 +140,7 @@ class CareerAgentGovernedLoopRuntime:
         budget: CareerAgentLoopBudget | None = None,
         recovery_planner: CareerAgentLoopRecoveryPlanner | None = None,
         unknown_tool_replanner: CareerAgentUnknownToolReplanner | None = None,
+        monotonic_clock: Callable[[], float] | None = None,
     ) -> None:
         self._router = router
         self._selector = selector
@@ -144,8 +149,33 @@ class CareerAgentGovernedLoopRuntime:
         self._budget = budget or CareerAgentLoopBudget()
         self._recovery_planner = recovery_planner
         self._unknown_tool_replanner = unknown_tool_replanner
+        self._monotonic_clock = monotonic_clock or time.perf_counter
 
     def run(
+        self,
+        *,
+        user_message: str,
+        context: CareerAgentContext,
+        resolution_context: CareerIntentResolutionContext,
+        planned_requests: tuple[CareerAgentPlannedToolRequest, ...],
+        resolved_intent: CareerIntent | None = None,
+    ) -> CareerAgentGovernedLoopResult:
+        started_at = self._monotonic_clock()
+        result = self._run_once(
+            user_message=user_message,
+            context=context,
+            resolution_context=resolution_context,
+            planned_requests=planned_requests,
+            resolved_intent=resolved_intent,
+        )
+        runtime_latency_ms = max(0.0, (self._monotonic_clock() - started_at) * 1000.0)
+        return replace(
+            result,
+            runtime_latency_ms=runtime_latency_ms,
+            terminal_reason=result.error_code or result.status.value,
+        )
+
+    def _run_once(
         self,
         *,
         user_message: str,
