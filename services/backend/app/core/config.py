@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     semantic_match_enable_thinking: bool | None = None
     semantic_match_max_completion_tokens: int | None = None
     semantic_match_timeout_seconds: float = 60.0
+    career_intent_provider: str = "disabled"
+    career_intent_model: str = ""
+    career_intent_api_style: Literal["responses", "chat_completions"] = "chat_completions"
+    career_intent_enable_thinking: bool | None = None
+    career_intent_max_completion_tokens: int | None = None
+    career_intent_timeout_seconds: float = 60.0
     requirement_acceptance_private_root: str | None = None
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
