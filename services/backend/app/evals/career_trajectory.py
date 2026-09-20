@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+import time
 from collections import Counter
 from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, datetime
@@ -102,6 +103,7 @@ _TRACE_VOCABULARY = frozenset(
         "pending_action",
         "tool_result",
         "failed",
+        "cancelled",
         "finished",
     }
 )
@@ -113,7 +115,7 @@ _TOOL_REQUEST_REQUEST_TYPE: dict[str, type[object]] = {
 }
 
 _TOOL_REQUIRED_EVENTS = ("tool_selected", "tool_called", "pending_action", "tool_result")
-_TOOL_OPTIONAL_EVENTS = ("failed", "recovery")
+_TOOL_OPTIONAL_EVENTS = ("failed", "cancelled", "recovery")
 
 _DURABLE_DISPATCH_EVENTS = frozenset(
     {
@@ -268,6 +270,8 @@ _RELEASE_MINIMUMS: dict[str, int] = {
     "corrected_retry": 3,
     "unknown_tool_replan": 3,
     "stale_terminate": 3,
+    "runtime_timeout": 2,
+    "run_cancelled": 2,
     "durable_dispatch": 8,
 }
 _RELEASE_MINIMUM_TOTAL = sum(_RELEASE_MINIMUMS.values())
@@ -366,6 +370,8 @@ class CareerTrajectoryEvalCase:
     transient_faults: Mapping[str, tuple[bool, ...]] = field(default_factory=dict)
     recovery_plans: tuple[CareerTrajectoryEvalPlan, ...] = ()
     replan_goals: tuple[tuple[str, ...], ...] = ()
+    clock_script: tuple[float, ...] = ()
+    cancel_after_checks: int | None = None
     driver: str = "governed_loop"
     dispatch: CareerTrajectoryEvalDispatchConfig | None = None
     dispatch_expected: CareerTrajectoryEvalDispatchExpected | None = None
@@ -387,6 +393,8 @@ class CareerTrajectoryEvalExecution:
     provider_completed: int = 0
     business_writes: int = 0
     dispatch: CareerTrajectoryEvalDispatchExpected | None = None
+    runtime_latency_ms: float = 0.0
+    terminal_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -529,6 +537,37 @@ class _ScriptedUnknownToolReplanner:
         goals = self._goal_sets[self.calls]
         self.calls += 1
         return goals
+
+
+class _ScriptedClock:
+    """Virtual monotonic clock; values are consumed in order, last one repeats.
+
+    Cases using a virtual clock cannot report a real latency, so the latency
+    baseline excludes them explicitly instead of publishing virtual numbers.
+    """
+
+    def __init__(self, script: tuple[float, ...]) -> None:
+        self._script = script
+        self.calls = 0
+
+    def __call__(self) -> float:
+        index = self.calls
+        self.calls += 1
+        if index < len(self._script):
+            return self._script[index]
+        return self._script[-1]
+
+
+class _ScriptedCancellation:
+    """Report cancelled only after the first ``after`` checks."""
+
+    def __init__(self, after: int) -> None:
+        self._after = after
+        self.calls = 0
+
+    def is_cancelled(self) -> bool:
+        self.calls += 1
+        return self.calls > self._after
 
 
 class _DispatchContextBuilder:
@@ -693,6 +732,7 @@ class CareerTrajectoryEvalDriver:
     ) -> CareerTrajectoryEvalExecution:
         config = case.dispatch
         assert config is not None
+        started_at = time.perf_counter()
 
         with tempfile.TemporaryDirectory() as workspace:
             checkpoint_path = Path(workspace) / "durable-dispatch.sqlite3"
@@ -756,6 +796,8 @@ class CareerTrajectoryEvalDriver:
                         dispatch_error_kind=dispatch_error_kind,
                         dispatch_error_contains=dispatch_error_message,
                     ),
+                    runtime_latency_ms=_elapsed_ms(started_at),
+                    terminal_reason=dispatch_error_kind,
                 )
 
             observed = _observe_dispatch(
@@ -805,6 +847,8 @@ class CareerTrajectoryEvalDriver:
                 pending_action_present=False,
                 replay_stable=True,
                 dispatch=observed,
+                runtime_latency_ms=_elapsed_ms(started_at),
+                terminal_reason=observed.dispatch_kind,
             )
 
     def _drive_governed_loop(
@@ -845,6 +889,12 @@ class CareerTrajectoryEvalDriver:
                 if case.replan_goals
                 else None
             ),
+            monotonic_clock=_ScriptedClock(case.clock_script) if case.clock_script else None,
+            cancellation_signal=(
+                _ScriptedCancellation(case.cancel_after_checks)
+                if case.cancel_after_checks is not None
+                else None
+            ),
         )
 
         result = runtime.run(
@@ -870,7 +920,13 @@ class CareerTrajectoryEvalDriver:
             pending_action_present=result.pending_action is not None,
             replay_stable=True,
             trace_leak=leak,
+            runtime_latency_ms=result.runtime_latency_ms,
+            terminal_reason=result.terminal_reason,
         )
+
+
+def _elapsed_ms(started_at: float) -> float:
+    return max(0.0, (time.perf_counter() - started_at) * 1000.0)
 
 
 def _build_hitl_service(
@@ -1378,6 +1434,18 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         payload.get("replanGoals", []),
         line_number=line_number,
     )
+    clock_script = _parse_float_list(
+        payload.get("clockScript", []),
+        field="clockScript",
+        line_number=line_number,
+    )
+    cancel_after_raw = payload.get("cancelAfterChecks")
+    if cancel_after_raw is not None and (
+        isinstance(cancel_after_raw, bool) or not isinstance(cancel_after_raw, int)
+    ):
+        raise ValueError(
+            f"Trajectory Eval line {line_number} field cancelAfterChecks must be int | null"
+        )
 
     expected_payload = _object(payload.get("expected"), field="expected", line_number=line_number)
     expected = CareerTrajectoryEvalExpected(
@@ -1414,6 +1482,8 @@ def _parse_case(payload: object, *, line_number: int) -> CareerTrajectoryEvalCas
         transient_faults=transient_faults,
         recovery_plans=recovery_plans,
         replan_goals=replan_goals,
+        clock_script=clock_script,
+        cancel_after_checks=cancel_after_raw,
         driver=driver,
         dispatch=dispatch,
         dispatch_expected=_parse_dispatch_expected(
@@ -1544,6 +1614,21 @@ def _parse_bool_list(value: object, *, field: str, line_number: int) -> tuple[bo
             f"Trajectory Eval line {line_number} field {field} must be a boolean array"
         )
     return tuple(value)
+
+
+def _parse_float_list(value: object, *, field: str, line_number: int) -> tuple[float, ...]:
+    if not isinstance(value, list):
+        raise ValueError(
+            f"Trajectory Eval line {line_number} field {field} must be a numeric array"
+        )
+    numbers: list[float] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            raise ValueError(
+                f"Trajectory Eval line {line_number} field {field} must be a numeric array"
+            )
+        numbers.append(float(item))
+    return tuple(numbers)
 
 
 def _parse_transient_faults(
@@ -1706,15 +1791,27 @@ def _validate_governed_loop_case(case: CareerTrajectoryEvalCase) -> None:
         )
     if expected.status == "completed" and expected.trace[-1] != "finished":
         raise ValueError(f"{case_id}: a completed trajectory must end with finished")
-    if expected.status == "failed":
+    if expected.status == "cancelled":
+        if expected.error_code is None:
+            raise ValueError(f"{case_id}: a cancelled trajectory requires an errorCode")
+        if not expected.trace or not expected.trace[-1].startswith("cancelled"):
+            raise ValueError(
+                f"{case_id}: a cancelled trajectory must end with a cancelled event"
+            )
+    elif expected.status == "failed":
         if expected.error_code is None:
             raise ValueError(f"{case_id}: a failed trajectory requires an errorCode")
         if not expected.trace or not expected.trace[-1].startswith("failed"):
             raise ValueError(f"{case_id}: a failed trajectory must end with a failed event")
     elif expected.error_code is not None:
-        raise ValueError(f"{case_id}: only a failed trajectory may declare an errorCode")
-    if expected.status != "failed" and expected.trace and expected.trace[-1].startswith("failed"):
-        raise ValueError(f"{case_id}: a non-failed trajectory must not end with a failed event")
+        raise ValueError(f"{case_id}: only a failed or cancelled trajectory may declare an errorCode")
+    terminal_events = ("failed", "cancelled")
+    if expected.status not in ("failed", "cancelled") and expected.trace and any(
+        expected.trace[-1].startswith(name) for name in terminal_events
+    ):
+        raise ValueError(
+            f"{case_id}: a non-terminal trajectory must not end with a failed or cancelled event"
+        )
 
 
 def _validate_injection_case(case: CareerTrajectoryEvalCase) -> None:
@@ -1783,6 +1880,27 @@ def _validate_injection_case(case: CareerTrajectoryEvalCase) -> None:
         if not any(event.startswith("recovery") for event in expected.trace):
             raise ValueError(
                 f"{case_id}: a recovered {case.family} trajectory must trace a recovery event"
+            )
+
+    if case.clock_script and case.family != "runtime_timeout":
+        raise ValueError(
+            f"{case_id}: clockScript is only valid for runtime_timeout cases"
+        )
+    if case.family == "runtime_timeout":
+        if not case.clock_script:
+            raise ValueError(f"{case_id}: runtime_timeout case requires clockScript")
+        if expected.error_code != "runtime_timeout":
+            raise ValueError(f"{case_id}: runtime_timeout case must fail with runtime_timeout")
+    if case.cancel_after_checks is not None and case.family != "run_cancelled":
+        raise ValueError(
+            f"{case_id}: cancelAfterChecks is only valid for run_cancelled cases"
+        )
+    if case.family == "run_cancelled":
+        if case.cancel_after_checks is None:
+            raise ValueError(f"{case_id}: run_cancelled case requires cancelAfterChecks")
+        if expected.status != "cancelled" or expected.error_code != "run_cancelled":
+            raise ValueError(
+                f"{case_id}: run_cancelled case must end cancelled with run_cancelled"
             )
 
 

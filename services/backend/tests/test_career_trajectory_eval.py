@@ -33,7 +33,7 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
     for case in cases:
         counts[case.family] = counts.get(case.family, 0) + 1
 
-    assert len(cases) == 46
+    assert len(cases) == 50
     assert counts == {
         "completed_single": 3,
         "completed_multi": 3,
@@ -50,6 +50,8 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
         "corrected_retry": 3,
         "unknown_tool_replan": 3,
         "stale_terminate": 3,
+        "runtime_timeout": 2,
+        "run_cancelled": 2,
         "durable_dispatch": 8,
     }
 
@@ -57,7 +59,7 @@ def test_release_dataset_meets_trajectory_family_minimums() -> None:
 def test_release_dataset_validation_rejects_missing_family_minimums() -> None:
     cases = load_career_trajectory_eval_dataset()
 
-    with pytest.raises(ValueError, match="at least 46"):
+    with pytest.raises(ValueError, match="at least 50"):
         validate_career_trajectory_release_dataset(cases=(cases[0],))
 
 
@@ -73,7 +75,7 @@ def test_trajectory_gate_passes_for_frozen_cohort_against_real_core() -> None:
     }
     assert failures == {}
     assert report.gate_passed is True
-    assert report.total_cases == 46
+    assert report.total_cases == 50
     assert report.unclassified_errors == 0
     assert report.trace_leaks == 0
     assert report.unstable_traces == 0
@@ -310,7 +312,7 @@ def test_trace_fingerprints_are_digests_and_vocabulary_is_closed() -> None:
     cases = load_career_trajectory_eval_dataset()
     governed_vocabulary = {
         "intent_routed", "clarification", "unsupported", "blocked", "recovery",
-        "tool_selected", "tool_called", "pending_action", "tool_result",
+        "tool_selected", "tool_called", "pending_action", "tool_result", "cancelled",
         "failed", "finished",
     }
     dispatch_vocabulary = {
@@ -363,7 +365,7 @@ def test_failed_trajectories_after_a_successful_tool_still_report_their_results(
         for case in cases
         if case.expected.status == "failed" and case.expected.tool_results > 0
     )
-    assert len(partial) == 5
+    assert len(partial) == 6
 
     report = evaluate_career_trajectories(
         driver=CareerTrajectoryEvalDriver(),

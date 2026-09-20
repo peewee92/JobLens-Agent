@@ -3,9 +3,10 @@
 Frozen cohort for the vNext 1.1 governed-loop and durable-dispatch trajectory gate
 (PRD §15.3 / §16).
 
-- Dataset: `career-trajectory-v1.jsonl` (**46 cases**, 16 trace families)
+- Dataset: `career-trajectory-v1.jsonl` (**50 cases**, 18 trace families)
 - Runner: `services/backend/app/evals/career_trajectory.py`
 - Tests: `services/backend/tests/test_career_trajectory_eval.py`
+- Latency baseline: `services/backend/app/evals/career_loop_latency.py`
 - Core under test: `app/agent/governed_loop_runtime.py`, `app/agent/runtime_dispatch.py`
 
 ---
@@ -16,12 +17,19 @@ Frozen cohort for the vNext 1.1 governed-loop and durable-dispatch trajectory ga
 |---|---|---|---|
 | v1 | `9a8fe34` | 24 | 3 covered / 2 partial / 5 blocked |
 | v2 | `e54d296` | 38 | 8 covered / 1 partial / 1 blocked |
-| **v3 (current)** | **`c1de1ae`** | **46** | **9 covered / 0 partial / 1 blocked** |
+| v3 | `c1de1ae` | 46 | 9 covered / 0 partial / 1 blocked |
+| **v4 (current)** | **`3dffd16`** | **50** | **9 covered / 0 partial / 1 blocked** |
 
-v3 adds the `durable_dispatch` family: the runner now drives the real
+v3 added the `durable_dispatch` family: the runner drives the real
 `CareerAgentRuntimeDispatcher` into the real `CareerAgentHitlService` over a throwaway
 SQLite checkpoint store, so `Ranking → HITL → Gap` is covered by a real durable run
 rather than a stub.
+
+v4 re-synced onto the current `main` (`3dffd16`, which added the runtime deadline, run
+cancellation and the minimal chat UI) and closed a coverage hole that re-sync exposed:
+Core introduced two new terminal stop codes — `runtime_timeout` and `run_cancelled` —
+that **no** Agent B gate covered. Both are now frozen trajectories. The PRD §15.3 ledger
+is unchanged at 9/0/1: v4 adds terminal-reason completeness, not shape coverage.
 
 ---
 
@@ -105,7 +113,7 @@ Two findings worth keeping visible:
    the stale-validation readback. It is asserted explicitly so a future change to stale
    validation cannot silently change the trajectory.
 
-## Composition (46 cases / 16 families)
+## Composition (50 cases / 18 families)
 
 | Family | Cases | Terminal outcome |
 |---|---|---|
@@ -124,7 +132,69 @@ Two findings worth keeping visible:
 | `corrected_retry` | 3 | recovered `completed` |
 | `unknown_tool_replan` | 3 | 2 recovered, 1 bounded failure |
 | `stale_terminate` | 3 | `failed` / `stale_state` |
+| **`runtime_timeout`** | **2** | `failed` / `runtime_timeout` (virtual clock past the deadline) |
+| **`run_cancelled`** | **2** | `cancelled` / `run_cancelled` (cancellation signal before execution) |
 | **`durable_dispatch`** | **8** | 4 × `durable_hitl`, 2 × `governed_loop`, 2 × dispatch error |
+
+### v4 additions: the two new Core stop codes
+
+`3dffd16` introduced `RUNTIME_TIMEOUT` and `RUN_CANCELLED`, plus a new
+`CareerAgentGovernedLoopStatus.CANCELLED` and a new `cancelled` trace event. Core already
+unit-tests the mechanics, so this cohort deliberately does **not** re-test them; it pins
+the trajectory-level facts a unit test does not carry — ordered trace, replay determinism
+and business-code reach:
+
+| Case | Trace | Workflow reach |
+|---|---|---|
+| `traj-timeout-01` | `intent_routed > tool_selected:rank > failed:rank` | **0** |
+| `traj-timeout-02` | `… cycle(rank) … > tool_selected:gaps > failed:gaps` | 1 — the first tool completed, the second never started |
+| `traj-cancel-01` | `intent_routed > tool_selected:rank > cancelled:rank` | **0** |
+| `traj-cancel-02` | `… cycle(rank) … > tool_selected:gaps > cancelled:gaps` | 1 — cancellation lands between tools |
+
+`clockScript` (a virtual monotonic clock) is only valid on `runtime_timeout` cases and
+`cancelAfterChecks` only on `run_cancelled` cases; the loader enforces both. Cases with a
+virtual clock are **excluded from the latency baseline** rather than measured, because
+their latency is an artifact of the script.
+
+## Latency baseline (PRD §16 "P95 Tool Loop latency 有基线并可解释")
+
+`measure_loop_latency_baseline()` measures one real sample per case and reports the
+baseline segmented by trajectory class. Current result on `3dffd16`:
+
+```text
+sample count : 48        (50 cases; 2 excluded for virtual clock)
+P50          : 0.076 ms
+P95          : 12.074 ms
+max          : 16.620 ms
+Provider     : 0 attempts
+measured by Core : 40    (governed loop, runtime_latency_ms)
+measured by Eval : 8     (durable dispatch, fixture I/O included)
+```
+
+By class:
+
+| Class | n | min | p50 | p95 | max |
+|---|---|---|---|---|---|
+| `clarification` | 4 | 0.016 | 0.031 | 0.036 | 0.036 ms |
+| `single_tool` | 3 | 0.051 | 0.098 | 0.100 | 0.100 ms |
+| `multi_tool` | 5 | 0.075 | 0.095 | 0.139 | 0.149 ms |
+| `retry_or_recovery` | 9 | 0.034 | 0.060 | 0.301 | 0.307 ms |
+| `failure` | 19 | 0.017 | 0.061 | 0.123 | 0.429 ms |
+| `durable_dispatch` | 8 | 3.700 | 8.551 | 15.186 | 16.620 ms |
+
+**The explanation, not just the number.** The cohort-wide P95 sits entirely inside the
+`durable_dispatch` range, so the P95 is a *fixture cost*, not a loop cost: each dispatch
+case builds a throwaway SQLite checkpoint store and runs a full
+rank → interrupt → resume → gap cycle. Every pure governed-loop class is **under
+0.5 ms**, because the tools are deterministic stubs and no model is called. A test
+(`test_p95_is_explained_by_the_durable_dispatch_segment`) fails if the governed loop ever
+becomes as slow as the durable fixture, forcing the baseline to be re-explained rather
+than silently republished.
+
+**Honest limits.** These numbers exclude model latency, which dominates production, so
+they are a floor and not a production claim. No latency threshold is asserted as a gate —
+wall-clock assertions are flaky and would make the release gate untrustworthy. Model-layer
+latency requires the separately authorized provider gate.
 
 ## Case schema — dispatch fields
 
