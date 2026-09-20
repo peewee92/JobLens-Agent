@@ -25,6 +25,7 @@ class CareerAgentLoopErrorCode(StrEnum):
     INVALID_TOOL_PARAMS = "invalid_tool_params"
     STALE_STATE = "stale_state"
     RUNTIME_TIMEOUT = "runtime_timeout"
+    RUN_CANCELLED = "run_cancelled"
     TRANSIENT_NETWORK = "transient_network"
     LOOP_DETECTED = "loop_detected"
     NO_PROGRESS = "no_progress"
@@ -68,6 +69,14 @@ class CareerAgentLoopError(ValueError):
         return cls(
             code=CareerAgentLoopErrorCode.RUNTIME_TIMEOUT,
             message="Career Agent runtime budget exhausted",
+            retryable=False,
+        )
+
+    @classmethod
+    def run_cancelled(cls) -> "CareerAgentLoopError":
+        return cls(
+            code=CareerAgentLoopErrorCode.RUN_CANCELLED,
+            message="Career Agent run was cancelled",
             retryable=False,
         )
 

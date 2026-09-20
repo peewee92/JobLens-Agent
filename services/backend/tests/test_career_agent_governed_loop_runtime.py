@@ -98,6 +98,18 @@ class _UnknownToolReplanner:
         return self.goals
 
 
+class _CancellationSignal:
+    def __init__(self, answers: tuple[bool, ...]) -> None:
+        self.answers = list(answers)
+        self.calls = 0
+
+    def is_cancelled(self) -> bool:
+        self.calls += 1
+        if not self.answers:
+            return False
+        return self.answers.pop(0)
+
+
 class _CurrentStalenessGuard:
     def is_stale(
         self,
@@ -316,6 +328,140 @@ def test_runtime_does_not_start_transient_retry_after_runtime_budget_expires() -
         "tool_selected",
         "recovery",
         "failed",
+    )
+
+
+def test_runtime_cancels_before_starting_tool_execution() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    cancellation = _CancellationSignal((True,))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+        cancellation_signal=cancellation,
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+                request=RankMatchReportsRequest(job_ids=("job-1",)),
+                normalized_params=(("job_ids", "job-1"),),
+                fact_fingerprint=_fp("cancel-before-tool"),
+            ),
+        ),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.CANCELLED
+    assert result.error_code == "run_cancelled"
+    assert result.terminal_reason == "run_cancelled"
+    assert ranking.calls == []
+    assert result.trace[-1].event == "cancelled"
+
+
+def test_runtime_stops_between_tools_after_cancellation_is_requested() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    gaps = _Workflow({"gaps": ["skill-1"]})
+    preparation = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=gaps,
+        job_preparation=preparation,
+    )
+    cancellation = _CancellationSignal((False, True))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs", "review_gaps"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+        cancellation_signal=cancellation,
+    )
+
+    result = runtime.run(
+        user_message="先排序，再看差距",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+                request=RankMatchReportsRequest(job_ids=("job-1",)),
+                normalized_params=(("job_ids", "job-1"),),
+                fact_fingerprint=_fp("cancel-between-tools-ranking"),
+            ),
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.TARGET_COHORT_GAPS,
+                request=TargetCohortGapsRequest(
+                    cohort_id="cohort-1",
+                    name="target",
+                    selected_job_ids=("job-1",),
+                ),
+                normalized_params=(("selected_job_ids", "job-1"),),
+                fact_fingerprint=_fp("cancel-between-tools-gaps"),
+            ),
+        ),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.CANCELLED
+    assert result.error_code == "run_cancelled"
+    assert len(ranking.calls) == 1
+    assert gaps.calls == []
+    assert len(result.tool_results) == 1
+    assert result.trace[-1].event == "cancelled"
+    assert result.trace[-1].tool is CareerAgentToolName.TARGET_COHORT_GAPS
+
+
+def test_runtime_does_not_retry_after_cancellation_is_requested() -> None:
+    ranking = _Workflow(
+        {"jobs": ["job-1"]},
+        failures=(ConnectionError("temporary ranking backend failure"),),
+    )
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    cancellation = _CancellationSignal((False, True))
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(model=_IntentModel({"goals": ["rank_jobs"]})),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        staleness_guard=_CurrentStalenessGuard(),
+        budget=CareerAgentLoopBudget(max_turns=3, max_tool_calls=3, max_retries=1),
+        cancellation_signal=cancellation,
+    )
+    plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint=_fp("cancel-before-retry"),
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(plan,),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.CANCELLED
+    assert result.error_code == "run_cancelled"
+    assert len(ranking.calls) == 1
+    assert tuple(event.event for event in result.trace) == (
+        "intent_routed",
+        "tool_selected",
+        "recovery",
+        "cancelled",
     )
 
 

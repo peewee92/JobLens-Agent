@@ -47,6 +47,7 @@ class CareerAgentGovernedLoopStatus(StrEnum):
     PENDING_ACTION = "pending_action"
     BLOCKED = "blocked"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +92,12 @@ class CareerAgentUnknownToolReplanner(Protocol):
         previous_goals: tuple[CareerIntentGoal, ...],
         attempt: int,
     ) -> tuple[CareerIntentGoal, ...] | None: ...
+
+
+class CareerAgentCancellationSignal(Protocol):
+    """Expose caller-owned cancellation without coupling the loop to transport state."""
+
+    def is_cancelled(self) -> bool: ...
 
 
 class CareerAgentStalenessGuard(Protocol):
@@ -141,6 +148,7 @@ class CareerAgentGovernedLoopRuntime:
         recovery_planner: CareerAgentLoopRecoveryPlanner | None = None,
         unknown_tool_replanner: CareerAgentUnknownToolReplanner | None = None,
         monotonic_clock: Callable[[], float] | None = None,
+        cancellation_signal: CareerAgentCancellationSignal | None = None,
     ) -> None:
         self._router = router
         self._selector = selector
@@ -150,6 +158,7 @@ class CareerAgentGovernedLoopRuntime:
         self._recovery_planner = recovery_planner
         self._unknown_tool_replanner = unknown_tool_replanner
         self._monotonic_clock = monotonic_clock or time.perf_counter
+        self._cancellation_signal = cancellation_signal
 
     def run(
         self,
@@ -333,6 +342,13 @@ class CareerAgentGovernedLoopRuntime:
             recovery_attempt = 0
             transient_retry = False
             while True:
+                if self._cancellation_signal is not None and self._cancellation_signal.is_cancelled():
+                    return self._cancelled(
+                        trace,
+                        results,
+                        plan.fact_fingerprint,
+                        tool=selection.tool.name,
+                    )
                 if self._monotonic_clock() >= deadline_at:
                     return self._failed(
                         trace,
@@ -520,6 +536,30 @@ class CareerAgentGovernedLoopRuntime:
                 error_code=error_code,
                 trace_fingerprint=trace_fingerprint,
             )
+        )
+
+    def _cancelled(
+        self,
+        trace: list[CareerAgentGovernedLoopTraceEvent],
+        results: list[AgentToolResult],
+        input_fingerprint: str,
+        *,
+        tool: CareerAgentToolName | None = None,
+    ) -> CareerAgentGovernedLoopResult:
+        error = CareerAgentLoopError.run_cancelled()
+        self._trace(
+            trace,
+            "cancelled",
+            input_fingerprint=input_fingerprint,
+            tool=tool,
+            error_code=error.code.value,
+        )
+        return CareerAgentGovernedLoopResult(
+            status=CareerAgentGovernedLoopStatus.CANCELLED,
+            tool_results=tuple(results),
+            trace=tuple(trace),
+            message=str(error),
+            error_code=error.code.value,
         )
 
     def _failed(
