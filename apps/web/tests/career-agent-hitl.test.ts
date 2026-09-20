@@ -20,6 +20,11 @@ test("career agent page exposes the minimal durable HITL flow", () => {
   assert.match(panel, /reject/);
   assert.match(panel, /pendingApproval/);
   assert.match(panel, /gapResultFingerprint/);
+  assert.match(panel, /Career Agent Chat/);
+  assert.match(panel, /你的请求/);
+  assert.match(panel, /当前计划/);
+  assert.match(panel, /执行状态/);
+  assert.match(panel, /查看依据/);
 });
 
 test("web proxy keeps durable run start, load and resume behind same-origin routes", () => {

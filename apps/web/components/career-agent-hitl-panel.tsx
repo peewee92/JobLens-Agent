@@ -154,9 +154,48 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
   const gapHandoffHref = run?.status === "completed"
     ? buildGapHandoffHref(run.confirmedTargetJobIds)
     : null;
+  const activeJobIds = run?.requestedJobIds ?? selected;
+  const activeJobNames = activeJobIds.map((id) => jobsById.get(id)?.title ?? id);
+  const requestSummary = activeJobNames.length > 0
+    ? `帮我先比较这 ${activeJobNames.length} 个岗位，找出最值得优先考虑的岗位，再分析共同能力差距。`
+    : "帮我比较目标岗位并分析共同能力差距。";
+  const planSummary = run?.pendingApproval
+    ? "已完成岗位排序；下一步需要你确认目标岗位，然后才会分析共同能力差距。"
+    : run?.status === "completed"
+      ? "岗位排序 → 人工确认 → 能力差距分析已完成。"
+      : run
+        ? `当前步骤：${run.currentStep}。系统只会沿已受治理的 Ranking → 人工确认 → Skill Gap 路径执行。`
+        : "选择岗位后，系统会先读取已有匹配结果并排序；目标岗位必须由你确认后才继续能力差距分析。";
 
   return (
     <div className="stack-lg">
+      <section className="card stack-md" aria-label="Career Agent Chat">
+        <div>
+          <p className="eyebrow">Career Agent Chat</p>
+          <h2>受治理的求职分析对话</h2>
+          <p className="muted">当前界面只展示已经接通并通过持久化验证的 Agent 路径；自由文本意图模型仍受 Release Gate 管理，不会在这里伪装成已上线能力。</p>
+        </div>
+        <div className="stack-sm">
+          <div>
+            <strong>你的请求</strong>
+            <p>{requestSummary}</p>
+          </div>
+          <div>
+            <strong>当前计划</strong>
+            <p>{planSummary}</p>
+          </div>
+          <div>
+            <strong>执行状态</strong>
+            <p role="status">{message}</p>
+          </div>
+          <details>
+            <summary>查看依据</summary>
+            <p className="muted">本流程只读取已有 MatchReport，并沿同一套 JobRequirement / Profile Evidence 事实继续分析，不重新猜测简历或岗位事实。</p>
+            {activeJobNames.length > 0 && <p className="muted">当前岗位范围：{activeJobNames.join("、")}</p>}
+            {run?.gapResultFingerprint && <p className="muted">能力差距结果指纹：{run.gapResultFingerprint}</p>}
+          </details>
+        </div>
+      </section>
       {!run && recoverableThreadId && (
         <section className="card stack-md">
           <div>
