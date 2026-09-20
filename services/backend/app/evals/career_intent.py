@@ -15,6 +15,12 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
+from app.agent.intent import (
+    CareerIntentGoal,
+    CareerIntentResolutionContext,
+    CareerIntentRouter,
+)
+
 
 class IntentEvalCategory(StrEnum):
     SINGLE_GOAL = "single_goal"
@@ -84,6 +90,23 @@ class IntentEvalRouter(Protocol):
     """Core-owned NL router seam consumed by this Eval; never implemented here."""
 
     def route(self, *, message: str, context: IntentEvalContext) -> IntentEvalExecution: ...
+
+
+class CareerIntentCoreEvalAdapter:
+    """Thin adapter from the Core Router contract to the Eval runner seam."""
+
+    def __init__(self, *, router: CareerIntentRouter) -> None:
+        self._router = router
+
+    def route(self, *, message: str, context: IntentEvalContext) -> IntentEvalExecution:
+        intent = self._router.route(
+            user_message=message,
+            context=CareerIntentResolutionContext(
+                current_job_id=context.current_job_id,
+                run_job_ids=context.run_job_ids,
+            ),
+        )
+        return IntentEvalExecution(intent=intent)
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,9 +292,22 @@ def _validate_case_semantics(
             raise ValueError(
                 f"{case_id}: unsupported_unsafe case requires no goals and an unsupportedRequest"
             )
-    if expected.needs_clarification and not expected.clarification_question_contains:
+    if expected.needs_clarification and any(
+        goal != CareerIntentGoal.UNKNOWN.value for goal in expected.goals
+    ):
         raise ValueError(
-            f"{case_id}: clarification case must state clarificationQuestionContains"
+            f"{case_id}: clarification cannot expect executable goals"
+        )
+    if category is IntentEvalCategory.CLARIFICATION:
+        if not expected.needs_clarification:
+            raise ValueError(f"{case_id}: clarification case requires needsClarification")
+        if not expected.clarification_question_contains:
+            raise ValueError(
+                f"{case_id}: clarification case must state clarificationQuestionContains"
+            )
+    if not expected.needs_clarification and expected.clarification_question_contains:
+        raise ValueError(
+            f"{case_id}: clarificationQuestionContains requires needsClarification"
         )
     if context.run_job_ids and any(
         job_id not in context.run_job_ids for job_id in expected.referenced_job_ids
@@ -363,6 +399,10 @@ def _assert_intent_shape_and_expectations(
             "unsupported_request expected "
             f"{expected.unsupported_request!r}, got {actual_unsupported!r}"
         )
+    if actual_needs_clarification and not actual_question:
+        failures.append(
+            "clarification must carry a non-empty clarification_question"
+        )
     if expected.clarification_question_contains and (
         actual_question is None
         or expected.clarification_question_contains.casefold() not in actual_question.casefold()
@@ -371,6 +411,10 @@ def _assert_intent_shape_and_expectations(
             "clarification_question must contain "
             f"{expected.clarification_question_contains!r}, got {actual_question!r}"
         )
+    if actual_needs_clarification and any(
+        goal != CareerIntentGoal.UNKNOWN.value for goal in actual_goals
+    ):
+        failures.append("clarification must not carry executable goals")
 
     if case.context.run_job_ids and any(
         job_id not in case.context.run_job_ids for job_id in actual_references
@@ -452,6 +496,7 @@ def _required_bool(payload: dict[str, object], field: str, *, line_number: int) 
 
 
 __all__ = [
+    "CareerIntentCoreEvalAdapter",
     "IntentEvalCase",
     "IntentEvalCaseResult",
     "IntentEvalCategory",

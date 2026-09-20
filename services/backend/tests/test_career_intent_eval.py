@@ -4,7 +4,9 @@ from dataclasses import dataclass
 
 import pytest
 
+from app.agent.intent import CareerIntentModel, CareerIntentRouter
 from app.evals.career_intent import (
+    CareerIntentCoreEvalAdapter,
     IntentEvalCase,
     IntentEvalCategory,
     IntentEvalExecution,
@@ -34,6 +36,77 @@ class _ScriptedRouter(IntentEvalRouter):
 
     def route(self, *, message: str, context: IntentEvalContext) -> IntentEvalExecution:
         return self.executions[message]
+
+
+def _clarification_question(case: IntentEvalCase) -> str:
+    """Model-owned clarification wording, or the Core resolver's wording."""
+
+    substring = case.expected.clarification_question_contains
+    if substring:
+        return f"Clarification required: please specify the {substring}."
+    return "请先明确你指的是哪个岗位。"
+
+
+def _replay_payload(case: IntentEvalCase) -> dict[str, object]:
+    """Deterministic stand-in model output for one frozen Eval case.
+
+    This is a frozen oracle, not a router: it only decodes the case's expectation
+    into the shape the Core model seam must return, so the real
+    ``CareerIntentRouter`` parse/validate/ground path can be exercised without a
+    Provider call. It must never be treated as evidence of model accuracy.
+    """
+
+    from_current_job = case.context.current_job_id is not None
+    return {
+        "goals": list(case.expected.goals),
+        "referenced_job_ids": (
+            [] if from_current_job else list(case.expected.referenced_job_ids)
+        ),
+        "current_job_required": case.expected.current_job_required,
+        "needs_clarification": case.expected.needs_clarification,
+        "clarification_question": (
+            _clarification_question(case) if case.expected.needs_clarification else None
+        ),
+        "unsupported_request": case.expected.unsupported_request,
+        "confidence": 0.9,
+        "reasoning_summary": "frozen intent eval replay.",
+    }
+
+
+class _ReplayIntentModel(CareerIntentModel):
+    """Deterministic frozen-oracle model standing in for the provider seam."""
+
+    def __init__(
+        self,
+        cases: tuple[IntentEvalCase, ...],
+        payloads: tuple[dict[str, object], ...],
+        *,
+        tamper=None,
+    ) -> None:
+        self._cases = dict(zip((case.message for case in cases), cases))
+        self._payloads = dict(zip((case.message for case in cases), payloads))
+        self._tamper = tamper
+        self.routed_messages: list[str] = []
+
+    @classmethod
+    def replaying(
+        cls,
+        cases: tuple[IntentEvalCase, ...],
+        *,
+        tamper=None,
+    ) -> "_ReplayIntentModel":
+        return cls(
+            cases,
+            tuple(_replay_payload(case) for case in cases),
+            tamper=tamper,
+        )
+
+    def route(self, user_message: str) -> dict[str, object]:
+        self.routed_messages.append(user_message)
+        payload = self._payloads[user_message]
+        if self._tamper is None:
+            return payload
+        return self._tamper(self._cases[user_message], payload)
 
 
 def _case(
@@ -196,8 +269,8 @@ def test_runner_returns_structured_all_case_report_for_frozen_cohort() -> None:
                 current_job_required=case.expected.current_job_required,
                 needs_clarification=case.expected.needs_clarification,
                 clarification_question=(
-                    f"Please identify which job or goal: {case.expected.clarification_question_contains}"
-                    if case.expected.clarification_question_contains
+                    _clarification_question(case)
+                    if case.expected.needs_clarification
                     else None
                 ),
                 unsupported_request=case.expected.unsupported_request,
@@ -219,16 +292,78 @@ def test_runner_returns_structured_all_case_report_for_frozen_cohort() -> None:
     assert all(result.business_writes == 0 for result in report.case_results)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Agent A has not yet frozen the CareerIntent contract on origin/main for end-to-end intent evaluation.",
-)
-def test_core_career_intent_contract_is_available_for_eval_integration() -> None:
-    from app.agent.intent import CareerIntent, CareerIntentResolutionContext, CareerIntentResolver
+def test_core_adapter_grounds_current_job_from_eval_context() -> None:
+    case = _case(
+        case_id="adapter-current-job",
+        message="Prepare this job for my interview.",
+        context=IntentEvalContext(run_job_ids=("job-current", "job-other")),
+        expected=IntentEvalExpected(
+            goals=("prepare_job",),
+            current_job_required=True,
+        ),
+    )
+    model = _ReplayIntentModel.replaying((case,))
+    adapter = CareerIntentCoreEvalAdapter(router=CareerIntentRouter(model=model))
 
-    resolved = CareerIntentResolver().resolve(
-        intent=CareerIntent(current_job_required=True),
-        context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+    grounded = adapter.route(
+        message=case.message,
+        context=IntentEvalContext(
+            current_job_id="job-current",
+            run_job_ids=("job-current", "job-other"),
+        ),
+    )
+    missing = adapter.route(
+        message=case.message,
+        context=IntentEvalContext(run_job_ids=("job-other",)),
     )
 
-    assert resolved.needs_clarification is True
+    assert grounded.intent.referenced_job_ids == ("job-current",)
+    assert grounded.intent.needs_clarification is False
+    assert missing.intent.referenced_job_ids == ()
+    assert missing.intent.goals == ()
+    assert missing.intent.needs_clarification is True
+    assert missing.intent.clarification_question
+
+
+def test_core_router_passes_frozen_intent_release_gate_end_to_end() -> None:
+    cases = load_career_intent_eval_dataset()
+    model = _ReplayIntentModel.replaying(cases)
+    adapter = CareerIntentCoreEvalAdapter(
+        router=CareerIntentRouter(model=model)
+    )
+
+    report = evaluate_career_intents(router=adapter, cases=cases)
+
+    assert model.routed_messages == [case.message for case in cases]
+    assert report.total_cases == 60
+    assert report.failed_cases == 0, [
+        (result.case_id, result.failure_reasons)
+        for result in report.case_results
+        if not result.passed
+    ]
+    assert report.gate_passed is True
+    assert all(result.provider_attempts == 0 for result in report.case_results)
+    assert all(result.provider_completed == 0 for result in report.case_results)
+    assert all(result.business_writes == 0 for result in report.case_results)
+
+
+def test_core_router_gate_reports_contract_regressions_per_case() -> None:
+    cases = load_career_intent_eval_dataset()
+    model = _ReplayIntentModel.replaying(
+        cases,
+        tamper=lambda case, payload: (
+            {**payload, "referenced_job_ids": ["job-not-in-scope"]}
+            if case.case_id == "single-prepare-01"
+            else payload
+        ),
+    )
+    adapter = CareerIntentCoreEvalAdapter(
+        router=CareerIntentRouter(model=model)
+    )
+
+    report = evaluate_career_intents(router=adapter, cases=cases)
+
+    assert report.gate_passed is False
+    assert report.failed_cases == 1
+    failed = {result.case_id: result for result in report.case_results}
+    assert failed["single-prepare-01"].passed is False

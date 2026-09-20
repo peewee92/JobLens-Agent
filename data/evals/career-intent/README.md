@@ -39,7 +39,20 @@ Each JSONL object has a stable unique `id`, an English user `message`, governed 
 }
 ```
 
-`goals` is ordered and must compare exactly. `runJobIds` is frozen context; expected job IDs cannot widen it. A missing current job must not be guessed.
+`goals` is ordered and must compare exactly. `runJobIds` is frozen context; expected job IDs cannot widen it. A missing current job must not be guessed. A case that expects clarification must expect no executable goals, matching the frozen Core contract rule that clarification cannot carry executable goals.
+
+`clarificationQuestionContains` is an optional assertion rather than a mandatory one:
+
+- when the model owns the wording, the case asserts a required substring;
+- when the Core resolver owns the wording (`current_job_required` with no current job), the case asserts only that the clarification question is present and non-empty, because the resolver's localized wording is not part of the frozen contract.
+
+## Alignment with the frozen Core contract
+
+This cohort was first committed as a pre-Core draft. It was corrected before its first merge to align with the frozen `CareerIntent` contract that Core now exposes:
+
+- clarification cases no longer expect executable goals, because the Core contract rejects clarification combined with executable goals;
+- `current_job_pronoun` cases without a current job assert clarification presence instead of English wording, because the Core resolver owns that localized text;
+- expected `referencedJobIds`, `runJobIds`, `goals`, and identity semantics are unchanged.
 
 ## Frozen v1 Cohort
 
@@ -64,9 +77,21 @@ Every case must pass. The deterministic runner fails any case that observes:
 - guessed job IDs when the current job is absent;
 - executable goals for an unsupported / unsafe request.
 
+## Core integration
+
+`CareerIntentCoreEvalAdapter` is the only Eval-side bridge. It maps the Eval context onto `CareerIntentResolutionContext` and delegates to the frozen Core `CareerIntentRouter`; it contains no routing, parsing, or grounding logic of its own.
+
+The end-to-end gate drives the real Core `CareerIntentRouter` (parse → validate → ground) with `_ReplayIntentModel`, a deterministic frozen oracle built from this dataset. That oracle stands in for the provider seam so the gate can run with zero provider calls.
+
+Therefore the gate proves contract, grounding, ordering, clarification, and safety-budget behaviour. It is **not** evidence of live model intent accuracy: no Provider was called, and the oracle decodes the expectation rather than predicting it. Model-quality Intent Eval still requires a separately authorized Provider run.
+
 ## Status
 
-The Agent B runner and data cohort are ready for a Core-owned router adapter. `origin/main` at this dataset baseline does not yet expose the CareerIntent contract or natural-language router, so end-to-end model/router accuracy is deliberately not claimed. The targeted contract-import regression remains an expected failure until Agent A lands the frozen contract.
+- Cohort: 60/60 frozen cases, five category minimums satisfied.
+- Core contract integration gate: passing against the frozen Core `CareerIntentRouter`.
+- Provider attempts/completed: 0/0.
+- Business writes: 0.
+- Live model intent accuracy: **not claimed** and deliberately out of scope for this slice.
 
 ## Run
 
