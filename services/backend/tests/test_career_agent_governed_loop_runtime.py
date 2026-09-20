@@ -12,6 +12,7 @@ from app.agent.tool_registry import (
     CareerAgentToolRegistry,
     JobPreparationRequest,
     RankMatchReportsRequest,
+    TargetCohortGapsRequest,
 )
 from app.agent.tool_selection import CareerAgentToolSelector
 from app.agent.governed_loop_runtime import (
@@ -124,6 +125,97 @@ def test_runtime_returns_clarification_without_tool_execution() -> None:
     assert result.message == "请明确岗位。"
     assert ranking.calls == []
     assert tuple(event.event for event in result.trace) == ("intent_routed", "clarification")
+
+
+def test_runtime_returns_structured_failure_when_planned_requests_are_duplicated() -> None:
+    runtime, ranking = _runtime({"goals": ["rank_jobs"]})
+    duplicated_plan = CareerAgentPlannedToolRequest(
+        tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+        request=RankMatchReportsRequest(job_ids=("job-1",)),
+        normalized_params=(("job_ids", "job-1"),),
+        fact_fingerprint="facts-1",
+    )
+
+    result = runtime.run(
+        user_message="排序",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(duplicated_plan, duplicated_plan),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "invalid_tool_params"
+    assert ranking.calls == []
+    assert result.trace[-1].event == "failed"
+
+
+def test_runtime_returns_structured_failure_when_turn_budget_is_exhausted() -> None:
+    ranking = _Workflow({"jobs": ["job-1"]})
+    other = _Workflow({"ok": True})
+    registry = CareerAgentToolRegistry(
+        ranking=ranking,
+        target_cohort_gaps=other,
+        job_preparation=other,
+    )
+    runtime = CareerAgentGovernedLoopRuntime(
+        router=CareerIntentRouter(
+            model=_IntentModel(
+                {
+                    "goals": ["rank_jobs", "review_gaps"],
+                    "reasoning_summary": "先排序，再看差距。",
+                }
+            )
+        ),
+        selector=CareerAgentToolSelector(registry=registry),
+        executor=CareerAgentGovernedToolExecutor(registry=registry),
+        budget=CareerAgentLoopBudget(max_turns=1, max_tool_calls=2),
+    )
+
+    result = runtime.run(
+        user_message="先排序再看差距",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.RANK_MATCH_REPORTS,
+                request=RankMatchReportsRequest(job_ids=("job-1",)),
+                normalized_params=(("job_ids", "job-1"),),
+                fact_fingerprint="facts-rank",
+            ),
+            CareerAgentPlannedToolRequest(
+                tool=CareerAgentToolName.TARGET_COHORT_GAPS,
+                request=TargetCohortGapsRequest(
+                    cohort_id="cohort-1",
+                    name="target",
+                    selected_job_ids=("job-1",),
+                ),
+                normalized_params=(("selected_job_ids", "job-1"),),
+                fact_fingerprint="facts-gap",
+            ),
+        ),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "budget_exhausted"
+    assert len(ranking.calls) == 1
+    assert result.trace[-1].event == "failed"
+    assert result.trace[-1].tool is CareerAgentToolName.TARGET_COHORT_GAPS
+
+
+def test_runtime_returns_structured_failure_for_malformed_intent_output() -> None:
+    runtime, ranking = _runtime({"goals": ["invented_goal"]})
+
+    result = runtime.run(
+        user_message="做一个不存在的动作",
+        context=_context(),
+        resolution_context=CareerIntentResolutionContext(run_job_ids=("job-1",)),
+        planned_requests=(),
+    )
+
+    assert result.status is CareerAgentGovernedLoopStatus.FAILED
+    assert result.error_code == "invalid_intent_output"
+    assert ranking.calls == []
+    assert tuple(event.event for event in result.trace) == ("failed",)
 
 
 def test_runtime_fails_closed_when_selected_tool_has_no_exact_planned_request() -> None:

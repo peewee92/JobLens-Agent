@@ -114,7 +114,17 @@ class CareerAgentGovernedLoopRuntime:
             }
         )
 
-        intent = self._router.route(user_message=user_message, context=resolution_context)
+        try:
+            intent = self._router.route(user_message=user_message, context=resolution_context)
+        except ValueError:
+            error = guard.record_error(
+                CareerAgentLoopError(
+                    code=CareerAgentLoopErrorCode.INVALID_INTENT_OUTPUT,
+                    message="Career Agent intent output is invalid",
+                    retryable=True,
+                )
+            )
+            return self._failed(trace, results, input_fingerprint, error)
         self._trace(trace, "intent_routed", input_fingerprint=input_fingerprint)
         if intent.needs_clarification:
             self._trace(trace, "clarification", input_fingerprint=input_fingerprint)
@@ -141,10 +151,30 @@ class CareerAgentGovernedLoopRuntime:
                 message="Career Agent context is not usable.",
             )
 
-        selections = self._selector.select(intent)
-        plans = _index_plans(planned_requests)
+        try:
+            selections = self._selector.select(intent)
+            plans = _index_plans(planned_requests)
+        except ValueError:
+            error = guard.record_error(
+                CareerAgentLoopError(
+                    code=CareerAgentLoopErrorCode.INVALID_TOOL_PARAMS,
+                    message="Career Agent plan or tool selection is invalid",
+                    retryable=True,
+                )
+            )
+            return self._failed(trace, results, input_fingerprint, error)
+
         for selection in selections:
-            guard.record_turn()
+            try:
+                guard.record_turn()
+            except CareerAgentLoopError as error:
+                return self._failed(
+                    trace,
+                    results,
+                    input_fingerprint,
+                    guard.record_error(error),
+                    tool=selection.tool.name,
+                )
             self._trace(
                 trace,
                 "tool_selected",
@@ -182,7 +212,13 @@ class CareerAgentGovernedLoopRuntime:
                 )
             except (CareerAgentLoopError, ValueError) as exc:
                 error = exc if isinstance(exc, CareerAgentLoopError) else CareerAgentLoopError.invalid_tool_params(selection.tool.name)
-                return self._failed(trace, results, input_fingerprint, guard.record_error(error))
+                return self._failed(
+                    trace,
+                    results,
+                    plan.fact_fingerprint,
+                    guard.record_error(error),
+                    tool=selection.tool.name,
+                )
 
             self._trace(
                 trace,
@@ -209,13 +245,22 @@ class CareerAgentGovernedLoopRuntime:
                 output=execution.output,
             )
             results.append(tool_result)
-            guard.record_observation(
-                CareerAgentLoopObservation(
-                    state_fingerprint=tool_result.result_fingerprint,
-                    blocker_fingerprint=_fingerprint(tool_result.blockers),
-                    fact_fingerprint=plan.fact_fingerprint,
+            try:
+                guard.record_observation(
+                    CareerAgentLoopObservation(
+                        state_fingerprint=tool_result.result_fingerprint,
+                        blocker_fingerprint=_fingerprint(tool_result.blockers),
+                        fact_fingerprint=plan.fact_fingerprint,
+                    )
                 )
-            )
+            except CareerAgentLoopError as error:
+                return self._failed(
+                    trace,
+                    results,
+                    plan.fact_fingerprint,
+                    guard.record_error(error),
+                    tool=plan.tool,
+                )
             self._trace(
                 trace,
                 "tool_result",
@@ -270,11 +315,14 @@ class CareerAgentGovernedLoopRuntime:
         results: list[AgentToolResult],
         input_fingerprint: str,
         error: CareerAgentLoopError,
+        *,
+        tool: CareerAgentToolName | None = None,
     ) -> CareerAgentGovernedLoopResult:
         self._trace(
             trace,
             "failed",
             input_fingerprint=input_fingerprint,
+            tool=tool,
             error_code=error.code.value,
         )
         return CareerAgentGovernedLoopResult(

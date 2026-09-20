@@ -20,6 +20,7 @@ class CareerAgentLoopDecisionType(StrEnum):
 
 
 class CareerAgentLoopErrorCode(StrEnum):
+    INVALID_INTENT_OUTPUT = "invalid_intent_output"
     UNKNOWN_TOOL = "unknown_tool"
     INVALID_TOOL_PARAMS = "invalid_tool_params"
     LOOP_DETECTED = "loop_detected"
