@@ -9,6 +9,26 @@
 
 ---
 
+## 0. 当前 Core → Eval Handoff（2026-09-20）
+
+Agent A 的 vNext 1.1 Core 主链已冻结到 `CareerAgentGovernedLoopRuntime`。Agent B 应以以下边界作为 Eval / Safety 输入，不另造第二套 Runtime：
+
+```text
+CareerIntentRouter
+→ CareerAgentToolSelector
+→ CareerAgentExecutionGate
+→ CareerAgentToolRegistry
+→ AgentToolResult
+→ CareerAgentLoopGuard
+→ CareerAgentGovernedLoopTraceEvent
+```
+
+冻结的 Runtime 结果状态：`completed / clarification_required / unsupported / pending_action / blocked / failed`。失败必须返回结构化 `error_code`；malformed model intent 固定为 `invalid_intent_output`，plan/参数错误为 `invalid_tool_params`，预算耗尽为 `budget_exhausted`，loop/no-progress 继续使用既有 guard code。上述治理失败不得作为未捕获异常泄漏到调用方；失败 Trace 保留发生阶段的 Tool（若已选中）、输入事实 fingerprint 与 error code，但不保存 CoT、raw Resume/JD 或大 Tool Output。
+
+Agent B 负责在此合同上继续 Intent / Tool Selection / Loop Guard / Trajectory Eval 与 Release Gate。Agent A 在 Release Gate 给出真实 Core blocker 前，不继续扩展新 Tool、不进入 vNext 1.2，也不修改 Agent B 的大规模 Eval Dataset。
+
+---
+
 ## 1. 总原则
 
 两台电脑不是两条产品主线。

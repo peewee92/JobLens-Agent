@@ -28,11 +28,45 @@ class CareerAgentToolAccess(StrEnum):
     READ_ONLY = "read_only"
 
 
+class CareerAgentSideEffectClass(StrEnum):
+    READ_ONLY = "read_only"
+    TRANSIENT_COMPUTE = "transient_compute"
+    PROVIDER_COMPUTE = "provider_compute"
+    BUSINESS_WRITE = "business_write"
+    EXTERNAL_ACTION = "external_action"
+
+
+class CareerAgentProviderCostClass(StrEnum):
+    NONE = "none"
+    BOUNDED = "bounded"
+
+
+class CareerAgentHumanGateRequirement(StrEnum):
+    NONE = "none"
+    COST_APPROVAL = "cost_approval"
+    EXPLICIT_APPROVAL = "explicit_approval"
+
+
+class CareerAgentTimeoutClass(StrEnum):
+    LOCAL_WORKFLOW = "local_workflow"
+
+
+class CareerAgentIdempotencyClass(StrEnum):
+    READ_ONLY = "read_only"
+
+
 @dataclass(frozen=True, slots=True)
 class CareerAgentToolDefinition:
     name: CareerAgentToolName
     description: str
     access: CareerAgentToolAccess
+    input_schema: type[object]
+    output_schema: str
+    side_effect_class: CareerAgentSideEffectClass = CareerAgentSideEffectClass.READ_ONLY
+    provider_cost_class: CareerAgentProviderCostClass = CareerAgentProviderCostClass.NONE
+    human_gate_requirement: CareerAgentHumanGateRequirement = CareerAgentHumanGateRequirement.NONE
+    timeout_class: CareerAgentTimeoutClass = CareerAgentTimeoutClass.LOCAL_WORKFLOW
+    idempotency_class: CareerAgentIdempotencyClass = CareerAgentIdempotencyClass.READ_ONLY
     requires_current_job: bool = False
     requires_explicit_feedback_selection: bool = False
 
@@ -92,17 +126,23 @@ class CareerAgentToolRegistry:
             name=CareerAgentToolName.RANK_MATCH_REPORTS,
             description="Read current immutable MatchReports through the existing Ranking workflow.",
             access=CareerAgentToolAccess.READ_ONLY,
+            input_schema=RankMatchReportsRequest,
+            output_schema="ranking_workflow_result",
         ),
         CareerAgentToolDefinition(
             name=CareerAgentToolName.TARGET_COHORT_GAPS,
             description="Build grounded Skill Gap and Action Plan facts from explicitly selected current UserFeedback.",
             access=CareerAgentToolAccess.READ_ONLY,
+            input_schema=TargetCohortGapsRequest,
+            output_schema="target_cohort_gap_workflow_result",
             requires_explicit_feedback_selection=True,
         ),
         CareerAgentToolDefinition(
             name=CareerAgentToolName.JOB_PREPARATION,
             description="Read the existing grounded Resume/Story/Interview/Study preparation bundle for the current Job.",
             access=CareerAgentToolAccess.READ_ONLY,
+            input_schema=JobPreparationRequest,
+            output_schema="job_preparation_workflow_result",
             requires_current_job=True,
         ),
     )
@@ -120,6 +160,16 @@ class CareerAgentToolRegistry:
 
     def definitions(self) -> tuple[CareerAgentToolDefinition, ...]:
         return self._DEFINITIONS
+
+    def definition(self, tool: CareerAgentToolName | str) -> CareerAgentToolDefinition:
+        try:
+            tool_name = tool if isinstance(tool, CareerAgentToolName) else CareerAgentToolName(tool)
+        except ValueError as exc:
+            raise CareerAgentToolError(f"unknown Career Agent tool: {tool}") from exc
+        for definition in self._DEFINITIONS:
+            if definition.name is tool_name:
+                return definition
+        raise CareerAgentToolError(f"unknown Career Agent tool: {tool_name.value}")
 
     def invoke(
         self,
@@ -189,6 +239,11 @@ class CareerAgentToolRegistry:
 
 
 __all__ = [
+    "CareerAgentHumanGateRequirement",
+    "CareerAgentIdempotencyClass",
+    "CareerAgentProviderCostClass",
+    "CareerAgentSideEffectClass",
+    "CareerAgentTimeoutClass",
     "CareerAgentToolAccess",
     "CareerAgentToolDefinition",
     "CareerAgentToolError",
