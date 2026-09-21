@@ -58,6 +58,7 @@ class CareerProviderGateResult:
     execution_requested: bool
     live_cost_confirmed: bool
     provider_calls: int
+    rate_limited: int
     prompt_version: str
     schema_version: str
     intent: IntentProviderReport
@@ -81,6 +82,16 @@ def _arguments() -> argparse.Namespace:
         action="store_true",
         help="Print the machine-readable snapshot instead of a summary.",
     )
+    parser.add_argument(
+        "--pace-seconds",
+        type=float,
+        default=0.0,
+        help=(
+            "Minimum seconds between Provider calls. The configured endpoint "
+            "enforces a request window, so pacing a long cohort is cheaper than "
+            "retrying 429s. 0 disables pacing."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -89,9 +100,21 @@ def run_career_provider_gates(
     settings: Settings,
     execute_provider_gate: bool,
     confirm_live_cost: bool,
+    pace_seconds: float = 0.0,
 ) -> CareerProviderGateResult:
     requested = execute_provider_gate and confirm_live_cost
-    model = build_career_intent_model(settings) if requested else DisabledCareerIntentModel()
+    active_settings = (
+        settings.model_copy(
+            update={"career_intent_min_request_interval_seconds": pace_seconds}
+        )
+        if pace_seconds > 0
+        else settings
+    )
+    model = (
+        build_career_intent_model(active_settings)
+        if requested
+        else DisabledCareerIntentModel()
+    )
 
     if not requested and not isinstance(model, DisabledCareerIntentModel):
         raise RuntimeError("refusing to contact a Provider without cost confirmation")
@@ -104,11 +127,12 @@ def run_career_provider_gates(
 
     return CareerProviderGateResult(
         checked_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        provider=settings.career_intent_provider.strip() or "disabled",
+        provider=active_settings.career_intent_provider.strip() or "disabled",
         model=model.model_name,
         execution_requested=execute_provider_gate,
         live_cost_confirmed=confirm_live_cost,
         provider_calls=getattr(model, "attempts", 0),
+        rate_limited=getattr(model, "rate_limited", 0),
         prompt_version=CAREER_INTENT_PROMPT_VERSION,
         schema_version=CAREER_INTENT_SCHEMA_VERSION,
         intent=intent_report,
@@ -138,6 +162,7 @@ def _serialize(result: CareerProviderGateResult) -> dict[str, object]:
     payload["executionRequested"] = payload.pop("execution_requested")
     payload["liveCostConfirmed"] = payload.pop("live_cost_confirmed")
     payload["providerCalls"] = payload.pop("provider_calls")
+    payload["rateLimited"] = payload.pop("rate_limited")
     payload["promptVersion"] = payload.pop("prompt_version")
     payload["schemaVersion"] = payload.pop("schema_version")
     payload["toolSelection"] = _camel(payload.pop("tool_selection"))
@@ -183,6 +208,7 @@ def main() -> int:
         settings=get_settings(),
         execute_provider_gate=args.execute_provider_gate,
         confirm_live_cost=args.confirm_live_cost,
+        pace_seconds=args.pace_seconds,
     )
     save_career_provider_gate_snapshot(result)
 

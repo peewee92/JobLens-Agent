@@ -10,6 +10,8 @@ Grounding, scope enforcement and clarification fallback stay in
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from typing import Any, Literal
 
 import httpx
@@ -22,6 +24,11 @@ from app.core.config import Settings
 #: measured accuracy number can always be traced back to the exact input it saw.
 CAREER_INTENT_PROMPT_VERSION = "career-intent-prompt-v1"
 CAREER_INTENT_SCHEMA_VERSION = "career-intent-schema-v1"
+
+#: Used when the provider rate-limits a request without telling us how long to wait.
+_DEFAULT_RATE_LIMIT_BACKOFF_SECONDS = 5.0
+#: Upper bound on a single honours-the-provider sleep, so a hostile value cannot hang a run.
+_MAX_RATE_LIMIT_BACKOFF_SECONDS = 120.0
 
 
 class CareerIntentModelUnavailableError(RuntimeError):
@@ -115,8 +122,11 @@ class OpenAICareerIntentModel:
         max_completion_tokens: int | None = None,
         timeout_seconds: float = 60.0,
         max_http_attempts: int = 2,
+        max_rate_limit_retries: int = 4,
+        min_request_interval_seconds: float = 0.0,
         temperature: float | None = None,
         client: httpx.Client | None = None,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         """Configure the adapter.
 
@@ -125,6 +135,13 @@ class OpenAICareerIntentModel:
         against the configured endpoint omits it, and sending an unproven field
         would trade a proven request shape for an untested one.  Pass an explicit
         value only after confirming the endpoint accepts it.
+
+        ``max_rate_limit_retries`` is separate from ``max_http_attempts`` because a
+        429 is an expected, self-describing condition on a paced cohort run: the
+        provider tells us how long to wait, and honouring that is not the same
+        failure mode as a broken connection.  ``min_request_interval_seconds``
+        paces consecutive calls so a long cohort does not exhaust the account's
+        request window in the first second.
         """
 
         self._api_key = api_key
@@ -135,10 +152,33 @@ class OpenAICareerIntentModel:
         self._max_completion_tokens = max_completion_tokens
         self._timeout_seconds = timeout_seconds
         self._max_http_attempts = max(1, max_http_attempts)
+        self._max_rate_limit_retries = max(0, max_rate_limit_retries)
+        self._min_request_interval_seconds = max(0.0, min_request_interval_seconds)
         self._temperature = temperature
         self._client = client
+        self._sleep = sleep or time.sleep
+        self._last_request_at: float | None = None
         self._attempts = 0
         self._completed = 0
+        self._rate_limited = 0
+
+    @property
+    def rate_limited(self) -> int:
+        """Number of 429 responses observed, so a paced run stays auditable."""
+
+        return self._rate_limited
+
+    def _pace(self) -> None:
+        """Sleep just enough to respect the configured minimum call interval."""
+
+        if self._min_request_interval_seconds <= 0.0:
+            return
+        if self._last_request_at is not None:
+            elapsed = time.monotonic() - self._last_request_at
+            remaining = self._min_request_interval_seconds - elapsed
+            if remaining > 0:
+                self._sleep(remaining)
+        self._last_request_at = time.monotonic()
 
     @property
     def model_name(self) -> str:
@@ -226,28 +266,41 @@ class OpenAICareerIntentModel:
         }
 
         last_error: Exception | None = None
-        for _ in range(self._max_http_attempts):
+        transport_attempts = 0
+        rate_limit_retries = 0
+        while True:
+            self._pace()
             self._attempts += 1
             try:
                 payload = self._post(
                     request_url=request_url, headers=headers, request_body=request_body
                 )
             except (httpx.HTTPStatusError, httpx.HTTPError, json.JSONDecodeError) as error:
-                if (
-                    isinstance(error, httpx.HTTPStatusError)
-                    and error.response.status_code in _NON_RETRYABLE_STATUSES
-                ):
-                    code, trace_id = _provider_error_identity(error.response)
-                    suffix = f" code={code}" if code else ""
-                    suffix += f" traceId={trace_id}" if trace_id else ""
-                    raise CareerIntentModelBlockedError(
-                        "intent provider refused the request in a way retrying cannot "
-                        f"fix: HTTPStatusError(status={error.response.status_code}{suffix})"
-                    ) from error
-                # Transport-level problems are the only retryable class. A payload
-                # that arrived but violated the contract is never retried, because
-                # retrying it would hide a model-quality failure.
+                if isinstance(error, httpx.HTTPStatusError):
+                    status = error.response.status_code
+                    if status in _NON_RETRYABLE_STATUSES:
+                        code, trace_id = _provider_error_identity(error.response)
+                        suffix = f" code={code}" if code else ""
+                        suffix += f" traceId={trace_id}" if trace_id else ""
+                        raise CareerIntentModelBlockedError(
+                            "intent provider refused the request in a way retrying "
+                            f"cannot fix: HTTPStatusError(status={status}{suffix})"
+                        ) from error
+                    if status == 429 and rate_limit_retries < self._max_rate_limit_retries:
+                        # The provider tells us when to come back.  Honour it rather
+                        # than reporting a transport failure for a condition the
+                        # server already explained.
+                        rate_limit_retries += 1
+                        self._rate_limited += 1
+                        self._sleep(_rate_limit_delay(error.response))
+                        continue
+                # Transport-level problems are the only other retryable class. A
+                # payload that arrived but violated the contract is never retried,
+                # because retrying it would hide a model-quality failure.
+                transport_attempts += 1
                 last_error = error
+                if transport_attempts >= self._max_http_attempts:
+                    break
                 continue
 
             try:
@@ -331,6 +384,32 @@ def _iter_dicts(value: Any) -> tuple[dict[str, Any], ...]:
     return tuple(item for item in value if isinstance(item, dict))
 
 
+def _rate_limit_delay(response: httpx.Response) -> float:
+    """How long the provider asked us to wait before retrying a 429.
+
+    The provider's own hint is authoritative; the fallback exists only so a
+    missing hint cannot turn a retryable condition into a hard failure.
+    """
+
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = None
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, dict):
+            value = data.get("retryAfterSeconds")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
+                return min(float(value), _MAX_RATE_LIMIT_BACKOFF_SECONDS)
+    header = response.headers.get("retry-after")
+    if header:
+        try:
+            return min(float(header.strip()), _MAX_RATE_LIMIT_BACKOFF_SECONDS)
+        except ValueError:
+            pass
+    return _DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+
+
 def _describe_transport_error(error: Exception | None) -> str:
     """Render a provider failure with the fields an operator needs to act on.
 
@@ -389,6 +468,10 @@ def build_career_intent_model(settings: Settings) -> Any:
             enable_thinking=settings.career_intent_enable_thinking,
             max_completion_tokens=settings.career_intent_max_completion_tokens,
             timeout_seconds=settings.career_intent_timeout_seconds,
+            max_rate_limit_retries=settings.career_intent_max_rate_limit_retries,
+            min_request_interval_seconds=(
+                settings.career_intent_min_request_interval_seconds
+            ),
         )
     return DisabledCareerIntentModel()
 
