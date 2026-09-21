@@ -468,7 +468,7 @@ def _chat_completion_200(payload: object, *, content: str | None = None) -> dict
     }
 
 
-def _capturing_model(responses: list["httpx.Response"]):
+def _capturing_model(responses: list["httpx.Response"], **model_kwargs: object):
     import httpx
 
     from app.llm.career_intent_models import OpenAICareerIntentModel
@@ -486,6 +486,7 @@ def _capturing_model(responses: list["httpx.Response"]):
         model="test-model",
         base_url="https://example.test/v1",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
+        **model_kwargs,  # type: ignore[arg-type]
     )
     return model, requests
 
@@ -618,6 +619,94 @@ def test_responses_api_style_parses_output_text() -> None:
     assert payload["goals"] == ["rank_jobs"]
     assert model.attempts == 1
     assert model.completed == 1
+
+
+def test_rate_limit_is_honoured_rather_than_treated_as_a_failure() -> None:
+    """A 429 tells us when to come back; that is not a transport failure."""
+
+    import httpx
+
+    sleeps: list[float] = []
+    model, requests = _capturing_model(
+        [
+            httpx.Response(
+                429,
+                json={
+                    "code": "RATE_LIMITED",
+                    "message": "too many requests",
+                    "data": {"limit": 20, "retryAfterSeconds": 7},
+                },
+            ),
+            httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD)),
+        ],
+        sleep=sleeps.append,
+    )
+
+    payload = model.route("Rank my jobs.")
+
+    assert payload["goals"] == ["rank_jobs"]
+    assert len(requests) == 2
+    assert model.attempts == 2
+    assert model.completed == 1
+    assert model.rate_limited == 1
+    assert sleeps == [7.0], "the provider's own retryAfterSeconds must be honoured"
+
+
+def test_rate_limit_without_a_hint_uses_a_bounded_default() -> None:
+    import httpx
+
+    sleeps: list[float] = []
+    model, _ = _capturing_model(
+        [
+            httpx.Response(429, json={"code": "RATE_LIMITED"}),
+            httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD)),
+        ],
+        sleep=sleeps.append,
+    )
+
+    model.route("Rank my jobs.")
+
+    assert len(sleeps) == 1
+    assert 0 < sleeps[0] <= 120.0
+
+
+def test_persistent_rate_limiting_fails_closed_after_bounded_retries() -> None:
+    import httpx
+
+    sleeps: list[float] = []
+    model, requests = _capturing_model(
+        [httpx.Response(429, json={"code": "RATE_LIMITED", "data": {"retryAfterSeconds": 1}})],
+        max_rate_limit_retries=2,
+        sleep=sleeps.append,
+    )
+
+    with pytest.raises(CareerIntentModelFailedError):
+        model.route("Rank my jobs.")
+
+    # Two honoured 429 waits, then the general transport budget is consumed.
+    assert len(sleeps) == 2
+    assert model.rate_limited == 2
+    assert model.completed == 0
+    assert len(requests) > 2
+
+
+def test_pacing_enforces_a_minimum_interval_between_calls() -> None:
+    import httpx
+
+    sleeps: list[float] = []
+    model, requests = _capturing_model(
+        [httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD))],
+        min_request_interval_seconds=3.0,
+        sleep=sleeps.append,
+    )
+
+    model.route("Rank my jobs.")
+    model.route("Rank my jobs.")
+
+    assert len(requests) == 2
+    # The first call has nothing to wait for; the second must respect the pace.
+    assert len(sleeps) == 1
+    assert 0 < sleeps[0] <= 3.0
 
 
 def test_end_to_end_gate_runs_over_a_mocked_transport() -> None:
