@@ -6,6 +6,8 @@ and — most importantly — that a disabled Provider can never be reported as a
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.core.config import Settings
@@ -426,6 +428,228 @@ def test_http_402_is_not_retried_by_the_model_transport() -> None:
     assert "INSUFFICIENT_BALANCE" in str(error.value)
 
 
+# --------------------------------------------------------------------------- #
+# Transport success path
+#
+# The live endpoint was unfunded while these gates were built, so the request
+# shape and the parsing of a real 200 response are pinned here against a mock
+# transport instead of being left to the first paid run.
+# --------------------------------------------------------------------------- #
+
+
+_VALID_PAYLOAD = {
+    "goals": ["rank_jobs"],
+    "referenced_job_ids": [],
+    "current_job_required": False,
+    "needs_clarification": False,
+    "clarification_question": None,
+    "unsupported_request": None,
+    "confidence": 0.9,
+    "reasoning_summary": "The user asks to compare jobs.",
+}
+
+
+def _chat_completion_200(payload: object, *, content: str | None = None) -> dict:
+    return {
+        "id": "chatcmpl-test",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": (
+                        content if content is not None else json.dumps(payload)
+                    ),
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+    }
+
+
+def _capturing_model(responses: list["httpx.Response"]):
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    requests: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(
+            {"url": str(request.url), "body": json.loads(request.content)}
+        )
+        return responses[min(len(requests) - 1, len(responses) - 1)]
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    return model, requests
+
+
+def test_chat_completions_request_shape_matches_the_verified_probe() -> None:
+    """Mirror the shape a health check already proved this endpoint accepts."""
+
+    import httpx
+
+    model, requests = _capturing_model(
+        [httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD))]
+    )
+
+    model.route("Rank my jobs.")
+
+    body = requests[0]["body"]
+    assert requests[0]["url"] == "https://example.test/v1/chat/completions"
+    assert body["model"] == "test-model"
+    assert body["stream"] is False
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["strict"] is True
+    assert body["response_format"]["json_schema"]["schema"]["type"] == "object"
+    # An unproven field must not be sent: the verified probe omits it.
+    assert "temperature" not in body
+    assert isinstance(body["messages"], list)
+    assert body["messages"][-1]["content"] == "Rank my jobs."
+
+
+def test_http_200_payload_is_parsed_and_counted() -> None:
+    import httpx
+
+    model, _ = _capturing_model(
+        [httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD))]
+    )
+
+    payload = model.route("Rank my jobs.")
+
+    assert payload["goals"] == ["rank_jobs"]
+    assert payload["confidence"] == 0.9
+    assert model.attempts == 1
+    assert model.completed == 1
+
+
+def test_http_200_with_unparseable_content_fails_closed() -> None:
+    import httpx
+
+    model, _ = _capturing_model(
+        [httpx.Response(200, json=_chat_completion_200(None, content="not json"))]
+    )
+
+    with pytest.raises(CareerIntentModelOutputError):
+        model.route("Rank my jobs.")
+
+    assert model.attempts == 1
+    assert model.completed == 0
+
+
+def test_schema_violation_is_not_retried() -> None:
+    """A payload that violates the contract is a model fact, not a flake."""
+
+    import httpx
+
+    model, requests = _capturing_model(
+        [
+            httpx.Response(
+                200,
+                json=_chat_completion_200({**_VALID_PAYLOAD, "unexpected_field": 1}),
+            )
+        ]
+    )
+
+    with pytest.raises(CareerIntentModelOutputError):
+        model.route("Rank my jobs.")
+
+    assert len(requests) == 1, "a contract violation must not be retried"
+    assert model.attempts == 1
+    assert model.completed == 0
+
+
+def test_transient_http_error_is_retried_then_succeeds() -> None:
+    import httpx
+
+    model, requests = _capturing_model(
+        [
+            httpx.Response(500, json={"error": "temporary"}),
+            httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD)),
+        ]
+    )
+
+    payload = model.route("Rank my jobs.")
+
+    assert payload["goals"] == ["rank_jobs"]
+    assert len(requests) == 2
+    # Two attempts, one parseable payload: the counters keep them distinct.
+    assert model.attempts == 2
+    assert model.completed == 1
+
+
+def test_responses_api_style_parses_output_text() -> None:
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).endswith("/responses")
+        return httpx.Response(
+            200,
+            json={
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {"type": "output_text", "text": json.dumps(_VALID_PAYLOAD)}
+                        ],
+                    }
+                ]
+            },
+        )
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        api_style="responses",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    payload = model.route("Rank my jobs.")
+
+    assert payload["goals"] == ["rank_jobs"]
+    assert model.attempts == 1
+    assert model.completed == 1
+
+
+def test_end_to_end_gate_runs_over_a_mocked_transport() -> None:
+    """Prove the whole gate walks NL -> HTTP -> Core router on a real payload."""
+
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    cases = load_career_intent_eval_dataset()
+    by_message = {case.message: _payload_for(case) for case in cases}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        message = json.loads(request.content)["messages"][-1]["content"]
+        return httpx.Response(200, json=_chat_completion_200(by_message[message]))
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    report = measure_career_intent_provider_quality(model=model, cases=cases)
+
+    assert report.total_cases == 60
+    assert report.exact_matches == 60
+    assert report.status is ProviderGateStatus.PASS
+    assert report.provider_attempts == 60
+    assert report.provider_completed == 60
+
+
 def test_rendered_intent_report_states_status_and_bad_cases() -> None:
     cases = load_career_intent_eval_dataset()
     target = cases[0]
@@ -510,3 +734,108 @@ def test_rendered_tool_report_states_status() -> None:
 
     assert "Tool Selection Provider Gate: PASS" in text
     assert "workflow_invocations=0" in text
+
+
+# --------------------------------------------------------------------------- #
+# Operable entry point
+# --------------------------------------------------------------------------- #
+
+
+def test_cli_never_contacts_a_provider_without_both_flags() -> None:
+    from scripts.check_career_provider_gates import run_career_provider_gates
+
+    result = run_career_provider_gates(
+        settings=Settings(_env_file=None),
+        execute_provider_gate=False,
+        confirm_live_cost=False,
+    )
+
+    assert result.provider_calls == 0
+    assert result.execution_requested is False
+    assert result.intent.status is ProviderGateStatus.NOT_MEASURED
+    assert result.tool_selection.status is ProviderGateStatus.NOT_MEASURED
+
+
+def test_cli_requires_the_cost_flag_even_when_execution_was_requested() -> None:
+    from scripts.check_career_provider_gates import run_career_provider_gates
+
+    result = run_career_provider_gates(
+        settings=Settings(_env_file=None),
+        execute_provider_gate=True,
+        confirm_live_cost=False,
+    )
+
+    assert result.provider_calls == 0
+    assert result.intent.status is ProviderGateStatus.NOT_MEASURED
+
+
+def test_exit_code_separates_blocked_from_failed() -> None:
+    from dataclasses import replace
+
+    from scripts.check_career_provider_gates import (
+        career_provider_gate_exit_code,
+        run_career_provider_gates,
+    )
+
+    result = run_career_provider_gates(
+        settings=Settings(_env_file=None),
+        execute_provider_gate=False,
+        confirm_live_cost=False,
+    )
+    assert career_provider_gate_exit_code(result) == 2
+
+    failed = replace(result, intent=replace(result.intent, status=ProviderGateStatus.FAIL))
+    assert career_provider_gate_exit_code(failed) == 1
+
+    passed = replace(
+        failed,
+        intent=replace(result.intent, status=ProviderGateStatus.PASS),
+        tool_selection=replace(
+            result.tool_selection, status=ProviderGateStatus.PASS
+        ),
+    )
+    assert career_provider_gate_exit_code(passed) == 0
+
+
+def test_snapshot_path_stays_inside_the_ignored_local_directory() -> None:
+    """A hand-computed path here once landed in a tracked directory."""
+
+    from app.evals.provider_smoke import DEFAULT_PROVIDER_SMOKE_SNAPSHOT
+    from scripts.check_career_provider_gates import DEFAULT_SNAPSHOT_PATH
+
+    assert DEFAULT_SNAPSHOT_PATH.parent == DEFAULT_PROVIDER_SMOKE_SNAPSHOT.parent
+    assert DEFAULT_SNAPSHOT_PATH.parent.name == "local"
+    assert DEFAULT_SNAPSHOT_PATH.name == "career-provider-gates.json"
+
+
+def test_snapshot_is_camel_case_and_carries_no_credentials(tmp_path) -> None:
+    from scripts.check_career_provider_gates import (
+        run_career_provider_gates,
+        save_career_provider_gate_snapshot,
+    )
+
+    settings = Settings(
+        _env_file=None,
+        career_intent_provider="openai",
+        career_intent_model="secret-model-name",
+        openai_api_key="sk-super-secret-value",
+        openai_base_url="https://secret.example.test/v1",
+    )
+    result = run_career_provider_gates(
+        settings=settings,
+        execute_provider_gate=False,
+        confirm_live_cost=False,
+    )
+    path = tmp_path / "snapshot.json"
+    save_career_provider_gate_snapshot(result, path=path)
+
+    text = path.read_text(encoding="utf-8")
+    assert "sk-super-secret-value" not in text
+    assert "secret.example.test" not in text
+    parsed = json.loads(text)
+    assert parsed["checkedAt"]
+    assert "providerCalls" in parsed
+    assert "promptVersion" in parsed
+    assert "toolSelection" in parsed
+    assert parsed["intent"]["status"] == "not_measured"
+    assert parsed["intent"]["exactAccuracy"] == 0.0

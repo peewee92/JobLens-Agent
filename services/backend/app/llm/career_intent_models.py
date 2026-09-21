@@ -115,9 +115,18 @@ class OpenAICareerIntentModel:
         max_completion_tokens: int | None = None,
         timeout_seconds: float = 60.0,
         max_http_attempts: int = 2,
-        temperature: float | None = 0.0,
+        temperature: float | None = None,
         client: httpx.Client | None = None,
     ) -> None:
+        """Configure the adapter.
+
+        ``temperature`` defaults to ``None`` so the field is omitted entirely.
+        Every provider adapter in this repository that has been verified healthy
+        against the configured endpoint omits it, and sending an unproven field
+        would trade a proven request shape for an untested one.  Pass an explicit
+        value only after confirming the endpoint accepts it.
+        """
+
         self._api_key = api_key
         self._model = model.strip()
         self._base_url = base_url.rstrip("/")
