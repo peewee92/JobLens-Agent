@@ -30,12 +30,18 @@ from app.agent.intent import (
 )
 from app.agent.tool_registry import CareerAgentToolRegistry
 from app.agent.tool_selection import CareerAgentToolSelector
-from app.evals.career_intent import IntentEvalCase, load_career_intent_eval_dataset
+from app.application.requirement_acceptance import file_sha256
+from app.evals.career_intent import (
+    IntentEvalCase,
+    career_intent_eval_dataset_path,
+    load_career_intent_eval_dataset,
+)
 from app.evals.career_tool_selection import (
     ToolSelectionEvalAdapter,
     ToolSelectionEvalCase,
     ToolSelectionEvalOutcome,
     load_career_tool_selection_eval_dataset,
+    tool_selection_eval_dataset_path,
 )
 from app.llm.career_intent_models import (
     CAREER_INTENT_PROMPT_VERSION,
@@ -75,6 +81,36 @@ class _ProviderModel(Protocol):
     def completed(self) -> int: ...
 
     def route(self, user_message: str) -> dict[str, object]: ...
+
+
+def _evidence_of(model: _ProviderModel) -> tuple[str | None, str | None]:
+    """Provider trace id and request fingerprint for the turn just executed.
+
+    Read defensively because a stand-in model legitimately has neither, and a
+    missing id must degrade to ``None`` rather than break an otherwise valid run.
+    """
+
+    return (
+        getattr(model, "last_trace_id", None),
+        getattr(model, "last_request_fingerprint", None),
+    )
+
+
+def _intent_dataset_fingerprint() -> str:
+    """sha256 of the exact cohort file measured, using the repository helper."""
+
+    return file_sha256(career_intent_eval_dataset_path())
+
+
+def _tool_selection_dataset_fingerprint() -> str:
+    return file_sha256(tool_selection_eval_dataset_path())
+
+
+def _bad_case_evidence(result: object) -> str:
+    """Trace id appended to a bad case so a failure is independently traceable."""
+
+    trace_id = getattr(result, "provider_trace_id", None)
+    return f" trace={trace_id}" if trace_id else ""
 
 
 class _SwitchablePayloadModel:
@@ -143,6 +179,8 @@ class IntentProviderCaseResult:
     unsupported_missed: bool
     provider_attempts: int
     provider_completed: int
+    provider_trace_id: str | None = None
+    request_fingerprint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +189,7 @@ class IntentProviderReport:
     model_name: str
     prompt_version: str
     schema_version: str
+    dataset_fingerprint: str
     total_cases: int
     exact_matches: int
     acceptable_matches: int
@@ -276,6 +315,7 @@ def _intent_failure(
     attempts_before: int,
     completed_before: int,
 ) -> IntentProviderCaseResult:
+    trace_id, request_fingerprint = _evidence_of(model)
     return IntentProviderCaseResult(
         case_id=case.case_id,
         category=case.category.value,
@@ -292,6 +332,8 @@ def _intent_failure(
         unsupported_missed=case.expected.unsupported_request is not None,
         provider_attempts=model.attempts - attempts_before,
         provider_completed=model.completed - completed_before,
+        provider_trace_id=trace_id,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -304,6 +346,7 @@ def _intent_contract_rejection(
     attempts_before: int,
     completed_before: int,
 ) -> IntentProviderCaseResult:
+    trace_id, request_fingerprint = _evidence_of(model)
     return IntentProviderCaseResult(
         case_id=case.case_id,
         category=case.category.value,
@@ -320,6 +363,8 @@ def _intent_contract_rejection(
         unsupported_missed=case.expected.unsupported_request is not None,
         provider_attempts=model.attempts - attempts_before,
         provider_completed=model.completed - completed_before,
+        provider_trace_id=trace_id,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -348,6 +393,7 @@ def _intent_success(
         wording_ok = expected.clarification_question_contains.casefold() in question
 
     expects_unsupported = expected.unsupported_request is not None
+    trace_id, request_fingerprint = _evidence_of(model)
     return IntentProviderCaseResult(
         case_id=case.case_id,
         category=case.category.value,
@@ -368,6 +414,8 @@ def _intent_success(
         unsupported_missed=expects_unsupported and routed.unsupported_request is None,
         provider_attempts=model.attempts - attempts_before,
         provider_completed=model.completed - completed_before,
+        provider_trace_id=trace_id,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -431,6 +479,7 @@ def _build_intent_report(
         model_name=model.model_name,
         prompt_version=CAREER_INTENT_PROMPT_VERSION,
         schema_version=CAREER_INTENT_SCHEMA_VERSION,
+        dataset_fingerprint=_intent_dataset_fingerprint(),
         total_cases=total,
         exact_matches=exact_matches,
         acceptable_matches=acceptable_matches,
@@ -470,6 +519,7 @@ def _not_measured_intent_report(
         model_name=model.model_name,
         prompt_version=CAREER_INTENT_PROMPT_VERSION,
         schema_version=CAREER_INTENT_SCHEMA_VERSION,
+        dataset_fingerprint=_intent_dataset_fingerprint(),
         total_cases=len(cohort),
         exact_matches=0,
         acceptable_matches=0,
@@ -513,6 +563,8 @@ class ToolSelectionProviderCaseResult:
     detail: str | None
     provider_attempts: int
     provider_completed: int
+    provider_trace_id: str | None = None
+    request_fingerprint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -521,6 +573,7 @@ class ToolSelectionProviderReport:
     model_name: str
     prompt_version: str
     schema_version: str
+    dataset_fingerprint: str
     total_cases: int
     exact_matches: int
     exact_accuracy: float
@@ -616,6 +669,7 @@ def measure_career_tool_selection_provider_quality(
         execution = adapter.run(case=case)
         expected = case.expected
         actual_tools = tuple(execution.tools)
+        trace_id, request_fingerprint = _evidence_of(model)
         results.append(
             ToolSelectionProviderCaseResult(
                 case_id=case.case_id,
@@ -632,6 +686,8 @@ def measure_career_tool_selection_provider_quality(
                 detail=execution.detail,
                 provider_attempts=model.attempts - attempts_before,
                 provider_completed=model.completed - completed_before,
+                provider_trace_id=trace_id,
+                request_fingerprint=request_fingerprint,
             )
         )
 
@@ -651,6 +707,7 @@ def _tool_failure(
     attempts_before: int,
     completed_before: int,
 ) -> ToolSelectionProviderCaseResult:
+    trace_id, request_fingerprint = _evidence_of(model)
     return ToolSelectionProviderCaseResult(
         case_id=case.case_id,
         category=case.category.value,
@@ -663,6 +720,8 @@ def _tool_failure(
         detail=detail,
         provider_attempts=model.attempts - attempts_before,
         provider_completed=model.completed - completed_before,
+        provider_trace_id=trace_id,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -710,6 +769,7 @@ def _build_tool_report(
         model_name=model.model_name,
         prompt_version=CAREER_INTENT_PROMPT_VERSION,
         schema_version=CAREER_INTENT_SCHEMA_VERSION,
+        dataset_fingerprint=_tool_selection_dataset_fingerprint(),
         total_cases=total,
         exact_matches=exact_matches,
         exact_accuracy=exact_accuracy,
@@ -750,6 +810,7 @@ def _not_measured_tool_report(
         model_name=model.model_name,
         prompt_version=CAREER_INTENT_PROMPT_VERSION,
         schema_version=CAREER_INTENT_SCHEMA_VERSION,
+        dataset_fingerprint=_tool_selection_dataset_fingerprint(),
         total_cases=len(cohort),
         exact_matches=0,
         exact_accuracy=0.0,
@@ -793,6 +854,8 @@ def render_intent_provider_report(report: IntentProviderReport) -> str:
         f"clarification_executed={report.clarification_executions} "
         f"out_of_scope={report.out_of_scope_references} "
         f"unsupported_missed={report.unsupported_misses}",
+        f"  dataset         : sha256:{report.dataset_fingerprint[:16]} "
+        f"({report.total_cases} frozen cases)",
         f"  robustness      : malformed={report.malformed_outputs} "
         f"transport={report.transport_failures} "
         f"contract_rejected={report.contract_rejections}",
@@ -813,6 +876,7 @@ def render_intent_provider_report(report: IntentProviderReport) -> str:
                 f"    {result.case_id} ({result.category}): "
                 f"expected {list(result.expected_goals)}, "
                 f"got {list(result.actual_goals)}{suffix}"
+                f"{_bad_case_evidence(result)}"
             )
     return "\n".join(lines)
 
@@ -831,6 +895,8 @@ def render_tool_selection_provider_report(report: ToolSelectionProviderReport) -
         f"out_of_scope_selected={report.out_of_scope_selections} "
         f"unnecessary_selected={report.unnecessary_tool_selections} "
         f"workflow_invocations={report.workflow_invocations}",
+        f"  dataset         : sha256:{report.dataset_fingerprint[:16]} "
+        f"({report.total_cases} frozen cases)",
         f"  robustness      : malformed={report.malformed_outputs} "
         f"transport={report.transport_failures}",
     ]
@@ -851,5 +917,6 @@ def render_tool_selection_provider_report(report: ToolSelectionProviderReport) -
                 f"expected {result.expected_outcome} "
                 f"{list(result.expected_tools)}, "
                 f"got {result.actual_outcome} {list(result.actual_tools)}{suffix}"
+                f"{_bad_case_evidence(result)}"
             )
     return "\n".join(lines)

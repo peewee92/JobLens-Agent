@@ -99,6 +99,12 @@ _DEFAULT_DATASET_PATH = (
 )
 
 
+def tool_selection_eval_dataset_path() -> Path:
+    """Path of the frozen cohort, so a report can fingerprint the exact bytes measured."""
+
+    return _DEFAULT_DATASET_PATH
+
+
 @dataclass(frozen=True, slots=True)
 class ToolSelectionEvalContext:
     """Grounded identifiers authorized for a single selection turn."""

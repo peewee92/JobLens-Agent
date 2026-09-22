@@ -928,3 +928,169 @@ def test_snapshot_is_camel_case_and_carries_no_credentials(tmp_path) -> None:
     assert "toolSelection" in parsed
     assert parsed["intent"]["status"] == "not_measured"
     assert parsed["intent"]["exactAccuracy"] == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Replay-grade evidence identity
+# --------------------------------------------------------------------------- #
+
+
+def test_dataset_fingerprint_is_the_repository_file_hash_of_the_cohort() -> None:
+    from app.application.requirement_acceptance import file_sha256
+    from app.evals.career_intent import career_intent_eval_dataset_path
+    from app.evals.career_tool_selection import tool_selection_eval_dataset_path
+
+    intent_report = measure_career_intent_provider_quality(
+        model=DisabledCareerIntentModel()
+    )
+    tool_report = measure_career_tool_selection_provider_quality(
+        model=DisabledCareerIntentModel()
+    )
+
+    assert intent_report.dataset_fingerprint == file_sha256(
+        career_intent_eval_dataset_path()
+    )
+    assert tool_report.dataset_fingerprint == file_sha256(
+        tool_selection_eval_dataset_path()
+    )
+    assert len(intent_report.dataset_fingerprint) == 64
+    assert len(tool_report.dataset_fingerprint) == 64
+
+
+def test_fingerprint_is_recorded_even_when_nothing_was_measured() -> None:
+    """A blocked run must still say which frozen cohort it would have measured."""
+
+    report = measure_career_intent_provider_quality(model=DisabledCareerIntentModel())
+
+    assert report.status is ProviderGateStatus.NOT_MEASURED
+    assert report.dataset_fingerprint
+    assert report.provider_attempts == 0
+
+
+def _traced_model(trace_ids: list[str]):
+    """Model whose provider reply carries a trace id, like the real endpoint."""
+
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    counter = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        index = min(counter["n"], len(trace_ids) - 1)
+        counter["n"] += 1
+        payload = dict(_chat_completion_200(_VALID_PAYLOAD))
+        payload["traceId"] = trace_ids[index]
+        return httpx.Response(200, json=payload)
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    return model
+
+
+def test_trace_id_and_request_fingerprint_are_captured_per_case() -> None:
+    cases = load_career_intent_eval_dataset()[:2]
+    model = _traced_model(["trace-first", "trace-second"])
+
+    report = measure_career_intent_provider_quality(model=model, cases=cases)
+
+    assert [r.provider_trace_id for r in report.case_results] == [
+        "trace-first",
+        "trace-second",
+    ]
+    for result in report.case_results:
+        assert result.request_fingerprint is not None
+        assert len(result.request_fingerprint) == 64
+
+
+def test_request_fingerprint_is_stable_and_excludes_the_credential() -> None:
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    bodies: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(request.content.decode("utf-8"))
+        return httpx.Response(200, json=_chat_completion_200(_VALID_PAYLOAD))
+
+    model = OpenAICareerIntentModel(
+        api_key="sk-should-never-appear",
+        model="test-model",
+        base_url="https://example.test/v1",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    model.route("Rank my jobs.")
+    first = model.last_request_fingerprint
+    model.route("Rank my jobs.")
+    second = model.last_request_fingerprint
+
+    assert first == second, "the same request must fingerprint identically"
+    assert "sk-should-never-appear" not in bodies[0]
+    assert "Authorization" not in bodies[0]
+
+
+def test_trace_id_is_recorded_on_a_blocked_provider_refusal() -> None:
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(
+            402,
+            json={
+                "code": "INSUFFICIENT_BALANCE",
+                "message": "no balance",
+                "traceId": "trace-billing",
+            },
+        )
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(CareerIntentModelBlockedError):
+        model.route("Rank my jobs.")
+
+    assert model.last_trace_id == "trace-billing"
+
+
+def test_bad_case_lines_carry_the_provider_trace_id() -> None:
+    """A cited failure must be traceable back to one provider call."""
+
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    counter = {"n": 0}
+    wrong = {**_VALID_PAYLOAD, "goals": ["unknown"]}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        counter["n"] += 1
+        payload = dict(_chat_completion_200(wrong))
+        payload["traceId"] = f"trace-{counter['n']}"
+        return httpx.Response(200, json=payload)
+
+    cases = load_career_intent_eval_dataset()[:2]
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    report = measure_career_intent_provider_quality(model=model, cases=cases)
+    text = render_intent_provider_report(report)
+
+    assert len(report.bad_cases) == 2
+    assert [r.provider_trace_id for r in report.bad_cases] == ["trace-1", "trace-2"]
+    assert "trace-1" in text
+    assert "trace-2" in text
+    assert "sha256:" in text
