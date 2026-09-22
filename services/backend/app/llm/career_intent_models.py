@@ -9,6 +9,7 @@ Grounding, scope enforcement and clarification fallback stay in
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from collections.abc import Callable
@@ -158,6 +159,8 @@ class OpenAICareerIntentModel:
         self._client = client
         self._sleep = sleep or time.sleep
         self._last_request_at: float | None = None
+        self._last_trace_id: str | None = None
+        self._last_request_fingerprint: str | None = None
         self._attempts = 0
         self._completed = 0
         self._rate_limited = 0
@@ -192,6 +195,23 @@ class OpenAICareerIntentModel:
     def completed(self) -> int:
         return self._completed
 
+    @property
+    def last_trace_id(self) -> str | None:
+        """Provider trace id for the most recent turn.
+
+        The Release Gate has to be able to cite a trace id for every failing case,
+        so the adapter keeps the last one it saw instead of discarding it with the
+        response.
+        """
+
+        return self._last_trace_id
+
+    @property
+    def last_request_fingerprint(self) -> str | None:
+        """sha256 of the canonical request body for the most recent turn."""
+
+        return self._last_request_fingerprint
+
     def route(self, user_message: str) -> dict[str, object]:
         if not self._api_key or not self._model:
             raise CareerIntentModelUnavailableError(
@@ -201,6 +221,11 @@ class OpenAICareerIntentModel:
         message = user_message.strip()
         if not message:
             raise CareerIntentModelOutputError("intent message must not be blank")
+
+        # Attribution is per turn: a stale id from the previous case would be worse
+        # than no id at all.
+        self._last_trace_id = None
+        self._last_request_fingerprint = None
 
         schema = _IntentOutput.model_json_schema()
         if self._api_style == "responses":
@@ -264,6 +289,7 @@ class OpenAICareerIntentModel:
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
+        self._last_request_fingerprint = _canonical_fingerprint(request_body)
 
         last_error: Exception | None = None
         transport_attempts = 0
@@ -272,11 +298,13 @@ class OpenAICareerIntentModel:
             self._pace()
             self._attempts += 1
             try:
-                payload = self._post(
+                response = self._post(
                     request_url=request_url, headers=headers, request_body=request_body
                 )
+                payload = response.json()
             except (httpx.HTTPStatusError, httpx.HTTPError, json.JSONDecodeError) as error:
                 if isinstance(error, httpx.HTTPStatusError):
+                    self._last_trace_id = _trace_id_of(error.response) or self._last_trace_id
                     status = error.response.status_code
                     if status in _NON_RETRYABLE_STATUSES:
                         code, trace_id = _provider_error_identity(error.response)
@@ -303,6 +331,7 @@ class OpenAICareerIntentModel:
                     break
                 continue
 
+            self._last_trace_id = _trace_id_of(response) or self._last_trace_id
             try:
                 parsed = _IntentOutput.model_validate_json(output_text(payload))
             except (ValidationError, KeyError, ValueError, TypeError) as error:
@@ -324,14 +353,42 @@ class OpenAICareerIntentModel:
         request_url: str,
         headers: dict[str, str],
         request_body: dict[str, Any],
-    ) -> Any:
+    ) -> httpx.Response:
         if self._client is not None:
             response = self._client.post(request_url, headers=headers, json=request_body)
         else:
             with httpx.Client(timeout=self._timeout_seconds) as client:
                 response = client.post(request_url, headers=headers, json=request_body)
         response.raise_for_status()
-        return response.json()
+        return response
+
+
+def _canonical_fingerprint(payload: dict[str, Any]) -> str:
+    """sha256 of a canonical JSON encoding, matching the repository fingerprint style.
+
+    The Authorization header is deliberately not part of this payload, so a request
+    fingerprint can be shared as evidence without exposing the credential.
+    """
+
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _trace_id_of(response: httpx.Response) -> str | None:
+    for header in ("x-trace-id", "trace-id"):
+        value = response.headers.get(header)
+        if value and value.strip():
+            return value.strip()[:128]
+    try:
+        payload = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("traceId")
+    return value.strip()[:128] if isinstance(value, str) and value.strip() else None
 
 
 def _response_output_text(payload: Any) -> str:
@@ -431,12 +488,7 @@ def _describe_transport_error(error: Exception | None) -> str:
 
 
 def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str | None]:
-    trace_id = None
-    for header in ("x-trace-id", "trace-id"):
-        value = response.headers.get(header)
-        if value and value.strip():
-            trace_id = value.strip()[:128]
-            break
+    trace_id = _trace_id_of(response)
     try:
         payload = response.json()
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -445,9 +497,6 @@ def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str 
         return None, trace_id
     code = payload.get("code")
     code = code.strip()[:64] if isinstance(code, str) and code.strip() else None
-    if trace_id is None:
-        value = payload.get("traceId")
-        trace_id = value.strip()[:128] if isinstance(value, str) and value.strip() else None
     return code, trace_id
 
 

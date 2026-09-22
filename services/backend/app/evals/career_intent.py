@@ -47,6 +47,12 @@ _DEFAULT_DATASET_PATH = (
 )
 
 
+def career_intent_eval_dataset_path() -> Path:
+    """Path of the frozen cohort, so a report can fingerprint the exact bytes measured."""
+
+    return _DEFAULT_DATASET_PATH
+
+
 @dataclass(frozen=True, slots=True)
 class IntentEvalContext:
     """Grounded identifiers authorized for a single intent evaluation turn."""
