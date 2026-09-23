@@ -560,27 +560,44 @@ referenced_job_ids:
   referenced_job_ids empty and classify the requested goal normally.
 
 current_job_required:
-- true when the user points at one job by pronoun or demonstrative instead of
-  naming it, for example "this job", "this role", "this one", "this opening",
-  "this position", "this application".
-- Leave referenced_job_ids empty in that case; the caller supplies the identity.
+- true only when the user points at one job by a deictic pronoun/demonstrative
+  instead of identifying it, for example "this job", "this role", "this one",
+  "this opening", "this position", "this application", "that role", or "it".
+- A descriptive title/company phrase such as "the frontend engineer opening" or
+  "the role at Acme" is NOT a current-job pronoun. If it cannot be grounded to a
+  literal job-<digits>, keep current_job_required=false and ask which job.
+- Leave referenced_job_ids empty for a true current-job pronoun; the caller
+  supplies the identity.
 - false otherwise.
 
 needs_clarification:
-- true when the request cannot be safely executed as stated: the user's intended
+- true when the request cannot be safely classified as stated: the user's intended
   goal is unclear, a named/title-only job cannot be grounded to an identifier, or
   a later step depends on an unspecified result (for example "prepare the best
   one" without naming which job).
-- Do NOT set clarification merely because a governed-scope phrase such as "this
-  batch", "these jobs", "current set", "selected cohort", or "target jobs" has
-  no literal IDs; the caller resolves that existing scope after classification.
+- For rank_jobs or review_gaps, do NOT ask for IDs/scope merely because the user
+  message contains no literal job-<digits>. Classify the clear goal and leave
+  referenced_job_ids empty; the governed Resolver will use the caller's frozen
+  run scope or turn the intent into clarification if no scope exists.
+- In particular, phrases such as "this batch", "these jobs", "current set",
+  "selected cohort", "target jobs", "current ranking", or a clear generic gaps
+  request should be classified normally rather than asking the model to discover
+  runtime scope it cannot see.
 - When the goal itself is unclear (for example "What do you think?" or "Make this
-  better"), set goals to ["unknown"]. When the goal is clear but the required
-  entity/scope is genuinely unresolved, set goals to [].
+  better"), set goals to ["unknown"] and ask a compact question containing both
+  "job" and "goal", for example "Which job or goal do you want help with?".
+- When a title/company description cannot be grounded (for example "the frontend
+  engineer opening" or "the role at Acme"), set goals to [] only if the intended
+  operation is otherwise clear; if the operation is also unclear, use
+  goals=["unknown"]. In either case ask "Which job ...?" explicitly.
+- When the goal is clear but the required entity/scope is genuinely unresolved,
+  set goals to []. A multi-step request whose later preparation target is only
+  "it", "the best one", or another unresolved result must clarify before any
+  executable goal is returned.
 - When true, write clarification_question as one short question that names what
-  is missing. Use the words "goal" for unclear intent, "which job" for an
-  ambiguous job entity, and "scope" when a gaps request has no defined target
-  scope. Never include an executable goal while clarification is required.
+  is missing. Use "which job" for an ambiguous job entity and "scope" when a gaps
+  request has no defined target scope. Never include an executable goal while
+  clarification is required.
 - Prefer clarification over guessing. Asking is always safer than a wrong action.
 
 unsupported_request:
@@ -600,6 +617,7 @@ cannot be assessed safely.
 reasoning_summary: one sentence, at most 500 characters, stating why you chose
 these goals. Never include personal data beyond what the user wrote.
 
-Return exactly one JSON object matching the schema. Do not use Markdown fences
+Return exactly one JSON object matching the schema. Include every schema field on
+every response; use null only where the schema permits null. Do not use Markdown fences
 and do not add any fields not present in the schema.
 """

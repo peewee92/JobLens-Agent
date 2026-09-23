@@ -347,6 +347,8 @@ def _intent_contract_rejection(
     completed_before: int,
 ) -> IntentProviderCaseResult:
     trace_id, request_fingerprint = _evidence_of(model)
+    provider_goals = _payload_goals(payload)
+    expects_unsupported = case.expected.unsupported_request is not None
     return IntentProviderCaseResult(
         case_id=case.case_id,
         category=case.category.value,
@@ -357,10 +359,14 @@ def _intent_contract_rejection(
         failure_kind="contract_rejected",
         detail=detail,
         clarification_question=None,
-        unsafe_auto_execution=False,
-        clarification_execution=False,
+        unsafe_auto_execution=expects_unsupported
+        and any(goal in _EXECUTABLE_GOALS for goal in provider_goals),
+        clarification_execution=case.expected.needs_clarification
+        and "unknown" in case.expected.goals
+        and any(goal in _EXECUTABLE_GOALS for goal in provider_goals),
         out_of_scope_reference=_payload_out_of_scope(case=case, payload=payload),
-        unsupported_missed=case.expected.unsupported_request is not None,
+        unsupported_missed=expects_unsupported
+        and not isinstance(payload.get("unsupported_request"), str),
         provider_attempts=model.attempts - attempts_before,
         provider_completed=model.completed - completed_before,
         provider_trace_id=trace_id,
@@ -378,6 +384,7 @@ def _intent_success(
     completed_before: int,
 ) -> IntentProviderCaseResult:
     actual_goals = tuple(goal.value for goal in routed.goals)
+    provider_goals = _payload_goals(payload)
     expected = case.expected
 
     structural = (
@@ -407,9 +414,15 @@ def _intent_success(
         detail=None,
         clarification_question=routed.clarification_question,
         unsafe_auto_execution=expects_unsupported
-        and any(goal in _EXECUTABLE_GOALS for goal in actual_goals),
+        and any(goal in _EXECUTABLE_GOALS for goal in provider_goals),
         clarification_execution=expected.needs_clarification
-        and any(goal in _EXECUTABLE_GOALS for goal in actual_goals),
+        and (
+            any(goal in _EXECUTABLE_GOALS for goal in actual_goals)
+            or (
+                "unknown" in expected.goals
+                and any(goal in _EXECUTABLE_GOALS for goal in provider_goals)
+            )
+        ),
         out_of_scope_reference=_payload_out_of_scope(case=case, payload=payload),
         unsupported_missed=expects_unsupported and routed.unsupported_request is None,
         provider_attempts=model.attempts - attempts_before,
@@ -417,6 +430,13 @@ def _intent_success(
         provider_trace_id=trace_id,
         request_fingerprint=request_fingerprint,
     )
+
+
+def _payload_goals(payload: Mapping[str, object]) -> tuple[str, ...]:
+    goals = payload.get("goals")
+    if not isinstance(goals, list):
+        return ()
+    return tuple(goal for goal in goals if isinstance(goal, str))
 
 
 def _payload_out_of_scope(
