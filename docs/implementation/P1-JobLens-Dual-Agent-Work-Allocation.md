@@ -9,6 +9,18 @@
 
 ---
 
+## 0A. Integration Owner Release Gate 收口（2026-09-23）
+
+Agent B 最新线性候选为 `82c4770 → 1f3029f → e6bd617`。`1f3029f` 已把 Provider 429 限流从普通 transport failure 中拆出，按 `retryAfterSeconds` bounded wait 并支持 pacing；`e6bd617` 已为 Provider case 补齐 trace id、request fingerprint 与 dataset fingerprint。Agent A 在该候选上重新执行当前 Intent / Tool Selection / Loop Guard / Trajectory 相关确定性测试，80/80 全绿，未发现新的 Core Contract / Runtime bad case。
+
+2026-09-23 对正式 Intent cohort 首 case 的真实 Provider 探针仍返回 `HTTP 402 INSUFFICIENT_BALANCE`（attempts=1 / completed=0），因此 Intent 60 cases 与 Tool Selection 44 cases 当前仍必须记录为 `NOT_MEASURED`，不能解释为 0% 或 PASS。当前 Provider 余额是唯一外部模型质量门 blocker；在 402 未解除前不重复烧完整 cohort。
+
+Integration Owner 同时完成 GAP-1 范围裁决：当前 v1.1 Registry 有意只注册成熟 read-only Workflow，没有合法的真实 cost-gated Tool；`CareerAgentExecutionGate` 对 `provider_compute / business_write / external_action → PendingAction` 的 fail-closed 机制已有回归证明。因此 GAP-1 继续如实保留为“当前产品 Registry 无真实可达轨迹”，但不再作为 v1.1 当前产品范围的 Release blocker，也不得通过伪造收费 Tool 来关闭。未来第一个真实 cost-gated Workflow 进入 Registry 时必须重新激活该纵向 Trajectory Gate。
+
+当前 vNext 1.1 只剩真实模型质量门：Intent 60 + Tool Selection 44 均达到 `>=95%`，且 safety violation=0。通过前 Agent A 继续 Core handoff freeze，不扩 Runtime、不抢 Eval、不进入 vNext 1.2。完整证据见 `docs/implementation/P1-vNext-1.1-Release-Gate-Status.md`。
+
+---
+
 ## 0. 当前 Core → Eval Handoff（2026-09-20）
 
 Agent A 与 Agent B 的 vNext 1.1 确定性主链现已在本地 `main` 收敛：Intent 60-case、Tool Selection 44-case、Loop Guard 26-case 与 Trajectory 38-case 已和最新 Core 同树验证。Agent B Cycle 4 v2 已确认 GAP-5 / GAP-7 / GAP-8 / GAP-3 修复真实生效，四个 A 门合计 69 tests 全绿。
