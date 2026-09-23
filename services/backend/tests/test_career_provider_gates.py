@@ -512,6 +512,10 @@ def test_chat_completions_request_shape_matches_the_verified_probe() -> None:
     # An unproven field must not be sent: the verified probe omits it.
     assert "temperature" not in body
     assert isinstance(body["messages"], list)
+    system_prompt = body["messages"][0]["content"]
+    assert "confidence:" in system_prompt
+    assert "Do not use Markdown fences" in system_prompt
+    assert "do not add any fields not present in the schema" in system_prompt
     assert body["messages"][-1]["content"] == "Rank my jobs."
 
 

@@ -570,6 +570,12 @@ unsupported_request:
   that would need data or actions this assistant does not have.
 - When set, goals must be empty or contain only unknown.
 
+confidence: return a JSON number from 0.0 to 1.0, or null only when confidence
+cannot be assessed safely.
+
 reasoning_summary: one sentence, at most 500 characters, stating why you chose
 these goals. Never include personal data beyond what the user wrote.
+
+Return exactly one JSON object matching the schema. Do not use Markdown fences
+and do not add any fields not present in the schema.
 """
