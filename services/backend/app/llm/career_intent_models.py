@@ -23,7 +23,7 @@ from app.core.config import Settings
 
 #: Bump whenever the intent prompt or the structured output schema changes, so a
 #: measured accuracy number can always be traced back to the exact input it saw.
-CAREER_INTENT_PROMPT_VERSION = "career-intent-prompt-v1"
+CAREER_INTENT_PROMPT_VERSION = "career-intent-prompt-v2"
 CAREER_INTENT_SCHEMA_VERSION = "career-intent-schema-v1"
 
 #: Used when the provider rate-limits a request without telling us how long to wait.
@@ -531,10 +531,15 @@ You only classify and extract. You do not execute anything and you do not see an
 job database, so never invent an identifier you were not given.
 
 Goals (use only these exact values):
-- rank_jobs: compare, sort, prioritise or choose among several jobs.
-- review_gaps: identify missing skills, gaps, or what the user lacks.
+- rank_jobs: compare, sort, prioritise, choose, or decide whether a job is worth
+  pursuing/applying to. Use rank_jobs for fit/value judgements such as "is this
+  one still worth applying to?"; do not treat those as application review.
+- review_gaps: identify missing skills, gaps, recurring requirements, or what the
+  user lacks for one or more jobs.
 - prepare_job: build interview preparation, focus areas, or readiness steps.
-- review_application: inspect application evidence or application readiness.
+- review_application: inspect explicit application/application-evidence readiness.
+  Use this only when the user actually refers to an application, application
+  evidence, or application readiness/status.
 - unknown: the request maps to no supported goal.
 
 Ordering:
@@ -548,6 +553,11 @@ referenced_job_ids:
 - Copy identifiers that appear literally in the user message, in the form
   job-<digits>. Copy them exactly, in the order they appear, and deduplicate.
 - Never guess, never complete, never translate a job title into an identifier.
+- Phrases such as "this batch", "these jobs", "these roles", "current job set",
+  "current ranking", "selected cohort", or "target jobs" refer to a governed run
+  scope supplied by the caller after classification. Do not ask the user to list
+  IDs merely because such a phrase has no literal job-<digits>; keep
+  referenced_job_ids empty and classify the requested goal normally.
 
 current_job_required:
 - true when the user points at one job by pronoun or demonstrative instead of
@@ -557,18 +567,32 @@ current_job_required:
 - false otherwise.
 
 needs_clarification:
-- true when the request cannot be safely executed as stated: it is too vague to
-  map to any goal, it could refer to several different jobs, or it relies on a
-  set of jobs that is not defined by the conversation.
+- true when the request cannot be safely executed as stated: the user's intended
+  goal is unclear, a named/title-only job cannot be grounded to an identifier, or
+  a later step depends on an unspecified result (for example "prepare the best
+  one" without naming which job).
+- Do NOT set clarification merely because a governed-scope phrase such as "this
+  batch", "these jobs", "current set", "selected cohort", or "target jobs" has
+  no literal IDs; the caller resolves that existing scope after classification.
+- When the goal itself is unclear (for example "What do you think?" or "Make this
+  better"), set goals to ["unknown"]. When the goal is clear but the required
+  entity/scope is genuinely unresolved, set goals to [].
 - When true, write clarification_question as one short question that names what
-  is missing, and put no executable goal in goals.
+  is missing. Use the words "goal" for unclear intent, "which job" for an
+  ambiguous job entity, and "scope" when a gaps request has no defined target
+  scope. Never include an executable goal while clarification is required.
 - Prefer clarification over guessing. Asking is always safer than a wrong action.
 
 unsupported_request:
-- Set to a short explanation when the user asks for something outside career
-  analysis, for example salary negotiation guarantees, legal advice, or anything
-  that would need data or actions this assistant does not have.
-- When set, goals must be empty or contain only unknown.
+- Set to a short explanation/code when the user asks for a forbidden or unsupported
+  action, including automated job application, recruiter messaging, bypassing a
+  human/evidence/review gate, unauthorized profile writes, fabricated career
+  evidence, hidden tools, guarantees, legal advice, or another unavailable
+  business action.
+- When set, fail closed with goals=[], referenced_job_ids=[],
+  current_job_required=false, needs_clarification=false, and
+  clarification_question=null. Do not preserve job IDs from an unsupported
+  request and do not emit unknown as a goal.
 
 confidence: return a JSON number from 0.0 to 1.0, or null only when confidence
 cannot be assessed safely.
