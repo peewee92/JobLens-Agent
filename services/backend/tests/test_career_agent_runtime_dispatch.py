@@ -400,3 +400,36 @@ def test_durable_hitl_dispatch_requires_explicit_run_identity_before_execution()
 
     assert governed.calls == []
     assert hitl.calls == []
+
+
+def test_durable_hitl_dispatch_requires_governed_scope_before_resolver_clarification() -> None:
+    governed = _GovernedRuntime()
+    hitl = _HitlService()
+    dispatcher = CareerAgentRuntimeDispatcher(
+        governed_runtime=governed,
+        hitl_service=hitl,
+    )
+
+    try:
+        dispatcher.run(
+            CareerAgentRuntimeDispatchRequest(
+                user_message="排序后看差距，但我没给任何岗位范围。",
+                intent=CareerIntent(
+                    goals=(CareerIntentGoal.RANK_JOBS, CareerIntentGoal.REVIEW_GAPS),
+                ),
+                context=_context(),
+                resolution_context=CareerIntentResolutionContext(),
+                durable_run=CareerAgentDurableRunIdentity(
+                    thread_id="thread-empty-scope",
+                    run_id="run-empty-scope",
+                    request_id="request-empty-scope",
+                ),
+            )
+        )
+    except CareerAgentRuntimeDispatchError as exc:
+        assert "governed job scope" in str(exc)
+    else:  # pragma: no cover - regression guard
+        raise AssertionError("durable dispatch must reject missing governed scope")
+
+    assert governed.calls == []
+    assert hitl.calls == []
