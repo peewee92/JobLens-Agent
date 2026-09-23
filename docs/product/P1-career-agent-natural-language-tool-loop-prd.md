@@ -508,6 +508,8 @@ stale → terminate
 cost action → PendingAction
 ```
 
+> 2026-09-23 范围裁决：当前 v1.1 产品 Registry 有意只注册成熟 read-only Workflow，因此不存在一个真实、合法的 cost-gated Tool 可形成端到端产品轨迹。`CareerAgentExecutionGate` 对 `provider_compute / business_write / external_action → PendingAction` 的 fail-closed 机制必须继续保留并有回归，但不得为了 Eval 伪造收费 Tool。当前 Trajectory 报告继续如实将该 shape 记为 blocked；它不作为当前 read-only 产品范围的 Release blocker。未来首个真实 cost-gated Workflow 进入 Registry 时，该 shape 自动重新成为发布前强制纵向 Gate。
+
 ---
 
 ## 16. Release Gate
