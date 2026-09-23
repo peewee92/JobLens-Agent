@@ -42,6 +42,7 @@ output/
 # Keep personal transition plans, study records, answers and work-in-progress journals local.
 docs/learning/
 docs/dev-journal/
+docs/interview-labs.md
 *.local.md
 *.tmp.md
 
