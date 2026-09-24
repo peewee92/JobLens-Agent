@@ -834,6 +834,160 @@ def test_rendered_tool_report_states_status() -> None:
 # --------------------------------------------------------------------------- #
 
 
+def test_canary_plan_is_small_category_diverse_and_release_plan_is_explicit() -> None:
+    from scripts.check_career_provider_gates import build_provider_gate_plan
+
+    settings = Settings(_env_file=None)
+    canary = build_provider_gate_plan(settings=settings)
+    release = build_provider_gate_plan(settings=settings, full_release_gate=True)
+
+    assert canary.mode == "canary"
+    assert len(canary.intent_cases) == 5
+    assert len(canary.tool_selection_cases) == 5
+    assert len({case.category for case in canary.intent_cases}) == 5
+    assert len({case.category for case in canary.tool_selection_cases}) == 5
+    assert canary.planned_provider_calls == 10
+    assert canary.max_provider_calls == 10
+    assert canary.estimated_max_cost_cny == pytest.approx(0.80)
+
+    assert release.mode == "release"
+    assert len(release.intent_cases) == 60
+    assert len(release.tool_selection_cases) == 44
+    assert release.planned_provider_calls == 104
+    assert release.max_provider_calls == 104
+    assert release.estimated_max_cost_cny == pytest.approx(8.32)
+
+
+def test_call_budget_refuses_a_plan_that_cannot_cover_selected_cases() -> None:
+    from scripts.check_career_provider_gates import build_provider_gate_plan
+
+    with pytest.raises(ValueError, match="cannot cover the selected cases"):
+        build_provider_gate_plan(
+            settings=Settings(_env_file=None),
+            max_provider_calls=9,
+        )
+
+
+def test_cost_budget_refuses_a_plan_before_any_provider_call() -> None:
+    from scripts.check_career_provider_gates import build_provider_gate_plan
+
+    with pytest.raises(ValueError, match="provider cost budget is too small"):
+        build_provider_gate_plan(
+            settings=Settings(_env_file=None),
+            max_provider_calls=10,
+            estimated_cost_per_call_cny=0.08,
+            max_cost_cny=0.79,
+        )
+
+
+def test_run_fingerprint_changes_with_provider_configuration() -> None:
+    from scripts.check_career_provider_gates import build_provider_gate_plan
+
+    first = build_provider_gate_plan(
+        settings=Settings(_env_file=None, career_intent_model="model-a")
+    )
+    same = build_provider_gate_plan(
+        settings=Settings(_env_file=None, career_intent_model="model-a")
+    )
+    changed = build_provider_gate_plan(
+        settings=Settings(_env_file=None, career_intent_model="model-b")
+    )
+
+    assert first.run_fingerprint == same.run_fingerprint
+    assert first.run_fingerprint != changed.run_fingerprint
+
+
+def test_replay_cache_reuses_only_an_exact_measured_snapshot(tmp_path) -> None:
+    from scripts.check_career_provider_gates import load_replay_snapshot
+
+    path = tmp_path / "provider-gate.json"
+    path.write_text(
+        json.dumps(
+            {
+                "runFingerprint": "abc123",
+                "providerCalls": 10,
+                "intent": {"status": "fail"},
+                "toolSelection": {"status": "pass"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cached = load_replay_snapshot(run_fingerprint="abc123", path=path)
+    assert cached is not None
+    assert cached["replayCacheHit"] is True
+    assert cached["providerCallsThisRun"] == 0
+    assert cached["providerCalls"] == 10
+    assert load_replay_snapshot(run_fingerprint="different", path=path) is None
+
+    path.write_text(
+        json.dumps(
+            {
+                "runFingerprint": "blocked",
+                "intent": {"status": "not_measured"},
+                "toolSelection": {"status": "not_measured"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert load_replay_snapshot(run_fingerprint="blocked", path=path) is None
+
+
+def test_provider_usage_tokens_are_accumulated_for_cost_analysis() -> None:
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        payload = _chat_completion_200(_VALID_PAYLOAD)
+        payload["usage"] = {
+            "prompt_tokens": 1200,
+            "completion_tokens": 180,
+            "total_tokens": 1380,
+        }
+        return httpx.Response(200, json=payload)
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    model.route("Rank my jobs.")
+    model.route("Rank my jobs again.")
+
+    assert model.input_tokens == 2400
+    assert model.output_tokens == 360
+    assert model.total_tokens == 2760
+
+
+def test_http_attempt_budget_stops_retry_amplification() -> None:
+    import httpx
+
+    from app.llm.career_intent_models import OpenAICareerIntentModel
+
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        calls["count"] += 1
+        return httpx.Response(429, json={"retryAfterSeconds": 0})
+
+    model = OpenAICareerIntentModel(
+        api_key="test-key",
+        model="test-model",
+        max_provider_attempts=1,
+        max_rate_limit_retries=4,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=lambda _: None,
+    )
+
+    with pytest.raises(CareerIntentModelBlockedError, match="call budget exhausted"):
+        model.route("Rank my jobs.")
+
+    assert model.attempts == 1
+    assert calls["count"] == 1
+
+
 def test_cli_never_contacts_a_provider_without_both_flags() -> None:
     from scripts.check_career_provider_gates import run_career_provider_gates
 

@@ -124,6 +124,7 @@ class OpenAICareerIntentModel:
         timeout_seconds: float = 60.0,
         max_http_attempts: int = 2,
         max_rate_limit_retries: int = 4,
+        max_provider_attempts: int | None = None,
         min_request_interval_seconds: float = 0.0,
         temperature: float | None = None,
         client: httpx.Client | None = None,
@@ -154,6 +155,9 @@ class OpenAICareerIntentModel:
         self._timeout_seconds = timeout_seconds
         self._max_http_attempts = max(1, max_http_attempts)
         self._max_rate_limit_retries = max(0, max_rate_limit_retries)
+        self._max_provider_attempts = (
+            max(0, max_provider_attempts) if max_provider_attempts is not None else None
+        )
         self._min_request_interval_seconds = max(0.0, min_request_interval_seconds)
         self._temperature = temperature
         self._client = client
@@ -164,6 +168,9 @@ class OpenAICareerIntentModel:
         self._attempts = 0
         self._completed = 0
         self._rate_limited = 0
+        self._input_tokens = 0
+        self._output_tokens = 0
+        self._total_tokens = 0
 
     @property
     def rate_limited(self) -> int:
@@ -194,6 +201,18 @@ class OpenAICareerIntentModel:
     @property
     def completed(self) -> int:
         return self._completed
+
+    @property
+    def input_tokens(self) -> int:
+        return self._input_tokens
+
+    @property
+    def output_tokens(self) -> int:
+        return self._output_tokens
+
+    @property
+    def total_tokens(self) -> int:
+        return self._total_tokens
 
     @property
     def last_trace_id(self) -> str | None:
@@ -295,6 +314,14 @@ class OpenAICareerIntentModel:
         transport_attempts = 0
         rate_limit_retries = 0
         while True:
+            if (
+                self._max_provider_attempts is not None
+                and self._attempts >= self._max_provider_attempts
+            ):
+                raise CareerIntentModelBlockedError(
+                    "provider call budget exhausted before another billed request: "
+                    f"maxProviderAttempts={self._max_provider_attempts}"
+                )
             self._pace()
             self._attempts += 1
             try:
@@ -302,6 +329,7 @@ class OpenAICareerIntentModel:
                     request_url=request_url, headers=headers, request_body=request_body
                 )
                 payload = response.json()
+                self._record_usage(payload)
             except (httpx.HTTPStatusError, httpx.HTTPError, json.JSONDecodeError) as error:
                 if isinstance(error, httpx.HTTPStatusError):
                     self._last_trace_id = _trace_id_of(error.response) or self._last_trace_id
@@ -346,6 +374,21 @@ class OpenAICareerIntentModel:
             f"intent provider call failed after {self._attempts} attempt(s): "
             f"{_describe_transport_error(last_error)}"
         ) from last_error
+
+    def _record_usage(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            return
+        usage = payload.get("usage")
+        if not isinstance(usage, dict):
+            return
+        input_tokens = _usage_int(usage, "prompt_tokens", "input_tokens")
+        output_tokens = _usage_int(usage, "completion_tokens", "output_tokens")
+        total_tokens = _usage_int(usage, "total_tokens")
+        if total_tokens == 0:
+            total_tokens = input_tokens + output_tokens
+        self._input_tokens += input_tokens
+        self._output_tokens += output_tokens
+        self._total_tokens += total_tokens
 
     def _post(
         self,
@@ -487,6 +530,14 @@ def _describe_transport_error(error: Exception | None) -> str:
     return f"{type(error).__name__}"
 
 
+def _usage_int(usage: dict[str, object], *keys: str) -> int:
+    for key in keys:
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return 0
+
+
 def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str | None]:
     trace_id = _trace_id_of(response)
     try:
@@ -500,7 +551,9 @@ def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str 
     return code, trace_id
 
 
-def build_career_intent_model(settings: Settings) -> Any:
+def build_career_intent_model(
+    settings: Settings, *, max_provider_attempts: int | None = None
+) -> Any:
     """Runtime factory for the configured career intent adapter.
 
     Defaults to ``disabled`` so a missing configuration can never silently issue
@@ -518,6 +571,7 @@ def build_career_intent_model(settings: Settings) -> Any:
             max_completion_tokens=settings.career_intent_max_completion_tokens,
             timeout_seconds=settings.career_intent_timeout_seconds,
             max_rate_limit_retries=settings.career_intent_max_rate_limit_retries,
+            max_provider_attempts=max_provider_attempts,
             min_request_interval_seconds=(
                 settings.career_intent_min_request_interval_seconds
             ),

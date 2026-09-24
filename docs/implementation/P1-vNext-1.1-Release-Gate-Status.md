@@ -145,65 +145,91 @@ Registry / ACL bypass       = 0
 Human Gate bypass           = 0
 ```
 
-2026-09-23 使用 `deepseek-v4-flash` 对正式 Intent cohort 首 case 做真实 Provider 探针：
+2026-09-24 已切换到新的 OpenAI-compatible Provider。当前已验证：
 
 ```text
-HTTP 402
-code=INSUFFICIENT_BALANCE
-attempts=1
-completed=0
-traceId=trace_a58a788f-c905-4d64-987c-9747f95acf61
+GET /v1/models                = 200
+model                         = deepseek-v4.1-flash
+plain chat completion         = 200
+json_schema completion        = 200
+Career Intent single adapter  = 1/1 success（Prompt compatibility fix 后）
 ```
 
-因此当前准确状态是：
+旧 `deepseek-v4-flash` 在新 Provider 上返回 `model_not_found`，因此新的正式测量必须把：
 
 ```text
-Intent          = NOT_MEASURED
-Tool Selection  = NOT_MEASURED
+provider + deepseek-v4.1-flash + prompt/schema/dataset fingerprint
 ```
 
-`not_measured` 不能解释成 0%，也不能解释成 PASS。
+视为一个新的 Cohort Identity，不能与历史旧 Provider / 旧模型结果拼接。
 
-当前唯一外部阻塞为 Provider 账户无生成余额；这不是 Core Runtime blocker。
+真实 Intent 诊断批次随后暴露的主要问题集中在 Prompt / Model / Eval 语义对齐，而不是已证实的 Core Runtime 缺陷：模型会对 `this batch / current set / cohort` 过度澄清，部分 goal 边界混淆，并偶发 strict structured output 缺字段。Agent B 已形成 Prompt v2 候选 `d1ba0dc`，确定性相关回归 65 passed；在真实 Provider 重新测量前，Agent A 继续保持 Core handoff freeze。
 
-## 6. 模型版本风险
-
-Agent B 最近读取 Provider `/models` 时看到：
+最新一次 Provider 状态为：
 
 ```text
-deepseek-v4-flash-0731
+HTTP 403
+code=insufficient_user_quota
+remaining≈¥0.065264
+required precharge≈¥0.080000 / request
 ```
 
-而历史正式 cohort 使用：
+因此当前准确状态仍是：
 
 ```text
-deepseek-v4-flash
+Intent          = RELEASE GATE NOT YET PASSED
+Tool Selection  = RELEASE GATE NOT YET PASSED
 ```
 
-余额为 0 时无法确认旧 alias 是否仍可调用。
+不能把余额不足解释成模型质量失败，也不能把此前诊断批次解释成最终 PASS。
 
-余额恢复后必须先按原模型身份运行。如果返回 `model_not_found`，允许切到 `deepseek-v4-flash-0731`，但必须作为**新的模型版本测量**记录 Provider / Model / Prompt / Schema / Dataset fingerprint，不得把它冒充成历史同一 cohort 的连续结果。
+## 6. Provider Eval 成本治理
+
+2026-09-24 复盘发现调试期约 `¥48.64` 消耗主要来自重复真实 Provider 请求；按当前服务商约 `¥0.08 / request` 估算，对应约 608 次调用。根因是把完整 60 + 44 Release Gate 反复用于 Prompt 调试，加上分类重跑、超时后的重新执行和 probe 调用。
+
+Provider Eval 现改为：
+
+```text
+离线回归
+→ 默认 5 Intent + 5 Tool Selection Canary
+→ Prompt/Model Bad Case 收敛
+→ 仅发布节点执行 60 + 44 Full Gate
+→ 相同 runFingerprint 直接 Replay Cache，0 新调用
+```
+
+新增硬保护：
+
+- `maxProviderCalls` 在真实 HTTP 请求前执行，Retry 也消耗同一预算；
+- `--max-cost-cny` 在调用前做人民币预算检查；
+- full release 必须显式 `--full-release-gate`；
+- Replay Cache 独立保存在 `data/local/career-provider-gate-cache/`，不会被普通 latest snapshot / dry-run 覆盖；
+- 自动定时任务不得继承历史 live-cost 授权，Provider calls 必须保持 0；
+- 真实付费 Gate 必须由当前人工会话显式授权。
+
+完整复盘与操作 SOP：`docs/implementation/P1-Provider-Eval-Cost-Budget-Canary-Replay-Cache-Retrospective.md`。
 
 ## 7. vNext 1.1 Remaining Criteria
 
 当前只剩：
 
 1. Provider 余额恢复；
-2. 基于 `1f3029f + e6bd617` 候选执行真实 Intent 60-case Gate；
-3. 执行真实 Tool Selection 44-case Gate；
-4. 两门均达到 `>=95%` 且 safety violation = 0；
-5. 若真实 Gate 暴露 Core Contract / Runtime bad case，交 Agent A 做“失败回归 → 最小修复 → targeted regression”；
-6. 两门通过后由 Integration Owner 更新 ROADMAP，将 vNext 1.1 标记 COMPLETE，并才允许切换到 vNext 1.2。
+2. 人工显式授权一个受成本预算保护的 Prompt v2 Canary；
+3. Canary 稳定后执行真实 Intent 60-case Gate；
+4. Intent 达到 `>=95%` 且 safety violation = 0 后，再执行 Tool Selection 44-case Gate；
+5. 两门均达到 `>=95%` 且 safety violation = 0；
+6. 若真实 Gate 暴露 Core Contract / Runtime bad case，交 Agent A 做“失败回归 → 最小修复 → targeted regression”；
+7. 两门通过后由 Integration Owner 更新 ROADMAP，将 vNext 1.1 标记 COMPLETE，并才允许切换到 vNext 1.2。
 
 ## 8. 当前停止规则
 
-在 Provider 仍返回 402 时：
+在 Provider 余额不足或没有当轮人工 live-cost 授权时：
 
-- 不每小时重复跑 104-case cohort；
+- 自动任务 Provider calls 必须为 0；
+- 不每小时重复跑 probe 或 104-case cohort；
 - 不继续扩 Runtime；
 - 不新增 Eval Dataset；
 - 不伪造 PASS；
 - 不进入 vNext 1.2；
 - 不用低价值重构制造 commit。
 
-下一次 Provider Gate 应从一个 bounded live probe 开始；只有 402 消失后才执行完整 60+44 cohort。
+下一次真实 Provider 质量测量必须先从受预算保护的 Canary 开始；只有 Canary 表明 Prompt/Model 已明显收敛后，才值得执行完整 60 + 44 Release Gate。
