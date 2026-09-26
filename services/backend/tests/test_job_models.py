@@ -45,6 +45,8 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
 
     assert set(inspect(engine).get_table_names()) == {
         "application_workspaces",
+        "application_timeline_events",
+        "resume_variants",
         "jobs",
         "job_sources",
         "job_imports",

@@ -64,7 +64,8 @@ REQUIREMENT_ACCEPTANCE_TABLES = (
 )
 MATCH_REPORT_TABLES = {"match_reports"}
 USER_FEEDBACK_TABLES = {"user_feedback"}
-APPLICATION_WORKSPACE_TABLES = {"application_workspaces"}
+APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants"}
+RESUME_VARIANT_TABLES = {"resume_variants"}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
@@ -77,6 +78,7 @@ EXPECTED_TABLES = (
     | MATCH_REPORT_TABLES
     | USER_FEEDBACK_TABLES
     | APPLICATION_WORKSPACE_TABLES
+    | RESUME_VARIANT_TABLES
 )
 
 
@@ -407,6 +409,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
         - APPLICATION_WORKSPACE_TABLES
+        - RESUME_VARIANT_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES

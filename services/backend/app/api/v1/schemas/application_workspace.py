@@ -12,6 +12,7 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceStatus,
 )
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusCommand
+from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
 
@@ -41,6 +42,58 @@ class UpdateApplicationStatusRequest(CamelCaseModel):
             idempotency_key=self.idempotency_key,
             expected_status=self.expected_status,
             new_status=self.new_status,
+        )
+
+
+class SaveResumeVariantRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class ResumeVariantItemResponse(CamelCaseModel):
+    requirement_id: str
+    capability: str
+    evidence_ids: list[str]
+
+
+class ResumeVariantProposalResponse(CamelCaseModel):
+    workspace_id: str
+    job_id: str
+    source_profile_id: str
+    source_profile_version: int
+    requirement_extraction_id: str
+    highlights: list[ResumeVariantItemResponse]
+    unresolved_requirement_ids: list[str]
+
+    @classmethod
+    def from_model(cls, proposal: ResumeVariantProposal) -> "ResumeVariantProposalResponse":
+        return cls(
+            workspace_id=proposal.workspace_id, job_id=proposal.job_id,
+            source_profile_id=proposal.source_profile_id, source_profile_version=proposal.source_profile_version,
+            requirement_extraction_id=proposal.requirement_extraction_id,
+            highlights=[ResumeVariantItemResponse(requirement_id=item.requirement_id, capability=item.capability, evidence_ids=list(item.evidence_ids)) for item in proposal.highlights],
+            unresolved_requirement_ids=list(proposal.unresolved_requirement_ids),
+        )
+
+
+class ResumeVariantResponse(CamelCaseModel):
+    variant_id: str
+    workspace_id: str
+    status: str
+    source_profile_id: str
+    source_profile_version: int
+    requirement_extraction_id: str
+    highlights: list[ResumeVariantItemResponse]
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, variant: ResumeVariant) -> "ResumeVariantResponse":
+        return cls(
+            variant_id=variant.variant_id, workspace_id=variant.workspace_id, status=variant.status.value,
+            source_profile_id=variant.source_profile_id, source_profile_version=variant.source_profile_version,
+            requirement_extraction_id=variant.requirement_extraction_id,
+            highlights=[ResumeVariantItemResponse(requirement_id=item.requirement_id, capability=item.capability, evidence_ids=list(item.evidence_ids)) for item in variant.highlights],
+            created_at=variant.created_at,
         )
 
 

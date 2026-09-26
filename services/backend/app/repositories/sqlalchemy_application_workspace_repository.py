@@ -11,7 +11,7 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceSourceSnapshot,
     ApplicationWorkspaceStatus,
 )
-from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM
+from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM, ResumeVariantORM
 
 SessionFactory = Callable[[], Session]
 
@@ -77,6 +77,30 @@ class SqlAlchemyApplicationWorkspaceRepository:
             return _restore(record)
 
 
+class SqlAlchemyResumeVariantRepository:
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str):
+        with self._session_factory() as session:
+            record = session.scalar(select(ResumeVariantORM).where(ResumeVariantORM.actor_id == actor_id, ResumeVariantORM.idempotency_key == idempotency_key))
+            return _restore_resume_variant(record) if record is not None else None
+
+    def add(self, *, variant, actor_id: str, idempotency_key: str):
+        with self._session_factory() as session, session.begin():
+            record = ResumeVariantORM(
+                id=variant.variant_id, workspace_id=variant.workspace_id, actor_id=actor_id,
+                idempotency_key=idempotency_key, status=variant.status.value,
+                source_profile_id=variant.source_profile_id, source_profile_version=variant.source_profile_version,
+                requirement_extraction_id=variant.requirement_extraction_id,
+                highlights=[{"requirement_id": item.requirement_id, "capability": item.capability, "evidence_ids": list(item.evidence_ids)} for item in variant.highlights],
+                created_at=variant.created_at,
+            )
+            session.add(record)
+            session.flush()
+            return _restore_resume_variant(record)
+
+
 class SqlAlchemyApplicationTimelineRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
@@ -117,6 +141,17 @@ class SqlAlchemyApplicationTimelineRepository:
                 .order_by(ApplicationTimelineEventORM.created_at, ApplicationTimelineEventORM.id)
             ).all()
             return tuple(_restore_event(record) for record in records)
+
+
+def _restore_resume_variant(record: ResumeVariantORM):
+    from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantItem, ResumeVariantStatus
+    return ResumeVariant(
+        variant_id=record.id, workspace_id=record.workspace_id, status=ResumeVariantStatus(record.status),
+        source_profile_id=record.source_profile_id, source_profile_version=record.source_profile_version,
+        requirement_extraction_id=record.requirement_extraction_id,
+        highlights=tuple(ResumeVariantItem(requirement_id=item["requirement_id"], capability=item["capability"], evidence_ids=tuple(item["evidence_ids"])) for item in record.highlights),
+        created_at=record.created_at,
+    )
 
 
 def _restore_event(record: ApplicationTimelineEventORM):

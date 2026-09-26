@@ -13,6 +13,7 @@ from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
+from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, SaveResumeVariantUseCase
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
@@ -129,6 +130,7 @@ from app.core.config import get_settings
 from app.db.models.common import (
     new_application_timeline_event_id,
     new_application_workspace_id,
+    new_resume_variant_id,
     utc_now,
 )
 from app.db.session import SessionLocal, engine
@@ -141,6 +143,7 @@ from app.llm import (
 from app.repositories.sqlalchemy_application_workspace_repository import (
     SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
+    SqlAlchemyResumeVariantRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
     SqlAlchemyJobRequirementReleaseQueryRepository,
@@ -750,6 +753,24 @@ def get_update_application_status_use_case(
         now=utc_now,
         new_event_id=new_application_timeline_event_id,
     )
+
+
+def get_resume_variant_repository() -> SqlAlchemyResumeVariantRepository:
+    return SqlAlchemyResumeVariantRepository(SessionLocal)
+
+
+def get_resume_variant_proposal_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+) -> BuildResumeVariantProposalUseCase:
+    return BuildResumeVariantProposalUseCase(workspaces=workspaces, preparation=preparation)
+
+
+def get_save_resume_variant_use_case(
+    proposals: BuildResumeVariantProposalUseCase = Depends(get_resume_variant_proposal_use_case),
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+) -> SaveResumeVariantUseCase:
+    return SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=utc_now, new_id=new_resume_variant_id)
 
 
 def get_create_application_workspace_use_case(

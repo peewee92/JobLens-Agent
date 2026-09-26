@@ -31,6 +31,10 @@ def new_application_timeline_event_id() -> str:
     return new_prefixed_id("appevent")
 
 
+def new_resume_variant_id() -> str:
+    return new_prefixed_id("resumevar")
+
+
 def new_job_source_id() -> str:
     return new_prefixed_id("src")
 

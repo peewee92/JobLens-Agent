@@ -9,6 +9,8 @@ from app.api.deps import (
     get_application_timeline_repository,
     get_application_workspace_repository,
     get_create_application_workspace_use_case,
+    get_resume_variant_proposal_use_case,
+    get_save_resume_variant_use_case,
     get_update_application_status_use_case,
 )
 from app.api.v1.schemas.application_workspace import (
@@ -16,6 +18,14 @@ from app.api.v1.schemas.application_workspace import (
     ApplicationWorkspaceResponse,
     CreateApplicationWorkspaceRequest,
     UpdateApplicationStatusRequest,
+    ResumeVariantProposalResponse,
+    ResumeVariantResponse,
+    SaveResumeVariantRequest,
+)
+from app.application.application_workspace.resume_variant import (
+    BuildResumeVariantProposalUseCase,
+    ResumeVariantBlockedError,
+    SaveResumeVariantUseCase,
 )
 from app.application.application_workspace.status_use_case import (
     ApplicationStatusBlockedError,
@@ -68,6 +78,34 @@ def update_application_status(
         )
         raise HTTPException(status_code=status_code, detail=detail) from error
     return ApplicationWorkspaceResponse.from_model(result.workspace)
+
+
+@router.get("/{workspace_id}/resume-variant/proposal", response_model=ResumeVariantProposalResponse)
+def get_resume_variant_proposal(
+    workspace_id: str,
+    use_case: Annotated[BuildResumeVariantProposalUseCase, Depends(get_resume_variant_proposal_use_case)],
+) -> ResumeVariantProposalResponse:
+    try:
+        return ResumeVariantProposalResponse.from_model(use_case.execute(workspace_id))
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+
+
+@router.post("/{workspace_id}/resume-variants", response_model=ResumeVariantResponse, status_code=status.HTTP_201_CREATED)
+def save_resume_variant(
+    workspace_id: str,
+    request: SaveResumeVariantRequest,
+    use_case: Annotated[SaveResumeVariantUseCase, Depends(get_save_resume_variant_use_case)],
+) -> ResumeVariantResponse:
+    try:
+        variant = use_case.execute(workspace_id=workspace_id, actor_id=request.actor_id, idempotency_key=request.idempotency_key)
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ResumeVariantResponse.from_model(variant)
 
 
 @router.get("/{workspace_id}/timeline", response_model=list[ApplicationTimelineEventResponse])
