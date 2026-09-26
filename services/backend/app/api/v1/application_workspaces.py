@@ -10,6 +10,7 @@ from app.api.deps import (
     get_application_workspace_repository,
     get_create_application_workspace_use_case,
     get_resume_variant_proposal_use_case,
+    get_review_resume_variant_use_case,
     get_save_resume_variant_use_case,
     get_update_application_status_use_case,
 )
@@ -20,11 +21,13 @@ from app.api.v1.schemas.application_workspace import (
     UpdateApplicationStatusRequest,
     ResumeVariantProposalResponse,
     ResumeVariantResponse,
+    ReviewResumeVariantRequest,
     SaveResumeVariantRequest,
 )
 from app.application.application_workspace.resume_variant import (
     BuildResumeVariantProposalUseCase,
     ResumeVariantBlockedError,
+    ReviewResumeVariantUseCase,
     SaveResumeVariantUseCase,
 )
 from app.application.application_workspace.status_use_case import (
@@ -104,6 +107,27 @@ def save_resume_variant(
     except ResumeVariantBlockedError as error:
         detail = str(error)
         code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ResumeVariantResponse.from_model(variant)
+
+
+@router.post("/{workspace_id}/resume-variants/{variant_id}/review", response_model=ResumeVariantResponse)
+def review_resume_variant(
+    workspace_id: str,
+    variant_id: str,
+    request: ReviewResumeVariantRequest,
+    use_case: Annotated[ReviewResumeVariantUseCase, Depends(get_review_resume_variant_use_case)],
+) -> ResumeVariantResponse:
+    try:
+        variant = use_case.execute(
+            workspace_id=workspace_id,
+            variant_id=variant_id,
+            actor_id=request.actor_id,
+            expected_status=request.expected_status,
+        )
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "resume_variant_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
     return ResumeVariantResponse.from_model(variant)
 

@@ -13,7 +13,7 @@ from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
-from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, SaveResumeVariantUseCase
+from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, ReviewResumeVariantUseCase, SaveResumeVariantUseCase
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
@@ -771,6 +771,12 @@ def get_save_resume_variant_use_case(
     variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
 ) -> SaveResumeVariantUseCase:
     return SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=utc_now, new_id=new_resume_variant_id)
+
+
+def get_review_resume_variant_use_case(
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+) -> ReviewResumeVariantUseCase:
+    return ReviewResumeVariantUseCase(variants=variants)
 
 
 def get_create_application_workspace_use_case(

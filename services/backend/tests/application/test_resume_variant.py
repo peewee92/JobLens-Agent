@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.application.application_workspace.models import ApplicationWorkspaceSourceSnapshot
-from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, ResumeVariantBlockedError, SaveResumeVariantUseCase
+from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, ResumeVariantBlockedError, ResumeVariantStatus, ReviewResumeVariantUseCase, SaveResumeVariantUseCase
 from app.application.job_preparation.resume_delta import ResumeDeltaEvidenceGap, ResumeDeltaFacts, ResumeDeltaGapStatus, ResumeDeltaHighlight
 
 NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
@@ -23,10 +23,16 @@ class Preparation:
 
 
 class Variants:
-    def __init__(self): self.saved = {}; self.added = []
+    def __init__(self): self.saved = {}; self.by_id = {}; self.actors = {}; self.added = []
+    def get(self, variant_id): return self.by_id.get(variant_id)
     def get_by_actor_and_idempotency_key(self, actor_id, key): return self.saved.get((actor_id, key))
     def add(self, *, variant, actor_id, idempotency_key):
-        self.saved[(actor_id, idempotency_key)] = variant; self.added.append(variant); return variant
+        self.saved[(actor_id, idempotency_key)] = variant; self.by_id[variant.variant_id] = variant; self.actors[variant.variant_id] = actor_id; self.added.append(variant); return variant
+    def update_status(self, variant_id, *, actor_id, status):
+        variant = self.by_id.get(variant_id)
+        if variant is None or self.actors.get(variant_id) != actor_id: return None
+        from dataclasses import replace
+        variant = replace(variant, status=status); self.by_id[variant_id] = variant; return variant
 
 
 def workspace():
@@ -59,3 +65,19 @@ def test_save_is_idempotent_and_never_saves_unevidenced_gap_as_resume_content():
     assert first == second
     assert len(variants.added) == 1
     assert first.highlights[0].evidence_ids == ("ev1",)
+    assert first.status is ResumeVariantStatus.DRAFT
+
+
+def test_review_requires_explicit_owner_action_and_is_idempotent():
+    proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle()))
+    variants = Variants()
+    saved = SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1").execute(
+        workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1"
+    )
+    review = ReviewResumeVariantUseCase(variants=variants)
+    with pytest.raises(ResumeVariantBlockedError, match="resume_variant_actor_mismatch"):
+        review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="other", expected_status=ResumeVariantStatus.DRAFT)
+    first = review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="user_1", expected_status=ResumeVariantStatus.DRAFT)
+    second = review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="user_1", expected_status=ResumeVariantStatus.DRAFT)
+    assert first.status is ResumeVariantStatus.REVIEWED
+    assert second == first

@@ -55,8 +55,10 @@ class WorkspaceQuery(Protocol):
 
 
 class ResumeVariantRepository(Protocol):
+    def get(self, variant_id: str): ...
     def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str): ...
     def add(self, *, variant: ResumeVariant, actor_id: str, idempotency_key: str) -> ResumeVariant: ...
+    def update_status(self, variant_id: str, *, actor_id: str, status: ResumeVariantStatus) -> ResumeVariant | None: ...
 
 
 class BuildResumeVariantProposalUseCase:
@@ -117,7 +119,7 @@ class SaveResumeVariantUseCase:
         variant = ResumeVariant(
             variant_id=self._new_id(),
             workspace_id=workspace_id,
-            status=ResumeVariantStatus.REVIEWED,
+            status=ResumeVariantStatus.DRAFT,
             source_profile_id=proposal.source_profile_id,
             source_profile_version=proposal.source_profile_version,
             requirement_extraction_id=proposal.requirement_extraction_id,
@@ -125,3 +127,30 @@ class SaveResumeVariantUseCase:
             created_at=self._now(),
         )
         return self._variants.add(variant=variant, actor_id=actor_id, idempotency_key=idempotency_key)
+
+
+class ReviewResumeVariantUseCase:
+    """Explicit human review transition; generation/save never self-approves a variant."""
+
+    def __init__(self, *, variants: ResumeVariantRepository) -> None:
+        self._variants = variants
+
+    def execute(self, *, workspace_id: str, variant_id: str, actor_id: str, expected_status: ResumeVariantStatus) -> ResumeVariant:
+        variant = self._variants.get(variant_id)
+        if variant is None or variant.workspace_id != workspace_id:
+            raise ResumeVariantBlockedError("resume_variant_not_found")
+        if variant.status is ResumeVariantStatus.REVIEWED:
+            if expected_status not in (ResumeVariantStatus.DRAFT, ResumeVariantStatus.REVIEWED):
+                raise ResumeVariantBlockedError("resume_variant_status_conflict")
+            owned = self._variants.update_status(variant_id, actor_id=actor_id, status=ResumeVariantStatus.REVIEWED)
+            if owned is None:
+                raise ResumeVariantBlockedError("resume_variant_actor_mismatch")
+            return owned
+        if variant.status is not expected_status or variant.status is not ResumeVariantStatus.DRAFT:
+            raise ResumeVariantBlockedError("resume_variant_status_conflict")
+        if not variant.highlights or any(not item.evidence_ids for item in variant.highlights):
+            raise ResumeVariantBlockedError("resume_variant_has_ungrounded_content")
+        reviewed = self._variants.update_status(variant_id, actor_id=actor_id, status=ResumeVariantStatus.REVIEWED)
+        if reviewed is None:
+            raise ResumeVariantBlockedError("resume_variant_actor_mismatch")
+        return reviewed

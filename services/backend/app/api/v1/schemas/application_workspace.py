@@ -12,7 +12,7 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceStatus,
 )
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusCommand
-from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal
+from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
 
@@ -48,6 +48,11 @@ class UpdateApplicationStatusRequest(CamelCaseModel):
 class SaveResumeVariantRequest(CamelCaseModel):
     actor_id: str = Field(min_length=1, max_length=100)
     idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class ReviewResumeVariantRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    expected_status: ResumeVariantStatus = ResumeVariantStatus.DRAFT
 
 
 class ResumeVariantItemResponse(CamelCaseModel):

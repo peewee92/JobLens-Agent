@@ -81,6 +81,11 @@ class SqlAlchemyResumeVariantRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
 
+    def get(self, variant_id: str):
+        with self._session_factory() as session:
+            record = session.get(ResumeVariantORM, variant_id)
+            return _restore_resume_variant(record) if record is not None else None
+
     def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str):
         with self._session_factory() as session:
             record = session.scalar(select(ResumeVariantORM).where(ResumeVariantORM.actor_id == actor_id, ResumeVariantORM.idempotency_key == idempotency_key))
@@ -97,6 +102,15 @@ class SqlAlchemyResumeVariantRepository:
                 created_at=variant.created_at,
             )
             session.add(record)
+            session.flush()
+            return _restore_resume_variant(record)
+
+    def update_status(self, variant_id: str, *, actor_id: str, status):
+        with self._session_factory() as session, session.begin():
+            record = session.get(ResumeVariantORM, variant_id)
+            if record is None or record.actor_id != actor_id:
+                return None
+            record.status = status.value
             session.flush()
             return _restore_resume_variant(record)
 

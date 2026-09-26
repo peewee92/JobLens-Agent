@@ -174,7 +174,7 @@ Application Status
 
 # 6. Resume Variant
 
-> 工程状态（2026-09-27）：A3 第一纵向切片已落地。Workspace 可通过只读 Preparation / Resume Delta 生成 grounded Resume Variant Proposal；只有同时带 `Requirement ID + confirmed Evidence ID` 的 highlight 才能进入可保存内容，missing / unevidenced gap 仅作为 unresolved requirement 返回，禁止伪装成用户经历。Proposal 会与 Workspace 冻结的 Profile version / Requirement Extraction 做 stale 校验；用户显式保存时携带 actor + idempotency key，形成持久化 reviewed Variant。Backend 提供 `GET /api/v1/application-workspaces/{workspace_id}/resume-variant/proposal` 与 `POST /api/v1/application-workspaces/{workspace_id}/resume-variants`；全程 Provider calls=0，不自动写回 Profile。当前切片保存的是 provenance-safe 结构化内容，后续再补用户可编辑简历文案与完整 review lifecycle。
+> 工程状态（2026-09-27）：A3 provenance + human review lifecycle 已落地。Workspace 可通过只读 Preparation / Resume Delta 生成 grounded Resume Variant Proposal；只有同时带 `Requirement ID + confirmed Evidence ID` 的 highlight 才能进入可保存内容，missing / unevidenced gap 仅作为 unresolved requirement 返回，禁止伪装成用户经历。Proposal 会与 Workspace 冻结的 Profile version / Requirement Extraction 做 stale 校验；用户显式保存时携带 actor + idempotency key，先形成 `draft` Variant，系统不得自我批准；只有同一 actor 再显式调用 `POST /api/v1/application-workspaces/{workspace_id}/resume-variants/{variant_id}/review` 才转为 `reviewed`，重复 review 幂等、跨 actor review fail-closed。全程 Provider calls=0，不自动写回 Profile。当前完成的是 provenance-safe 结构化内容与审核状态闭环；自由文案编辑仍不得绕过 Evidence provenance。
 
 ## 6.1 目标
 
