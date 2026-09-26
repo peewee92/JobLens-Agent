@@ -1,8 +1,8 @@
 # P1 Job Search Execution Layer 产品需求文档
 
-- 状态：Planned / vNext 1.2
+- 状态：Active Engineering / vNext 1.2
 - 对应缺口：**4. 真正的“求职执行层”**
-- 前置条件：vNext 1.0 Agent Runtime 完成；vNext 1.1 Natural Language + Bounded Tool Loop 基本稳定
+- 前置条件：vNext 1.0 Agent Runtime 已完成；vNext 1.1 Core Engineering 已完成。v1.1 真实 Provider 模型质量门仍属于独立 Release Promotion HUMAN_GATE，但不阻塞本阶段可离线验证、无外部副作用的工程开发
 - 核心目标：把 JobLens 从“分析和建议系统”推进为“可执行的求职准备工作台”，让 Ranking / Gap / Preparation 的结果能落到 Resume、面试、学习、Evidence 和 Application 状态上
 - 明确边界：第一阶段**不自动投递、不自动联系招聘者**；所有影响用户职业事实或外部世界的动作必须经过人工确认
 - 关联 Runtime PRD：`docs/product/P1-career-agent-langgraph-vnext.md`

@@ -1,9 +1,10 @@
 # JobLens 双电脑 / 多 AI Agent 协作开发方案
 
-- 状态：Active / vNext 1.1
-- 目标：在不破坏里程碑顺序、事实边界和 Git 可审计性的前提下，让两台电脑上的 AI Agent 并行推进 JobLens。
-- 当前主线：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
-- 前置事实：`vNext 1.0 Agent Runtime` 的 LG-0～LG-4 已完成。
+- 状态：Active / vNext 1.2 Engineering + vNext 1.1 Release Promotion
+- 目标：在不破坏事实边界、发布证据和 Git 可审计性的前提下，让工程主线不再被外部 Provider HUMAN_GATE 长期阻塞。
+- 当前工程主线：`vNext 1.2 Job Search Execution Layer`
+- 并行发布泳道：`vNext 1.1 Provider Model Quality Release Promotion`
+- 前置事实：`vNext 1.0 Agent Runtime` 的 LG-0～LG-4 已完成，`vNext 1.1 Core Engineering` 已完成。
 - 当前双电脑具体任务分工与 Agent B 启动说明：`docs/implementation/P1-JobLens-Dual-Agent-Work-Allocation.md`
 
 ---
@@ -21,7 +22,7 @@ vNext 1.1
 → vNext 2.0
 ```
 
-两个 Agent 只在**当前同一个 Milestone 内**拆分职责，禁止一台电脑做 vNext 1.1、另一台电脑提前开发 vNext 1.2 / MCP / Multi-Agent。
+Engineering progression 与 Release promotion 分开管理：Agent A 可以推进当前 `vNext 1.2` 工程主线，Agent B / 人工会话继续收口 `vNext 1.1` Provider 模型质量证据。禁止把未通过的 v1.1 Provider Gate 宣称为发布完成；也禁止 Agent A 提前进入 `vNext 1.3 MCP` 或任何 Multi-Agent 产品架构。
 
 协作目标不是提高 commit 数，而是提高：
 
@@ -45,13 +46,15 @@ Milestone Advancement
                        │
              ┌─────────┴─────────┐
              │                   │
-      Core Builder          Eval / Safety Builder
+ Execution Layer Builder    Eval / Safety Builder
        电脑 A                  电脑 B
              │                   │
- Intent → Tool → Loop      Eval → Guard → Trace
+ Workspace → Execution     v1.1 Provider Gate
+             │                   │
+ Resume / Mock / Action    Eval → Guard → Trace
              └─────────┬─────────┘
                        ↓
-                  Release Gate
+               Integration Owner
 ```
 
 ### 2.1 Integration Owner
@@ -77,31 +80,33 @@ Integration Owner 独占以下类型文件的最终修改权：
 - 根依赖 / lockfile 的最终合并；
 - 跨 Agent 冲突裁决。
 
-### 2.2 电脑 A：Core Builder
+### 2.2 电脑 A：Execution Layer Builder（原 Core Builder）
 
 当前小时自动推进任务归入该泳道。
 
-目标：实现当前 vNext 1.1 的核心产品 / Runtime 能力。
+目标：实现当前 vNext 1.2 的主产品执行层，让 Ranking / Gap / Preparation 真正落到可追踪的求职行动。
 
 严格顺序：
 
 ```text
-A1 CareerIntent Contract
-→ A2 Intent Router
-→ A3 Dynamic coarse-grained Tool Selection
-→ A4 Bounded Multi-turn Tool Loop
-→ A5 Context Budget / Error Classification
-→ A6 PendingAction / Durable HITL integration
+A1 Application Workspace + current fact snapshot
+→ A2 Application Status / Timeline + idempotent write boundary
+→ A3 Resume Variant + provenance + human review/save
+→ A4 Interview / Mock + grounded answer review
+→ A5 Execution ActionItem
+→ A6 Action → Evidence → Re-match / Ranking signal
+→ A7 Next Best Action / Web workspace vertical slice
 ```
 
 职责：
 
-- 定义和实现正式 Runtime Contract；
-- 复用已有 Tool Registry / Workflow，不复制业务能力；
+- 优先交付真实用户价值纵向切片，而不是继续扩大 v1.1 case 数；
+- 复用已有 Requirement / Match / Gap / Preparation / Growth Loop，不复制业务能力；
 - 保持 evidence / ACL / release gate / Human Gate；
+- 写操作必须有 actor / idempotency / stale / conflict 边界；
 - 先失败回归，再实现；
 - 提供 targeted tests；
-- 只做当前 Slice，不提前进入下一 Milestone。
+- 只有稳定可复现的 v1.1 Core bug 才临时回切；v1.2 未形成工程闭环前不进入 v1.3。
 
 默认主要修改区域：
 
@@ -116,7 +121,7 @@ Core Builder 不应主动承担大规模 Eval Dataset 建设，避免同时修�
 
 ### 2.3 电脑 B：Eval / Safety Builder
 
-目标：围绕电脑 A 已冻结或正在冻结的 Contract 建设 Eval、Guard、Bad Case 和 Release Gate。
+当前目标：保持 v1.1 Core handoff freeze，独立收口 Provider 模型质量 Release Promotion；只有真实 Gate 暴露稳定 Core bad case 时才回传 Agent A。不得用持续扩 Dataset 或重复付费 cohort 占用 Agent A 的 v1.2 主线。
 
 严格顺序：
 
@@ -150,7 +155,7 @@ tests/**                            # Eval / guard / trajectory 范围
 
 ---
 
-## 3. vNext 1.1 当前推荐并行节奏
+## 3. vNext 1.1 历史并行节奏（已完成 Core 阶段）
 
 ### Cycle 1
 
@@ -239,7 +244,7 @@ human auto-sign = 0
 vNext 1.1 Release Gate
 ```
 
-只有 Release Gate 满足 PRD DoD 后才允许进入 vNext 1.2。
+以上为 vNext 1.1 Core 阶段的历史节奏。自 2026-09-27 起，Provider Release Gate 继续约束 v1.1 发布声明，但不再阻塞 Agent A 进入 vNext 1.2 的安全工程切片。
 
 ---
 
@@ -546,24 +551,26 @@ ROADMAP
 ### 本机 / 当前小时自动推进
 
 ```text
-角色：Core Builder
-阶段：vNext 1.1
-第一 Slice：CareerIntent Contract + Intent Router
-之后：Tool Selection → Bounded Loop → Context/Error → PendingAction/HITL
+角色：Execution Layer Builder
+阶段：vNext 1.2
+第一 Slice：Application Workspace + current fact snapshot
+之后：Status/Timeline → Resume Variant → Interview/Mock → Action → Evidence → Re-match
+Provider calls：始终 0
 ```
 
 ### 另一台电脑 / 其他 AI Agent
 
 ```text
 角色：Eval / Safety Builder
-第一 Slice：60+ Intent Eval Dataset + Eval Runner
-之后：40+ Tool Selection Eval → Loop Guards → 30+ Trajectory Eval → Release Gate
+阶段：vNext 1.1 Release Promotion
+职责：复用已有 Dataset / Replay / Gate；仅在人工显式 live-cost 授权时执行真实 Provider 质量门
+不得：重复扩 Dataset、反复付费 cohort、改写第二套 Runtime
 ```
 
 ### 项目 Owner / Integration Owner
 
 ```text
-负责：共享基线、合并、冲突裁决、全量验证、ROADMAP、Milestone 切换
+负责：共享基线、合并、冲突裁决、全量验证、ROADMAP、Release Promotion 与 Engineering Milestone 状态
 ```
 
-该分工应持续到 vNext 1.1 Release Gate 关闭；进入 vNext 1.2 后重新按新 Milestone 划分泳道，不默认沿用旧任务。
+该双泳道持续到 v1.1 Release Promotion 与 v1.2 Engineering 各自收口；两者状态独立，不再互相制造假阻塞。

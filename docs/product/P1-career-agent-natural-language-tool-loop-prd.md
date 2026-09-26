@@ -1,8 +1,8 @@
 # P1 Career Agent Natural Language + Bounded Tool Loop 产品需求文档
 
-- 状态：Planned / vNext 1.1
+- 状态：Core Engineering Complete / Provider Release Evidence Pending / vNext 1.1
 - 对应缺口：**2. 自然语言理解 + 多轮 Tool Calling**
-- 前置条件：vNext 1.0 Agent Runtime / Checkpoint / Durable HITL / Trajectory Eval Release Gate 全部通过
+- 前置条件：vNext 1.0 Agent Runtime / Checkpoint / Durable HITL / Trajectory Eval 已完成；真实 Provider 模型质量门属于 v1.1 Release Promotion，不再阻塞 v1.2 工程开发
 - 核心目标：让用户可以用自然语言表达求职目标，由单一 Career Agent 在受治理上下文内动态选择并组合成熟 Workflow，而不是要求调用方提前传入固定 `goal`
 - 关联 Runtime PRD：`docs/product/P1-career-agent-langgraph-vnext.md`
 - 关联 HITL PRD：`docs/product/P1-career-agent-durable-hitl-prd.md`

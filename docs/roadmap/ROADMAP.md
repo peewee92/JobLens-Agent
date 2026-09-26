@@ -74,22 +74,23 @@ vNext 2.0 Continuous Career Agent
 - `NL-8 Release-Gate Blocker Remediation`：**COMPLETE（deterministic blocker remediation）**。Agent B 已在修复后 Core 上完成 Cycle 4 v2 重跑：`Tool empty → clarification`、`invalid params → corrected retry`、`transient error → bounded retry`、`unknown tool → replan`、`stale → terminate` 五类旧 blocker 均产出真实可达轨迹；Trajectory cohort 从 24 扩到 38 条并达到 PRD `>=30`，四个确定性 A 门合计 69 tests 全绿，后端全量 1186 tests 全绿。当前本地 `main` 已 fast-forward 集成 Agent B 线性链至 `d957bc0`，因此 Core 与 Intent / Tool Selection / Loop Guard / Trajectory Gate 不再分叉。该阶段仍保持 Provider 0 / business write 0。
 - `NL-9 Runtime Dispatch + Durable HITL Handoff`：**CORE COMPLETE / EVAL PENDING**。按照既有架构文档 `Natural Language → Career Intent → Dynamic Tool Selection → Workflow Runtime / LangGraph Runtime`，新增 `CareerAgentRuntimeDispatcher`：已解析并再次经过 scope resolver 的 `rank_jobs → review_gaps` 复合 Intent 不在 governed loop 内重造 interrupt，而是直接交给现有 `CareerAgentHitlService`；显式 Job refs 只能缩小 frozen run scope，scope 外 Job 在 Durable Runtime 启动前 fail-closed，且必须提供 thread/run/request identity。其他已支持 Intent 继续走 `CareerAgentGovernedLoopRuntime`，通过 `resolved_intent` seam 避免模型被重复路由，同时仍重新执行 deterministic grounding resolver。真实 SQLite 组合回归已证明 `Ranking → durable interrupt → approve → stale validation → Skill Gap → completed`，并证明 governed loop 未重复执行 Ranking。由此 GAP-6 的 Core 桥接位置已明确并落地；Agent B 下一步需把该 Dispatcher 纳入 Trajectory Gate，将 `Ranking → HITL → Gap` 从 partial 重跑为 covered。GAP-1 `cost action → PendingAction` 仍不得通过伪造收费 Tool 关闭，只能等待真实成熟的 cost-gated Workflow 或产品层明确调整 v1.1 范围。
 - `NL-10 Runtime Deadline Enforcement`：**COMPLETE（deadline boundary）**。PRD 已冻结的 `max_runtime_seconds` 不再只是配置字段：`CareerAgentGovernedLoopRuntime` 现在为每次 Run 建立单一 monotonic deadline，并在每次 Tool attempt（包括 transient retry / corrected retry）开始前检查总运行预算；一旦耗尽，统一返回 `failed/runtime_timeout`、`terminal_reason=runtime_timeout`，不再启动新的 Workflow 调用。该检查复用 NL-9 之后已有的可注入 monotonic clock，不把 wall-clock latency 写入 deterministic trace fingerprint，因此既能形成 P95 latency 基线，也不破坏 Trace replay。当前关闭的是 Runtime 总时限；主动 cancellation 仍需独立生命周期设计，未在本 slice 扩张。
-- 下一主线 Gate：`vNext 1.1 Agent B Provider Model Quality Release Gate`。确定性 Core / Safety Gate 已收敛：GAP-6 已由真实 Durable HITL Trajectory 关闭，主动 cancellation、最小 Chat UI、P95 Runtime floor 也已有工程证据。Integration Owner 已完成 GAP-1 范围裁决：当前 Registry 按 v1.1 产品边界只注册成熟 read-only Workflow，因此 `cost action → PendingAction` 的真实产品轨迹继续如实标记为 blocked，但不再作为当前范围的 Release blocker；不得为了 Eval 伪造收费 Tool，未来首个真实 `provider_compute / business_write / external_action` Workflow 进入 Registry 时必须重新激活该纵向 Gate。当前唯一 Release blocker 是真实 Provider 模型质量门：Intent 60 cases + Tool Selection 44 cases 均需 `>=95%` 且 safety violation=0。2026-09-23 live probe 仍返回 `HTTP 402 INSUFFICIENT_BALANCE`，因此两门准确状态为 `NOT_MEASURED`，vNext 1.1 仍不能标记 COMPLETE，也不进入 vNext 1.2。完整状态见 `docs/implementation/P1-vNext-1.1-Release-Gate-Status.md`。
+- `vNext 1.1 Provider Model Quality Release Gate`：**RELEASE PROMOTION PENDING / ENGINEERING NON-BLOCKING**。确定性 Core / Safety Gate 已收敛：GAP-6 已由真实 Durable HITL Trajectory 关闭，主动 cancellation、最小 Chat UI、P95 Runtime floor 也已有工程证据；当前 Registry 范围内没有新的 Core Runtime blocker。真实 Provider 的 Intent 60 + Tool Selection 44 仍是 v1.1 对外发布与质量声明的必要证据，均需 `>=95%` 且 safety violation=0；没有当前聊天的显式 live-cost 授权时保持 `NOT_MEASURED / HUMAN_GATE`，绝不由自动任务探测或重跑。
+- **工程推进规则自 2026-09-27 起调整**：Engineering progression 与 Release promotion 分离。v1.1 在 Provider B 门未完成前不得标记“发布 COMPLETE”，但这不再阻塞 Agent A 开发下一阶段无外部副作用、可离线验证的主需求。当前 Agent A 工程主线正式切到 `vNext 1.2 Job Search Execution Layer`；Agent B / 人工会话继续持有 v1.1 Provider Release Gate。只有发现能够稳定复现的 v1.1 Core Contract / Runtime 缺陷，Agent A 才回切做最小修复。完整发布状态见 `docs/implementation/P1-vNext-1.1-Release-Gate-Status.md`。
 
-### 当前冻结的四个主要缺口
+### 当前主需求状态
 
-1. **真正的 Agent Runtime**：当前只有 Context Builder / Tool Registry / structured single-turn entrypoint，缺 State / Checkpoint / Conditional Routing / Runtime Control；主 PRD：`docs/product/P1-career-agent-langgraph-vnext.md`。
-2. **自然语言理解 + 多轮 Tool Calling**：必须等 Runtime Release Gate 通过后再接入；PRD：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`。
-3. **Durable Human-in-the-loop**：把 Target Cohort 等人工决策升级为可跨请求恢复、幂等、stale-safe 的 Runtime 状态；PRD：`docs/product/P1-career-agent-durable-hitl-prd.md`。
-4. **求职执行层**：把 Ranking / Gap / Preparation 推进到 Resume Variant、Mock Interview、ActionItem、Application Status，并重新回流 Growth Loop；PRD：`docs/product/P1-job-search-execution-layer-prd.md`。
+1. **Agent Runtime / LangGraph**：**ENGINEERING COMPLETE**。State / Checkpoint / Conditional Routing / Durable HITL / Resume / Runtime Control 已有真实纵向链路；主 PRD：`docs/product/P1-career-agent-langgraph-vnext.md`。
+2. **自然语言理解 + 有界 Tool Calling**：**CORE ENGINEERING COMPLETE / PROVIDER RELEASE EVIDENCE PENDING**。真实 Provider 模型质量门由人工会话负责，不再占用 Agent A 自动开发循环；PRD：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`。
+3. **求职执行层**：**ACTIVE ENGINEERING MILESTONE / vNext 1.2**。按 `Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match → Application Status / Timeline` 推进；PRD：`docs/product/P1-job-search-execution-layer-prd.md`。
+4. **MCP / External Agent Integration**：**PLANNED / vNext 1.3**。只有 v1.2 主需求工程闭环后才进入，不因 v1.1 Provider 人工门提前抢跑。
 
 ### 开发停止规则
 
-- vNext 1.0 完成前，不提前开发自由聊天式 Agent；
-- Durable HITL / stale / idempotency / trajectory eval 未通过前，不允许开放动态多轮 Tool Loop；
-- vNext 1.1 稳定前，不把自动投递、Recruiter Messaging 或其他外部副作用加入 Tool Registry；
-- Multi-Agent 不进入 vNext 1.x；
-- Growth Loop 进入维护态，不再以增加页面分支或 commit 数作为进度。
+- Release Gate 只能阻塞对应版本发布，不得因为外部 Provider、余额、人工付费或人工验收长期阻塞后续可离线验证的工程主线；
+- Agent A 每轮优先选择当前 Active Engineering Milestone 的用户价值纵向切片；只剩人工/付费门时立即绕开，不重复审计同一 case；
+- vNext 1.2 不开放自动投递、Recruiter Messaging 或其他未经过 Human Gate 的外部副作用；
+- Multi-Agent 产品架构不进入 vNext 1.x；
+- Growth Loop 作为 v1.2 的 Action → Evidence → Re-match 回流目标复用，不再以增加页面分支或 commit 数作为进度。
 
 ## 当前真实 Active Milestone（2026-09-03）
 

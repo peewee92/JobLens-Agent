@@ -2,10 +2,11 @@
 
 - 状态：Active
 - 当前本地共享基线：Agent B 确定性 A 门、Durable HITL Dispatch Trajectory 与 Agent A latency/deadline evidence 已收敛到本地 `main`；`origin/main` 仍待 Integration Owner 后续显式同步
-- 当前主线：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
-- 目标：两台电脑并行推进同一 Milestone，但避免重复开发、互相覆盖和跨阶段抢跑。
+- 当前工程主线：`vNext 1.2 Job Search Execution Layer`
+- vNext 1.1 状态：Core Engineering complete；Provider 模型质量 Release Promotion 仍由 Agent B / 人工会话独立收口。
+- 目标：两台电脑按“工程推进”和“发布证据”分泳道并行，避免外部 Provider HUMAN_GATE 阻塞产品主需求。
 - 上位协作方案：`docs/implementation/P1-JobLens-Multi-Agent-Development-Collaboration-Plan.md`
-- 当前阶段 PRD：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`
+- 当前工程 PRD：`docs/product/P1-job-search-execution-layer-prd.md`
 
 ---
 
@@ -17,7 +18,7 @@ Agent B 最新线性候选为 `82c4770 → 1f3029f → e6bd617`。`1f3029f` 已�
 
 Integration Owner 同时完成 GAP-1 范围裁决：当前 v1.1 Registry 有意只注册成熟 read-only Workflow，没有合法的真实 cost-gated Tool；`CareerAgentExecutionGate` 对 `provider_compute / business_write / external_action → PendingAction` 的 fail-closed 机制已有回归证明。因此 GAP-1 继续如实保留为“当前产品 Registry 无真实可达轨迹”，但不再作为 v1.1 当前产品范围的 Release blocker，也不得通过伪造收费 Tool 来关闭。未来第一个真实 cost-gated Workflow 进入 Registry 时必须重新激活该纵向 Trajectory Gate。
 
-当前 vNext 1.1 只剩真实模型质量门：Intent 60 + Tool Selection 44 均达到 `>=95%`，且 safety violation=0。通过前 Agent A 继续 Core handoff freeze，不扩 Runtime、不抢 Eval、不进入 vNext 1.2。完整证据见 `docs/implementation/P1-vNext-1.1-Release-Gate-Status.md`。
+当前 vNext 1.1 只剩真实模型质量 **Release Promotion**：Intent 60 + Tool Selection 44 均达到 `>=95%`，且 safety violation=0。该门继续由 Agent B / 人工会话在显式 live-cost 授权下收口；没有授权时 Provider calls 必须为 0。自 2026-09-27 起，它不再阻塞 Agent A 的工程主线：Agent A 转入 vNext 1.2，只有真实 Gate 暴露稳定可复现的 Core Contract / Runtime bad case 时才临时回切。完整证据见 `docs/implementation/P1-vNext-1.1-Release-Gate-Status.md`。
 
 ---
 
@@ -47,7 +48,7 @@ Agent B 已把 Dispatcher 纳入 Trajectory Gate，并以真实 SQLite durable p
 
 Agent A 随后补齐 Release Gate 所需的 Runtime 可观测、总时限与主动取消 seam：`CareerAgentGovernedLoopResult` 暴露总 `runtime_latency_ms` 与统一 `terminal_reason`，计时使用可注入 monotonic clock，并刻意不进入 deterministic trace fingerprint；`max_runtime_seconds` 建立单一 deadline，在每次 Tool attempt（含 retry/replan 后的下一次执行）开始前强制检查，耗尽即 `failed/runtime_timeout`；调用方还可注入 `CareerAgentCancellationSignal`，Runtime 在每个 Tool attempt 前检查取消状态，取消后统一进入 `cancelled/run_cancelled`，既不会启动尚未执行的下一 Tool，也不会在 transient failure 后继续 retry。取消信号只负责控制执行边界，不耦合 HTTP/数据库或复制 Durable Runtime 状态。因此 Agent B 可以直接聚合 P95 Tool Loop latency 基线，也能验证 timeout/cancellation 不被绕过。
 
-Agent A 的最小 Chat UI 也已在既有 `/agent` Durable HITL 页面收口为受治理对话视图：同一入口显式展示“用户请求 / 当前计划 / 执行状态 / Human approval / grounded result / 查看依据”，继续复用已经验证的 Ranking → Durable HITL → Skill Gap HTTP 路径与恢复语义，不复制业务 Workflow。由于生产级自然语言 Intent Provider 仍处于 Agent B Release Gate，本 slice 明确不增加会被误解为已上线自由文本理解的输入框，也不伪造模型路由；等 Provider B 门通过后，再把真实自然语言输入接到已冻结的 Intent/Dispatcher contract。剩余 vNext 1.1 Gate 集中为：1) Provider B 门的 Intent / Tool Selection 模型层准确率（目标 >=95%）；2) Agent B 基于真实运行样本产出 P95 latency 基线并解释；3) Integration Owner 对 GAP-1 当前 Registry 范围作最终 Release Gate 裁决。Agent A 不因这些剩余项提前进入 vNext 1.2。
+Agent A 的最小 Chat UI 也已在既有 `/agent` Durable HITL 页面收口为受治理对话视图：同一入口显式展示“用户请求 / 当前计划 / 执行状态 / Human approval / grounded result / 查看依据”，继续复用已经验证的 Ranking → Durable HITL → Skill Gap HTTP 路径与恢复语义，不复制业务 Workflow。生产级自然语言 Intent Provider 仍处于 Agent B Release Promotion，因此自由文本入口继续保持 fail-closed，不伪造模型路由；但这一发布证据不再冻结整个工程主线。Agent A 从 2026-09-27 起进入 vNext 1.2 Execution Layer，优先完成 Application Workspace 等不依赖真实 Provider 的产品能力；只有稳定 Core bad case 才回切 v1.1。
 
 ---
 
@@ -64,7 +65,7 @@ vNext 1.1 Natural Language + Bounded Tool Calling
 → vNext 2.0 Continuous Career Agent
 ```
 
-当前两台电脑只允许在 `vNext 1.1` 内并行。
+当前允许两条受控泳道并行：Agent A 推进 `vNext 1.2` 工程主线；Agent B / 人工会话收口 `vNext 1.1` Provider Release Promotion。v1.1 未通过真实模型质量门之前不得宣称其发布完成，但不得因此阻塞 v1.2 的离线、安全工程切片。
 
 禁止：
 
@@ -87,69 +88,56 @@ vNext 1.1 Natural Language + Bounded Tool Calling
 
 ## 2.1 角色
 
-**Core Builder**
+**Execution Layer Builder（原 Core Builder）**
 
-负责 vNext 1.1 的核心产品能力与 Runtime 主实现。
+vNext 1.1 Core 已进入 handoff freeze 后，Agent A 负责 vNext 1.2 的主产品执行层实现；若 v1.1 Release Gate 暴露稳定 Core bug，再临时回切最小修复。
 
-当前每小时 `JobLens 里程碑主线推进` 自动任务归属于 Agent A。
+当前每小时 `JobLens 里程碑主线推进` 自动任务归属于 Agent A，默认不得再把 Provider case 审计、重复 Gate 复核或新增 Eval Dataset 当作主任务。
 
 ---
 
 ## 2.2 严格开发顺序
 
-Agent A 只能按下面顺序推进：
+Agent A 当前按 vNext 1.2 主需求推进：
 
 ```text
-A1 CareerIntent Contract
-→ A2 Intent Router
-→ A3 Grounded Entity Resolution / Clarification / Unsupported Request
-→ A4 Dynamic coarse-grained Tool Selection
-→ A5 Bounded Multi-turn Tool Loop
-→ A6 Context Budget / Error Classification
-→ A7 PendingAction / Cost / Durable HITL Integration
+A1 Application Workspace + current fact snapshot
+→ A2 Application Status / Timeline + idempotent write boundary
+→ A3 Resume Variant + provenance + human review/save
+→ A4 Interview / Mock + grounded answer review
+→ A5 Execution ActionItem
+→ A6 Action → Evidence Proposal → Human Confirm → Re-match / Ranking signal
+→ A7 Next Best Action / Web workspace vertical slice
 ```
 
-在前一个 Slice 未达到可验证完成标准前，不进入下一个 Slice。
+每一步必须形成真实可运行纵向切片，不允许退回“大量 case / 低价值重构”代替产品能力。在前一个 Slice 未达到可验证完成标准前，不进入下一个 Slice。
 
 ---
 
 ## 2.3 当前第一任务
 
-当前 Agent A 第一任务固定为：
+当前 Agent A 第一任务固定为 **vNext 1.2-A Application Workspace**：
 
 ```text
-CareerIntent Contract
-+ Intent Router
-+ Grounded Job Reference Resolution
-+ Clarification / Unsupported Request Contract
+选择一个 current Job
+→ 校验 Requirement Release + current MatchReport
+→ 创建 Application Workspace
+→ 冻结 current fact snapshot
+→ 读取 Workspace Overview
 ```
 
 对应 PRD：
 
-`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`
+`docs/product/P1-job-search-execution-layer-prd.md`
 
-需要实现的正式结构至少覆盖：
+第一切片至少覆盖：`workspace_id / job_id / status / profile_id+version / search_intent_id+version / requirement_extraction_id / match_report_id / created_at / updated_at`，并满足：
 
-```text
-CareerIntent
-├── goals[]
-├── referenced_job_ids[]
-├── current_job_required
-├── needs_clarification
-├── clarification_question
-├── unsupported_request
-├── confidence
-└── reasoning_summary
-```
-
-必须遵守：
-
-- 不保存 Chain of Thought；
-- `reasoning_summary` 只允许短的可审计理由；
-- Job 引用只能来自显式 Job ID、current job、当前 Run scope；
-- 不允许根据模糊岗位标题猜 Job；
-- 不支持的自动投递/联系 HR/绕过人工门禁必须 structured reject；
-- 不自动写 Profile/UserFeedback/Requirement/MatchReport；
+- Job / Requirement Release / current MatchReport 任一不 ready 时 fail-closed，不自动补跑 Provider；
+- 同一幂等请求不得重复创建 Workspace；
+- snapshot 用于后续 stale 检测，不静默漂移；
+- 创建属于业务写入，必须保留显式 actor / idempotency / conflict 边界；
+- 不自动投递、不自动改 application status、不编造职业事实；
+- Provider calls = 0；
 - 不引入 Multi-Agent。
 
 ---

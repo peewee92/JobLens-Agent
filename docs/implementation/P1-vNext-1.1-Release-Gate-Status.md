@@ -3,7 +3,7 @@
 - Milestone：`vNext 1.1 Natural Language + Bounded Multi-turn Tool Calling`
 - 状态：`RELEASE_CANDIDATE / PROVIDER_QUALITY_BLOCKED`
 - 日期：2026-09-23
-- Integration Owner 结论：确定性 Runtime / Safety Gate 已满足当前产品范围；真实模型质量门尚未测量通过，因此 **vNext 1.1 不能标记 COMPLETE，也不能进入 vNext 1.2**。
+- Integration Owner 结论：确定性 Runtime / Safety Gate 已满足当前产品范围；真实模型质量门尚未测量通过，因此 **vNext 1.1 不能标记为发布 COMPLETE**。自 2026-09-27 起，Engineering progression 与 Release promotion 分离：该人工付费质量门继续阻塞 v1.1 的发布声明，但**不再阻塞 Agent A 推进 vNext 1.2 的无外部副作用工程主线**。
 
 ## 1. 当前集成候选
 
@@ -208,28 +208,28 @@ Provider Eval 现改为：
 
 完整复盘与操作 SOP：`docs/implementation/P1-Provider-Eval-Cost-Budget-Canary-Replay-Cache-Retrospective.md`。
 
-## 7. vNext 1.1 Remaining Criteria
+## 7. vNext 1.1 Remaining Release Criteria
 
-当前只剩：
+当前只剩发布证据：
 
-1. Provider 余额恢复；
-2. 人工显式授权一个受成本预算保护的 Prompt v2 Canary；
-3. Canary 稳定后执行真实 Intent 60-case Gate；
-4. Intent 达到 `>=95%` 且 safety violation = 0 后，再执行 Tool Selection 44-case Gate；
-5. 两门均达到 `>=95%` 且 safety violation = 0；
-6. 若真实 Gate 暴露 Core Contract / Runtime bad case，交 Agent A 做“失败回归 → 最小修复 → targeted regression”；
-7. 两门通过后由 Integration Owner 更新 ROADMAP，将 vNext 1.1 标记 COMPLETE，并才允许切换到 vNext 1.2。
+1. 人工会话在明确 live-cost 授权后执行受成本预算保护的 Prompt / Model Canary；
+2. Canary 稳定后执行真实 Intent 60-case Gate；
+3. Intent 达到 `>=95%` 且 safety violation = 0 后，再执行 Tool Selection 44-case Gate；
+4. 两门均达到 `>=95%` 且 safety violation = 0；
+5. 若真实 Gate 暴露稳定可复现的 Core Contract / Runtime bad case，Agent A 临时回切做“失败回归 → 最小修复 → targeted regression”；
+6. 两门通过后由 Integration Owner 更新本文件与 ROADMAP，将 vNext 1.1 的 **Release Promotion** 标记 COMPLETE。
+
+这些条件不再是 vNext 1.2 工程开发的前置条件。Agent A 当前 Active Engineering Milestone 已切到 `vNext 1.2 Job Search Execution Layer`；v1.1 Provider Gate 由 Agent B / 人工会话独立收口。
 
 ## 8. 当前停止规则
 
 在 Provider 余额不足或没有当轮人工 live-cost 授权时：
 
 - 自动任务 Provider calls 必须为 0；
-- 不每小时重复跑 probe 或 104-case cohort；
-- 不继续扩 Runtime；
-- 不新增 Eval Dataset；
-- 不伪造 PASS；
-- 不进入 vNext 1.2；
+- 不每小时重复跑 probe、Canary 或 104-case cohort；
+- 不继续扩 v1.1 Runtime，不新增 v1.1 Eval Dataset，不伪造 PASS；
+- **不要停住整个项目**：Agent A 继续推进 `vNext 1.2 Job Search Execution Layer` 的可离线验证纵向切片；
+- 只有 v1.2 切片真正依赖未通过的 v1.1 Provider 能力时，才在该具体入口保持 fail-closed，而不是回头重复做模型 case；
 - 不用低价值重构制造 commit。
 
-下一次真实 Provider 质量测量必须先从受预算保护的 Canary 开始；只有 Canary 表明 Prompt/Model 已明显收敛后，才值得执行完整 60 + 44 Release Gate。
+下一次真实 Provider 质量测量只在人工会话显式授权时进行，并先使用受预算保护的 Canary；它与每小时工程自动推进解耦。

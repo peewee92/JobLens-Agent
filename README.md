@@ -517,13 +517,15 @@ Do **not** spend the month completing a generic Python backend course before tou
 
 Near-term public-project priorities, in execution order:
 
-- [ ] `LG-0`: isolate an `AgentRuntime` boundary without changing current behavior;
-- [ ] `LG-1`: implement `Ranking → Target Cohort → HITL → Resume → Skill Gap` with LangGraph State / Checkpoint;
-- [ ] `LG-2`: add explicit error classes, bounded retry, cancellation and runtime limits;
-- [ ] `LG-4`: freeze 20+ deterministic trajectory eval cases and a runtime release gate;
-- [ ] only then add natural-language Career Agent routing / bounded multi-turn tool replay;
-- [ ] JobLens MCP Server / external agent integration;
+- [x] `vNext 1.0 / LG-0～LG-4`: LangGraph Runtime、State / Checkpoint、Durable HITL / Resume、Trajectory Eval 与最小 Web 纵向切片已经落地；
+- [x] `vNext 1.1 Core`: Natural-language Intent Contract、Dynamic Tool Selection、Bounded Tool Loop、Context / Error、PendingAction、Runtime Dispatch、timeout / cancellation 已形成工程闭环；
+- [ ] `vNext 1.1 Release Evidence`: 真实 Provider 的 Intent 60 + Tool Selection 44 模型质量证据仍待人工付费会话完成；这是发布门，不再阻塞后续无副作用工程开发；
+- [ ] **当前工程主线：`vNext 1.2 Job Search Execution Layer`**：`Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match`；
+- [ ] `vNext 1.3`: JobLens MCP Server / external agent integration；
+- [ ] `vNext 2.0`: Continuous Career Agent / proactive refresh / long-term plan；
 - [ ] concise demo video and reproducible public sample dataset.
+
+Engineering progression 与 release promotion 分开管理：外部 Provider、人工付费或人工验收可以阻塞对应版本发布，但不能让后续可离线验证、无外部副作用的主需求工程长期停摆。
 
 The detailed engineering history remains in `docs/`; the README intentionally focuses on the product, architecture and verifiable engineering evidence rather than internal phase numbering.
 
