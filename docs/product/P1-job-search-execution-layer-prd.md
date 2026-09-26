@@ -240,6 +240,8 @@ Job Requirement ID(s)
 
 # 7. Interview / Mock
 
+> 工程状态（2026-09-27）：A4 第一纵向切片已落地。Application Workspace 可直接复用 released Requirement + current Interview Facts 生成确定性练习问题集，不重新读取 raw JD、不调用 Provider；每道题只暴露该 Requirement 已确认的 Evidence ID。用户提交回答时显式附带自己实际使用的 Evidence ID，Review 只接受属于该 Requirement 的 confirmed Evidence，跨 Requirement / 不存在的 Evidence 会标记为 ungrounded 并要求 Retry。当前 Review 有意不对自由文本做“语义打分”，因此不会伪造 STAR 完整度、事实一致性或录用概率；后续若引入模型反馈，必须继续受 Provider/Human Gate 与 provenance 约束。
+
 ## 7.1 目标
 
 把当前 Interview Facts 从“准备项列表”升级为可执行练习。

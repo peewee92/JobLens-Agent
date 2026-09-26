@@ -12,6 +12,10 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceStatus,
 )
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusCommand
+from app.application.application_workspace.interview_mock import (
+    InterviewAnswerReview,
+    InterviewMockQuestionSet,
+)
 from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
@@ -99,6 +103,80 @@ class ResumeVariantResponse(CamelCaseModel):
             requirement_extraction_id=variant.requirement_extraction_id,
             highlights=[ResumeVariantItemResponse(requirement_id=item.requirement_id, capability=item.capability, evidence_ids=list(item.evidence_ids)) for item in variant.highlights],
             created_at=variant.created_at,
+        )
+
+
+class ReviewInterviewMockAnswerRequest(CamelCaseModel):
+    answer_text: str = Field(min_length=1, max_length=12000)
+    evidence_ids: list[str] = Field(default_factory=list, max_length=50)
+
+
+class InterviewMockQuestionResponse(CamelCaseModel):
+    question_id: str
+    requirement_id: str
+    requirement_text: str
+    preparation_priority: str
+    evidence_status: str
+    allowed_evidence_ids: list[str]
+    prompt: str
+
+
+class InterviewMockQuestionSetResponse(CamelCaseModel):
+    workspace_id: str
+    job_id: str
+    source_profile_id: str
+    source_profile_version: int
+    requirement_extraction_id: str
+    questions: list[InterviewMockQuestionResponse]
+
+    @classmethod
+    def from_model(cls, question_set: InterviewMockQuestionSet) -> "InterviewMockQuestionSetResponse":
+        return cls(
+            workspace_id=question_set.workspace_id,
+            job_id=question_set.job_id,
+            source_profile_id=question_set.source_profile_id,
+            source_profile_version=question_set.source_profile_version,
+            requirement_extraction_id=question_set.requirement_extraction_id,
+            questions=[
+                InterviewMockQuestionResponse(
+                    question_id=item.question_id,
+                    requirement_id=item.requirement_id,
+                    requirement_text=item.requirement_text,
+                    preparation_priority=item.preparation_priority,
+                    evidence_status=item.evidence_status,
+                    allowed_evidence_ids=list(item.allowed_evidence_ids),
+                    prompt=item.prompt,
+                )
+                for item in question_set.questions
+            ],
+        )
+
+
+class InterviewAnswerReviewResponse(CamelCaseModel):
+    workspace_id: str
+    question_id: str
+    requirement_id: str
+    grounding_status: str
+    accepted_evidence_ids: list[str]
+    rejected_evidence_ids: list[str]
+    feedback: list[str]
+    retry_recommended: bool
+    provider_calls: int
+    db_writes: int
+
+    @classmethod
+    def from_model(cls, review: InterviewAnswerReview) -> "InterviewAnswerReviewResponse":
+        return cls(
+            workspace_id=review.workspace_id,
+            question_id=review.question_id,
+            requirement_id=review.requirement_id,
+            grounding_status=review.grounding_status.value,
+            accepted_evidence_ids=list(review.accepted_evidence_ids),
+            rejected_evidence_ids=list(review.rejected_evidence_ids),
+            feedback=list(review.feedback),
+            retry_recommended=review.retry_recommended,
+            provider_calls=review.provider_calls,
+            db_writes=review.db_writes,
         )
 
 

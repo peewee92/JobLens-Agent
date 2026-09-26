@@ -9,6 +9,8 @@ from app.api.deps import (
     get_application_timeline_repository,
     get_application_workspace_repository,
     get_create_application_workspace_use_case,
+    get_interview_mock_question_set_use_case,
+    get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
     get_review_resume_variant_use_case,
     get_save_resume_variant_use_case,
@@ -18,11 +20,19 @@ from app.api.v1.schemas.application_workspace import (
     ApplicationTimelineEventResponse,
     ApplicationWorkspaceResponse,
     CreateApplicationWorkspaceRequest,
+    InterviewAnswerReviewResponse,
+    InterviewMockQuestionSetResponse,
+    ReviewInterviewMockAnswerRequest,
     UpdateApplicationStatusRequest,
     ResumeVariantProposalResponse,
     ResumeVariantResponse,
     ReviewResumeVariantRequest,
     SaveResumeVariantRequest,
+)
+from app.application.application_workspace.interview_mock import (
+    BuildInterviewMockQuestionSetUseCase,
+    InterviewMockBlockedError,
+    ReviewInterviewMockAnswerUseCase,
 )
 from app.application.application_workspace.resume_variant import (
     BuildResumeVariantProposalUseCase,
@@ -81,6 +91,49 @@ def update_application_status(
         )
         raise HTTPException(status_code=status_code, detail=detail) from error
     return ApplicationWorkspaceResponse.from_model(result.workspace)
+
+
+@router.get("/{workspace_id}/interview/questions", response_model=InterviewMockQuestionSetResponse)
+def get_interview_mock_questions(
+    workspace_id: str,
+    use_case: Annotated[
+        BuildInterviewMockQuestionSetUseCase,
+        Depends(get_interview_mock_question_set_use_case),
+    ],
+) -> InterviewMockQuestionSetResponse:
+    try:
+        return InterviewMockQuestionSetResponse.from_model(use_case.execute(workspace_id))
+    except InterviewMockBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+
+
+@router.post(
+    "/{workspace_id}/interview/questions/{question_id}/review",
+    response_model=InterviewAnswerReviewResponse,
+)
+def review_interview_mock_answer(
+    workspace_id: str,
+    question_id: str,
+    request: ReviewInterviewMockAnswerRequest,
+    use_case: Annotated[
+        ReviewInterviewMockAnswerUseCase,
+        Depends(get_review_interview_mock_answer_use_case),
+    ],
+) -> InterviewAnswerReviewResponse:
+    try:
+        review = use_case.execute(
+            workspace_id=workspace_id,
+            question_id=question_id,
+            answer_text=request.answer_text,
+            evidence_ids=tuple(request.evidence_ids),
+        )
+    except InterviewMockBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail in {"application_workspace_not_found", "interview_question_not_found"} else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return InterviewAnswerReviewResponse.from_model(review)
 
 
 @router.get("/{workspace_id}/resume-variant/proposal", response_model=ResumeVariantProposalResponse)

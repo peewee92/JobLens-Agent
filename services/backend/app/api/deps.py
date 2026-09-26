@@ -13,6 +13,10 @@ from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
+from app.application.application_workspace.interview_mock import (
+    BuildInterviewMockQuestionSetUseCase,
+    ReviewInterviewMockAnswerUseCase,
+)
 from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, ReviewResumeVariantUseCase, SaveResumeVariantUseCase
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
@@ -757,6 +761,19 @@ def get_update_application_status_use_case(
 
 def get_resume_variant_repository() -> SqlAlchemyResumeVariantRepository:
     return SqlAlchemyResumeVariantRepository(SessionLocal)
+
+
+def get_interview_mock_question_set_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+) -> BuildInterviewMockQuestionSetUseCase:
+    return BuildInterviewMockQuestionSetUseCase(workspaces=workspaces, preparation=preparation)
+
+
+def get_review_interview_mock_answer_use_case(
+    question_sets: BuildInterviewMockQuestionSetUseCase = Depends(get_interview_mock_question_set_use_case),
+) -> ReviewInterviewMockAnswerUseCase:
+    return ReviewInterviewMockAnswerUseCase(question_sets=question_sets)
 
 
 def get_resume_variant_proposal_use_case(
