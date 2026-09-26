@@ -12,6 +12,7 @@ from app.agent.graph.hitl_service import CareerAgentHitlService
 from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
+from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
 )
@@ -124,12 +125,16 @@ from app.application.ports import (
     AbstractUnitOfWork,
 )
 from app.core.config import get_settings
+from app.db.models.common import new_application_workspace_id, utc_now
 from app.db.session import SessionLocal, engine
 from app.document_parsers import ResumeDocumentParser
 from app.llm import (
     build_job_requirement_extractor,
     build_profile_extractor,
     build_semantic_matcher,
+)
+from app.repositories.sqlalchemy_application_workspace_repository import (
+    SqlAlchemyApplicationWorkspaceRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
     SqlAlchemyJobRequirementReleaseQueryRepository,
@@ -715,6 +720,34 @@ def get_match_report_use_case(
 
 def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
     return SqlAlchemyMatchReportQueryRepository(SessionLocal)
+
+
+def get_application_workspace_repository() -> SqlAlchemyApplicationWorkspaceRepository:
+    return SqlAlchemyApplicationWorkspaceRepository(SessionLocal)
+
+
+def get_create_application_workspace_use_case(
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    requirement_gate: GetJobRequirementReleaseReadinessUseCase = Depends(
+        get_mvp_job_requirement_release_readiness_use_case
+    ),
+    match_reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(
+        get_application_workspace_repository
+    ),
+) -> CreateApplicationWorkspaceUseCase:
+    return CreateApplicationWorkspaceUseCase(
+        career_context=career_context,
+        requirement_gate=requirement_gate,
+        match_reports=match_reports,
+        workspaces=workspaces,
+        now=utc_now,
+        new_id=new_application_workspace_id,
+    )
 
 
 def get_match_improvement_use_case(

@@ -1,0 +1,33 @@
+"""Persistent Application Workspace snapshots."""
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import Index, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+from app.db.models.common import utc_now
+
+
+class ApplicationWorkspaceORM(Base):
+    __tablename__ = "application_workspaces"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_application_workspace_actor_idempotency"),
+        Index("ix_application_workspaces_job_updated", "job_id", "updated_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    job_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    profile_version: Mapped[int] = mapped_column(nullable=False)
+    search_intent_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    search_intent_version: Mapped[int] = mapped_column(nullable=False)
+    requirement_extraction_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_report_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    current_fact_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)

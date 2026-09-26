@@ -111,6 +111,8 @@ profile_id + version
 
 # 5. Application Workspace
 
+> 工程状态（2026-09-27）：A1 第一纵向切片已落地。Backend 提供 `POST /api/v1/application-workspaces` 与 `GET /api/v1/application-workspaces/{workspace_id}`；创建前只读取已经 released 的 Requirement、current Profile/SearchIntent 与 current MatchReport，任一事实不 ready 或 Match 身份 stale 都 fail-closed，不触发 Provider。创建请求显式携带 actor 与 idempotency key，并冻结 source snapshot + current fact fingerprint；同一 actor/idempotency key 重放返回原 Workspace，冲突 Job 拒绝。持久化采用 additive `application_workspaces` migration，尚未自动迁移用户真实数据库。
+
 ## 5.1 目标
 
 为一个岗位建立单一执行上下文。

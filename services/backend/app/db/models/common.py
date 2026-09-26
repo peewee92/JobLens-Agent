@@ -23,6 +23,10 @@ def new_job_id() -> str:
     return new_prefixed_id("job")
 
 
+def new_application_workspace_id() -> str:
+    return new_prefixed_id("appws")
+
+
 def new_job_source_id() -> str:
     return new_prefixed_id("src")
 
