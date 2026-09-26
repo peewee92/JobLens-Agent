@@ -12,6 +12,7 @@ from app.agent.graph.hitl_service import CareerAgentHitlService
 from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
+from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
@@ -125,7 +126,11 @@ from app.application.ports import (
     AbstractUnitOfWork,
 )
 from app.core.config import get_settings
-from app.db.models.common import new_application_workspace_id, utc_now
+from app.db.models.common import (
+    new_application_timeline_event_id,
+    new_application_workspace_id,
+    utc_now,
+)
 from app.db.session import SessionLocal, engine
 from app.document_parsers import ResumeDocumentParser
 from app.llm import (
@@ -134,6 +139,7 @@ from app.llm import (
     build_semantic_matcher,
 )
 from app.repositories.sqlalchemy_application_workspace_repository import (
+    SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
@@ -724,6 +730,26 @@ def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
 
 def get_application_workspace_repository() -> SqlAlchemyApplicationWorkspaceRepository:
     return SqlAlchemyApplicationWorkspaceRepository(SessionLocal)
+
+
+def get_application_timeline_repository() -> SqlAlchemyApplicationTimelineRepository:
+    return SqlAlchemyApplicationTimelineRepository(SessionLocal)
+
+
+def get_update_application_status_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(
+        get_application_workspace_repository
+    ),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(
+        get_application_timeline_repository
+    ),
+) -> UpdateApplicationStatusUseCase:
+    return UpdateApplicationStatusUseCase(
+        workspaces=workspaces,
+        timeline=timeline,
+        now=utc_now,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_create_application_workspace_use_case(

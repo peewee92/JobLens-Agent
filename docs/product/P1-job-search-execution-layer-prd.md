@@ -360,6 +360,8 @@ Action Complete
 
 # 9. Application Status / Timeline
 
+> 工程状态（2026-09-27）：A2 第一纵向切片已落地。用户可通过显式 actor + idempotency key + expected status 更新 Workspace 状态，stale expected status 会以 conflict fail-closed；每次成功变更生成不可变 `status_changed` Timeline Event，可按 Workspace 读取。第一阶段仍不允许 Agent 根据聊天自动写状态，也未接入任何外部招聘网站事件。
+
 ## 9.1 目标
 
 让用户记录真实求职进度，而不是自动猜测。

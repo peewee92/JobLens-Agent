@@ -38,8 +38,30 @@ def upgrade() -> None:
         ["job_id", "updated_at"],
         unique=False,
     )
+    op.create_table(
+        "application_timeline_events",
+        sa.Column("id", sa.String(length=100), nullable=False),
+        sa.Column("workspace_id", sa.String(length=100), nullable=False),
+        sa.Column("actor_id", sa.String(length=100), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=160), nullable=False),
+        sa.Column("event_type", sa.String(length=50), nullable=False),
+        sa.Column("from_status", sa.String(length=30), nullable=True),
+        sa.Column("to_status", sa.String(length=30), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["application_workspaces.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("actor_id", "idempotency_key", name="uq_application_timeline_actor_idempotency"),
+    )
+    op.create_index(
+        "ix_application_timeline_workspace_created",
+        "application_timeline_events",
+        ["workspace_id", "created_at"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_application_timeline_workspace_created", table_name="application_timeline_events")
+    op.drop_table("application_timeline_events")
     op.drop_index("ix_application_workspaces_job_updated", table_name="application_workspaces")
     op.drop_table("application_workspaces")

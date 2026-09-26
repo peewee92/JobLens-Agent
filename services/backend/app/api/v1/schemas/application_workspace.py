@@ -6,7 +6,12 @@ from datetime import datetime
 from pydantic import Field
 
 from app.api.v1.schemas.common import CamelCaseModel
-from app.application.application_workspace.models import ApplicationWorkspace
+from app.application.application_workspace.models import (
+    ApplicationTimelineEvent,
+    ApplicationWorkspace,
+    ApplicationWorkspaceStatus,
+)
+from app.application.application_workspace.status_use_case import UpdateApplicationStatusCommand
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
 
@@ -20,6 +25,44 @@ class CreateApplicationWorkspaceRequest(CamelCaseModel):
             job_id=self.job_id,
             actor_id=self.actor_id,
             idempotency_key=self.idempotency_key,
+        )
+
+
+class UpdateApplicationStatusRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+    expected_status: ApplicationWorkspaceStatus
+    new_status: ApplicationWorkspaceStatus
+
+    def to_command(self, workspace_id: str) -> UpdateApplicationStatusCommand:
+        return UpdateApplicationStatusCommand(
+            workspace_id=workspace_id,
+            actor_id=self.actor_id,
+            idempotency_key=self.idempotency_key,
+            expected_status=self.expected_status,
+            new_status=self.new_status,
+        )
+
+
+class ApplicationTimelineEventResponse(CamelCaseModel):
+    event_id: str
+    workspace_id: str
+    actor_id: str
+    event_type: str
+    from_status: str | None
+    to_status: str | None
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, event: ApplicationTimelineEvent) -> "ApplicationTimelineEventResponse":
+        return cls(
+            event_id=event.event_id,
+            workspace_id=event.workspace_id,
+            actor_id=event.actor_id,
+            event_type=event.event_type.value,
+            from_status=event.from_status.value if event.from_status is not None else None,
+            to_status=event.to_status.value if event.to_status is not None else None,
+            created_at=event.created_at,
         )
 
 
