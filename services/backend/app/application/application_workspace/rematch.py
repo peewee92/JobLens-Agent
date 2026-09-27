@@ -127,7 +127,9 @@ class RunApplicationRematchUseCase:
             current = self._find_current_report(workspace, proposal.confirmed_profile_version)
             if current is None:
                 raise ApplicationRematchBlockedError("application_rematch_result_missing")
-            return self._result(workspace, proposal_id, proposal.source_requirement_ids, current)
+            result = self._result(workspace, proposal_id, proposal.source_requirement_ids, current)
+            self._ensure_ranking_timeline(result, actor_id=actor_id, idempotency_key=idempotency_key)
+            return result
 
         eligibility = self._eligibility.execute(workspace.job_id)
         if eligibility.profile_version != proposal.confirmed_profile_version:
@@ -159,7 +161,31 @@ class RunApplicationRematchUseCase:
             to_status=None,
             created_at=self._now(),
         ))
+        self._ensure_ranking_timeline(result, actor_id=actor_id, idempotency_key=idempotency_key)
         return result
+
+    def _ensure_ranking_timeline(self, result: ApplicationRematchResult, *, actor_id: str, idempotency_key: str) -> None:
+        if result.ranking_signal is RematchRankingSignal.UNCHANGED:
+            return
+        ranking_key = f"{idempotency_key}:ranking"
+        existing = self._timeline.get_by_actor_and_idempotency_key(actor_id, ranking_key)
+        if existing is not None:
+            if (
+                existing.workspace_id != result.workspace_id
+                or existing.event_type is not ApplicationTimelineEventType.RANKING_CHANGED
+            ):
+                raise ApplicationRematchBlockedError("application_rematch_ranking_timeline_conflict")
+            return
+        self._timeline.add(ApplicationTimelineEvent(
+            event_id=self._new_event_id(),
+            workspace_id=result.workspace_id,
+            actor_id=actor_id,
+            idempotency_key=ranking_key,
+            event_type=ApplicationTimelineEventType.RANKING_CHANGED,
+            from_status=None,
+            to_status=None,
+            created_at=self._now(),
+        ))
 
     def _find_current_report(self, workspace: ApplicationWorkspace, profile_version: int) -> StoredMatchReport | None:
         return next((

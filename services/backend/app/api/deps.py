@@ -819,13 +819,16 @@ def get_confirm_evidence_proposal_use_case(
     proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
     profiles: AbstractCareerContextQueryRepository = Depends(get_career_context_query_repository),
     save_profile: SaveProfileUseCase = Depends(get_save_profile_use_case),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
 ) -> ConfirmEvidenceProposalUseCase:
     return ConfirmEvidenceProposalUseCase(
         workspaces=workspaces,
         proposals=proposals,
         profiles=profiles,
         save_profile=save_profile,
+        timeline=timeline,
         now=utc_now,
+        new_event_id=new_application_timeline_event_id,
     )
 
 

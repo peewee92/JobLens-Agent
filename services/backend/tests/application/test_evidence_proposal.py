@@ -4,7 +4,7 @@ import pytest
 
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError, EvidenceProposalStatus
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus, ExecutionActionType
-from app.application.application_workspace.models import ApplicationWorkspace, ApplicationWorkspaceSourceSnapshot, ApplicationWorkspaceStatus
+from app.application.application_workspace.models import ApplicationTimelineEventType, ApplicationWorkspace, ApplicationWorkspaceSourceSnapshot, ApplicationWorkspaceStatus
 from app.application.career_context.models import EvidenceDetail, ProfileDetail, SkillDetail
 from app.domain.career_context import EvidenceType, SkillLevel
 
@@ -77,6 +77,13 @@ class SaveProfile:
         return ProfileDetail("p1", 4, command.headline, command.years_of_experience, (), (), NOW)
 
 
+class Timeline:
+    def __init__(self): self.items = []
+    def get_by_actor_and_idempotency_key(self, actor_id, key):
+        return next((item for item in self.items if item.actor_id == actor_id and item.idempotency_key == key), None)
+    def add(self, event): self.items.append(event); return event
+
+
 def _profile(version=3):
     evidence = EvidenceDetail("ev-old", "old", EvidenceType.PROJECT, "已有真实项目", "repo")
     skill = SkillDetail("sk-old", "Python", SkillLevel.WORKING, ("ev-old",))
@@ -104,7 +111,8 @@ def test_confirm_proposal_requires_human_actor_and_creates_new_profile_version()
         return confirmed
     repo.mark_confirmed = mark_confirmed
     save = SaveProfile()
-    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile()), save_profile=save, now=lambda: NOW)
+    timeline = Timeline()
+    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile()), save_profile=save, timeline=timeline, now=lambda: NOW, new_event_id=lambda: "evt1")
 
     confirmed = use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
 
@@ -116,6 +124,14 @@ def test_confirm_proposal_requires_human_actor_and_creates_new_profile_version()
     assert command.evidence[-1].summary == "在真实项目中实现 LangGraph checkpoint 恢复链路"
     assert command.skills[-1].name == "LangGraph"
     assert command.skills[-1].evidence_keys == (f"application-action:{proposal.proposal_id}",)
+    assert len(timeline.items) == 1
+    assert timeline.items[0].event_type is ApplicationTimelineEventType.EVIDENCE_CONFIRMED
+    assert timeline.items[0].idempotency_key == f"evidence-confirm:{proposal.proposal_id}"
+
+    replay = use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
+    assert replay == confirmed
+    assert len(save.commands) == 1
+    assert len(timeline.items) == 1
 
 
 def test_confirm_proposal_fails_closed_when_profile_has_changed():
@@ -126,8 +142,10 @@ def test_confirm_proposal_fails_closed_when_profile_has_changed():
     )
     repo.get = lambda proposal_id: proposal if proposal_id == proposal.proposal_id else None
     save = SaveProfile()
-    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile(version=4)), save_profile=save, now=lambda: NOW)
+    timeline = Timeline()
+    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile(version=4)), save_profile=save, timeline=timeline, now=lambda: NOW, new_event_id=lambda: "evt1")
 
     with pytest.raises(EvidenceProposalBlockedError, match="evidence_proposal_profile_stale"):
         use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
     assert save.commands == []
+    assert timeline.items == []

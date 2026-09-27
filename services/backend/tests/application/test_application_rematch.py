@@ -80,10 +80,11 @@ class Improvement:
 
 def _use_case(*, eligibility=None, evidence=None):
     reports = Reports(); timeline = Timeline(); runner = Runner(reports)
+    event_ids = iter(("evt1", "evt2", "evt3"))
     use_case = RunApplicationRematchUseCase(
         workspaces=Workspaces(), proposals=Proposals(), timeline=timeline, reports=reports,
         eligibility=Eligibility(eligibility or _eligibility()), evidence=Evidence(evidence or _retrieval()),
-        report_runner=runner, improvement=Improvement(), now=lambda: NOW, new_event_id=lambda: "evt1",
+        report_runner=runner, improvement=Improvement(), now=lambda: NOW, new_event_id=lambda: next(event_ids),
     )
     return use_case, runner, timeline
 
@@ -97,7 +98,12 @@ def test_confirmed_evidence_can_run_zero_provider_rematch_and_expose_ranking_sig
     assert result.previous_recommendation is MatchRecommendation.BLOCKED
     assert result.current_recommendation is MatchRecommendation.GOOD
     assert result.ranking_signal is RematchRankingSignal.IMPROVED
-    assert timeline.items[0].event_type.value == "rematch_completed"
+    assert [item.event_type.value for item in timeline.items] == ["rematch_completed", "ranking_changed"]
+
+    replay = use_case.execute(workspace_id="ws1", proposal_id="ep1", actor_id="user1", idempotency_key="rematch-1")
+    assert replay == result
+    assert runner.calls == 1
+    assert len(timeline.items) == 2
 
 
 def test_rematch_fails_before_match_write_when_semantic_provider_would_be_required():

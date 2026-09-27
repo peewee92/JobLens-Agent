@@ -7,7 +7,11 @@ from enum import StrEnum
 from typing import Callable, Protocol
 
 from app.application.application_workspace.execution_action import ExecutionActionRepository, ExecutionActionStatus
-from app.application.application_workspace.models import ApplicationWorkspace
+from app.application.application_workspace.models import (
+    ApplicationTimelineEvent,
+    ApplicationTimelineEventType,
+    ApplicationWorkspace,
+)
 from app.application.career_context.models import EvidenceInput, SaveProfileCommand, SkillInput
 from app.application.career_context.use_cases import SaveProfileUseCase
 from app.application.ports.career_context_repository import AbstractCareerContextQueryRepository
@@ -50,6 +54,13 @@ class EvidenceProposalRepository(Protocol):
     def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str) -> EvidenceProposal | None: ...
     def add(self, proposal: EvidenceProposal) -> EvidenceProposal: ...
     def mark_confirmed(self, *, proposal_id: str, confirmed_profile_id: str, confirmed_profile_version: int, confirmed_at: datetime) -> EvidenceProposal | None: ...
+
+
+class EvidenceConfirmationTimelineRepository(Protocol):
+    def get_by_actor_and_idempotency_key(
+        self, actor_id: str, idempotency_key: str
+    ) -> ApplicationTimelineEvent | None: ...
+    def add(self, event: ApplicationTimelineEvent) -> ApplicationTimelineEvent: ...
 
 
 class EvidenceProposalBlockedError(RuntimeError):
@@ -102,12 +113,14 @@ class CreateEvidenceProposalUseCase:
 class ConfirmEvidenceProposalUseCase:
     """Promote one explicitly confirmed proposal into a new immutable Profile version."""
 
-    def __init__(self, *, workspaces: WorkspaceRepository, proposals: EvidenceProposalRepository, profiles: AbstractCareerContextQueryRepository, save_profile: SaveProfileUseCase, now: Callable[[], datetime]) -> None:
+    def __init__(self, *, workspaces: WorkspaceRepository, proposals: EvidenceProposalRepository, profiles: AbstractCareerContextQueryRepository, save_profile: SaveProfileUseCase, timeline: EvidenceConfirmationTimelineRepository, now: Callable[[], datetime], new_event_id: Callable[[], str]) -> None:
         self._workspaces = workspaces
         self._proposals = proposals
         self._profiles = profiles
         self._save_profile = save_profile
+        self._timeline = timeline
         self._now = now
+        self._new_event_id = new_event_id
 
     def execute(self, *, workspace_id: str, proposal_id: str, actor_id: str) -> EvidenceProposal:
         workspace = self._workspaces.get(workspace_id)
@@ -117,6 +130,7 @@ class ConfirmEvidenceProposalUseCase:
         if workspace.actor_id != actor_id or proposal.actor_id != actor_id:
             raise EvidenceProposalBlockedError("evidence_proposal_actor_mismatch")
         if proposal.status is EvidenceProposalStatus.CONFIRMED:
+            self._ensure_confirmation_timeline(proposal)
             return proposal
 
         current = self._profiles.get_current_profile()
@@ -155,4 +169,26 @@ class ConfirmEvidenceProposalUseCase:
         )
         if confirmed is None:
             raise EvidenceProposalBlockedError("evidence_proposal_confirmation_conflict")
+        self._ensure_confirmation_timeline(confirmed)
         return confirmed
+
+    def _ensure_confirmation_timeline(self, proposal: EvidenceProposal) -> None:
+        idempotency_key = f"evidence-confirm:{proposal.proposal_id}"
+        existing = self._timeline.get_by_actor_and_idempotency_key(proposal.actor_id, idempotency_key)
+        if existing is not None:
+            if (
+                existing.workspace_id != proposal.workspace_id
+                or existing.event_type is not ApplicationTimelineEventType.EVIDENCE_CONFIRMED
+            ):
+                raise EvidenceProposalBlockedError("evidence_confirmation_timeline_conflict")
+            return
+        self._timeline.add(ApplicationTimelineEvent(
+            event_id=self._new_event_id(),
+            workspace_id=proposal.workspace_id,
+            actor_id=proposal.actor_id,
+            idempotency_key=idempotency_key,
+            event_type=ApplicationTimelineEventType.EVIDENCE_CONFIRMED,
+            from_status=None,
+            to_status=None,
+            created_at=proposal.confirmed_at or self._now(),
+        ))
