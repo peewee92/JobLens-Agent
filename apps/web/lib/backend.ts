@@ -2,6 +2,9 @@ import "server-only";
 
 import type {
   ApiErrorBody,
+  ApplicationExecutionAction,
+  ApplicationTimelineEvent,
+  ApplicationWorkspaceOverview,
   BatchMatchRanking,
   CareerContextReleaseReadiness,
   MatchBlockerSummary,
@@ -167,6 +170,18 @@ export function fetchLatestUserFeedback(matchReportIds: string[]): Promise<UserF
 export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFeedbackHistory> {
   const query = new URLSearchParams({matchReportId});
   return backendJson<UserFeedbackHistory>(`/api/v1/user-feedback?${query.toString()}`);
+}
+
+export function fetchApplicationWorkspaceOverview(workspaceId: string): Promise<ApplicationWorkspaceOverview> {
+  return backendJson<ApplicationWorkspaceOverview>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/overview`);
+}
+
+export function fetchApplicationActions(workspaceId: string): Promise<ApplicationExecutionAction[]> {
+  return backendJson<ApplicationExecutionAction[]>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/actions`);
+}
+
+export function fetchApplicationTimeline(workspaceId: string): Promise<ApplicationTimelineEvent[]> {
+  return backendJson<ApplicationTimelineEvent[]>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/timeline`);
 }
 
 export function fetchJobPreparation(jobId: string): Promise<JobPreparationBundle> {

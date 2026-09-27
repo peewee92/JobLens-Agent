@@ -793,6 +793,19 @@ def get_evidence_proposal_repository() -> SqlAlchemyEvidenceProposalRepository:
     return SqlAlchemyEvidenceProposalRepository(SessionLocal)
 
 
+def get_application_workspace_overview_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+):
+    from app.application.application_workspace.overview import BuildApplicationWorkspaceOverviewUseCase
+    return BuildApplicationWorkspaceOverviewUseCase(
+        workspaces=workspaces, variants=variants, actions=actions, proposals=proposals, timeline=timeline,
+    )
+
+
 def get_create_evidence_proposal_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),

@@ -332,6 +332,42 @@ class ApplicationWorkspaceSourceSnapshotResponse(CamelCaseModel):
     match_report_id: str
 
 
+class ApplicationNextBestActionResponse(CamelCaseModel):
+    code: str
+    label: str
+    reason: str
+    href: str
+
+
+class ApplicationWorkspaceOverviewResponse(CamelCaseModel):
+    workspace: "ApplicationWorkspaceResponse"
+    resume_status: str
+    action_total: int
+    action_open: int
+    evidence_pending_confirmation: int
+    evidence_confirmed: int
+    timeline_event_count: int
+    next_best_action: ApplicationNextBestActionResponse
+
+    @classmethod
+    def from_model(cls, overview):
+        return cls(
+            workspace=ApplicationWorkspaceResponse.from_model(overview.workspace),
+            resume_status=overview.resume_status,
+            action_total=overview.action_total,
+            action_open=overview.action_open,
+            evidence_pending_confirmation=overview.evidence_pending_confirmation,
+            evidence_confirmed=overview.evidence_confirmed,
+            timeline_event_count=overview.timeline_event_count,
+            next_best_action=ApplicationNextBestActionResponse(
+                code=overview.next_best_action.code,
+                label=overview.next_best_action.label,
+                reason=overview.next_best_action.reason,
+                href=overview.next_best_action.href,
+            ),
+        )
+
+
 class ApplicationWorkspaceResponse(CamelCaseModel):
     workspace_id: str
     job_id: str

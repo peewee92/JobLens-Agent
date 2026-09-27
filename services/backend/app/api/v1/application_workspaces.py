@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (
     get_application_timeline_repository,
+    get_application_workspace_overview_use_case,
     get_application_workspace_repository,
     get_create_application_workspace_use_case,
     get_create_study_execution_actions_use_case,
@@ -26,6 +27,7 @@ from app.api.v1.schemas.application_workspace import (
     ApplicationRematchRequest,
     ApplicationRematchResponse,
     ApplicationTimelineEventResponse,
+    ApplicationWorkspaceOverviewResponse,
     ApplicationWorkspaceResponse,
     CreateApplicationWorkspaceRequest,
     CreateExecutionActionsRequest,
@@ -113,6 +115,18 @@ def update_application_status(
         )
         raise HTTPException(status_code=status_code, detail=detail) from error
     return ApplicationWorkspaceResponse.from_model(result.workspace)
+
+
+@router.get("/{workspace_id}/overview", response_model=ApplicationWorkspaceOverviewResponse)
+def get_application_workspace_overview(
+    workspace_id: str,
+    use_case=Depends(get_application_workspace_overview_use_case),
+) -> ApplicationWorkspaceOverviewResponse:
+    from app.application.application_workspace.overview import ApplicationWorkspaceOverviewBlockedError
+    try:
+        return ApplicationWorkspaceOverviewResponse.from_model(use_case.execute(workspace_id))
+    except ApplicationWorkspaceOverviewBlockedError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
 
 
 @router.get("/{workspace_id}/interview/questions", response_model=InterviewMockQuestionSetResponse)

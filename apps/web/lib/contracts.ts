@@ -561,6 +561,59 @@ export interface ResumeDeltaGap {
   profileSkillIds: string[];
 }
 
+export interface ApplicationWorkspace {
+  workspaceId: string;
+  jobId: string;
+  actorId: string;
+  status: string;
+  sourceSnapshot: {
+    profileId: string;
+    profileVersion: number;
+    searchIntentId: string;
+    searchIntentVersion: number;
+    requirementExtractionId: string;
+    matchReportId: string;
+  };
+  currentFactFingerprint: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationWorkspaceOverview {
+  workspace: ApplicationWorkspace;
+  resumeStatus: string;
+  actionTotal: number;
+  actionOpen: number;
+  evidencePendingConfirmation: number;
+  evidenceConfirmed: number;
+  timelineEventCount: number;
+  nextBestAction: {code: string; label: string; reason: string; href: string};
+}
+
+export interface ApplicationExecutionAction {
+  actionId: string;
+  workspaceId: string;
+  actionType: string;
+  status: string;
+  sourceRequirementIds: string[];
+  sourceGapCapability: string | null;
+  description: string;
+  completionCriteria: string[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface ApplicationTimelineEvent {
+  eventId: string;
+  workspaceId: string;
+  actorId: string;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  createdAt: string;
+}
+
 export interface JobPreparationBundle {
   jobId: string;
   factsUsable: boolean;

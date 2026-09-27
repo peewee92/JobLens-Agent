@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import {ApplicationChecklistProgress} from "@/components/application-checklist-progress";
+import {ApplicationWorkspaceEntry} from "@/components/application-workspace-entry";
 import {buildApplicationChecklistItems} from "@/lib/application-checklist";
 import {RecommendationFeedback} from "@/components/recommendation-feedback";
 import {ServiceError} from "@/components/service-error";
@@ -171,6 +172,13 @@ export default async function JobPreparationPage({
           <p className="lede">
             这里只展示已确认职业事实与已放行岗位要求之间的确定性准备依据，不补写不存在的经历、成绩或指标。
           </p>
+          {currentReport ? (
+            <div className="notice">
+              <strong>把准备工作放进一个持续工作区</strong>
+              <p className="muted">建立后可统一查看岗位简历、面试、行动、Evidence 回流、投递状态与下一建议动作；重复进入不会创建第二个工作区。</p>
+              <ApplicationWorkspaceEntry jobId={id} />
+            </div>
+          ) : null}
 
           {currentReport ? (
             <section className="detail-section">

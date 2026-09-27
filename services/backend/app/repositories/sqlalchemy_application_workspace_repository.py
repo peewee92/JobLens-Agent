@@ -105,6 +105,11 @@ class SqlAlchemyResumeVariantRepository:
             session.flush()
             return _restore_resume_variant(record)
 
+    def list_for_workspace(self, workspace_id: str):
+        with self._session_factory() as session:
+            records = session.scalars(select(ResumeVariantORM).where(ResumeVariantORM.workspace_id == workspace_id).order_by(ResumeVariantORM.created_at, ResumeVariantORM.id)).all()
+            return tuple(_restore_resume_variant(record) for record in records)
+
     def update_status(self, variant_id: str, *, actor_id: str, status):
         with self._session_factory() as session, session.begin():
             record = session.get(ResumeVariantORM, variant_id)
@@ -173,6 +178,11 @@ class SqlAlchemyEvidenceProposalRepository:
         with self._session_factory() as session:
             record = session.scalar(select(EvidenceProposalORM).where(EvidenceProposalORM.actor_id == actor_id, EvidenceProposalORM.idempotency_key == idempotency_key))
             return _restore_evidence_proposal(record) if record is not None else None
+
+    def list_for_workspace(self, workspace_id: str):
+        with self._session_factory() as session:
+            records = session.scalars(select(EvidenceProposalORM).where(EvidenceProposalORM.workspace_id == workspace_id).order_by(EvidenceProposalORM.created_at, EvidenceProposalORM.id)).all()
+            return tuple(_restore_evidence_proposal(record) for record in records)
 
     def add(self, proposal):
         with self._session_factory() as session, session.begin():
