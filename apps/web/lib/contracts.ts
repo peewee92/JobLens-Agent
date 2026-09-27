@@ -604,6 +604,39 @@ export interface ApplicationExecutionAction {
   completedAt: string | null;
 }
 
+export interface ApplicationEvidenceProposal {
+  proposalId: string;
+  workspaceId: string;
+  actionId: string;
+  status: string;
+  sourceRequirementIds: string[];
+  capability: string;
+  evidenceType: string;
+  evidenceSummary: string;
+  evidenceSource: string;
+  skillLevel: string;
+  sourceProfileId: string;
+  sourceProfileVersion: number;
+  createdAt: string;
+  confirmedProfileId: string | null;
+  confirmedProfileVersion: number | null;
+  confirmedAt: string | null;
+}
+
+export interface ApplicationRematchResult {
+  workspaceId: string;
+  proposalId: string;
+  previousMatchReportId: string;
+  currentMatchReportId: string;
+  previousRecommendation: string;
+  currentRecommendation: string;
+  resolvedRequirementIds: string[];
+  targetRequirementIds: string[];
+  targetResolvedRequirementIds: string[];
+  rankingSignal: string;
+  providerCalls: number;
+}
+
 export interface ApplicationTimelineEvent {
   eventId: string;
   workspaceId: string;

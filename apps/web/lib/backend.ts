@@ -3,6 +3,7 @@ import "server-only";
 import type {
   ApiErrorBody,
   ApplicationExecutionAction,
+  ApplicationEvidenceProposal,
   ApplicationTimelineEvent,
   ApplicationWorkspaceOverview,
   BatchMatchRanking,
@@ -178,6 +179,10 @@ export function fetchApplicationWorkspaceOverview(workspaceId: string): Promise<
 
 export function fetchApplicationActions(workspaceId: string): Promise<ApplicationExecutionAction[]> {
   return backendJson<ApplicationExecutionAction[]>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/actions`);
+}
+
+export function fetchApplicationEvidenceProposals(workspaceId: string): Promise<ApplicationEvidenceProposal[]> {
+  return backendJson<ApplicationEvidenceProposal[]>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/evidence-proposals`);
 }
 
 export function fetchApplicationTimeline(workspaceId: string): Promise<ApplicationTimelineEvent[]> {

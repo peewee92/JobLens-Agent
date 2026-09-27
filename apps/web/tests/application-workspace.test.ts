@@ -38,6 +38,23 @@ test("application workspace can create and advance real execution actions", () =
   assert.match(statusProxy, /actions\/\$\{encodeURIComponent\(actionId\)\}\/status/);
 });
 
+test("application workspace completes evidence confirm and rematch from the same user surface", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  const controls = source("components/application-evidence-controls.tsx");
+  const createProxy = source("app/api/application-workspaces/[id]/actions/[actionId]/evidence-proposals/route.ts");
+  const confirmProxy = source("app/api/application-workspaces/[id]/evidence-proposals/[proposalId]/confirm/route.ts");
+  const rematchProxy = source("app/api/application-workspaces/[id]/evidence-proposals/[proposalId]/rematch/route.ts");
+
+  assert.match(page, /ApplicationEvidenceControls/);
+  assert.match(controls, /Action 完成状态自动推断能力/);
+  assert.match(controls, /确认这是真实职业事实/);
+  assert.match(controls, /用新事实重新验证岗位匹配/);
+  assert.match(controls, /web-rematch-\$\{proposal\.proposalId\}/);
+  assert.match(createProxy, /evidence-proposals/);
+  assert.match(confirmProxy, /\/confirm/);
+  assert.match(rematchProxy, /\/rematch/);
+});
+
 test("workspace creation uses a stable per-job idempotency key", () => {
   const component = source("components/application-workspace-entry.tsx");
   assert.match(component, /web-application-workspace:\$\{jobId\}/);

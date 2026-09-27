@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import {ApplicationActionControls} from "@/components/application-action-controls";
+import {ApplicationEvidenceControls} from "@/components/application-evidence-controls";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchApplicationActions,
+  fetchApplicationEvidenceProposals,
   fetchApplicationTimeline,
   fetchApplicationWorkspaceOverview,
   fetchJobDetail,
@@ -22,9 +24,10 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
   const {id} = await params;
   try {
     const overview = await fetchApplicationWorkspaceOverview(id);
-    const [job, actions, timeline] = await Promise.all([
+    const [job, actions, proposals, timeline] = await Promise.all([
       fetchJobDetail(overview.workspace.jobId),
       fetchApplicationActions(id),
+      fetchApplicationEvidenceProposals(id),
       fetchApplicationTimeline(id),
     ]);
 
@@ -78,6 +81,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <h2>Evidence 回流</h2>
           <p className="muted">Action 完成不等于获得能力。只有你提交真实经历、显式确认，并再次 Re-match 后，系统才会验证岗位匹配是否真的改善。</p>
           <p>待确认 {overview.evidencePendingConfirmation} 项 · 已确认 {overview.evidenceConfirmed} 项</p>
+          <ApplicationEvidenceControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} proposals={proposals} />
         </section>
 
         <section className="detail-section" id="interview">

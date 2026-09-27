@@ -12,6 +12,7 @@ from app.api.deps import (
     get_create_application_workspace_use_case,
     get_create_study_execution_actions_use_case,
     get_execution_action_repository,
+    get_evidence_proposal_repository,
     get_create_evidence_proposal_use_case,
     get_confirm_evidence_proposal_use_case,
     get_interview_mock_question_set_use_case,
@@ -75,6 +76,7 @@ from app.repositories.sqlalchemy_application_workspace_repository import (
     SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
     SqlAlchemyExecutionActionRepository,
+    SqlAlchemyEvidenceProposalRepository,
 )
 
 router = APIRouter(prefix="/application-workspaces")
@@ -282,6 +284,17 @@ def create_evidence_proposal(
         code = status.HTTP_404_NOT_FOUND if detail == "execution_action_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
     return EvidenceProposalResponse.from_model(proposal)
+
+
+@router.get("/{workspace_id}/evidence-proposals", response_model=list[EvidenceProposalResponse])
+def list_evidence_proposals(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    proposals: Annotated[SqlAlchemyEvidenceProposalRepository, Depends(get_evidence_proposal_repository)],
+) -> list[EvidenceProposalResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [EvidenceProposalResponse.from_model(proposal) for proposal in proposals.list_for_workspace(workspace_id)]
 
 
 @router.post("/{workspace_id}/evidence-proposals/{proposal_id}/confirm", response_model=EvidenceProposalResponse)
