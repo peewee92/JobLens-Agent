@@ -303,6 +303,8 @@ Evidence 覆盖
 
 # 8. Study / Evidence Action
 
+> 工程状态（2026-09-27）：A5 第一纵向切片已落地。Application Workspace 可把当前 Job Preparation 的 Study Checklist 物化为可持久化 Execution Action，保留 Requirement ID、capability 与 completion criteria；用户可显式推进 `todo → in_progress → done / skipped`，并通过 expected status 防止 stale 覆盖。`done` 只记录行动完成，不自动创建 Profile Evidence、不改变 Match / Ranking，也不触发 Provider；新的真实职业事实必须进入 A6 Evidence Proposal → Human Confirm 边界。
+
 ## 8.1 目标
 
 把 Skill Gap / Study Checklist 转成可跟踪 Action Item。

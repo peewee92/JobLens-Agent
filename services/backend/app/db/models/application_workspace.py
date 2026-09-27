@@ -52,6 +52,28 @@ class ResumeVariantORM(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
 
 
+class ExecutionActionItemORM(Base):
+    __tablename__ = "execution_action_items"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_execution_action_actor_idempotency"),
+        Index("ix_execution_actions_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    action_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_gap_capability: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    description: Mapped[str] = mapped_column(String(1000), nullable=False)
+    completion_criteria: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+
 class ApplicationTimelineEventORM(Base):
     __tablename__ = "application_timeline_events"
     __table_args__ = (

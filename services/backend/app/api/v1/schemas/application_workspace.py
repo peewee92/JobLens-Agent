@@ -17,6 +17,7 @@ from app.application.application_workspace.interview_mock import (
     InterviewMockQuestionSet,
 )
 from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
+from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
 
@@ -103,6 +104,42 @@ class ResumeVariantResponse(CamelCaseModel):
             requirement_extraction_id=variant.requirement_extraction_id,
             highlights=[ResumeVariantItemResponse(requirement_id=item.requirement_id, capability=item.capability, evidence_ids=list(item.evidence_ids)) for item in variant.highlights],
             created_at=variant.created_at,
+        )
+
+
+class CreateExecutionActionsRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class UpdateExecutionActionStatusRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    expected_status: ExecutionActionStatus
+    new_status: ExecutionActionStatus
+
+
+class ExecutionActionResponse(CamelCaseModel):
+    action_id: str
+    workspace_id: str
+    action_type: str
+    status: str
+    source_requirement_ids: list[str]
+    source_gap_capability: str | None
+    description: str
+    completion_criteria: list[str]
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None
+
+    @classmethod
+    def from_model(cls, action: ExecutionActionItem) -> "ExecutionActionResponse":
+        return cls(
+            action_id=action.action_id, workspace_id=action.workspace_id,
+            action_type=action.action_type.value, status=action.status.value,
+            source_requirement_ids=list(action.source_requirement_ids),
+            source_gap_capability=action.source_gap_capability, description=action.description,
+            completion_criteria=list(action.completion_criteria), created_at=action.created_at,
+            updated_at=action.updated_at, completed_at=action.completed_at,
         )
 
 

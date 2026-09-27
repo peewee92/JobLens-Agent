@@ -13,6 +13,7 @@ from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
+from app.application.application_workspace.execution_action import CreateStudyExecutionActionsUseCase, UpdateExecutionActionStatusUseCase
 from app.application.application_workspace.interview_mock import (
     BuildInterviewMockQuestionSetUseCase,
     ReviewInterviewMockAnswerUseCase,
@@ -134,6 +135,7 @@ from app.core.config import get_settings
 from app.db.models.common import (
     new_application_timeline_event_id,
     new_application_workspace_id,
+    new_execution_action_id,
     new_resume_variant_id,
     utc_now,
 )
@@ -147,6 +149,7 @@ from app.llm import (
 from app.repositories.sqlalchemy_application_workspace_repository import (
     SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
+    SqlAlchemyExecutionActionRepository,
     SqlAlchemyResumeVariantRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
@@ -761,6 +764,25 @@ def get_update_application_status_use_case(
 
 def get_resume_variant_repository() -> SqlAlchemyResumeVariantRepository:
     return SqlAlchemyResumeVariantRepository(SessionLocal)
+
+
+def get_execution_action_repository() -> SqlAlchemyExecutionActionRepository:
+    return SqlAlchemyExecutionActionRepository(SessionLocal)
+
+
+def get_create_study_execution_actions_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+) -> CreateStudyExecutionActionsUseCase:
+    return CreateStudyExecutionActionsUseCase(workspaces=workspaces, preparation=preparation, actions=actions, now=utc_now, new_id=new_execution_action_id)
+
+
+def get_update_execution_action_status_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+) -> UpdateExecutionActionStatusUseCase:
+    return UpdateExecutionActionStatusUseCase(workspaces=workspaces, actions=actions, now=utc_now)
 
 
 def get_interview_mock_question_set_use_case(

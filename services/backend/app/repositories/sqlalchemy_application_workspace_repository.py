@@ -11,7 +11,7 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceSourceSnapshot,
     ApplicationWorkspaceStatus,
 )
-from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM, ResumeVariantORM
+from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM, ExecutionActionItemORM, ResumeVariantORM
 
 SessionFactory = Callable[[], Session]
 
@@ -115,6 +115,51 @@ class SqlAlchemyResumeVariantRepository:
             return _restore_resume_variant(record)
 
 
+class SqlAlchemyExecutionActionRepository:
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+
+    def get(self, action_id: str):
+        with self._session_factory() as session:
+            record = session.get(ExecutionActionItemORM, action_id)
+            return _restore_execution_action(record) if record is not None else None
+
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str):
+        with self._session_factory() as session:
+            record = session.scalar(select(ExecutionActionItemORM).where(ExecutionActionItemORM.actor_id == actor_id, ExecutionActionItemORM.idempotency_key == idempotency_key))
+            return _restore_execution_action(record) if record is not None else None
+
+    def list_for_workspace(self, workspace_id: str):
+        with self._session_factory() as session:
+            records = session.scalars(select(ExecutionActionItemORM).where(ExecutionActionItemORM.workspace_id == workspace_id).order_by(ExecutionActionItemORM.created_at, ExecutionActionItemORM.id)).all()
+            return tuple(_restore_execution_action(record) for record in records)
+
+    def add(self, action):
+        with self._session_factory() as session, session.begin():
+            record = ExecutionActionItemORM(
+                id=action.action_id, workspace_id=action.workspace_id, actor_id=action.actor_id,
+                idempotency_key=action.idempotency_key, action_type=action.action_type.value,
+                status=action.status.value, source_requirement_ids=list(action.source_requirement_ids),
+                source_gap_capability=action.source_gap_capability, description=action.description,
+                completion_criteria=list(action.completion_criteria), created_at=action.created_at,
+                updated_at=action.updated_at, completed_at=action.completed_at,
+            )
+            session.add(record)
+            session.flush()
+            return _restore_execution_action(record)
+
+    def update_status(self, *, action_id: str, expected_status, new_status, updated_at, completed_at):
+        with self._session_factory() as session, session.begin():
+            record = session.get(ExecutionActionItemORM, action_id)
+            if record is None or record.status != expected_status.value:
+                return None
+            record.status = new_status.value
+            record.updated_at = updated_at
+            record.completed_at = completed_at
+            session.flush()
+            return _restore_execution_action(record)
+
+
 class SqlAlchemyApplicationTimelineRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
@@ -155,6 +200,18 @@ class SqlAlchemyApplicationTimelineRepository:
                 .order_by(ApplicationTimelineEventORM.created_at, ApplicationTimelineEventORM.id)
             ).all()
             return tuple(_restore_event(record) for record in records)
+
+
+def _restore_execution_action(record: ExecutionActionItemORM):
+    from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus, ExecutionActionType
+    return ExecutionActionItem(
+        action_id=record.id, workspace_id=record.workspace_id, actor_id=record.actor_id,
+        idempotency_key=record.idempotency_key, action_type=ExecutionActionType(record.action_type),
+        status=ExecutionActionStatus(record.status), source_requirement_ids=tuple(record.source_requirement_ids),
+        source_gap_capability=record.source_gap_capability, description=record.description,
+        completion_criteria=tuple(record.completion_criteria), created_at=record.created_at,
+        updated_at=record.updated_at, completed_at=record.completed_at,
+    )
 
 
 def _restore_resume_variant(record: ResumeVariantORM):

@@ -9,25 +9,36 @@ from app.api.deps import (
     get_application_timeline_repository,
     get_application_workspace_repository,
     get_create_application_workspace_use_case,
+    get_create_study_execution_actions_use_case,
+    get_execution_action_repository,
     get_interview_mock_question_set_use_case,
     get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
     get_review_resume_variant_use_case,
     get_save_resume_variant_use_case,
     get_update_application_status_use_case,
+    get_update_execution_action_status_use_case,
 )
 from app.api.v1.schemas.application_workspace import (
     ApplicationTimelineEventResponse,
     ApplicationWorkspaceResponse,
     CreateApplicationWorkspaceRequest,
+    CreateExecutionActionsRequest,
+    ExecutionActionResponse,
     InterviewAnswerReviewResponse,
     InterviewMockQuestionSetResponse,
     ReviewInterviewMockAnswerRequest,
     UpdateApplicationStatusRequest,
+    UpdateExecutionActionStatusRequest,
     ResumeVariantProposalResponse,
     ResumeVariantResponse,
     ReviewResumeVariantRequest,
     SaveResumeVariantRequest,
+)
+from app.application.application_workspace.execution_action import (
+    CreateStudyExecutionActionsUseCase,
+    ExecutionActionBlockedError,
+    UpdateExecutionActionStatusUseCase,
 )
 from app.application.application_workspace.interview_mock import (
     BuildInterviewMockQuestionSetUseCase,
@@ -51,6 +62,7 @@ from app.application.application_workspace.use_case import (
 from app.repositories.sqlalchemy_application_workspace_repository import (
     SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
+    SqlAlchemyExecutionActionRepository,
 )
 
 router = APIRouter(prefix="/application-workspaces")
@@ -183,6 +195,48 @@ def review_resume_variant(
         code = status.HTTP_404_NOT_FOUND if detail == "resume_variant_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
     return ResumeVariantResponse.from_model(variant)
+
+
+@router.post("/{workspace_id}/actions", response_model=list[ExecutionActionResponse], status_code=status.HTTP_201_CREATED)
+def create_execution_actions(
+    workspace_id: str,
+    request: CreateExecutionActionsRequest,
+    use_case: Annotated[CreateStudyExecutionActionsUseCase, Depends(get_create_study_execution_actions_use_case)],
+) -> list[ExecutionActionResponse]:
+    try:
+        actions = use_case.execute(workspace_id=workspace_id, actor_id=request.actor_id, idempotency_key=request.idempotency_key)
+    except ExecutionActionBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return [ExecutionActionResponse.from_model(action) for action in actions]
+
+
+@router.get("/{workspace_id}/actions", response_model=list[ExecutionActionResponse])
+def list_execution_actions(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    actions: Annotated[SqlAlchemyExecutionActionRepository, Depends(get_execution_action_repository)],
+) -> list[ExecutionActionResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [ExecutionActionResponse.from_model(action) for action in actions.list_for_workspace(workspace_id)]
+
+
+@router.post("/{workspace_id}/actions/{action_id}/status", response_model=ExecutionActionResponse)
+def update_execution_action_status(
+    workspace_id: str,
+    action_id: str,
+    request: UpdateExecutionActionStatusRequest,
+    use_case: Annotated[UpdateExecutionActionStatusUseCase, Depends(get_update_execution_action_status_use_case)],
+) -> ExecutionActionResponse:
+    try:
+        action = use_case.execute(workspace_id=workspace_id, action_id=action_id, actor_id=request.actor_id, expected_status=request.expected_status, new_status=request.new_status)
+    except ExecutionActionBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "execution_action_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ExecutionActionResponse.from_model(action)
 
 
 @router.get("/{workspace_id}/timeline", response_model=list[ApplicationTimelineEventResponse])

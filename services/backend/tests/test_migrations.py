@@ -64,7 +64,7 @@ REQUIREMENT_ACCEPTANCE_TABLES = (
 )
 MATCH_REPORT_TABLES = {"match_reports"}
 USER_FEEDBACK_TABLES = {"user_feedback"}
-APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants"}
+APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants", "execution_action_items"}
 RESUME_VARIANT_TABLES = {"resume_variants"}
 EXPECTED_TABLES = (
     JOB_TABLES
