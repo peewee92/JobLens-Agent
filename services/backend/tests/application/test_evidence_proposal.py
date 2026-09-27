@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError, EvidenceProposalStatus
+from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase, EvidenceConfirmationAuditBlockedError
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus, ExecutionActionType
 from app.application.application_workspace.models import ApplicationTimelineEventType, ApplicationWorkspace, ApplicationWorkspaceSourceSnapshot, ApplicationWorkspaceStatus
 from app.application.career_context.models import EvidenceDetail, ProfileDetail, SkillDetail
@@ -81,6 +82,7 @@ class Timeline:
     def __init__(self): self.items = []
     def get_by_actor_and_idempotency_key(self, actor_id, key):
         return next((item for item in self.items if item.actor_id == actor_id and item.idempotency_key == key), None)
+    def list_for_workspace(self, workspace_id): return [item for item in self.items if item.workspace_id == workspace_id]
     def add(self, event): self.items.append(event); return event
 
 
@@ -132,6 +134,65 @@ def test_confirm_proposal_requires_human_actor_and_creates_new_profile_version()
     assert replay == confirmed
     assert len(save.commands) == 1
     assert len(timeline.items) == 1
+
+
+def test_confirmation_audit_reconstructs_proposal_human_confirm_and_profile_write():
+    create, repo = _use_case()
+    proposal = create.execute(
+        workspace_id="ws1", action_id="a1", actor_id="user1", idempotency_key="evidence-key",
+        evidence_type=EvidenceType.PROJECT, evidence_summary="在真实项目中实现 LangGraph checkpoint 恢复链路",
+        evidence_source="JobLens repository", skill_level=SkillLevel.WORKING,
+    )
+    repo.get = lambda proposal_id: next((x for x in repo.items if x.proposal_id == proposal_id), None)
+    def mark_confirmed(**kwargs):
+        current = repo.get(kwargs["proposal_id"])
+        confirmed = type(current)(
+            **{**{field: getattr(current, field) for field in current.__dataclass_fields__},
+               "status": EvidenceProposalStatus.CONFIRMED,
+               "confirmed_profile_id": kwargs["confirmed_profile_id"],
+               "confirmed_profile_version": kwargs["confirmed_profile_version"],
+               "confirmed_at": kwargs["confirmed_at"]}
+        )
+        repo.items[0] = confirmed
+        return confirmed
+    repo.mark_confirmed = mark_confirmed
+    timeline = Timeline()
+    ConfirmEvidenceProposalUseCase(
+        workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile()), save_profile=SaveProfile(),
+        timeline=timeline, now=lambda: NOW, new_event_id=lambda: "evt1",
+    ).execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
+
+    audit = BuildEvidenceConfirmationAuditUseCase(
+        workspaces=Workspaces(), proposals=repo, timeline=timeline,
+    ).execute(workspace_id="ws1", proposal_id=proposal.proposal_id)
+
+    assert audit.proposal_recorded is True
+    assert audit.human_confirmation_recorded is True
+    assert audit.profile_write_recorded is True
+    assert audit.confirmed_profile_id == "p1"
+    assert audit.confirmed_profile_version == 4
+    assert audit.confirmation_event_id == "evt1"
+    assert audit.complete is True
+
+
+def test_confirmation_audit_fails_closed_on_confirmed_proposal_without_confirmation_event():
+    create, repo = _use_case()
+    proposal = create.execute(
+        workspace_id="ws1", action_id="a1", actor_id="user1", idempotency_key="evidence-key",
+        evidence_type=EvidenceType.PROJECT, evidence_summary="真实经历", evidence_source="repo", skill_level=SkillLevel.WORKING,
+    )
+    from dataclasses import replace
+    confirmed = replace(
+        proposal, status=EvidenceProposalStatus.CONFIRMED,
+        confirmed_profile_id="p1", confirmed_profile_version=4, confirmed_at=NOW,
+    )
+    repo.items[0] = confirmed
+    repo.get = lambda proposal_id: confirmed if proposal_id == confirmed.proposal_id else None
+
+    with pytest.raises(EvidenceConfirmationAuditBlockedError, match="evidence_confirmation_trace_incomplete"):
+        BuildEvidenceConfirmationAuditUseCase(
+            workspaces=Workspaces(), proposals=repo, timeline=Timeline(),
+        ).execute(workspace_id="ws1", proposal_id=confirmed.proposal_id)
 
 
 def test_confirm_proposal_fails_closed_when_profile_has_changed():

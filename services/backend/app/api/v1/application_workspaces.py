@@ -13,6 +13,7 @@ from app.api.deps import (
     get_create_study_execution_actions_use_case,
     get_execution_action_repository,
     get_evidence_proposal_repository,
+    get_evidence_confirmation_audit_use_case,
     get_create_evidence_proposal_use_case,
     get_confirm_evidence_proposal_use_case,
     get_interview_mock_question_set_use_case,
@@ -37,6 +38,7 @@ from app.api.v1.schemas.application_workspace import (
     CreateEvidenceProposalRequest,
     ConfirmEvidenceProposalRequest,
     EvidenceProposalResponse,
+    EvidenceConfirmationAuditResponse,
     InterviewAnswerReviewResponse,
     InterviewMockQuestionSetResponse,
     ReviewInterviewMockAnswerRequest,
@@ -48,6 +50,7 @@ from app.api.v1.schemas.application_workspace import (
     SaveResumeVariantRequest,
 )
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
+from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase, EvidenceConfirmationAuditBlockedError
 from app.application.application_workspace.rematch import ApplicationRematchBlockedError, RunApplicationRematchUseCase
 from app.application.application_workspace.execution_action import (
     CreateStudyExecutionActionsUseCase,
@@ -309,6 +312,21 @@ def list_evidence_proposals(
     if workspaces.get(workspace_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
     return [EvidenceProposalResponse.from_model(proposal) for proposal in proposals.list_for_workspace(workspace_id)]
+
+
+@router.get("/{workspace_id}/evidence-proposals/{proposal_id}/audit", response_model=EvidenceConfirmationAuditResponse)
+def get_evidence_confirmation_audit(
+    workspace_id: str,
+    proposal_id: str,
+    use_case: Annotated[BuildEvidenceConfirmationAuditUseCase, Depends(get_evidence_confirmation_audit_use_case)],
+) -> EvidenceConfirmationAuditResponse:
+    try:
+        audit = use_case.execute(workspace_id=workspace_id, proposal_id=proposal_id)
+    except EvidenceConfirmationAuditBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return EvidenceConfirmationAuditResponse.from_model(audit)
 
 
 @router.post("/{workspace_id}/evidence-proposals/{proposal_id}/confirm", response_model=EvidenceProposalResponse)

@@ -19,6 +19,7 @@ from app.application.application_workspace.interview_mock import (
 from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus
 from app.application.application_workspace.evidence_proposal import EvidenceProposal
+from app.application.application_workspace.evidence_audit import EvidenceConfirmationAudit
 from app.application.application_workspace.rematch import ApplicationRematchResult
 from app.domain.career_context import EvidenceType, SkillLevel
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
@@ -189,6 +190,42 @@ class EvidenceProposalResponse(CamelCaseModel):
             confirmed_profile_id=proposal.confirmed_profile_id,
             confirmed_profile_version=proposal.confirmed_profile_version,
             confirmed_at=proposal.confirmed_at,
+        )
+
+
+class EvidenceConfirmationAuditResponse(CamelCaseModel):
+    workspace_id: str
+    proposal_id: str
+    action_id: str
+    actor_id: str
+    source_requirement_ids: list[str]
+    source_profile_id: str
+    source_profile_version: int
+    proposal_recorded: bool
+    human_confirmation_recorded: bool
+    profile_write_recorded: bool
+    confirmed_profile_id: str | None = None
+    confirmed_profile_version: int | None = None
+    confirmation_event_id: str | None = None
+    complete: bool
+
+    @classmethod
+    def from_model(cls, audit: EvidenceConfirmationAudit) -> "EvidenceConfirmationAuditResponse":
+        return cls(
+            workspace_id=audit.workspace_id,
+            proposal_id=audit.proposal_id,
+            action_id=audit.action_id,
+            actor_id=audit.actor_id,
+            source_requirement_ids=list(audit.source_requirement_ids),
+            source_profile_id=audit.source_profile_id,
+            source_profile_version=audit.source_profile_version,
+            proposal_recorded=audit.proposal_recorded,
+            human_confirmation_recorded=audit.human_confirmation_recorded,
+            profile_write_recorded=audit.profile_write_recorded,
+            confirmed_profile_id=audit.confirmed_profile_id,
+            confirmed_profile_version=audit.confirmed_profile_version,
+            confirmation_event_id=audit.confirmation_event_id,
+            complete=audit.complete,
         )
 
 

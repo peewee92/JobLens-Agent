@@ -821,6 +821,19 @@ def get_create_evidence_proposal_use_case(
     return CreateEvidenceProposalUseCase(workspaces=workspaces, actions=actions, proposals=proposals, now=utc_now, new_id=new_evidence_proposal_id)
 
 
+def get_evidence_confirmation_audit_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+):
+    from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase
+    return BuildEvidenceConfirmationAuditUseCase(
+        workspaces=workspaces,
+        proposals=proposals,
+        timeline=timeline,
+    )
+
+
 def get_confirm_evidence_proposal_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),

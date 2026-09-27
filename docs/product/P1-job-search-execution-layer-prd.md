@@ -632,6 +632,8 @@ Tabs / Sections
 
 # 17. Release Gate
 
+> 工程状态（2026-09-27）：`proposal → confirm → write` 已具备独立只读审计重建能力。`GET /api/v1/application-workspaces/{workspace_id}/evidence-proposals/{proposal_id}/audit` 只读取持久化 Evidence Proposal 与不可变 Timeline，不触发 Provider 或业务写入；只有 Proposal 已记录 confirmed Profile identity/version/time，且存在唯一 `evidence_confirmed` Human Confirmation Event 时才报告完整链路。confirmed Proposal 缺确认事件、重复冲突事件等不一致状态 fail-closed，不能把“Action done”或单一状态字段伪装成完整 Trace。
+
 vNext 1.2 第一阶段发布门槛：
 
 - unsupported career fact generation = 0；
@@ -695,15 +697,15 @@ vNext 1.2 第一阶段发布门槛：
 
 # 20. DoD
 
-- [ ] Application Workspace；
-- [ ] Resume Variant + provenance；
-- [ ] Interview / Mock；
-- [ ] Execution ActionItem；
-- [ ] Application Status / Timeline；
-- [ ] Human Gate for writes；
-- [ ] stale source protection；
-- [ ] Growth Loop 回流；
-- [ ] Resume / Interview / State Eval；
-- [ ] Web 工作台；
-- [ ] Trace；
-- [ ] 不自动投递、不自动联系招聘者。
+- [x] Application Workspace；
+- [x] Resume Variant + provenance；
+- [x] Interview / Mock；
+- [x] Execution ActionItem；
+- [x] Application Status / Timeline；
+- [x] Human Gate for writes；
+- [x] stale source protection；
+- [x] Growth Loop 回流；
+- [ ] Resume / Interview / State Eval（固定上限：30 / 30 / 20，仍待正式 Gate 证据）；
+- [x] Web 工作台；
+- [x] Trace（Evidence Proposal → Human Confirm → Profile Write 可只读重建且不一致状态 fail-closed）；
+- [x] 不自动投递、不自动联系招聘者。
