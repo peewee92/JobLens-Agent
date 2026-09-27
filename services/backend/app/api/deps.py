@@ -15,6 +15,7 @@ from app.agent.tool_registry import CareerAgentToolRegistry
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
 from app.application.application_workspace.execution_action import CreateStudyExecutionActionsUseCase, UpdateExecutionActionStatusUseCase
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase
+from app.application.application_workspace.rematch import RunApplicationRematchUseCase
 from app.application.application_workspace.interview_mock import (
     BuildInterviewMockQuestionSetUseCase,
     ReviewInterviewMockAnswerUseCase,
@@ -884,6 +885,30 @@ def get_match_improvement_use_case(
     ),
 ) -> GetMatchImprovementUseCase:
     return GetMatchImprovementUseCase(reports, requirements, profiles)
+
+
+def get_application_rematch_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+    reports: AbstractMatchReportQueryRepository = Depends(get_match_report_query_repository),
+    eligibility: EvaluateJobEligibilityUseCase = Depends(get_job_eligibility_use_case),
+    evidence: RetrieveJobEvidenceUseCase = Depends(get_job_evidence_retrieval_use_case),
+    report_runner: BuildJobMatchReportUseCase = Depends(get_match_report_use_case),
+    improvement: GetMatchImprovementUseCase = Depends(get_match_improvement_use_case),
+) -> RunApplicationRematchUseCase:
+    return RunApplicationRematchUseCase(
+        workspaces=workspaces,
+        proposals=proposals,
+        timeline=timeline,
+        reports=reports,
+        eligibility=eligibility,
+        evidence=evidence,
+        report_runner=report_runner,
+        improvement=improvement,
+        now=utc_now,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:

@@ -14,6 +14,7 @@ from app.api.deps import (
     get_create_evidence_proposal_use_case,
     get_confirm_evidence_proposal_use_case,
     get_interview_mock_question_set_use_case,
+    get_application_rematch_use_case,
     get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
     get_review_resume_variant_use_case,
@@ -22,6 +23,8 @@ from app.api.deps import (
     get_update_execution_action_status_use_case,
 )
 from app.api.v1.schemas.application_workspace import (
+    ApplicationRematchRequest,
+    ApplicationRematchResponse,
     ApplicationTimelineEventResponse,
     ApplicationWorkspaceResponse,
     CreateApplicationWorkspaceRequest,
@@ -41,6 +44,7 @@ from app.api.v1.schemas.application_workspace import (
     SaveResumeVariantRequest,
 )
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
+from app.application.application_workspace.rematch import ApplicationRematchBlockedError, RunApplicationRematchUseCase
 from app.application.application_workspace.execution_action import (
     CreateStudyExecutionActionsUseCase,
     ExecutionActionBlockedError,
@@ -284,6 +288,27 @@ def confirm_evidence_proposal(
         code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
     return EvidenceProposalResponse.from_model(proposal)
+
+
+@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/rematch", response_model=ApplicationRematchResponse)
+def run_application_rematch(
+    workspace_id: str,
+    proposal_id: str,
+    request: ApplicationRematchRequest,
+    use_case: Annotated[RunApplicationRematchUseCase, Depends(get_application_rematch_use_case)],
+) -> ApplicationRematchResponse:
+    try:
+        result = use_case.execute(
+            workspace_id=workspace_id,
+            proposal_id=proposal_id,
+            actor_id=request.actor_id,
+            idempotency_key=request.idempotency_key,
+        )
+    except ApplicationRematchBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ApplicationRematchResponse.from_model(result)
 
 
 @router.get("/{workspace_id}/timeline", response_model=list[ApplicationTimelineEventResponse])

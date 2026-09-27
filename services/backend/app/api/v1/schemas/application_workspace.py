@@ -19,6 +19,7 @@ from app.application.application_workspace.interview_mock import (
 from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus
 from app.application.application_workspace.evidence_proposal import EvidenceProposal
+from app.application.application_workspace.rematch import ApplicationRematchResult
 from app.domain.career_context import EvidenceType, SkillLevel
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
@@ -262,6 +263,41 @@ class InterviewAnswerReviewResponse(CamelCaseModel):
             retry_recommended=review.retry_recommended,
             provider_calls=review.provider_calls,
             db_writes=review.db_writes,
+        )
+
+
+class ApplicationRematchRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+
+
+class ApplicationRematchResponse(CamelCaseModel):
+    workspace_id: str
+    proposal_id: str
+    previous_match_report_id: str
+    current_match_report_id: str
+    previous_recommendation: str
+    current_recommendation: str
+    resolved_requirement_ids: list[str]
+    target_requirement_ids: list[str]
+    target_resolved_requirement_ids: list[str]
+    ranking_signal: str
+    provider_calls: int
+
+    @classmethod
+    def from_model(cls, result: ApplicationRematchResult) -> "ApplicationRematchResponse":
+        return cls(
+            workspace_id=result.workspace_id,
+            proposal_id=result.proposal_id,
+            previous_match_report_id=result.previous_match_report_id,
+            current_match_report_id=result.current_match_report_id,
+            previous_recommendation=result.previous_recommendation.value,
+            current_recommendation=result.current_recommendation.value,
+            resolved_requirement_ids=list(result.resolved_requirement_ids),
+            target_requirement_ids=list(result.target_requirement_ids),
+            target_resolved_requirement_ids=list(result.target_resolved_requirement_ids),
+            ranking_signal=result.ranking_signal.value,
+            provider_calls=result.provider_calls,
         )
 
 

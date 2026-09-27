@@ -348,7 +348,7 @@ ExecutionActionItem
 
 > 用户完成了行动。
 
-> 工程状态（2026-09-27）：A6 Human Confirm 已落地。只有 `done` 且带真实 Requirement + capability 来源的 Action 才允许创建 Evidence Proposal；Proposal 中的 Evidence 类型、摘要、来源和 Skill Level 必须由用户显式提供，系统不从“行动完成”推断职业事实。Proposal 初始状态固定为 `pending_confirmation`，冻结 source Profile identity/version，并支持 actor + idempotency。用户随后必须以同一 actor 显式 Confirm；确认前重新校验 current Profile identity/version，stale 时 fail-closed。确认成功才通过既有 `SaveProfileUseCase` 生成新的 immutable Profile version，并在 Proposal 上记录 confirmed Profile identity/version/time；重复确认幂等。该步骤仍不自动 Re-match / Ranking，下一切片继续完成 explicit Re-match → comparable Match / Ranking signal。
+> 工程状态（2026-09-27）：A6 Human Confirm + zero-provider explicit Re-match 已落地。只有 `done` 且带真实 Requirement + capability 来源的 Action 才允许创建 Evidence Proposal；Proposal 中的 Evidence 类型、摘要、来源和 Skill Level 必须由用户显式提供，系统不从“行动完成”推断职业事实。Proposal 初始状态固定为 `pending_confirmation`，冻结 source Profile identity/version，并支持 actor + idempotency。用户随后必须以同一 actor 显式 Confirm；确认前重新校验 current Profile identity/version，stale 时 fail-closed。确认成功才通过既有 `SaveProfileUseCase` 生成新的 immutable Profile version，并在 Proposal 上记录 confirmed Profile identity/version/time；重复确认幂等。确认后可由用户显式触发 Workspace Re-match：执行前先复用 Eligibility + Evidence Retrieval 判断现有 Semantic Match 是否需要 Provider；若存在需要语义判断的候选证据，自动路径在任何 Match 写入前以 `application_rematch_provider_required` fail-closed。只有整次 Match 可证明 Provider calls=0 时才生成新的 immutable MatchReport，并复用 Match Improvement 输出前后 Recommendation、resolved Requirement、此次 Evidence 目标 Requirement 是否真正解除，以及 `improved / unchanged / weakened` Ranking signal；同时写入 `rematch_completed` Timeline Event。自动任务不会把“可能改善”伪造成 Match 结果，也不会继承任何 live-cost 授权。
 
 不等于：
 
