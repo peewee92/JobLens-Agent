@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import {ApplicationActionControls} from "@/components/application-action-controls";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
@@ -63,13 +64,14 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
 
         <section className="detail-section" id="actions">
           <h2>执行行动</h2>
-          {actions.length === 0 ? <p className="notice">尚未建立可跟踪行动。下一步可把当前 Study Checklist 转成 Action Items。</p> : (
+          {actions.length === 0 ? <p className="notice">尚未建立可跟踪行动。可以直接把当前 Study Checklist 转成 Action Items。</p> : (
             <div className="eligibility-groups">{actions.map((action) => <article className="eligibility-result-card" key={action.actionId}>
               <strong>{action.sourceGapCapability ?? action.description}</strong>
               <p>{action.description}</p>
               <small className="muted-copy">状态：{action.status} · Requirement：{action.sourceRequirementIds.join("、") || "无"}</small>
             </article>)}</div>
           )}
+          <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />
         </section>
 
         <section className="detail-section" id="evidence">

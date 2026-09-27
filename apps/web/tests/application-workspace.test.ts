@@ -23,6 +23,21 @@ test("application workspace renders deterministic next action and execution fact
   assert.match(page, /系统不会自动投递或替你确认职业事实/);
 });
 
+test("application workspace can create and advance real execution actions", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  const controls = source("components/application-action-controls.tsx");
+  const createProxy = source("app/api/application-workspaces/[id]/actions/route.ts");
+  const statusProxy = source("app/api/application-workspaces/[id]/actions/[actionId]/status/route.ts");
+
+  assert.match(page, /ApplicationActionControls/);
+  assert.match(controls, /把学习清单建立为行动/);
+  assert.match(controls, /expectedStatus: action\.status/);
+  assert.match(controls, /newStatus: transition\.status/);
+  assert.match(controls, /web-study-actions-\$\{workspaceId\}/);
+  assert.match(createProxy, /application-workspaces\/\$\{encodeURIComponent\(id\)\}\/actions/);
+  assert.match(statusProxy, /actions\/\$\{encodeURIComponent\(actionId\)\}\/status/);
+});
+
 test("workspace creation uses a stable per-job idempotency key", () => {
   const component = source("components/application-workspace-entry.tsx");
   assert.match(component, /web-application-workspace:\$\{jobId\}/);
