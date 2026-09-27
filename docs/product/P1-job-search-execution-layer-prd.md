@@ -174,7 +174,7 @@ Application Status
 
 # 6. Resume Variant
 
-> 工程状态（2026-09-27）：A3 provenance + human review lifecycle 已落地。Workspace 可通过只读 Preparation / Resume Delta 生成 grounded Resume Variant Proposal；只有同时带 `Requirement ID + confirmed Evidence ID` 的 highlight 才能进入可保存内容，missing / unevidenced gap 仅作为 unresolved requirement 返回，禁止伪装成用户经历。Proposal 会与 Workspace 冻结的 Profile version / Requirement Extraction 做 stale 校验；用户显式保存时携带 actor + idempotency key，先形成 `draft` Variant，系统不得自我批准；只有同一 actor 再显式调用 `POST /api/v1/application-workspaces/{workspace_id}/resume-variants/{variant_id}/review` 才转为 `reviewed`，重复 review 幂等、跨 actor review fail-closed。全程 Provider calls=0，不自动写回 Profile。当前完成的是 provenance-safe 结构化内容与审核状态闭环；自由文案编辑仍不得绕过 Evidence provenance。
+> 工程状态（2026-09-27）：A3 provenance + human review lifecycle 已落地。Workspace 可通过只读 Preparation / Resume Delta 生成 grounded Resume Variant Proposal；只有同时带 `Requirement ID + confirmed Evidence ID` 的 highlight 才能进入可保存内容，missing / unevidenced gap 仅作为 unresolved requirement 返回，禁止伪装成用户经历。Proposal 会与 Workspace 冻结的 Profile version / Requirement Extraction 做 stale 校验；用户显式保存时携带 actor + idempotency key，先形成 `draft` Variant，系统不得自我批准；只有同一 actor 再显式调用 `POST /api/v1/application-workspaces/{workspace_id}/resume-variants/{variant_id}/review` 才转为 `reviewed`，重复 review 幂等、跨 actor review fail-closed。Engineering Complete 审计进一步关闭了 draft → review 的 stale 漏洞：首次人工审核前必须重新读取 current Preparation facts，并再次核对 Profile identity/version 与 Requirement Extraction；事实已变化时在状态写入前 fail-closed，旧 draft 不能静默升级为 reviewed。全程 Provider calls=0，不自动写回 Profile。当前完成的是 provenance-safe 结构化内容与审核状态闭环；自由文案编辑仍不得绕过 Evidence provenance。
 
 ## 6.1 目标
 

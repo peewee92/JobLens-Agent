@@ -74,10 +74,30 @@ def test_review_requires_explicit_owner_action_and_is_idempotent():
     saved = SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1").execute(
         workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1"
     )
-    review = ReviewResumeVariantUseCase(variants=variants)
+    review = ReviewResumeVariantUseCase(variants=variants, proposals=proposals)
     with pytest.raises(ResumeVariantBlockedError, match="resume_variant_actor_mismatch"):
         review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="other", expected_status=ResumeVariantStatus.DRAFT)
     first = review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="user_1", expected_status=ResumeVariantStatus.DRAFT)
     second = review.execute(workspace_id="ws_1", variant_id=saved.variant_id, actor_id="user_1", expected_status=ResumeVariantStatus.DRAFT)
     assert first.status is ResumeVariantStatus.REVIEWED
     assert second == first
+
+
+def test_review_fails_closed_when_saved_variant_source_is_no_longer_current():
+    initial_proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle()))
+    variants = Variants()
+    saved = SaveResumeVariantUseCase(proposals=initial_proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1").execute(
+        workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1"
+    )
+    stale_proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle(profile_version=4)))
+    review = ReviewResumeVariantUseCase(variants=variants, proposals=stale_proposals)
+
+    with pytest.raises(ResumeVariantBlockedError, match="application_workspace_facts_stale"):
+        review.execute(
+            workspace_id="ws_1",
+            variant_id=saved.variant_id,
+            actor_id="user_1",
+            expected_status=ResumeVariantStatus.DRAFT,
+        )
+
+    assert variants.get(saved.variant_id).status is ResumeVariantStatus.DRAFT

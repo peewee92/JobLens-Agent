@@ -858,8 +858,9 @@ def get_save_resume_variant_use_case(
 
 def get_review_resume_variant_use_case(
     variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    proposals: BuildResumeVariantProposalUseCase = Depends(get_resume_variant_proposal_use_case),
 ) -> ReviewResumeVariantUseCase:
-    return ReviewResumeVariantUseCase(variants=variants)
+    return ReviewResumeVariantUseCase(variants=variants, proposals=proposals)
 
 
 def get_create_application_workspace_use_case(

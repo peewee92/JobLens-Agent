@@ -132,8 +132,14 @@ class SaveResumeVariantUseCase:
 class ReviewResumeVariantUseCase:
     """Explicit human review transition; generation/save never self-approves a variant."""
 
-    def __init__(self, *, variants: ResumeVariantRepository) -> None:
+    def __init__(
+        self,
+        *,
+        variants: ResumeVariantRepository,
+        proposals: BuildResumeVariantProposalUseCase,
+    ) -> None:
         self._variants = variants
+        self._proposals = proposals
 
     def execute(self, *, workspace_id: str, variant_id: str, actor_id: str, expected_status: ResumeVariantStatus) -> ResumeVariant:
         variant = self._variants.get(variant_id)
@@ -148,6 +154,13 @@ class ReviewResumeVariantUseCase:
             return owned
         if variant.status is not expected_status or variant.status is not ResumeVariantStatus.DRAFT:
             raise ResumeVariantBlockedError("resume_variant_status_conflict")
+        current = self._proposals.execute(workspace_id)
+        if (
+            variant.source_profile_id != current.source_profile_id
+            or variant.source_profile_version != current.source_profile_version
+            or variant.requirement_extraction_id != current.requirement_extraction_id
+        ):
+            raise ResumeVariantBlockedError("resume_variant_source_stale")
         if not variant.highlights or any(not item.evidence_ids for item in variant.highlights):
             raise ResumeVariantBlockedError("resume_variant_has_ungrounded_content")
         reviewed = self._variants.update_status(variant_id, actor_id=actor_id, status=ResumeVariantStatus.REVIEWED)
