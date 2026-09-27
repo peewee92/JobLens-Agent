@@ -14,6 +14,7 @@ from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
 from app.application.application_workspace.execution_action import CreateStudyExecutionActionsUseCase, UpdateExecutionActionStatusUseCase
+from app.application.application_workspace.evidence_proposal import CreateEvidenceProposalUseCase
 from app.application.application_workspace.interview_mock import (
     BuildInterviewMockQuestionSetUseCase,
     ReviewInterviewMockAnswerUseCase,
@@ -136,6 +137,7 @@ from app.db.models.common import (
     new_application_timeline_event_id,
     new_application_workspace_id,
     new_execution_action_id,
+    new_evidence_proposal_id,
     new_resume_variant_id,
     utc_now,
 )
@@ -150,6 +152,7 @@ from app.repositories.sqlalchemy_application_workspace_repository import (
     SqlAlchemyApplicationTimelineRepository,
     SqlAlchemyApplicationWorkspaceRepository,
     SqlAlchemyExecutionActionRepository,
+    SqlAlchemyEvidenceProposalRepository,
     SqlAlchemyResumeVariantRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
@@ -783,6 +786,18 @@ def get_update_execution_action_status_use_case(
     actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
 ) -> UpdateExecutionActionStatusUseCase:
     return UpdateExecutionActionStatusUseCase(workspaces=workspaces, actions=actions, now=utc_now)
+
+
+def get_evidence_proposal_repository() -> SqlAlchemyEvidenceProposalRepository:
+    return SqlAlchemyEvidenceProposalRepository(SessionLocal)
+
+
+def get_create_evidence_proposal_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+) -> CreateEvidenceProposalUseCase:
+    return CreateEvidenceProposalUseCase(workspaces=workspaces, actions=actions, proposals=proposals, now=utc_now, new_id=new_evidence_proposal_id)
 
 
 def get_interview_mock_question_set_use_case(

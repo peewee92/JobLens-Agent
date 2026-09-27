@@ -74,6 +74,30 @@ class ExecutionActionItemORM(Base):
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
+class EvidenceProposalORM(Base):
+    __tablename__ = "evidence_proposals"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_evidence_proposal_actor_idempotency"),
+        Index("ix_evidence_proposals_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False)
+    action_id: Mapped[str] = mapped_column(ForeignKey("execution_action_items.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    capability: Mapped[str] = mapped_column(String(200), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    evidence_summary: Mapped[str] = mapped_column(String(2000), nullable=False)
+    evidence_source: Mapped[str] = mapped_column(String(1000), nullable=False)
+    skill_level: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_profile_version: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+
 class ApplicationTimelineEventORM(Base):
     __tablename__ = "application_timeline_events"
     __table_args__ = (

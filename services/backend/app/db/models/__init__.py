@@ -3,7 +3,7 @@
 Alembic autogenerate only sees tables that have been imported onto Base.metadata.
 Adding a model file without importing it here makes migrations silently miss it.
 """
-from app.db.models.application_workspace import ApplicationTimelineEventORM, ApplicationWorkspaceORM, ExecutionActionItemORM, ResumeVariantORM
+from app.db.models.application_workspace import ApplicationTimelineEventORM, ApplicationWorkspaceORM, EvidenceProposalORM, ExecutionActionItemORM, ResumeVariantORM
 from app.db.models.career_context import (
     ProfileEvidenceORM,
     ProfileSkillEvidenceORM,
@@ -52,6 +52,7 @@ __all__ = [
     "ApplicationTimelineEventORM",
     "ApplicationWorkspaceORM",
     "ExecutionActionItemORM",
+    "EvidenceProposalORM",
     "ResumeVariantORM",
     "JobORM",
     "ProfileEvidenceORM",

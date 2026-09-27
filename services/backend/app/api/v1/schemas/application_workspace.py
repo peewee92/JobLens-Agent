@@ -18,6 +18,8 @@ from app.application.application_workspace.interview_mock import (
 )
 from app.application.application_workspace.resume_variant import ResumeVariant, ResumeVariantProposal, ResumeVariantStatus
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus
+from app.application.application_workspace.evidence_proposal import EvidenceProposal
+from app.domain.career_context import EvidenceType, SkillLevel
 from app.application.application_workspace.use_case import CreateApplicationWorkspaceCommand
 
 
@@ -140,6 +142,42 @@ class ExecutionActionResponse(CamelCaseModel):
             source_gap_capability=action.source_gap_capability, description=action.description,
             completion_criteria=list(action.completion_criteria), created_at=action.created_at,
             updated_at=action.updated_at, completed_at=action.completed_at,
+        )
+
+
+class CreateEvidenceProposalRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=160)
+    evidence_type: EvidenceType
+    evidence_summary: str = Field(min_length=1, max_length=2000)
+    evidence_source: str = Field(min_length=1, max_length=1000)
+    skill_level: SkillLevel
+
+
+class EvidenceProposalResponse(CamelCaseModel):
+    proposal_id: str
+    workspace_id: str
+    action_id: str
+    status: str
+    source_requirement_ids: list[str]
+    capability: str
+    evidence_type: str
+    evidence_summary: str
+    evidence_source: str
+    skill_level: str
+    source_profile_id: str
+    source_profile_version: int
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, proposal: EvidenceProposal) -> "EvidenceProposalResponse":
+        return cls(
+            proposal_id=proposal.proposal_id, workspace_id=proposal.workspace_id, action_id=proposal.action_id,
+            status=proposal.status.value, source_requirement_ids=list(proposal.source_requirement_ids),
+            capability=proposal.capability, evidence_type=proposal.evidence_type.value,
+            evidence_summary=proposal.evidence_summary, evidence_source=proposal.evidence_source,
+            skill_level=proposal.skill_level.value, source_profile_id=proposal.source_profile_id,
+            source_profile_version=proposal.source_profile_version, created_at=proposal.created_at,
         )
 
 

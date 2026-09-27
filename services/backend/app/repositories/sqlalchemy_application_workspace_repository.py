@@ -11,7 +11,7 @@ from app.application.application_workspace.models import (
     ApplicationWorkspaceSourceSnapshot,
     ApplicationWorkspaceStatus,
 )
-from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM, ExecutionActionItemORM, ResumeVariantORM
+from app.db.models import ApplicationTimelineEventORM, ApplicationWorkspaceORM, EvidenceProposalORM, ExecutionActionItemORM, ResumeVariantORM
 
 SessionFactory = Callable[[], Session]
 
@@ -160,6 +160,31 @@ class SqlAlchemyExecutionActionRepository:
             return _restore_execution_action(record)
 
 
+class SqlAlchemyEvidenceProposalRepository:
+    def __init__(self, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str):
+        with self._session_factory() as session:
+            record = session.scalar(select(EvidenceProposalORM).where(EvidenceProposalORM.actor_id == actor_id, EvidenceProposalORM.idempotency_key == idempotency_key))
+            return _restore_evidence_proposal(record) if record is not None else None
+
+    def add(self, proposal):
+        with self._session_factory() as session, session.begin():
+            record = EvidenceProposalORM(
+                id=proposal.proposal_id, workspace_id=proposal.workspace_id, action_id=proposal.action_id,
+                actor_id=proposal.actor_id, idempotency_key=proposal.idempotency_key, status=proposal.status.value,
+                source_requirement_ids=list(proposal.source_requirement_ids), capability=proposal.capability,
+                evidence_type=proposal.evidence_type.value, evidence_summary=proposal.evidence_summary,
+                evidence_source=proposal.evidence_source, skill_level=proposal.skill_level.value,
+                source_profile_id=proposal.source_profile_id, source_profile_version=proposal.source_profile_version,
+                created_at=proposal.created_at,
+            )
+            session.add(record)
+            session.flush()
+            return _restore_evidence_proposal(record)
+
+
 class SqlAlchemyApplicationTimelineRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
@@ -200,6 +225,20 @@ class SqlAlchemyApplicationTimelineRepository:
                 .order_by(ApplicationTimelineEventORM.created_at, ApplicationTimelineEventORM.id)
             ).all()
             return tuple(_restore_event(record) for record in records)
+
+
+def _restore_evidence_proposal(record: EvidenceProposalORM):
+    from app.application.application_workspace.evidence_proposal import EvidenceProposal, EvidenceProposalStatus
+    from app.domain.career_context import EvidenceType, SkillLevel
+    return EvidenceProposal(
+        proposal_id=record.id, workspace_id=record.workspace_id, action_id=record.action_id,
+        actor_id=record.actor_id, idempotency_key=record.idempotency_key,
+        status=EvidenceProposalStatus(record.status), source_requirement_ids=tuple(record.source_requirement_ids),
+        capability=record.capability, evidence_type=EvidenceType(record.evidence_type),
+        evidence_summary=record.evidence_summary, evidence_source=record.evidence_source,
+        skill_level=SkillLevel(record.skill_level), source_profile_id=record.source_profile_id,
+        source_profile_version=record.source_profile_version, created_at=record.created_at,
+    )
 
 
 def _restore_execution_action(record: ExecutionActionItemORM):
