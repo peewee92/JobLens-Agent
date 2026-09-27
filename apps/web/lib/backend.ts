@@ -5,6 +5,8 @@ import type {
   ApplicationExecutionAction,
   ApplicationEvidenceProposal,
   ApplicationTimelineEvent,
+  ApplicationResumeVariant,
+  ApplicationResumeVariantProposal,
   ApplicationWorkspaceOverview,
   BatchMatchRanking,
   CareerContextReleaseReadiness,
@@ -175,6 +177,14 @@ export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFee
 
 export function fetchApplicationWorkspaceOverview(workspaceId: string): Promise<ApplicationWorkspaceOverview> {
   return backendJson<ApplicationWorkspaceOverview>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/overview`);
+}
+
+export function fetchApplicationResumeVariantProposal(workspaceId: string): Promise<ApplicationResumeVariantProposal> {
+  return backendJson<ApplicationResumeVariantProposal>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/resume-variant/proposal`);
+}
+
+export async function fetchApplicationResumeVariants(workspaceId: string): Promise<ApplicationResumeVariant[]> {
+  return backendJson<ApplicationResumeVariant[]>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/resume-variants`);
 }
 
 export function fetchApplicationActions(workspaceId: string): Promise<ApplicationExecutionAction[]> {

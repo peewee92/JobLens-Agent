@@ -579,6 +579,33 @@ export interface ApplicationWorkspace {
   updatedAt: string;
 }
 
+export interface ApplicationResumeVariantItem {
+  requirementId: string;
+  capability: string;
+  evidenceIds: string[];
+}
+
+export interface ApplicationResumeVariantProposal {
+  workspaceId: string;
+  jobId: string;
+  sourceProfileId: string;
+  sourceProfileVersion: number;
+  requirementExtractionId: string;
+  highlights: ApplicationResumeVariantItem[];
+  unresolvedRequirementIds: string[];
+}
+
+export interface ApplicationResumeVariant {
+  variantId: string;
+  workspaceId: string;
+  status: string;
+  sourceProfileId: string;
+  sourceProfileVersion: number;
+  requirementExtractionId: string;
+  highlights: ApplicationResumeVariantItem[];
+  createdAt: string;
+}
+
 export interface ApplicationWorkspaceOverview {
   workspace: ApplicationWorkspace;
   resumeStatus: string;

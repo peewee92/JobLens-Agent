@@ -23,6 +23,22 @@ test("application workspace renders deterministic next action and execution fact
   assert.match(page, /系统不会自动投递或替你确认职业事实/);
 });
 
+test("application workspace lets the user save and explicitly review a grounded resume variant", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  const controls = source("components/application-resume-controls.tsx");
+  const saveProxy = source("app/api/application-workspaces/[id]/resume-variants/route.ts");
+  const reviewProxy = source("app/api/application-workspaces/[id]/resume-variants/[variantId]/review/route.ts");
+
+  assert.match(page, /ApplicationResumeControls/);
+  assert.match(controls, /仍有 .* Requirement 没有可用 Evidence/);
+  assert.match(controls, /保存岗位简历草稿/);
+  assert.match(controls, /确认已人工审核/);
+  assert.match(controls, /expectedStatus: "draft"/);
+  assert.match(controls, /web-resume-variant-\$\{workspaceId\}/);
+  assert.match(saveProxy, /application-workspaces\/\$\{encodeURIComponent\(id\)\}\/resume-variants/);
+  assert.match(reviewProxy, /resume-variants\/\$\{encodeURIComponent\(variantId\)\}\/review/);
+});
+
 test("application workspace lets the user explicitly update application status", () => {
   const page = source("app/applications/[id]/page.tsx");
   const controls = source("components/application-status-controls.tsx");

@@ -19,6 +19,7 @@ from app.api.deps import (
     get_application_rematch_use_case,
     get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
+    get_resume_variant_repository,
     get_review_resume_variant_use_case,
     get_save_resume_variant_use_case,
     get_update_application_status_use_case,
@@ -185,6 +186,17 @@ def get_resume_variant_proposal(
         detail = str(error)
         code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
+
+
+@router.get("/{workspace_id}/resume-variants", response_model=list[ResumeVariantResponse])
+def list_resume_variants(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    variants=Depends(get_resume_variant_repository),
+) -> list[ResumeVariantResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [ResumeVariantResponse.from_model(variant) for variant in variants.list_for_workspace(workspace_id)]
 
 
 @router.post("/{workspace_id}/resume-variants", response_model=ResumeVariantResponse, status_code=status.HTTP_201_CREATED)

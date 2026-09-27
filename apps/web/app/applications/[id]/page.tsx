@@ -2,12 +2,15 @@ import Link from "next/link";
 
 import {ApplicationActionControls} from "@/components/application-action-controls";
 import {ApplicationEvidenceControls} from "@/components/application-evidence-controls";
+import {ApplicationResumeControls} from "@/components/application-resume-controls";
 import {ApplicationStatusControls} from "@/components/application-status-controls";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchApplicationActions,
   fetchApplicationEvidenceProposals,
+  fetchApplicationResumeVariantProposal,
+  fetchApplicationResumeVariants,
   fetchApplicationTimeline,
   fetchApplicationWorkspaceOverview,
   fetchJobDetail,
@@ -25,12 +28,15 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
   const {id} = await params;
   try {
     const overview = await fetchApplicationWorkspaceOverview(id);
-    const [job, actions, proposals, timeline] = await Promise.all([
+    const [job, actions, proposals, timeline, resumeProposal, resumeVariants] = await Promise.all([
       fetchJobDetail(overview.workspace.jobId),
       fetchApplicationActions(id),
       fetchApplicationEvidenceProposals(id),
       fetchApplicationTimeline(id),
+      fetchApplicationResumeVariantProposal(id),
+      fetchApplicationResumeVariants(id),
     ]);
+    const currentResumeVariant = resumeVariants.at(-1) ?? null;
 
     return <>
       <div className="actions" style={{marginBottom: 18}}>
@@ -68,7 +74,13 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         <section className="detail-section" id="resume">
           <h2>岗位简历</h2>
           <p className="muted">只允许把已确认 Evidence 与对应 Requirement 组织进岗位专用版本，不允许用改写掩盖真实能力缺口。</p>
-          <Link className="button-secondary" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>查看简历调整依据 →</Link>
+          <ApplicationResumeControls
+            workspaceId={id}
+            actorId={overview.workspace.actorId}
+            proposal={resumeProposal}
+            currentVariant={currentResumeVariant}
+          />
+          <div className="actions"><Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>查看完整简历调整依据 →</Link></div>
         </section>
 
         <section className="detail-section" id="actions">
