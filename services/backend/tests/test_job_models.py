@@ -47,6 +47,7 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
         "application_workspaces",
         "application_timeline_events",
         "execution_action_items",
+        "evidence_proposals",
         "resume_variants",
         "jobs",
         "job_sources",

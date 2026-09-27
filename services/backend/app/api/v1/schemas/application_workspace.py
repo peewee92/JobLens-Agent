@@ -154,6 +154,10 @@ class CreateEvidenceProposalRequest(CamelCaseModel):
     skill_level: SkillLevel
 
 
+class ConfirmEvidenceProposalRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+
+
 class EvidenceProposalResponse(CamelCaseModel):
     proposal_id: str
     workspace_id: str
@@ -168,6 +172,9 @@ class EvidenceProposalResponse(CamelCaseModel):
     source_profile_id: str
     source_profile_version: int
     created_at: datetime
+    confirmed_profile_id: str | None = None
+    confirmed_profile_version: int | None = None
+    confirmed_at: datetime | None = None
 
     @classmethod
     def from_model(cls, proposal: EvidenceProposal) -> "EvidenceProposalResponse":
@@ -178,6 +185,9 @@ class EvidenceProposalResponse(CamelCaseModel):
             evidence_summary=proposal.evidence_summary, evidence_source=proposal.evidence_source,
             skill_level=proposal.skill_level.value, source_profile_id=proposal.source_profile_id,
             source_profile_version=proposal.source_profile_version, created_at=proposal.created_at,
+            confirmed_profile_id=proposal.confirmed_profile_id,
+            confirmed_profile_version=proposal.confirmed_profile_version,
+            confirmed_at=proposal.confirmed_at,
         )
 
 

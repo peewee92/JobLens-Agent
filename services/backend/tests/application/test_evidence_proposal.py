@@ -2,9 +2,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.application.application_workspace.evidence_proposal import CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
+from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError, EvidenceProposalStatus
 from app.application.application_workspace.execution_action import ExecutionActionItem, ExecutionActionStatus, ExecutionActionType
 from app.application.application_workspace.models import ApplicationWorkspace, ApplicationWorkspaceSourceSnapshot, ApplicationWorkspaceStatus
+from app.application.career_context.models import EvidenceDetail, ProfileDetail, SkillDetail
 from app.domain.career_context import EvidenceType, SkillLevel
 
 NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
@@ -62,3 +63,71 @@ def test_action_must_be_done_before_evidence_proposal():
     use_case, _ = _use_case(_action(ExecutionActionStatus.IN_PROGRESS))
     with pytest.raises(EvidenceProposalBlockedError, match="execution_action_not_done"):
         use_case.execute(workspace_id="ws1", action_id="a1", actor_id="user1", idempotency_key="evidence-key", evidence_type=EvidenceType.PROJECT, evidence_summary="真实经历", evidence_source="repo", skill_level=SkillLevel.WORKING)
+
+
+class Profiles:
+    def __init__(self, profile): self.profile = profile
+    def get_current_profile(self): return self.profile
+
+
+class SaveProfile:
+    def __init__(self): self.commands = []
+    def execute(self, command):
+        self.commands.append(command)
+        return ProfileDetail("p1", 4, command.headline, command.years_of_experience, (), (), NOW)
+
+
+def _profile(version=3):
+    evidence = EvidenceDetail("ev-old", "old", EvidenceType.PROJECT, "已有真实项目", "repo")
+    skill = SkillDetail("sk-old", "Python", SkillLevel.WORKING, ("ev-old",))
+    return ProfileDetail("p1", version, "AI Engineer", 8, (evidence,), (skill,), NOW)
+
+
+def test_confirm_proposal_requires_human_actor_and_creates_new_profile_version():
+    create, repo = _use_case()
+    proposal = create.execute(
+        workspace_id="ws1", action_id="a1", actor_id="user1", idempotency_key="evidence-key",
+        evidence_type=EvidenceType.PROJECT, evidence_summary="在真实项目中实现 LangGraph checkpoint 恢复链路",
+        evidence_source="JobLens repository", skill_level=SkillLevel.WORKING,
+    )
+    repo.get = lambda proposal_id: next((x for x in repo.items if x.proposal_id == proposal_id), None)
+    def mark_confirmed(**kwargs):
+        current = repo.get(kwargs["proposal_id"])
+        confirmed = type(current)(
+            **{**{field: getattr(current, field) for field in current.__dataclass_fields__},
+               "status": EvidenceProposalStatus.CONFIRMED,
+               "confirmed_profile_id": kwargs["confirmed_profile_id"],
+               "confirmed_profile_version": kwargs["confirmed_profile_version"],
+               "confirmed_at": kwargs["confirmed_at"]}
+        )
+        repo.items[0] = confirmed
+        return confirmed
+    repo.mark_confirmed = mark_confirmed
+    save = SaveProfile()
+    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile()), save_profile=save, now=lambda: NOW)
+
+    confirmed = use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
+
+    assert confirmed.status is EvidenceProposalStatus.CONFIRMED
+    assert confirmed.confirmed_profile_version == 4
+    assert len(save.commands) == 1
+    command = save.commands[0]
+    assert command.expected_version == 3
+    assert command.evidence[-1].summary == "在真实项目中实现 LangGraph checkpoint 恢复链路"
+    assert command.skills[-1].name == "LangGraph"
+    assert command.skills[-1].evidence_keys == (f"application-action:{proposal.proposal_id}",)
+
+
+def test_confirm_proposal_fails_closed_when_profile_has_changed():
+    create, repo = _use_case()
+    proposal = create.execute(
+        workspace_id="ws1", action_id="a1", actor_id="user1", idempotency_key="evidence-key",
+        evidence_type=EvidenceType.PROJECT, evidence_summary="真实经历", evidence_source="repo", skill_level=SkillLevel.WORKING,
+    )
+    repo.get = lambda proposal_id: proposal if proposal_id == proposal.proposal_id else None
+    save = SaveProfile()
+    use_case = ConfirmEvidenceProposalUseCase(workspaces=Workspaces(), proposals=repo, profiles=Profiles(_profile(version=4)), save_profile=save, now=lambda: NOW)
+
+    with pytest.raises(EvidenceProposalBlockedError, match="evidence_proposal_profile_stale"):
+        use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
+    assert save.commands == []

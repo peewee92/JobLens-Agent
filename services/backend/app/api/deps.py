@@ -14,7 +14,7 @@ from app.agent.tool_registry import CareerAgentToolRegistry
 
 from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
 from app.application.application_workspace.execution_action import CreateStudyExecutionActionsUseCase, UpdateExecutionActionStatusUseCase
-from app.application.application_workspace.evidence_proposal import CreateEvidenceProposalUseCase
+from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase
 from app.application.application_workspace.interview_mock import (
     BuildInterviewMockQuestionSetUseCase,
     ReviewInterviewMockAnswerUseCase,
@@ -798,6 +798,21 @@ def get_create_evidence_proposal_use_case(
     proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
 ) -> CreateEvidenceProposalUseCase:
     return CreateEvidenceProposalUseCase(workspaces=workspaces, actions=actions, proposals=proposals, now=utc_now, new_id=new_evidence_proposal_id)
+
+
+def get_confirm_evidence_proposal_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    profiles: AbstractCareerContextQueryRepository = Depends(get_career_context_query_repository),
+    save_profile: SaveProfileUseCase = Depends(get_save_profile_use_case),
+) -> ConfirmEvidenceProposalUseCase:
+    return ConfirmEvidenceProposalUseCase(
+        workspaces=workspaces,
+        proposals=proposals,
+        profiles=profiles,
+        save_profile=save_profile,
+        now=utc_now,
+    )
 
 
 def get_interview_mock_question_set_use_case(

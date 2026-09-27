@@ -12,6 +12,7 @@ from app.api.deps import (
     get_create_study_execution_actions_use_case,
     get_execution_action_repository,
     get_create_evidence_proposal_use_case,
+    get_confirm_evidence_proposal_use_case,
     get_interview_mock_question_set_use_case,
     get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
@@ -27,6 +28,7 @@ from app.api.v1.schemas.application_workspace import (
     CreateExecutionActionsRequest,
     ExecutionActionResponse,
     CreateEvidenceProposalRequest,
+    ConfirmEvidenceProposalRequest,
     EvidenceProposalResponse,
     InterviewAnswerReviewResponse,
     InterviewMockQuestionSetResponse,
@@ -38,7 +40,7 @@ from app.api.v1.schemas.application_workspace import (
     ReviewResumeVariantRequest,
     SaveResumeVariantRequest,
 )
-from app.application.application_workspace.evidence_proposal import CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
+from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
 from app.application.application_workspace.execution_action import (
     CreateStudyExecutionActionsUseCase,
     ExecutionActionBlockedError,
@@ -260,6 +262,26 @@ def create_evidence_proposal(
     except EvidenceProposalBlockedError as error:
         detail = str(error)
         code = status.HTTP_404_NOT_FOUND if detail == "execution_action_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return EvidenceProposalResponse.from_model(proposal)
+
+
+@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/confirm", response_model=EvidenceProposalResponse)
+def confirm_evidence_proposal(
+    workspace_id: str,
+    proposal_id: str,
+    request: ConfirmEvidenceProposalRequest,
+    use_case: Annotated[ConfirmEvidenceProposalUseCase, Depends(get_confirm_evidence_proposal_use_case)],
+) -> EvidenceProposalResponse:
+    try:
+        proposal = use_case.execute(
+            workspace_id=workspace_id,
+            proposal_id=proposal_id,
+            actor_id=request.actor_id,
+        )
+    except EvidenceProposalBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=detail) from error
     return EvidenceProposalResponse.from_model(proposal)
 

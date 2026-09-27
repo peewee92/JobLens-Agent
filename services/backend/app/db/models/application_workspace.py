@@ -96,6 +96,9 @@ class EvidenceProposalORM(Base):
     source_profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
     source_profile_version: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    confirmed_profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmed_profile_version: Mapped[int | None] = mapped_column(nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
 
 class ApplicationTimelineEventORM(Base):

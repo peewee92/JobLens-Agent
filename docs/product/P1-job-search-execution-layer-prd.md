@@ -348,7 +348,7 @@ ExecutionActionItem
 
 > 用户完成了行动。
 
-> 工程状态（2026-09-27）：A6 第一纵向切片已开始。只有 `done` 且带真实 Requirement + capability 来源的 Action 才允许创建 Evidence Proposal；Proposal 中的 Evidence 类型、摘要、来源和 Skill Level 必须由用户显式提供，系统不从“行动完成”推断职业事实。Proposal 初始状态固定为 `pending_confirmation`，冻结 source Profile identity/version，并支持 actor + idempotency；本切片**尚未**把 Proposal 写入 confirmed Profile，也未触发 Re-match，下一切片继续完成 Human Confirm → Profile New Version → explicit Re-match。
+> 工程状态（2026-09-27）：A6 Human Confirm 已落地。只有 `done` 且带真实 Requirement + capability 来源的 Action 才允许创建 Evidence Proposal；Proposal 中的 Evidence 类型、摘要、来源和 Skill Level 必须由用户显式提供，系统不从“行动完成”推断职业事实。Proposal 初始状态固定为 `pending_confirmation`，冻结 source Profile identity/version，并支持 actor + idempotency。用户随后必须以同一 actor 显式 Confirm；确认前重新校验 current Profile identity/version，stale 时 fail-closed。确认成功才通过既有 `SaveProfileUseCase` 生成新的 immutable Profile version，并在 Proposal 上记录 confirmed Profile identity/version/time；重复确认幂等。该步骤仍不自动 Re-match / Ranking，下一切片继续完成 explicit Re-match → comparable Match / Ranking signal。
 
 不等于：
 

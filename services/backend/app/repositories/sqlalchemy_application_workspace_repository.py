@@ -164,6 +164,11 @@ class SqlAlchemyEvidenceProposalRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
 
+    def get(self, proposal_id: str):
+        with self._session_factory() as session:
+            record = session.get(EvidenceProposalORM, proposal_id)
+            return _restore_evidence_proposal(record) if record is not None else None
+
     def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str):
         with self._session_factory() as session:
             record = session.scalar(select(EvidenceProposalORM).where(EvidenceProposalORM.actor_id == actor_id, EvidenceProposalORM.idempotency_key == idempotency_key))
@@ -181,6 +186,24 @@ class SqlAlchemyEvidenceProposalRepository:
                 created_at=proposal.created_at,
             )
             session.add(record)
+            session.flush()
+            return _restore_evidence_proposal(record)
+
+    def mark_confirmed(self, *, proposal_id: str, confirmed_profile_id: str, confirmed_profile_version: int, confirmed_at):
+        from app.application.application_workspace.evidence_proposal import EvidenceProposalStatus
+
+        with self._session_factory() as session, session.begin():
+            record = session.get(EvidenceProposalORM, proposal_id)
+            if record is None:
+                return None
+            if record.status == EvidenceProposalStatus.CONFIRMED.value:
+                return _restore_evidence_proposal(record)
+            if record.status != EvidenceProposalStatus.PENDING_CONFIRMATION.value:
+                return None
+            record.status = EvidenceProposalStatus.CONFIRMED.value
+            record.confirmed_profile_id = confirmed_profile_id
+            record.confirmed_profile_version = confirmed_profile_version
+            record.confirmed_at = confirmed_at
             session.flush()
             return _restore_evidence_proposal(record)
 
@@ -238,6 +261,9 @@ def _restore_evidence_proposal(record: EvidenceProposalORM):
         evidence_summary=record.evidence_summary, evidence_source=record.evidence_source,
         skill_level=SkillLevel(record.skill_level), source_profile_id=record.source_profile_id,
         source_profile_version=record.source_profile_version, created_at=record.created_at,
+        confirmed_profile_id=record.confirmed_profile_id,
+        confirmed_profile_version=record.confirmed_profile_version,
+        confirmed_at=record.confirmed_at,
     )
 
 
