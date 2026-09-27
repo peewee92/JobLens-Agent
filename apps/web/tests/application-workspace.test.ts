@@ -23,6 +23,19 @@ test("application workspace renders deterministic next action and execution fact
   assert.match(page, /系统不会自动投递或替你确认职业事实/);
 });
 
+test("application workspace lets the user explicitly update application status", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  const controls = source("components/application-status-controls.tsx");
+  const proxy = source("app/api/application-workspaces/[id]/status/route.ts");
+
+  assert.match(page, /ApplicationStatusControls/);
+  assert.match(controls, /投递状态只由你显式更新/);
+  assert.match(controls, /expectedStatus: currentStatus/);
+  assert.match(controls, /newStatus: selectedStatus/);
+  assert.match(controls, /web-application-status-\$\{workspaceId\}/);
+  assert.match(proxy, /application-workspaces\/\$\{encodeURIComponent\(id\)\}\/status/);
+});
+
 test("application workspace can create and advance real execution actions", () => {
   const page = source("app/applications/[id]/page.tsx");
   const controls = source("components/application-action-controls.tsx");

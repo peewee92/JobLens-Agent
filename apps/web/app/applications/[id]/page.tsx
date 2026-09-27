@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import {ApplicationActionControls} from "@/components/application-action-controls";
 import {ApplicationEvidenceControls} from "@/components/application-evidence-controls";
+import {ApplicationStatusControls} from "@/components/application-status-controls";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
@@ -57,6 +58,11 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
             <article className="eligibility-result-card"><strong>行动事项</strong><p>{overview.actionOpen} 项待完成 / 共 {overview.actionTotal} 项</p></article>
             <article className="eligibility-result-card"><strong>真实 Evidence</strong><p>{overview.evidencePendingConfirmation} 项待确认 / {overview.evidenceConfirmed} 项已确认</p></article>
           </div>
+          <ApplicationStatusControls
+            workspaceId={id}
+            actorId={overview.workspace.actorId}
+            currentStatus={overview.workspace.status}
+          />
         </section>
 
         <section className="detail-section" id="resume">
