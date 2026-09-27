@@ -22,6 +22,12 @@ class Preparation:
     def execute(self, job_id): return self.bundle
 
 
+class Timeline:
+    def __init__(self): self.events = {}
+    def get_by_actor_and_idempotency_key(self, actor_id, key): return self.events.get((actor_id, key))
+    def add(self, event): self.events[(event.actor_id, event.idempotency_key)] = event; return event
+
+
 class Variants:
     def __init__(self): self.saved = {}; self.by_id = {}; self.actors = {}; self.added = []
     def get(self, variant_id): return self.by_id.get(variant_id)
@@ -59,10 +65,15 @@ def test_proposal_fails_closed_when_workspace_snapshot_is_stale():
 def test_save_is_idempotent_and_never_saves_unevidenced_gap_as_resume_content():
     proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle()))
     variants = Variants()
-    use_case = SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1")
+    timeline = Timeline()
+    use_case = SaveResumeVariantUseCase(proposals=proposals, variants=variants, timeline=timeline, now=lambda: NOW, new_id=lambda: "rv_1", new_event_id=lambda: "evt_1")
     first = use_case.execute(workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1")
     second = use_case.execute(workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1")
     assert first == second
+    assert len(timeline.events) == 1
+    event = timeline.events[("user_1", "resume-saved:save-1")]
+    assert event.workspace_id == "ws_1"
+    assert event.event_type.value == "resume_variant_saved"
     assert len(variants.added) == 1
     assert first.highlights[0].evidence_ids == ("ev1",)
     assert first.status is ResumeVariantStatus.DRAFT
@@ -71,7 +82,7 @@ def test_save_is_idempotent_and_never_saves_unevidenced_gap_as_resume_content():
 def test_review_requires_explicit_owner_action_and_is_idempotent():
     proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle()))
     variants = Variants()
-    saved = SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1").execute(
+    saved = SaveResumeVariantUseCase(proposals=proposals, variants=variants, timeline=Timeline(), now=lambda: NOW, new_id=lambda: "rv_1", new_event_id=lambda: "evt_1").execute(
         workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1"
     )
     review = ReviewResumeVariantUseCase(variants=variants, proposals=proposals)
@@ -86,7 +97,7 @@ def test_review_requires_explicit_owner_action_and_is_idempotent():
 def test_review_fails_closed_when_saved_variant_source_is_no_longer_current():
     initial_proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle()))
     variants = Variants()
-    saved = SaveResumeVariantUseCase(proposals=initial_proposals, variants=variants, now=lambda: NOW, new_id=lambda: "rv_1").execute(
+    saved = SaveResumeVariantUseCase(proposals=initial_proposals, variants=variants, timeline=Timeline(), now=lambda: NOW, new_id=lambda: "rv_1", new_event_id=lambda: "evt_1").execute(
         workspace_id="ws_1", actor_id="user_1", idempotency_key="save-1"
     )
     stale_proposals = BuildResumeVariantProposalUseCase(workspaces=WorkspaceRepo(workspace()), preparation=Preparation(bundle(profile_version=4)))

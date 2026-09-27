@@ -195,6 +195,8 @@ class EvidenceProposalResponse(CamelCaseModel):
 class ReviewInterviewMockAnswerRequest(CamelCaseModel):
     answer_text: str = Field(min_length=1, max_length=12000)
     evidence_ids: list[str] = Field(default_factory=list, max_length=50)
+    actor_id: str = Field(min_length=1, max_length=200)
+    idempotency_key: str = Field(min_length=1, max_length=200)
 
 
 class InterviewMockQuestionResponse(CamelCaseModel):

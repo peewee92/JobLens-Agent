@@ -108,7 +108,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         <section className="detail-section" id="interview">
           <h2>面试练习</h2>
           <p className="muted">练习问题只来自 released JobRequirement 和已确认 Evidence，不重新读取 JD 自由发挥；回答审核只检查真实 Evidence grounding，不伪造录用概率或语义评分。</p>
-          <ApplicationInterviewControls workspaceId={id} questionSet={interviewQuestions} />
+          <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} />
           <div className="actions"><Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>查看完整面试准备事实 →</Link></div>
         </section>
 

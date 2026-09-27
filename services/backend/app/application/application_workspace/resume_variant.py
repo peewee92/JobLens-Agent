@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Callable, Protocol
 
-from app.application.application_workspace.models import ApplicationTimelineEventType
+from app.application.application_workspace.models import ApplicationTimelineEvent, ApplicationTimelineEventType
 from app.application.job_preparation.bundle import BuildJobPreparationBundleUseCase
 
 
@@ -52,6 +52,11 @@ class ResumeVariantBlockedError(RuntimeError):
 
 class WorkspaceQuery(Protocol):
     def get(self, workspace_id: str): ...
+
+
+class TimelineRepository(Protocol):
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str) -> ApplicationTimelineEvent | None: ...
+    def add(self, event: ApplicationTimelineEvent) -> ApplicationTimelineEvent: ...
 
 
 class ResumeVariantRepository(Protocol):
@@ -101,17 +106,20 @@ class BuildResumeVariantProposalUseCase:
 
 
 class SaveResumeVariantUseCase:
-    def __init__(self, *, proposals: BuildResumeVariantProposalUseCase, variants: ResumeVariantRepository, now: Callable[[], datetime], new_id: Callable[[], str]) -> None:
+    def __init__(self, *, proposals: BuildResumeVariantProposalUseCase, variants: ResumeVariantRepository, timeline: TimelineRepository, now: Callable[[], datetime], new_id: Callable[[], str], new_event_id: Callable[[], str]) -> None:
         self._proposals = proposals
         self._variants = variants
+        self._timeline = timeline
         self._now = now
         self._new_id = new_id
+        self._new_event_id = new_event_id
 
     def execute(self, *, workspace_id: str, actor_id: str, idempotency_key: str) -> ResumeVariant:
         existing = self._variants.get_by_actor_and_idempotency_key(actor_id, idempotency_key)
         if existing is not None:
             if existing.workspace_id != workspace_id:
                 raise ResumeVariantBlockedError("resume_variant_idempotency_conflict")
+            self._ensure_saved_event(existing, actor_id, idempotency_key)
             return existing
         proposal = self._proposals.execute(workspace_id)
         if not proposal.highlights:
@@ -126,7 +134,24 @@ class SaveResumeVariantUseCase:
             highlights=proposal.highlights,
             created_at=self._now(),
         )
-        return self._variants.add(variant=variant, actor_id=actor_id, idempotency_key=idempotency_key)
+        saved = self._variants.add(variant=variant, actor_id=actor_id, idempotency_key=idempotency_key)
+        self._ensure_saved_event(saved, actor_id, idempotency_key)
+        return saved
+
+    def _ensure_saved_event(self, variant: ResumeVariant, actor_id: str, idempotency_key: str) -> None:
+        event_key = f"resume-saved:{idempotency_key}"
+        existing = self._timeline.get_by_actor_and_idempotency_key(actor_id, event_key)
+        if existing is not None:
+            if existing.workspace_id != variant.workspace_id or existing.event_type is not ApplicationTimelineEventType.RESUME_VARIANT_SAVED:
+                raise ResumeVariantBlockedError("resume_variant_timeline_conflict")
+            return
+        self._timeline.add(
+            ApplicationTimelineEvent(
+                event_id=self._new_event_id(), workspace_id=variant.workspace_id, actor_id=actor_id,
+                idempotency_key=event_key, event_type=ApplicationTimelineEventType.RESUME_VARIANT_SAVED,
+                from_status=None, to_status=None, created_at=variant.created_at,
+            )
+        )
 
 
 class ReviewResumeVariantUseCase:

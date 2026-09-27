@@ -7,9 +7,11 @@ It never invents STAR details, metrics, or hiring probability.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Callable, Protocol
 
+from app.application.application_workspace.models import ApplicationTimelineEvent, ApplicationTimelineEventType
 from app.application.job_preparation.bundle import BuildJobPreparationBundleUseCase
 from app.application.job_preparation.interview_question_facts import InterviewEvidenceStatus
 
@@ -61,6 +63,11 @@ class InterviewAnswerReview:
 
 class WorkspaceQuery(Protocol):
     def get(self, workspace_id: str): ...
+
+
+class TimelineRepository(Protocol):
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str) -> ApplicationTimelineEvent | None: ...
+    def add(self, event: ApplicationTimelineEvent) -> ApplicationTimelineEvent: ...
 
 
 class BuildInterviewMockQuestionSetUseCase:
@@ -121,8 +128,11 @@ class BuildInterviewMockQuestionSetUseCase:
 class ReviewInterviewMockAnswerUseCase:
     """Check answer provenance without pretending to semantically grade free-form prose."""
 
-    def __init__(self, *, question_sets: BuildInterviewMockQuestionSetUseCase) -> None:
+    def __init__(self, *, question_sets: BuildInterviewMockQuestionSetUseCase, timeline: TimelineRepository, now: Callable[[], datetime], new_event_id: Callable[[], str]) -> None:
         self._question_sets = question_sets
+        self._timeline = timeline
+        self._now = now
+        self._new_event_id = new_event_id
 
     def execute(
         self,
@@ -131,6 +141,8 @@ class ReviewInterviewMockAnswerUseCase:
         question_id: str,
         answer_text: str,
         evidence_ids: tuple[str, ...],
+        actor_id: str,
+        idempotency_key: str,
     ) -> InterviewAnswerReview:
         if not answer_text.strip():
             raise InterviewMockBlockedError("interview_answer_empty")
@@ -156,7 +168,7 @@ class ReviewInterviewMockAnswerUseCase:
             grounding_status = InterviewAnswerGroundingStatus.PARTIALLY_GROUNDED
         else:
             grounding_status = InterviewAnswerGroundingStatus.UNGROUNDED
-        return InterviewAnswerReview(
+        review = InterviewAnswerReview(
             workspace_id=workspace_id,
             question_id=question.question_id,
             requirement_id=question.requirement_id,
@@ -165,4 +177,21 @@ class ReviewInterviewMockAnswerUseCase:
             rejected_evidence_ids=rejected,
             feedback=tuple(feedback),
             retry_recommended=grounding_status is not InterviewAnswerGroundingStatus.GROUNDED,
+        )
+        self._ensure_completed_event(workspace_id, actor_id, idempotency_key)
+        return review
+
+    def _ensure_completed_event(self, workspace_id: str, actor_id: str, idempotency_key: str) -> None:
+        event_key = f"mock-interview-completed:{idempotency_key}"
+        existing = self._timeline.get_by_actor_and_idempotency_key(actor_id, event_key)
+        if existing is not None:
+            if existing.workspace_id != workspace_id or existing.event_type is not ApplicationTimelineEventType.MOCK_INTERVIEW_COMPLETED:
+                raise InterviewMockBlockedError("interview_timeline_conflict")
+            return
+        self._timeline.add(
+            ApplicationTimelineEvent(
+                event_id=self._new_event_id(), workspace_id=workspace_id, actor_id=actor_id,
+                idempotency_key=event_key, event_type=ApplicationTimelineEventType.MOCK_INTERVIEW_COMPLETED,
+                from_status=None, to_status=None, created_at=self._now(),
+            )
         )

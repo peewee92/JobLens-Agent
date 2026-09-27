@@ -785,8 +785,15 @@ def get_create_study_execution_actions_use_case(
 def get_update_execution_action_status_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
 ) -> UpdateExecutionActionStatusUseCase:
-    return UpdateExecutionActionStatusUseCase(workspaces=workspaces, actions=actions, now=utc_now)
+    return UpdateExecutionActionStatusUseCase(
+        workspaces=workspaces,
+        actions=actions,
+        timeline=timeline,
+        now=utc_now,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_evidence_proposal_repository() -> SqlAlchemyEvidenceProposalRepository:
@@ -841,8 +848,14 @@ def get_interview_mock_question_set_use_case(
 
 def get_review_interview_mock_answer_use_case(
     question_sets: BuildInterviewMockQuestionSetUseCase = Depends(get_interview_mock_question_set_use_case),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
 ) -> ReviewInterviewMockAnswerUseCase:
-    return ReviewInterviewMockAnswerUseCase(question_sets=question_sets)
+    return ReviewInterviewMockAnswerUseCase(
+        question_sets=question_sets,
+        timeline=timeline,
+        now=utc_now,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_resume_variant_proposal_use_case(
@@ -855,8 +868,16 @@ def get_resume_variant_proposal_use_case(
 def get_save_resume_variant_use_case(
     proposals: BuildResumeVariantProposalUseCase = Depends(get_resume_variant_proposal_use_case),
     variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
 ) -> SaveResumeVariantUseCase:
-    return SaveResumeVariantUseCase(proposals=proposals, variants=variants, now=utc_now, new_id=new_resume_variant_id)
+    return SaveResumeVariantUseCase(
+        proposals=proposals,
+        variants=variants,
+        timeline=timeline,
+        now=utc_now,
+        new_id=new_resume_variant_id,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_review_resume_variant_use_case(
@@ -879,14 +900,17 @@ def get_create_application_workspace_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(
         get_application_workspace_repository
     ),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
 ) -> CreateApplicationWorkspaceUseCase:
     return CreateApplicationWorkspaceUseCase(
         career_context=career_context,
         requirement_gate=requirement_gate,
         match_reports=match_reports,
         workspaces=workspaces,
+        timeline=timeline,
         now=utc_now,
         new_id=new_application_workspace_id,
+        new_event_id=new_application_timeline_event_id,
     )
 
 

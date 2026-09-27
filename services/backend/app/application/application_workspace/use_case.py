@@ -7,6 +7,8 @@ from hashlib import sha256
 from typing import Callable, Protocol
 
 from app.application.application_workspace.models import (
+    ApplicationTimelineEvent,
+    ApplicationTimelineEventType,
     ApplicationWorkspace,
     ApplicationWorkspaceSourceSnapshot,
     ApplicationWorkspaceStatus,
@@ -47,6 +49,11 @@ class WorkspaceRepository(Protocol):
     def add(self, workspace: ApplicationWorkspace) -> ApplicationWorkspace: ...
 
 
+class TimelineRepository(Protocol):
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str) -> ApplicationTimelineEvent | None: ...
+    def add(self, event: ApplicationTimelineEvent) -> ApplicationTimelineEvent: ...
+
+
 class CreateApplicationWorkspaceUseCase:
     def __init__(
         self,
@@ -55,15 +62,19 @@ class CreateApplicationWorkspaceUseCase:
         requirement_gate: RequirementGate,
         match_reports: MatchReportReader,
         workspaces: WorkspaceRepository,
+        timeline: TimelineRepository,
         now: Callable[[], datetime],
         new_id: Callable[[], str],
+        new_event_id: Callable[[], str],
     ) -> None:
         self._career_context = career_context
         self._requirement_gate = requirement_gate
         self._match_reports = match_reports
         self._workspaces = workspaces
+        self._timeline = timeline
         self._now = now
         self._new_id = new_id
+        self._new_event_id = new_event_id
 
     def execute(self, command: CreateApplicationWorkspaceCommand) -> ApplicationWorkspace:
         job_id = command.job_id.strip()
@@ -76,6 +87,7 @@ class CreateApplicationWorkspaceUseCase:
         if existing is not None:
             if existing.job_id != job_id:
                 raise ApplicationWorkspaceBlockedError("idempotency_key_conflict")
+            self._ensure_created_event(existing)
             return existing
 
         context = self._career_context.get_current_context()
@@ -108,7 +120,7 @@ class CreateApplicationWorkspaceUseCase:
         )
         fingerprint = _fingerprint(job_id, snapshot)
         created_at = self._now()
-        return self._workspaces.add(
+        workspace = self._workspaces.add(
             ApplicationWorkspace(
                 workspace_id=self._new_id(),
                 job_id=job_id,
@@ -119,6 +131,28 @@ class CreateApplicationWorkspaceUseCase:
                 current_fact_fingerprint=fingerprint,
                 created_at=created_at,
                 updated_at=created_at,
+            )
+        )
+        self._ensure_created_event(workspace)
+        return workspace
+
+    def _ensure_created_event(self, workspace: ApplicationWorkspace) -> None:
+        event_key = f"workspace-created:{workspace.idempotency_key}"
+        existing = self._timeline.get_by_actor_and_idempotency_key(workspace.actor_id, event_key)
+        if existing is not None:
+            if existing.workspace_id != workspace.workspace_id or existing.event_type is not ApplicationTimelineEventType.WORKSPACE_CREATED:
+                raise ApplicationWorkspaceBlockedError("timeline_idempotency_conflict")
+            return
+        self._timeline.add(
+            ApplicationTimelineEvent(
+                event_id=self._new_event_id(),
+                workspace_id=workspace.workspace_id,
+                actor_id=workspace.actor_id,
+                idempotency_key=event_key,
+                event_type=ApplicationTimelineEventType.WORKSPACE_CREATED,
+                from_status=None,
+                to_status=workspace.status,
+                created_at=workspace.created_at,
             )
         )
 

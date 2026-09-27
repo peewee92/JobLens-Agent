@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Callable, Protocol
 
-from app.application.application_workspace.models import ApplicationWorkspace
+from app.application.application_workspace.models import ApplicationTimelineEvent, ApplicationTimelineEventType, ApplicationWorkspace
 from app.application.job_preparation.bundle import BuildJobPreparationBundleUseCase
 
 
@@ -52,6 +52,11 @@ class ExecutionActionRepository(Protocol):
 
 class WorkspaceRepository(Protocol):
     def get(self, workspace_id: str) -> ApplicationWorkspace | None: ...
+
+
+class TimelineRepository(Protocol):
+    def get_by_actor_and_idempotency_key(self, actor_id: str, idempotency_key: str) -> ApplicationTimelineEvent | None: ...
+    def add(self, event: ApplicationTimelineEvent) -> ApplicationTimelineEvent: ...
 
 
 class ExecutionActionBlockedError(RuntimeError):
@@ -109,10 +114,12 @@ class UpdateExecutionActionStatusUseCase:
         ExecutionActionStatus.SKIPPED: set(),
     }
 
-    def __init__(self, *, workspaces: WorkspaceRepository, actions: ExecutionActionRepository, now: Callable[[], datetime]) -> None:
+    def __init__(self, *, workspaces: WorkspaceRepository, actions: ExecutionActionRepository, timeline: TimelineRepository, now: Callable[[], datetime], new_event_id: Callable[[], str]) -> None:
         self._workspaces = workspaces
         self._actions = actions
+        self._timeline = timeline
         self._now = now
+        self._new_event_id = new_event_id
 
     def execute(self, *, workspace_id: str, action_id: str, actor_id: str, expected_status: ExecutionActionStatus, new_status: ExecutionActionStatus) -> ExecutionActionItem:
         workspace = self._workspaces.get(workspace_id)
@@ -129,4 +136,21 @@ class UpdateExecutionActionStatusUseCase:
         updated = self._actions.update_status(action_id=action_id, expected_status=expected_status, new_status=new_status, updated_at=now, completed_at=now if new_status is ExecutionActionStatus.DONE else None)
         if updated is None:
             raise ExecutionActionBlockedError("execution_action_status_conflict")
+        if new_status is ExecutionActionStatus.DONE:
+            self._ensure_completed_event(updated)
         return updated
+
+    def _ensure_completed_event(self, action: ExecutionActionItem) -> None:
+        event_key = f"action-completed:{action.action_id}"
+        existing = self._timeline.get_by_actor_and_idempotency_key(action.actor_id, event_key)
+        if existing is not None:
+            if existing.workspace_id != action.workspace_id or existing.event_type is not ApplicationTimelineEventType.ACTION_COMPLETED:
+                raise ExecutionActionBlockedError("execution_action_timeline_conflict")
+            return
+        self._timeline.add(
+            ApplicationTimelineEvent(
+                event_id=self._new_event_id(), workspace_id=action.workspace_id, actor_id=action.actor_id,
+                idempotency_key=event_key, event_type=ApplicationTimelineEventType.ACTION_COMPLETED,
+                from_status=None, to_status=None, created_at=action.completed_at or action.updated_at,
+            )
+        )

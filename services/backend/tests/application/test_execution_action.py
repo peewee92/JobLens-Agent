@@ -28,6 +28,12 @@ class Preparation:
     def execute(self, job_id): return self.bundle
 
 
+class Timeline:
+    def __init__(self): self.events = {}
+    def get_by_actor_and_idempotency_key(self, actor_id, key): return self.events.get((actor_id, key))
+    def add(self, event): self.events[(event.actor_id, event.idempotency_key)] = event; return event
+
+
 class ActionRepo:
     def __init__(self): self.items = {}
     def get(self, action_id): return self.items.get(action_id)
@@ -84,11 +90,15 @@ def test_done_tracks_action_completion_without_creating_profile_evidence():
     repo = ActionRepo()
     creator = CreateStudyExecutionActionsUseCase(workspaces=WorkspaceRepo(_workspace()), preparation=Preparation(_bundle()), actions=repo, now=lambda: NOW, new_id=iter(("a1", "a2")).__next__)
     action = creator.execute(workspace_id="ws_1", actor_id="user_1", idempotency_key="study-1")[0]
-    updater = UpdateExecutionActionStatusUseCase(workspaces=WorkspaceRepo(_workspace()), actions=repo, now=lambda: NOW)
+    timeline = Timeline()
+    updater = UpdateExecutionActionStatusUseCase(workspaces=WorkspaceRepo(_workspace()), actions=repo, timeline=timeline, now=lambda: NOW, new_event_id=lambda: "evt_1")
 
     done = updater.execute(workspace_id="ws_1", action_id=action.action_id, actor_id="user_1", expected_status=ExecutionActionStatus.TODO, new_status=ExecutionActionStatus.DONE)
 
     assert done.status is ExecutionActionStatus.DONE
+    event = timeline.events[("user_1", f"action-completed:{action.action_id}")]
+    assert event.workspace_id == "ws_1"
+    assert event.event_type.value == "action_completed"
     assert done.completed_at == NOW
     assert done.source_requirement_ids == ("r1",)
 
@@ -97,7 +107,7 @@ def test_status_update_rejects_stale_expected_status():
     repo = ActionRepo()
     creator = CreateStudyExecutionActionsUseCase(workspaces=WorkspaceRepo(_workspace()), preparation=Preparation(_bundle()), actions=repo, now=lambda: NOW, new_id=iter(("a1", "a2")).__next__)
     action = creator.execute(workspace_id="ws_1", actor_id="user_1", idempotency_key="study-1")[0]
-    updater = UpdateExecutionActionStatusUseCase(workspaces=WorkspaceRepo(_workspace()), actions=repo, now=lambda: NOW)
+    updater = UpdateExecutionActionStatusUseCase(workspaces=WorkspaceRepo(_workspace()), actions=repo, timeline=Timeline(), now=lambda: NOW, new_event_id=lambda: "evt_1")
     updater.execute(workspace_id="ws_1", action_id=action.action_id, actor_id="user_1", expected_status=ExecutionActionStatus.TODO, new_status=ExecutionActionStatus.IN_PROGRESS)
 
     with pytest.raises(ExecutionActionBlockedError, match="execution_action_status_conflict"):

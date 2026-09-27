@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -18,6 +19,9 @@ from app.application.job_preparation.interview_question_facts import (
     InterviewQuestionFacts,
 )
 from app.domain.job_requirements import RequirementImportance, RequirementType
+
+
+NOW = datetime(2026, 9, 27, 12, 0, tzinfo=timezone.utc)
 
 
 class WorkspaceRepo:
@@ -92,6 +96,18 @@ def _bundle(*, profile_version=3):
     )
 
 
+class Timeline:
+    def __init__(self): self.events = {}
+    def get_by_actor_and_idempotency_key(self, actor_id, key): return self.events.get((actor_id, key))
+    def add(self, event): self.events[(event.actor_id, event.idempotency_key)] = event; return event
+
+
+def _reviewer(*, timeline=None):
+    return ReviewInterviewMockAnswerUseCase(
+        question_sets=_question_sets(), timeline=timeline or Timeline(), now=lambda: NOW, new_event_id=lambda: "evt_1"
+    )
+
+
 def _question_sets(*, profile_version=3):
     return BuildInterviewMockQuestionSetUseCase(
         workspaces=WorkspaceRepo(_workspace()),
@@ -114,14 +130,20 @@ def test_question_set_fails_closed_when_workspace_snapshot_is_stale():
 
 
 def test_answer_review_accepts_only_evidence_grounded_for_that_requirement():
-    review = ReviewInterviewMockAnswerUseCase(question_sets=_question_sets()).execute(
+    timeline = Timeline()
+    review = _reviewer(timeline=timeline).execute(
         workspace_id="ws_1",
         question_id="iq_r1",
         answer_text="我在项目中使用 Python 完成了后端能力。",
         evidence_ids=("ev1",),
+        actor_id="user_1",
+        idempotency_key="mock-r1",
     )
 
     assert review.grounding_status is InterviewAnswerGroundingStatus.GROUNDED
+    event = timeline.events[("user_1", "mock-interview-completed:mock-r1")]
+    assert event.workspace_id == "ws_1"
+    assert event.event_type.value == "mock_interview_completed"
     assert review.accepted_evidence_ids == ("ev1",)
     assert review.rejected_evidence_ids == ()
     assert review.retry_recommended is False
@@ -130,11 +152,13 @@ def test_answer_review_accepts_only_evidence_grounded_for_that_requirement():
 
 
 def test_answer_review_rejects_cross_requirement_or_invented_evidence_and_recommends_retry():
-    review = ReviewInterviewMockAnswerUseCase(question_sets=_question_sets()).execute(
+    review = _reviewer().execute(
         workspace_id="ws_1",
         question_id="iq_r1",
         answer_text="我做过相关工作。",
         evidence_ids=("ev_other",),
+        actor_id="user_1",
+        idempotency_key="mock-r1",
     )
 
     assert review.grounding_status is InterviewAnswerGroundingStatus.UNGROUNDED

@@ -167,6 +167,8 @@ def review_interview_mock_answer(
             question_id=question_id,
             answer_text=request.answer_text,
             evidence_ids=tuple(request.evidence_ids),
+            actor_id=request.actor_id,
+            idempotency_key=request.idempotency_key,
         )
     except InterviewMockBlockedError as error:
         detail = str(error)

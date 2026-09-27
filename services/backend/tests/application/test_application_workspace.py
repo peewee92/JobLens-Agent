@@ -48,6 +48,18 @@ class MatchReportsStub:
         return (self.report,) if self.report is not None and self.report.report.job_id == job_id else ()
 
 
+class TimelineRepoStub:
+    def __init__(self) -> None:
+        self.events = {}
+
+    def get_by_actor_and_idempotency_key(self, actor_id, idempotency_key):
+        return self.events.get((actor_id, idempotency_key))
+
+    def add(self, event):
+        self.events[(event.actor_id, event.idempotency_key)] = event
+        return event
+
+
 class WorkspaceRepoStub:
     def __init__(self) -> None:
         self.by_idempotency: dict[tuple[str, str], ApplicationWorkspace] = {}
@@ -119,21 +131,24 @@ def _report() -> StoredMatchReport:
 _DEFAULT_REPORT = object()
 
 
-def _use_case(*, release=None, report=_DEFAULT_REPORT, context=None, repo=None):
+def _use_case(*, release=None, report=_DEFAULT_REPORT, context=None, repo=None, timeline=None):
     selected_report = _report() if report is _DEFAULT_REPORT else report
     return CreateApplicationWorkspaceUseCase(
         career_context=CareerContextStub(context or CareerContextSnapshot(_profile(), _intent())),
         requirement_gate=RequirementGateStub(release or _release()),
         match_reports=MatchReportsStub(selected_report),
         workspaces=repo or WorkspaceRepoStub(),
+        timeline=timeline or TimelineRepoStub(),
         now=lambda: NOW,
         new_id=lambda: "appws_1",
+        new_event_id=lambda: "appevt_1",
     )
 
 
 def test_create_freezes_current_fact_snapshot_and_is_idempotent() -> None:
     repo = WorkspaceRepoStub()
-    use_case = _use_case(repo=repo)
+    timeline = TimelineRepoStub()
+    use_case = _use_case(repo=repo, timeline=timeline)
     command = CreateApplicationWorkspaceCommand(job_id="job_1", actor_id="user_1", idempotency_key="create-job-1")
 
     first = use_case.execute(command)
@@ -148,6 +163,10 @@ def test_create_freezes_current_fact_snapshot_and_is_idempotent() -> None:
     assert first.source_snapshot.requirement_extraction_id == "reqrun_1"
     assert first.source_snapshot.match_report_id == "match_1"
     assert first.current_fact_fingerprint
+    assert len(timeline.events) == 1
+    event = timeline.events[("user_1", "workspace-created:create-job-1")]
+    assert event.workspace_id == first.workspace_id
+    assert event.event_type.value == "workspace_created"
 
 
 def test_create_fails_closed_when_requirement_release_is_not_ready() -> None:

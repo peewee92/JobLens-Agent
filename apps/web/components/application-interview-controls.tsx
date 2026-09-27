@@ -4,8 +4,9 @@ import {FormEvent, useState} from "react";
 
 import type {ApplicationInterviewAnswerReview, ApplicationInterviewQuestionSet} from "@/lib/contracts";
 
-export function ApplicationInterviewControls({workspaceId, questionSet}: {
+export function ApplicationInterviewControls({workspaceId, actorId, questionSet}: {
   workspaceId: string;
+  actorId: string;
   questionSet: ApplicationInterviewQuestionSet;
 }) {
   const [pending, setPending] = useState<string | null>(null);
@@ -24,7 +25,12 @@ export function ApplicationInterviewControls({workspaceId, questionSet}: {
         {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({answerText: form.get("answerText"), evidenceIds}),
+          body: JSON.stringify({
+            answerText: form.get("answerText"),
+            evidenceIds,
+            actorId,
+            idempotencyKey: `web-interview-${workspaceId}-${questionId}`,
+          }),
         },
       );
       const payload = await response.json().catch(() => null) as (ApplicationInterviewAnswerReview & {detail?: string}) | null;
