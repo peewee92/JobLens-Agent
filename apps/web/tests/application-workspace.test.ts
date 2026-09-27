@@ -84,6 +84,21 @@ test("application workspace completes evidence confirm and rematch from the same
   assert.match(rematchProxy, /\/rematch/);
 });
 
+test("application workspace runs grounded interview practice without provider scoring", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  const controls = source("components/application-interview-controls.tsx");
+  const reviewProxy = source("app/api/application-workspaces/[id]/interview/questions/[questionId]/review/route.ts");
+
+  assert.match(page, /ApplicationInterviewControls/);
+  assert.match(page, /回答审核只检查真实 Evidence grounding/);
+  assert.match(controls, /你的真实回答/);
+  assert.match(controls, /allowedEvidenceIds/);
+  assert.match(controls, /按真实 Evidence 审核回答/);
+  assert.match(controls, /修改后重新审核/);
+  assert.match(controls, /Provider calls:/);
+  assert.match(reviewProxy, /interview\/questions\/\$\{encodeURIComponent\(questionId\)\}\/review/);
+});
+
 test("workspace creation uses a stable per-job idempotency key", () => {
   const component = source("components/application-workspace-entry.tsx");
   assert.match(component, /web-application-workspace:\$\{jobId\}/);

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import {ApplicationActionControls} from "@/components/application-action-controls";
 import {ApplicationEvidenceControls} from "@/components/application-evidence-controls";
+import {ApplicationInterviewControls} from "@/components/application-interview-controls";
 import {ApplicationResumeControls} from "@/components/application-resume-controls";
 import {ApplicationStatusControls} from "@/components/application-status-controls";
 import {ServiceError} from "@/components/service-error";
@@ -9,6 +10,7 @@ import {
   BackendApiError,
   fetchApplicationActions,
   fetchApplicationEvidenceProposals,
+  fetchApplicationInterviewQuestions,
   fetchApplicationResumeVariantProposal,
   fetchApplicationResumeVariants,
   fetchApplicationTimeline,
@@ -28,13 +30,14 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
   const {id} = await params;
   try {
     const overview = await fetchApplicationWorkspaceOverview(id);
-    const [job, actions, proposals, timeline, resumeProposal, resumeVariants] = await Promise.all([
+    const [job, actions, proposals, timeline, resumeProposal, resumeVariants, interviewQuestions] = await Promise.all([
       fetchJobDetail(overview.workspace.jobId),
       fetchApplicationActions(id),
       fetchApplicationEvidenceProposals(id),
       fetchApplicationTimeline(id),
       fetchApplicationResumeVariantProposal(id),
       fetchApplicationResumeVariants(id),
+      fetchApplicationInterviewQuestions(id),
     ]);
     const currentResumeVariant = resumeVariants.at(-1) ?? null;
 
@@ -104,8 +107,9 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
 
         <section className="detail-section" id="interview">
           <h2>面试练习</h2>
-          <p className="muted">练习问题只来自 released JobRequirement 和已确认 Evidence，不重新读取 JD 自由发挥。</p>
-          <Link className="button-secondary" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>查看面试准备事实 →</Link>
+          <p className="muted">练习问题只来自 released JobRequirement 和已确认 Evidence，不重新读取 JD 自由发挥；回答审核只检查真实 Evidence grounding，不伪造录用概率或语义评分。</p>
+          <ApplicationInterviewControls workspaceId={id} questionSet={interviewQuestions} />
+          <div className="actions"><Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>查看完整面试准备事实 →</Link></div>
         </section>
 
         <section className="detail-section">

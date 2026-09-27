@@ -585,6 +585,38 @@ export interface ApplicationResumeVariantItem {
   evidenceIds: string[];
 }
 
+export interface ApplicationInterviewQuestion {
+  questionId: string;
+  requirementId: string;
+  requirementText: string;
+  preparationPriority: string;
+  evidenceStatus: string;
+  allowedEvidenceIds: string[];
+  prompt: string;
+}
+
+export interface ApplicationInterviewQuestionSet {
+  workspaceId: string;
+  jobId: string;
+  sourceProfileId: string;
+  sourceProfileVersion: number;
+  requirementExtractionId: string;
+  questions: ApplicationInterviewQuestion[];
+}
+
+export interface ApplicationInterviewAnswerReview {
+  workspaceId: string;
+  questionId: string;
+  requirementId: string;
+  groundingStatus: string;
+  acceptedEvidenceIds: string[];
+  rejectedEvidenceIds: string[];
+  feedback: string[];
+  retryRecommended: boolean;
+  providerCalls: number;
+  dbWrites: number;
+}
+
 export interface ApplicationResumeVariantProposal {
   workspaceId: string;
   jobId: string;

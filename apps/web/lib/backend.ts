@@ -7,6 +7,7 @@ import type {
   ApplicationTimelineEvent,
   ApplicationResumeVariant,
   ApplicationResumeVariantProposal,
+  ApplicationInterviewQuestionSet,
   ApplicationWorkspaceOverview,
   BatchMatchRanking,
   CareerContextReleaseReadiness,
@@ -177,6 +178,10 @@ export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFee
 
 export function fetchApplicationWorkspaceOverview(workspaceId: string): Promise<ApplicationWorkspaceOverview> {
   return backendJson<ApplicationWorkspaceOverview>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/overview`);
+}
+
+export function fetchApplicationInterviewQuestions(workspaceId: string): Promise<ApplicationInterviewQuestionSet> {
+  return backendJson<ApplicationInterviewQuestionSet>(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/interview/questions`);
 }
 
 export function fetchApplicationResumeVariantProposal(workspaceId: string): Promise<ApplicationResumeVariantProposal> {
