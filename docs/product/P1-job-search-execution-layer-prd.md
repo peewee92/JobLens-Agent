@@ -600,6 +600,8 @@ Tabs / Sections
 
 # 16. Eval
 
+> 工程状态（2026-09-28）：vNext 1.2 固定上限确定性 Release Gate 已落地并实跑 `80/80`：Resume Grounding `30`、Interview `30`、Execution State `20`。Gate 直接驱动真实 Application Workspace Use Case，不调用 Provider、不扩展模型质量 Dataset；覆盖 provenance、unevidenced Requirement 隔离、stale Profile fail-closed、跨岗位/虚构 Evidence 拒绝、用户显式状态写入、actor 边界、幂等、stale expected status 与 idempotency conflict。Backend 全量回归 `1387 passed`，compileall 与 diff-check 通过。
+
 ### 16.1 Resume Grounding Eval
 
 至少 30 Case：
@@ -705,7 +707,7 @@ vNext 1.2 第一阶段发布门槛：
 - [x] Human Gate for writes；
 - [x] stale source protection；
 - [x] Growth Loop 回流；
-- [ ] Resume / Interview / State Eval（固定上限：30 / 30 / 20，仍待正式 Gate 证据）；
+- [x] Resume / Interview / State Eval（固定上限：30 / 30 / 20；确定性 Gate 80/80 通过，Provider calls=0）；
 - [x] Web 工作台；
 - [x] Trace（Evidence Proposal → Human Confirm → Profile Write 可只读重建且不一致状态 fail-closed）；
 - [x] 不自动投递、不自动联系招聘者。

@@ -520,8 +520,8 @@ Near-term public-project priorities, in execution order:
 - [x] `vNext 1.0 / LG-0～LG-4`: LangGraph Runtime、State / Checkpoint、Durable HITL / Resume、Trajectory Eval 与最小 Web 纵向切片已经落地；
 - [x] `vNext 1.1 Core`: Natural-language Intent Contract、Dynamic Tool Selection、Bounded Tool Loop、Context / Error、PendingAction、Runtime Dispatch、timeout / cancellation 已形成工程闭环；
 - [ ] `vNext 1.1 Release Evidence`: 真实 Provider 的 Intent 60 + Tool Selection 44 模型质量证据仍待人工付费会话完成；这是发布门，不再阻塞后续无副作用工程开发；
-- [ ] **当前工程主线：`vNext 1.2 Job Search Execution Layer`**：`Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match`；
-- [ ] `vNext 1.3`: JobLens MCP Server / external agent integration；
+- [x] `vNext 1.2 Job Search Execution Layer`：`Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match` 已形成工程闭环；固定 Release Gate 为 Resume 30 + Interview 30 + Execution State 20，80/80 确定性验证通过，Provider calls=0；
+- [ ] **下一工程主线：`vNext 1.3`**：JobLens MCP Server / external agent integration；
 - [ ] `vNext 2.0`: Continuous Career Agent / proactive refresh / long-term plan；
 - [ ] concise demo video and reproducible public sample dataset.
 

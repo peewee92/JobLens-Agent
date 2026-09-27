@@ -81,8 +81,8 @@ vNext 2.0 Continuous Career Agent
 
 1. **Agent Runtime / LangGraph**：**ENGINEERING COMPLETE**。State / Checkpoint / Conditional Routing / Durable HITL / Resume / Runtime Control 已有真实纵向链路；主 PRD：`docs/product/P1-career-agent-langgraph-vnext.md`。
 2. **自然语言理解 + 有界 Tool Calling**：**CORE ENGINEERING COMPLETE / PROVIDER RELEASE EVIDENCE PENDING**。真实 Provider 模型质量门由人工会话负责，不再占用 Agent A 自动开发循环；PRD：`docs/product/P1-career-agent-natural-language-tool-loop-prd.md`。
-3. **求职执行层**：**ACTIVE ENGINEERING MILESTONE / vNext 1.2**。按 `Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match → Application Status / Timeline` 推进；PRD：`docs/product/P1-job-search-execution-layer-prd.md`。
-4. **MCP / External Agent Integration**：**PLANNED / vNext 1.3**。只有 v1.2 主需求工程闭环后才进入，不因 v1.1 Provider 人工门提前抢跑。
+3. **求职执行层**：**ENGINEERING COMPLETE / vNext 1.2**。`Application Workspace → Resume Variant → Interview / Mock → Action → Evidence → Re-match → Application Status / Timeline` 已形成真实纵向闭环；固定上限 Release Gate 已以 Resume 30 + Interview 30 + Execution State 20 共 80/80 确定性 Case 通过，Backend 全量 1387 tests 通过，Provider calls=0；PRD：`docs/product/P1-job-search-execution-layer-prd.md`。
+4. **MCP / External Agent Integration**：**NEXT ENGINEERING MILESTONE / vNext 1.3**。v1.2 工程闭环已关闭，下一轮才允许进入；v1.1 Provider 人工门继续独立管理，不回头阻塞工程主线。
 
 ### 开发停止规则
 
