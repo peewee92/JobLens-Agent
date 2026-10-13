@@ -230,3 +230,25 @@ def test_stdio_sdk_client_calls_all_tools_and_reconnects_after_restart(tmp_path:
     assert first["gaps"]["data"]["jobIds"] == ["job_mcp_demo_01", "job_mcp_demo_02"]
     assert "cohortId" not in first["gaps"]["data"]
     assert first["preparation"]["data"]["jobId"] == "job_mcp_demo_01"
+    assert first["ranking"]["data"]["items"][0]["summary"].startswith("Synthetic demo:")
+    assert first["preparation"]["data"]["interviewFacts"]["items"][0]["requirementText"]
+    assert first["preparation"]["data"]["storyFacts"]["items"][0]["evidenceSummary"]
+
+    # Public MCP consumers need the selected Job IDs and grounded explanations,
+    # not persistence handles for private profile/evidence/requirement records.
+    forbidden_fields = {
+        "profileId", "extractionId", "reportId", "cohortId", "evidenceId",
+        "evidenceIds", "profileSkillIds", "requirementId", "supportingRequirementIds",
+        "matchedRequirementIds", "partialRequirementIds", "missingRequirementIds",
+        "evidenceLinks", "rawResume", "rawJd", "sourceRaw", "canonicalKey",
+    }
+
+    def public_keys(value: object) -> set[str]:
+        if isinstance(value, dict):
+            return set(value) | set().union(*(public_keys(v) for v in value.values()))
+        if isinstance(value, list):
+            return set().union(*(public_keys(v) for v in value))
+        return set()
+
+    for result in (*first.values(), *second.values()):
+        assert not (public_keys(result["data"]) & forbidden_fields)

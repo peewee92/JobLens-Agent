@@ -61,9 +61,11 @@
 - 2026-10-13：按 README 的实际命令重新生成临时合成数据库并调用标准客户端，3/3 工具成功；返回均为零 Provider 调用、零业务写入，且 Gap 结果不含 `cohortId`。
 - 2026-10-14：修复 MCP Adapter 在 Context Builder 抛出存储/内部异常时绕过统一错误 envelope 的缺陷。先用失败回归复现未捕获的 `OSError`，再将 Context Builder 调用纳入受控错误映射；三个工具的存储异常/未知异常均返回脱敏 `backend_unavailable`/`internal_error`，且不触发 Registry。官方 SDK Client 的失败响应回归通过；MCP 专项 `16 passed`，Backend 全量 `1403 passed`，compileall 与 `git diff --check` 通过。Web 验证未运行：当前 DevSpace 环境缺少 `pnpm` 命令；STDIO 真实子进程及重连由本轮协议测试覆盖。Provider calls=0，business writes=0。
 
+- 2026-10-14：发现 MCP 三个工具直接复用 HTTP 响应投影，STDIO 合成数据实测向外暴露 `profileId`、`extractionId`、`reportId` 和 Evidence/Requirement 内部记录 ID。先增加协议失败回归（真实失败），再将三个工具改为显式公开字段白名单：保留 Job ID、匹配结论、证据摘要/需求文本与必要聚合计数，移除私有记录句柄和一次性 cohort ID；不改底层 Workflow/Registry。MCP 专项 `16 passed`、Backend 全量 `1403 passed`；独立合成 SQLite + 官方客户端三工具 `3/3` 成功，返回 `providerCalls=0 / businessWrites=0`；`git diff --check` 通过。当前环境缺少 `uv`、`pnpm`，未验证干净环境 `uv sync`、Web/smoke 或跨机器复现。
+
 ## 下一动作
 
-优先检查 MCP 对外三个响应的字段投影是否仍暴露不必要的内部标识或原始材料，并用最小协议回归确认；随后在具备 `pnpm` 的环境完成 Web/smoke 验证，再由其他机器按 README 命令验证干净环境 `uv sync` 与标准客户端复现。后续功能范围保持在计划外，不提前扩展为六工具或 Pi Extension。
+下一轮唯一优先项：审查 MCP 对外失败消息是否可能透传底层异常中的私有标识/敏感原文；仅在真实复现泄漏时先加失败回归再做最小错误映射修复。之后在具备 `uv`/`pnpm` 的干净环境验证 `uv sync`、Web/smoke 与标准客户端复现；不提前扩展为六工具或 Pi Extension。
 
 ## 阻塞项
 

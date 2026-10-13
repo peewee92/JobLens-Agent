@@ -60,14 +60,30 @@ class Registry:
         return self.output
 
 
-class Projection:
+class RankProjection:
     @classmethod
     def from_details(cls, _output):
-        return SimpleNamespace(model_dump=lambda **_kwargs: {"kind": "ranking"})
+        return SimpleNamespace(model_dump=lambda **_kwargs: {"items": [], "count": 0})
 
+
+class GapProjection:
     @classmethod
     def from_result(cls, _output):
-        return SimpleNamespace(model_dump=lambda **_kwargs: {"kind": "facts"})
+        return SimpleNamespace(model_dump=lambda **_kwargs: {
+            "cohortId": "private_transient", "profileId": "private_profile",
+            "jobIds": ["job_1"], "factsUsable": True, "items": [], "blockers": [],
+        })
+
+
+class PreparationProjection:
+    @classmethod
+    def from_result(cls, _output):
+        return SimpleNamespace(model_dump=lambda **_kwargs: {
+            "jobId": "job_1", "profileId": "private_profile", "extractionId": "private_run",
+            "factsUsable": True, "resumeDelta": None, "experiencePriority": None,
+            "storyFacts": None, "interviewFacts": None, "studyChecklist": None,
+            "blockers": [],
+        })
 
 
 def _adapter(builder, registry) -> JobLensMcpAdapter:
@@ -81,7 +97,7 @@ def _adapter(builder, registry) -> JobLensMcpAdapter:
 def test_rank_request_reaches_registry_with_explicit_ids_and_public_projection(monkeypatch) -> None:
     import app.mcp.adapter as module
 
-    monkeypatch.setattr(module, "BatchMatchRankingResponse", Projection)
+    monkeypatch.setattr(module, "BatchMatchRankingResponse", RankProjection)
     builder = ContextBuilder(_context())
     registry = Registry()
 
@@ -90,7 +106,7 @@ def test_rank_request_reaches_registry_with_explicit_ids_and_public_projection(m
     )
 
     assert result.ok is True
-    assert result.data == {"kind": "ranking"}
+    assert result.data == {"items": [], "count": 0}
     assert result.meta.provider_calls == result.meta.business_writes == 0
     assert builder.calls == [{}]
     request = registry.calls[0]["request"]
@@ -101,7 +117,7 @@ def test_rank_request_reaches_registry_with_explicit_ids_and_public_projection(m
 def test_gap_request_hides_internal_cohort_identity_and_uses_explicit_selection(monkeypatch) -> None:
     import app.mcp.adapter as module
 
-    monkeypatch.setattr(module, "TargetCohortGapResponse", Projection)
+    monkeypatch.setattr(module, "TargetCohortGapResponse", GapProjection)
     builder = ContextBuilder(_context())
     registry = Registry()
 
@@ -113,19 +129,23 @@ def test_gap_request_hides_internal_cohort_identity_and_uses_explicit_selection(
     request = registry.calls[0]["request"]
     assert request.selected_job_ids == ("job_1", "job_2")
     assert request.cohort_id.startswith("mcp_cohort_")
-    assert "cohort" not in result.data
+    assert "cohortId" not in result.data
+    assert "profileId" not in result.data
 
 
 def test_preparation_builds_context_for_the_same_explicit_job(monkeypatch) -> None:
     import app.mcp.adapter as module
 
-    monkeypatch.setattr(module, "JobPreparationResponse", Projection)
+    monkeypatch.setattr(module, "JobPreparationResponse", PreparationProjection)
     builder = ContextBuilder(_context(current_job="job_1"))
     registry = Registry()
 
     result = _adapter(builder, registry).job_preparation(JobPreparationInput(job_id="job_1"))
 
     assert result.ok is True
+    assert result.data["jobId"] == "job_1"
+    assert "profileId" not in result.data
+    assert "extractionId" not in result.data
     assert builder.calls == [{"current_job_id": "job_1"}]
     assert registry.calls[0]["tool"] is CareerAgentToolName.JOB_PREPARATION
 

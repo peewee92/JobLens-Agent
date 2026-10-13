@@ -55,9 +55,7 @@ class JobLensMcpAdapter:
                 include_blocked=request.include_blocked,
                 top_n=request.top_n,
             ),
-            project=lambda output: BatchMatchRankingResponse.from_details(output).model_dump(
-                by_alias=True, mode="json"
-            ),
+            project=self._project_ranking_response,
         )
 
     def target_cohort_gaps(self, request: TargetCohortGapsInput) -> McpToolEnvelope:
@@ -78,9 +76,7 @@ class JobLensMcpAdapter:
             tool=tool,
             current_job_id=request.job_id,
             request=JobPreparationRequest(job_id=request.job_id),
-            project=lambda output: JobPreparationResponse.from_result(output).model_dump(
-                by_alias=True, mode="json"
-            ),
+            project=self._project_preparation_response,
         )
 
     def _invoke(
@@ -150,15 +146,126 @@ class JobLensMcpAdapter:
         return "business_invariant"
 
     @staticmethod
-    def _project_gap_response(output: object) -> dict:
-        """Remove the transport-private cohort handle from the public result.
+    def _project_ranking_response(output: object) -> dict:
+        """Expose ranking decisions without private persistence/evidence handles."""
+        response = BatchMatchRankingResponse.from_details(output).model_dump(
+            by_alias=True, mode="json"
+        )
+        return {
+            "items": [
+                {
+                    "jobId": item["jobId"],
+                    "eligibility": item["eligibility"],
+                    "recommendation": item["recommendation"],
+                    "summary": item["summary"],
+                    "matchedRequirementCount": len(item["matchedRequirementIds"]),
+                    "partialRequirementCount": len(item["partialRequirementIds"]),
+                    "missingRequirementCount": len(item["missingRequirementIds"]),
+                    "evidenceLinkCount": len(item["evidenceLinks"]),
+                }
+                for item in response["items"]
+            ],
+            "count": response["count"],
+        }
 
-        MCP callers select jobs directly on every request.  The cohort ID only
-        exists to satisfy the internal workflow contract and cannot be reused
-        across requests, so returning it would advertise a false public API.
-        """
+    @staticmethod
+    def _project_gap_response(output: object) -> dict:
+        """Expose grounded gaps without cohort, profile or evidence record IDs."""
         response = TargetCohortGapResponse.from_result(output).model_dump(
             by_alias=True, mode="json"
         )
-        response.pop("cohortId", None)
-        return response
+        return {
+            "jobIds": response["jobIds"],
+            "factsUsable": response["factsUsable"],
+            "items": [
+                {
+                    "capability": item["capability"],
+                    "priority": item["priority"],
+                    "whyImportant": item["whyImportant"],
+                    "supportingJobIds": item["supportingJobIds"],
+                    "currentState": item["currentState"],
+                    "completionCriteria": item["completionCriteria"],
+                    "supportingRequirementCount": len(item["supportingRequirementIds"]),
+                    "confirmedEvidenceCount": len(item["evidenceIds"]),
+                }
+                for item in response["items"]
+            ],
+            "blockers": response["blockers"],
+        }
+
+    @staticmethod
+    def _project_preparation_response(output: object) -> dict:
+        """Keep reviewed preparation facts, never private record identifiers."""
+        response = JobPreparationResponse.from_result(output).model_dump(
+            by_alias=True, mode="json"
+        )
+        resume = response["resumeDelta"]
+        experience = response["experiencePriority"]
+        stories = response["storyFacts"]
+        interview = response["interviewFacts"]
+        study = response["studyChecklist"]
+        return {
+            "jobId": response["jobId"],
+            "factsUsable": response["factsUsable"],
+            "resumeDelta": None if resume is None else {
+                "highlights": [
+                    {"capability": item["capability"], "evidenceCount": len(item["evidenceIds"])}
+                    for item in resume["highlights"]
+                ],
+                "evidenceGaps": [
+                    {"capability": item["capability"], "status": item["status"]}
+                    for item in resume["evidenceGaps"]
+                ],
+            },
+            "experiencePriority": None if experience is None else {
+                "items": [
+                    {
+                        "evidenceType": item["evidenceType"],
+                        "matchedCapabilities": item["matchedCapabilities"],
+                        "mustHaveCount": item["mustHaveCount"],
+                        "requirementCount": item["requirementCount"],
+                    }
+                    for item in experience["items"]
+                ],
+            },
+            "storyFacts": None if stories is None else {
+                "items": [
+                    {
+                        "evidenceType": item["evidenceType"],
+                        "evidenceSummary": item["evidenceSummary"],
+                        "matchedCapabilities": item["matchedCapabilities"],
+                        "mustHaveCount": item["mustHaveCount"],
+                        "requirementCount": item["requirementCount"],
+                    }
+                    for item in stories["items"]
+                ],
+            },
+            "interviewFacts": None if interview is None else {
+                "items": [
+                    {
+                        "requirementType": item["requirementType"],
+                        "requirementText": item["requirementText"],
+                        "importance": item["importance"],
+                        "normalizedCapability": item["normalizedCapability"],
+                        "preparationPriority": item["preparationPriority"],
+                        "evidenceStatus": item["evidenceStatus"],
+                        "evidenceSummaries": item["evidenceSummaries"],
+                    }
+                    for item in interview["items"]
+                ],
+            },
+            "studyChecklist": None if study is None else {
+                "items": [
+                    {
+                        "requirementText": item["requirementText"],
+                        "capability": item["capability"],
+                        "importance": item["importance"],
+                        "evidenceStatus": item["evidenceStatus"],
+                        "need": item["need"],
+                        "completionCriteria": item["completionCriteria"],
+                    }
+                    for item in study["items"]
+                ],
+            },
+            "blockers": response["blockers"],
+        }
