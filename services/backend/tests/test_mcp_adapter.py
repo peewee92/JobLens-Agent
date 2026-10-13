@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -13,8 +14,12 @@ from app.agent.context import (
 from app.agent.tool_registry import (
     CareerAgentToolName,
     CareerAgentToolRegistry,
+    CareerAgentToolError,
     JobPreparationRequest,
 )
+from app.application.create_target_cohort import TargetCohortSelectionError
+from app.application.job_queries.errors import JobNotFoundError
+from app.application.match_report import MatchReportPersistenceNotReadyError
 from app.mcp.adapter import JobLensMcpAdapter
 from app.mcp.schemas import (
     JobPreparationInput,
@@ -197,6 +202,69 @@ def test_context_builder_failure_returns_sanitized_envelope(
     assert str(failure) not in result.error.message
     assert result.meta.provider_calls == result.meta.business_writes == 0
     assert registry.calls == []
+
+
+@pytest.mark.parametrize(
+    "tool_name", ["rank_match_reports", "target_cohort_gaps", "job_preparation"]
+)
+def test_context_rejection_uses_stable_public_message(tool_name: str) -> None:
+    builder = ContextBuilder(
+        replace(_context(usable=False), blocker_messages=("internal_marker_123",))
+    )
+    registry = Registry()
+    adapter = _adapter(builder, registry)
+    if tool_name == "rank_match_reports":
+        result = adapter.rank_match_reports(RankMatchReportsInput(job_ids=["job_1"]))
+    elif tool_name == "target_cohort_gaps":
+        result = adapter.target_cohort_gaps(
+            TargetCohortGapsInput(selected_job_ids=["job_1"])
+        )
+    else:
+        result = adapter.job_preparation(JobPreparationInput(job_id="job_1"))
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == "context_not_released"
+    assert result.error.message == "JobLens career context is not released for this request."
+    assert "internal_marker_123" not in result.model_dump_json()
+    assert registry.calls == []
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_code", "expected_message"),
+    [
+        (
+            CareerAgentToolError("internal_marker_123"),
+            "invalid_argument", "JobLens rejected the requested tool arguments.",
+        ),
+        (
+            TargetCohortSelectionError("internal_marker_123"),
+            "invalid_argument", "JobLens rejected the requested tool arguments.",
+        ),
+        (
+            MatchReportPersistenceNotReadyError("internal_marker_123"),
+            "match_not_ready", "JobLens match facts are not ready for this request.",
+        ),
+        (
+            JobNotFoundError("internal_marker_123"),
+            "not_found", "The requested JobLens job is not available.",
+        ),
+    ],
+)
+def test_workflow_rejections_use_stable_public_messages(
+    failure: Exception, expected_code: str, expected_message: str
+) -> None:
+    class FailingRegistry:
+        def invoke(self, **_kwargs):
+            raise failure
+
+    adapter = _adapter(ContextBuilder(_context()), FailingRegistry())
+    result = adapter.rank_match_reports(RankMatchReportsInput(job_ids=["job_1"]))
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == expected_code
+    assert result.error.message == expected_message
+    assert "internal_marker_123" not in result.model_dump_json()
+    assert result.meta.provider_calls == result.meta.business_writes == 0
 
 
 def test_empty_explicit_job_selection_is_rejected_by_external_schema() -> None:

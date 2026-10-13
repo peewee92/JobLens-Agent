@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -179,6 +180,33 @@ def test_sdk_client_receives_sanitized_error_when_context_storage_fails() -> Non
         "message": "JobLens local storage is temporarily unavailable.",
         "retryable": True,
     }
+    assert result["meta"]["providerCalls"] == 0
+    assert result["meta"]["businessWrites"] == 0
+
+
+def test_sdk_client_context_rejection_uses_public_error_message() -> None:
+    class UnavailableContextBuilder(_ContextBuilder):
+        def build(self, **kwargs):
+            return replace(
+                super().build(**kwargs), blocker_messages=("internal_marker_123",)
+            )
+
+    adapter = JobLensMcpAdapter(
+        context_builder=UnavailableContextBuilder(),
+        tool_registry=_Registry(),
+        trace_id_factory=lambda: "mcp_protocol_rejection",
+    )
+
+    async def call() -> dict:
+        async with Client(create_mcp_server(adapter)) as client:
+            result = await client.call_tool("rank_match_reports", {"job_ids": ["job_1"]})
+            return result.structured_content
+
+    result = asyncio.run(call())
+    assert result["ok"] is False
+    assert result["error"]["code"] == "business_invariant"
+    assert result["error"]["message"] == "JobLens context cannot be used for this request."
+    assert "internal_marker_123" not in str(result)
     assert result["meta"]["providerCalls"] == 0
     assert result["meta"]["businessWrites"] == 0
 

@@ -63,9 +63,11 @@
 
 - 2026-10-14：发现 MCP 三个工具直接复用 HTTP 响应投影，STDIO 合成数据实测向外暴露 `profileId`、`extractionId`、`reportId` 和 Evidence/Requirement 内部记录 ID。先增加协议失败回归（真实失败），再将三个工具改为显式公开字段白名单：保留 Job ID、匹配结论、证据摘要/需求文本与必要聚合计数，移除私有记录句柄和一次性 cohort ID；不改底层 Workflow/Registry。MCP 专项 `16 passed`、Backend 全量 `1403 passed`；独立合成 SQLite + 官方客户端三工具 `3/3` 成功，返回 `providerCalls=0 / businessWrites=0`；`git diff --check` 通过。当前环境缺少 `uv`、`pnpm`，未验证干净环境 `uv sync`、Web/smoke 或跨机器复现。
 
+- 2026-10-14：P0 公开错误消息泄漏回归：Context Builder 的 `blocker_messages`、Tool Registry / Cohort / Match / Job 异常文本原先直接进入 MCP `error.message`；新增 7 条失败回归先复现，再将对应错误改为稳定、脱敏的公开文案，保留原错误码与 fail-closed 行为。新增官方 SDK Client 拒绝响应验证；MCP adapter + protocol `24 passed`，compileall、`git diff --check` 通过。Backend 全量 pytest 尝试两次均遭 DevSpace 内部错误，未获得本轮结果；`uv`/`pnpm` 不在当前命令环境中。Provider calls=0，business writes=0。
+
 ## 下一动作
 
-下一轮唯一优先项：审查 MCP 对外失败消息是否可能透传底层异常中的私有标识/敏感原文；仅在真实复现泄漏时先加失败回归再做最小错误映射修复。之后在具备 `uv`/`pnpm` 的干净环境验证 `uv sync`、Web/smoke 与标准客户端复现；不提前扩展为六工具或 Pi Extension。
+下一轮唯一优先项：在可用的执行环境完成 Backend 全量回归及标准 MCP Client 合成数据演示复验，确认本轮脱敏变更未影响正常工具响应；若仍无法运行，则明确记录环境阻塞，不扩大代码修改。
 
 ## 阻塞项
 

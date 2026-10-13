@@ -96,7 +96,10 @@ class JobLensMcpAdapter:
             )
             if not context.usable:
                 code = self._context_error_code(context)
-                message = "; ".join(context.blocker_messages) or "JobLens context is not available."
+                message = {
+                    "not_found": "The requested JobLens job is not available.",
+                    "context_not_released": "JobLens career context is not released for this request.",
+                }.get(code, "JobLens context cannot be used for this request.")
                 return McpToolEnvelope.failure(
                     tool=tool.value, trace_id=trace_id, code=code, message=message
                 )
@@ -104,19 +107,28 @@ class JobLensMcpAdapter:
             return McpToolEnvelope.success(
                 tool=tool.value, trace_id=trace_id, data=project(output)
             )
-        except (CareerAgentToolError, TargetCohortSelectionError) as exc:
+        except (CareerAgentToolError, TargetCohortSelectionError):
             return McpToolEnvelope.failure(
-                tool=tool.value, trace_id=trace_id, code="invalid_argument", message=str(exc)
+                tool=tool.value,
+                trace_id=trace_id,
+                code="invalid_argument",
+                message="JobLens rejected the requested tool arguments.",
             )
-        except MatchReportPersistenceNotReadyError as exc:
+        except MatchReportPersistenceNotReadyError:
             return McpToolEnvelope.failure(
-                tool=tool.value, trace_id=trace_id, code="match_not_ready", message=str(exc)
+                tool=tool.value,
+                trace_id=trace_id,
+                code="match_not_ready",
+                message="JobLens match facts are not ready for this request.",
             )
-        except JobNotFoundError as exc:
+        except JobNotFoundError:
             return McpToolEnvelope.failure(
-                tool=tool.value, trace_id=trace_id, code="not_found", message=str(exc)
+                tool=tool.value,
+                trace_id=trace_id,
+                code="not_found",
+                message="The requested JobLens job is not available.",
             )
-        except (OSError, TimeoutError) as exc:
+        except (OSError, TimeoutError):
             return McpToolEnvelope.failure(
                 tool=tool.value,
                 trace_id=trace_id,
