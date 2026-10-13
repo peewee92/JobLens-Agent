@@ -190,16 +190,15 @@ JobLens-Agent/
 
 ## Engineering evidence
 
-Current local verification on the primary development environment:
+Local verification snapshot (2026-10-14):
 
-- **1393 Backend tests passing** (`pytest`) in the current local suite;
-- Web tests, TypeScript typecheck and production build pass;
-- Web TypeScript typecheck passes;
-- schema migrations are managed by Alembic;
-- LLM release paths use explicit eval / review / gate boundaries;
-- local runtime data, resumes, databases and secrets are excluded from Git.
+- **1411 Backend tests passing** (`pytest`) in a fresh, isolated virtual environment on the same macOS arm64 machine, installed from `uv.lock` using `uv sync --locked`;
+- standard MCP SDK client discovered and successfully called all **3/3 read-only tools** against synthetic SQLite data, with zero Provider calls and zero business writes;
+- **170 Web tests passing**, TypeScript typecheck, production build and Web smoke E2E passing using the existing local Web dependencies;
+- the first offline dependency sync required downloading `cryptography==50.0.2`; online locked sync succeeded. A separate clean OS or cross-machine installation has **not** been verified;
+- schema migrations are managed by Alembic; local resumes, databases and secrets remain excluded from Git.
 
-These numbers are a snapshot, not a substitute for the CI status above.
+These results are a local snapshot, not a substitute for CI or cross-machine verification.
 
 ## Core design decisions
 

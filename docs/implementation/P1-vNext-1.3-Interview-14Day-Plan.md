@@ -64,14 +64,15 @@
 - 2026-10-14：发现 MCP 三个工具直接复用 HTTP 响应投影，STDIO 合成数据实测向外暴露 `profileId`、`extractionId`、`reportId` 和 Evidence/Requirement 内部记录 ID。先增加协议失败回归（真实失败），再将三个工具改为显式公开字段白名单：保留 Job ID、匹配结论、证据摘要/需求文本与必要聚合计数，移除私有记录句柄和一次性 cohort ID；不改底层 Workflow/Registry。MCP 专项 `16 passed`、Backend 全量 `1403 passed`；独立合成 SQLite + 官方客户端三工具 `3/3` 成功，返回 `providerCalls=0 / businessWrites=0`；`git diff --check` 通过。当前环境缺少 `uv`、`pnpm`，未验证干净环境 `uv sync`、Web/smoke 或跨机器复现。
 
 - 2026-10-14：P0 公开错误消息泄漏回归：Context Builder 的 `blocker_messages`、Tool Registry / Cohort / Match / Job 异常文本原先直接进入 MCP `error.message`；新增 7 条失败回归先复现，再将对应错误改为稳定、脱敏的公开文案，保留原错误码与 fail-closed 行为。新增官方 SDK Client 拒绝响应验证；MCP adapter + protocol `24 passed`，compileall、`git diff --check` 通过。Backend 全量 pytest 尝试两次均遭 DevSpace 内部错误，未获得本轮结果；`uv`/`pnpm` 不在当前命令环境中。Provider calls=0，business writes=0。
+- 2026-10-14：完成同一台 macOS arm64 机器上的**全新隔离虚拟环境**依赖与演示复验：DevSpace PATH 未包含 `uv`/`pnpm`，但实际可执行文件分别位于 `/opt/homebrew/bin/uv`（0.7.6）和 `~/Library/pnpm/pnpm`。使用仓库锁文件执行隔离 `uv sync --locked --offline`，首次明确失败于缓存缺少 `cryptography==50.0.2`；随后 `uv sync --locked` 在线下载该 wheel（3.7 MiB）并成功安装 71 个包，未修改 lockfile。新环境离线执行合成 SQLite 种子及官方 MCP Client，发现并成功调用三个工具 3/3，返回 `ok=true`、`providerCalls=0`、`businessWrites=0`。同一新环境 Backend 全量 `1411 passed in 88.51s`；原 Web 环境 `170 passed`、typecheck、build、`smoke:e2e` 全部通过（smoke 使用独立临时数据库与 fixture）。`git diff --check` 通过。**这是同机全新虚拟环境复现，不是全新操作系统或跨机器验证。**
 
 ## 下一动作
 
-下一轮唯一优先项：在可用的执行环境完成 Backend 全量回归及标准 MCP Client 合成数据演示复验，确认本轮脱敏变更未影响正常工具响应；若仍无法运行，则明确记录环境阻塞，不扩大代码修改。
+同机隔离环境 `uv sync --locked`、Backend 全量回归、官方 MCP Client 3/3、Web 与 smoke 均已复验。vNext 1.3 本地 STDIO 面试演示具备人工收尾条件；下一步由用户确认是否接受“同机隔离环境通过、跨机器尚未验证”的证据边界并关闭自动开发任务。不要自动进入 vNext 2.0，也不要为维持活动制造代码或文档提交。
 
 ## 阻塞项
 
-- 本机 `uv sync` 下载 `cryptography` wheel 曾长时间未完成；锁文件已完整记录 MCP SDK 2.3.0 依赖，干净环境执行 `uv sync` 会安装锁定版本。当前本地已使用 SDK 完成协议验证。
+- `cryptography==50.0.2` 在本机 uv 缓存缺失，首次离线安装会失败；2026-10-14 在线下载成功后，同机隔离环境 `uv sync --locked` 与离线运行已通过。首次全新机器安装仍需能访问包源；**跨机器与全新操作系统环境尚未验证**。
 - vNext 1.1 真实 Provider 质量门仍为独立人工/付费发布门；本阶段 Provider calls 固定为 0。
 
 ## 面试演示与讲述
