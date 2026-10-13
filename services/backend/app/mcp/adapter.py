@@ -71,9 +71,7 @@ class JobLensMcpAdapter:
                 name=request.name,
                 selected_job_ids=tuple(request.selected_job_ids),
             ),
-            project=lambda output: TargetCohortGapResponse.from_result(output).model_dump(
-                by_alias=True, mode="json"
-            ),
+            project=self._project_gap_response,
         )
 
     def job_preparation(self, request: JobPreparationInput) -> McpToolEnvelope:
@@ -140,3 +138,17 @@ class JobLensMcpAdapter:
         } & blockers:
             return "context_not_released"
         return "business_invariant"
+
+    @staticmethod
+    def _project_gap_response(output: object) -> dict:
+        """Remove the transport-private cohort handle from the public result.
+
+        MCP callers select jobs directly on every request.  The cohort ID only
+        exists to satisfy the internal workflow contract and cannot be reused
+        across requests, so returning it would advertise a false public API.
+        """
+        response = TargetCohortGapResponse.from_result(output).model_dump(
+            by_alias=True, mode="json"
+        )
+        response.pop("cohortId", None)
+        return response

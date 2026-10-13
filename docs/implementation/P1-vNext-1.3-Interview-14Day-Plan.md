@@ -36,8 +36,8 @@
 
 ### Batch C：治理与协议验证
 
-- [ ] 进程内 SDK discovery 与 3/3 成功调用测试（等待 SDK 安装）。
-- [ ] STDIO 子进程 discovery / call / restart 测试（等待 SDK 安装）。
+- [x] 进程内 SDK discovery 与 3/3 成功调用测试。
+- [x] STDIO 子进程 discovery / call / restart 测试。
 - [x] 未发布 career context、空岗位选择、准备岗位切换三种拒绝回归；底层 Workflow 调用必须为 0。
 - [x] 临时 SQLite 合成演示数据种子与可复制的标准客户端演示命令；不提交个人数据、数据库或密钥。
 
@@ -45,7 +45,7 @@
 
 - [x] README 更新真实能力、测试数字、MCP 运行与演示步骤。
 - [x] 在 README 增加传输架构图；在本文记录失败场景演示与 90 秒面试讲述。
-- [~] Backend 全量测试、Web 测试/类型检查/构建、Web smoke、`git diff --check` 已通过；MCP SDK protocol E2E 等待本机依赖下载完成。
+- [x] Backend 全量测试、Web 测试/类型检查/构建、Web smoke、MCP SDK protocol E2E、`git diff --check` 已通过。
 
 ## 当前验证记录
 
@@ -55,14 +55,18 @@
 - 2026-10-13：修正 smoke 断言；待完整 smoke 回归确认。
 - 2026-10-13：`seed_mcp_demo.py` 创建临时 SQLite 合成数据后，三个真实 Adapter 调用均成功，且均为 `provider_calls=0 / business_writes=0`。
 - 2026-10-13：Backend 全量回归：`1393 passed, 1 skipped`；Web：`170 passed`、typecheck、production build 通过；`pnpm smoke:e2e` 通过。
+- 2026-10-13：修复 MCP SDK metadata 字段断言；进程内官方 Client 完成 discovery 与 3/3 成功调用验证。
+- 2026-10-13：STDIO 子进程以合成 SQLite 数据库完成 discovery、三个工具调用、进程退出后重新连接与再次调用。每次返回均为 `providerCalls=0 / businessWrites=0`；Gap projection 不再返回仅供内部一次性使用的 `cohortId`。
+- 2026-10-13：新增 protocol 测试后 Backend 全量回归：`1396 passed`；其中 MCP adapter / SDK protocol 小集：`9 passed`。
+- 2026-10-13：按 README 的实际命令重新生成临时合成数据库并调用标准客户端，3/3 工具成功；返回均为零 Provider 调用、零业务写入，且 Gap 结果不含 `cohortId`。
 
 ## 下一动作
 
-在本机完成 `uv sync` 的 MCP 依赖下载后，运行 SDK 进程内与 STDIO 子进程协议测试；再整理可审查提交。
+审查整理两笔 MCP 提交，准备由其他机器按 README 命令复现；后续功能范围保持在计划外，不提前扩展为六工具或 Pi Extension。
 
 ## 阻塞项
 
-- `uv.lock` 已更新至 MCP SDK 2.3.0；本机下载 `cryptography` wheel 长时间未完成，导致 protocol test 暂时 skip。干净环境执行 `uv sync` 后会安装全部 locked 依赖并运行该测试。
+- 本机 `uv sync` 下载 `cryptography` wheel 曾长时间未完成；锁文件已完整记录 MCP SDK 2.3.0 依赖，干净环境执行 `uv sync` 会安装锁定版本。当前本地已使用 SDK 完成协议验证。
 - vNext 1.1 真实 Provider 质量门仍为独立人工/付费发布门；本阶段 Provider calls 固定为 0。
 
 ## 面试演示与讲述

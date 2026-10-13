@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -11,7 +14,14 @@ except ImportError as exc:  # pragma: no cover - only when SDK installation is i
 
 from app.agent.context import CareerAgentContext
 from app.mcp.adapter import JobLensMcpAdapter
+from app.mcp.schemas import McpToolEnvelope
 from app.mcp.server import create_mcp_server
+from mcp.client import Client
+from mcp.client.stdio import StdioServerParameters
+from scripts.seed_mcp_demo import seed
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
 class _ContextBuilder:
@@ -31,6 +41,31 @@ class _ContextBuilder:
 class _Registry:
     def invoke(self, **_kwargs):  # pragma: no cover - context must stop this path
         raise AssertionError("registry must not run for unavailable context")
+
+
+class _SuccessfulAdapter:
+    """Small transport-double: SDK tests do not duplicate workflow tests."""
+
+    def rank_match_reports(self, _request):
+        return McpToolEnvelope.success(
+            tool="rank_match_reports",
+            trace_id="mcp_protocol_test",
+            data={"kind": "ranking"},
+        )
+
+    def target_cohort_gaps(self, _request):
+        return McpToolEnvelope.success(
+            tool="target_cohort_gaps",
+            trace_id="mcp_protocol_test",
+            data={"kind": "gaps"},
+        )
+
+    def job_preparation(self, _request):
+        return McpToolEnvelope.success(
+            tool="job_preparation",
+            trace_id="mcp_protocol_test",
+            data={"kind": "preparation"},
+        )
 
 
 def test_sdk_discovery_exposes_only_three_flat_read_only_tools() -> None:
@@ -53,4 +88,117 @@ def test_sdk_discovery_exposes_only_three_flat_read_only_tools() -> None:
     assert "selected_job_ids" in by_name["target_cohort_gaps"].input_schema["properties"]
     assert "cohort_id" not in by_name["target_cohort_gaps"].input_schema["properties"]
     assert by_name["job_preparation"].annotations.read_only_hint is True
-    assert by_name["job_preparation"]._meta["joblens"]["requiresCurrentJob"] is True
+    assert by_name["job_preparation"].meta["joblens"]["requiresCurrentJob"] is True
+
+
+def test_in_memory_sdk_client_discovers_and_calls_all_three_tools() -> None:
+    async def exercise_protocol() -> dict[str, dict]:
+        async with Client(create_mcp_server(_SuccessfulAdapter())) as client:
+            tools = await client.list_tools()
+            assert {tool.name for tool in tools.tools} == {
+                "rank_match_reports",
+                "target_cohort_gaps",
+                "job_preparation",
+            }
+            ranking = await client.call_tool(
+                "rank_match_reports", {"job_ids": ["job_1"], "top_n": 1}
+            )
+            gaps = await client.call_tool(
+                "target_cohort_gaps", {"selected_job_ids": ["job_1"]}
+            )
+            preparation = await client.call_tool("job_preparation", {"job_id": "job_1"})
+            return {
+                "ranking": ranking.structured_content,
+                "gaps": gaps.structured_content,
+                "preparation": preparation.structured_content,
+            }
+
+    results = asyncio.run(exercise_protocol())
+
+    assert results == {
+        "ranking": {
+            "ok": True,
+            "data": {"kind": "ranking"},
+            "error": None,
+            "meta": {
+                "tool": "rank_match_reports",
+                "schemaVersion": "1",
+                "traceId": "mcp_protocol_test",
+                "providerCalls": 0,
+                "businessWrites": 0,
+            },
+        },
+        "gaps": {
+            "ok": True,
+            "data": {"kind": "gaps"},
+            "error": None,
+            "meta": {
+                "tool": "target_cohort_gaps",
+                "schemaVersion": "1",
+                "traceId": "mcp_protocol_test",
+                "providerCalls": 0,
+                "businessWrites": 0,
+            },
+        },
+        "preparation": {
+            "ok": True,
+            "data": {"kind": "preparation"},
+            "error": None,
+            "meta": {
+                "tool": "job_preparation",
+                "schemaVersion": "1",
+                "traceId": "mcp_protocol_test",
+                "providerCalls": 0,
+                "businessWrites": 0,
+            },
+        },
+    }
+
+
+def test_stdio_sdk_client_calls_all_tools_and_reconnects_after_restart(tmp_path: Path) -> None:
+    database = tmp_path / "mcp-demo.db"
+    seed(database)
+    server = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "scripts.run_mcp_server"],
+        cwd=BACKEND_ROOT,
+        env={**os.environ, "DATABASE_URL": f"sqlite:///{database}"},
+    )
+
+    async def call_all_tools() -> dict[str, dict]:
+        async with Client(server) as client:
+            discovered = await client.list_tools()
+            assert {tool.name for tool in discovered.tools} == {
+                "rank_match_reports",
+                "target_cohort_gaps",
+                "job_preparation",
+            }
+            ranking = await client.call_tool(
+                "rank_match_reports",
+                {"job_ids": ["job_mcp_demo_01", "job_mcp_demo_02"], "top_n": 2},
+            )
+            gaps = await client.call_tool(
+                "target_cohort_gaps",
+                {"selected_job_ids": ["job_mcp_demo_01", "job_mcp_demo_02"]},
+            )
+            preparation = await client.call_tool(
+                "job_preparation", {"job_id": "job_mcp_demo_01"}
+            )
+            return {
+                "ranking": ranking.structured_content,
+                "gaps": gaps.structured_content,
+                "preparation": preparation.structured_content,
+            }
+
+    first = asyncio.run(call_all_tools())
+    second = asyncio.run(call_all_tools())
+
+    for result in (*first.values(), *second.values()):
+        assert result["ok"] is True
+        assert result["error"] is None
+        assert result["meta"]["providerCalls"] == 0
+        assert result["meta"]["businessWrites"] == 0
+    assert first["ranking"]["data"]["count"] == 2
+    assert first["gaps"]["data"]["jobIds"] == ["job_mcp_demo_01", "job_mcp_demo_02"]
+    assert "cohortId" not in first["gaps"]["data"]
+    assert first["preparation"]["data"]["jobId"] == "job_mcp_demo_01"
