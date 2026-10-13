@@ -142,6 +142,43 @@ def test_unreleased_context_fails_before_registry_invocation() -> None:
     assert registry.calls == []
 
 
+@pytest.mark.parametrize(
+    "tool_name", ["rank_match_reports", "target_cohort_gaps", "job_preparation"]
+)
+@pytest.mark.parametrize(
+    ("failure", "code", "retryable"),
+    [
+        (OSError("database connection failed"), "backend_unavailable", True),
+        (RuntimeError("unexpected context detail"), "internal_error", False),
+    ],
+)
+def test_context_builder_failure_returns_sanitized_envelope(
+    tool_name: str, failure: Exception, code: str, retryable: bool
+) -> None:
+    class FailingContextBuilder:
+        def build(self, **_kwargs):
+            raise failure
+
+    registry = Registry()
+    adapter = _adapter(FailingContextBuilder(), registry)
+    if tool_name == "rank_match_reports":
+        result = adapter.rank_match_reports(RankMatchReportsInput(job_ids=["job_1"]))
+    elif tool_name == "target_cohort_gaps":
+        result = adapter.target_cohort_gaps(
+            TargetCohortGapsInput(selected_job_ids=["job_1"])
+        )
+    else:
+        result = adapter.job_preparation(JobPreparationInput(job_id="job_1"))
+    assert result.ok is False
+    assert result.data is None
+    assert result.error is not None
+    assert result.error.code == code
+    assert result.error.retryable is retryable
+    assert str(failure) not in result.error.message
+    assert result.meta.provider_calls == result.meta.business_writes == 0
+    assert registry.calls == []
+
+
 def test_empty_explicit_job_selection_is_rejected_by_external_schema() -> None:
     with pytest.raises(ValidationError):
         TargetCohortGapsInput(selected_job_ids=[])

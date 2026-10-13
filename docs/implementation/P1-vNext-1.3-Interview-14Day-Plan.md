@@ -59,10 +59,11 @@
 - 2026-10-13：STDIO 子进程以合成 SQLite 数据库完成 discovery、三个工具调用、进程退出后重新连接与再次调用。每次返回均为 `providerCalls=0 / businessWrites=0`；Gap projection 不再返回仅供内部一次性使用的 `cohortId`。
 - 2026-10-13：新增 protocol 测试后 Backend 全量回归：`1396 passed`；其中 MCP adapter / SDK protocol 小集：`9 passed`。
 - 2026-10-13：按 README 的实际命令重新生成临时合成数据库并调用标准客户端，3/3 工具成功；返回均为零 Provider 调用、零业务写入，且 Gap 结果不含 `cohortId`。
+- 2026-10-14：修复 MCP Adapter 在 Context Builder 抛出存储/内部异常时绕过统一错误 envelope 的缺陷。先用失败回归复现未捕获的 `OSError`，再将 Context Builder 调用纳入受控错误映射；三个工具的存储异常/未知异常均返回脱敏 `backend_unavailable`/`internal_error`，且不触发 Registry。官方 SDK Client 的失败响应回归通过；MCP 专项 `16 passed`，Backend 全量 `1403 passed`，compileall 与 `git diff --check` 通过。Web 验证未运行：当前 DevSpace 环境缺少 `pnpm` 命令；STDIO 真实子进程及重连由本轮协议测试覆盖。Provider calls=0，business writes=0。
 
 ## 下一动作
 
-审查整理两笔 MCP 提交，准备由其他机器按 README 命令复现；后续功能范围保持在计划外，不提前扩展为六工具或 Pi Extension。
+优先检查 MCP 对外三个响应的字段投影是否仍暴露不必要的内部标识或原始材料，并用最小协议回归确认；随后在具备 `pnpm` 的环境完成 Web/smoke 验证，再由其他机器按 README 命令验证干净环境 `uv sync` 与标准客户端复现。后续功能范围保持在计划外，不提前扩展为六工具或 Pi Extension。
 
 ## 阻塞项
 

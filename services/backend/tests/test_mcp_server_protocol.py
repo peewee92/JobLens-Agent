@@ -155,6 +155,34 @@ def test_in_memory_sdk_client_discovers_and_calls_all_three_tools() -> None:
     }
 
 
+def test_sdk_client_receives_sanitized_error_when_context_storage_fails() -> None:
+    class FailingContextBuilder:
+        def build(self, **_kwargs):
+            raise OSError("local database connection failed")
+
+    adapter = JobLensMcpAdapter(
+        context_builder=FailingContextBuilder(),
+        tool_registry=_Registry(),
+        trace_id_factory=lambda: "mcp_protocol_failure",
+    )
+
+    async def call() -> dict:
+        async with Client(create_mcp_server(adapter)) as client:
+            result = await client.call_tool("job_preparation", {"job_id": "job_1"})
+            return result.structured_content
+
+    result = asyncio.run(call())
+    assert result["ok"] is False
+    assert result["data"] is None
+    assert result["error"] == {
+        "code": "backend_unavailable",
+        "message": "JobLens local storage is temporarily unavailable.",
+        "retryable": True,
+    }
+    assert result["meta"]["providerCalls"] == 0
+    assert result["meta"]["businessWrites"] == 0
+
+
 def test_stdio_sdk_client_calls_all_tools_and_reconnects_after_restart(tmp_path: Path) -> None:
     database = tmp_path / "mcp-demo.db"
     seed(database)

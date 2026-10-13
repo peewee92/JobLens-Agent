@@ -50,7 +50,6 @@ class JobLensMcpAdapter:
         tool = CareerAgentToolName.RANK_MATCH_REPORTS
         return self._invoke(
             tool=tool,
-            context=self._context_builder.build(),
             request=RankMatchReportsRequest(
                 job_ids=tuple(request.job_ids),
                 include_blocked=request.include_blocked,
@@ -65,7 +64,6 @@ class JobLensMcpAdapter:
         tool = CareerAgentToolName.TARGET_COHORT_GAPS
         return self._invoke(
             tool=tool,
-            context=self._context_builder.build(),
             request=TargetCohortGapsRequest(
                 cohort_id=f"mcp_cohort_{uuid4().hex}",
                 name=request.name,
@@ -78,22 +76,34 @@ class JobLensMcpAdapter:
         tool = CareerAgentToolName.JOB_PREPARATION
         return self._invoke(
             tool=tool,
-            context=self._context_builder.build(current_job_id=request.job_id),
+            current_job_id=request.job_id,
             request=JobPreparationRequest(job_id=request.job_id),
             project=lambda output: JobPreparationResponse.from_result(output).model_dump(
                 by_alias=True, mode="json"
             ),
         )
 
-    def _invoke(self, *, tool: CareerAgentToolName, context: CareerAgentContext, request: object, project: Callable[[object], dict]) -> McpToolEnvelope:
+    def _invoke(
+        self,
+        *,
+        tool: CareerAgentToolName,
+        request: object,
+        project: Callable[[object], dict],
+        current_job_id: str | None = None,
+    ) -> McpToolEnvelope:
         trace_id = self._trace_id_factory()
-        if not context.usable:
-            code = self._context_error_code(context)
-            message = "; ".join(context.blocker_messages) or "JobLens context is not available."
-            return McpToolEnvelope.failure(
-                tool=tool.value, trace_id=trace_id, code=code, message=message
-            )
         try:
+            context = (
+                self._context_builder.build(current_job_id=current_job_id)
+                if current_job_id is not None
+                else self._context_builder.build()
+            )
+            if not context.usable:
+                code = self._context_error_code(context)
+                message = "; ".join(context.blocker_messages) or "JobLens context is not available."
+                return McpToolEnvelope.failure(
+                    tool=tool.value, trace_id=trace_id, code=code, message=message
+                )
             output = self._tool_registry.invoke(context=context, tool=tool, request=request)  # type: ignore[arg-type]
             return McpToolEnvelope.success(
                 tool=tool.value, trace_id=trace_id, data=project(output)
