@@ -267,7 +267,7 @@ try {
     {method: "POST"},
   );
   assert.equal(blockedMatchReport.status, 409);
-  assert.equal((await blockedMatchReport.json()).error.code, "semantic_match_inputs_not_ready");
+  assert.equal((await blockedMatchReport.json()).error.code, "eligibility_inputs_not_ready");
   assert.match(detailHtml, /打开原始岗位/);
   assert.doesNotMatch(detailHtml, /查看技术详情|查看分析详情/);
   assert.doesNotMatch(detailHtml, /confidence=|extractor=|trace=|JobLens ID/);

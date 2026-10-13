@@ -100,7 +100,7 @@ Release Gate
 
 Real rejected cases are converted into regression tests before a new semantic policy is released.
 
-### 6. Governed Career Agent layer
+### 6. Governed Career Agent and execution layer
 
 The current Career Agent is intentionally **workflow-first** instead of pretending every business action should be an autonomous agent tool.
 
@@ -110,9 +110,25 @@ It already provides:
 - an explicit Tool Registry;
 - coarse-grained read-only tools for Ranking, Skill Gap and Job Preparation;
 - fail-closed context validation;
-- deterministic Agent routing / grounding evals.
+- deterministic Agent routing / grounding evals;
+- LangGraph state, persistent checkpoint, durable human interrupt and stale-state recovery;
+- an Application Workspace for evidence-grounded resume variants, interview practice, study/evidence actions, application status and re-match feedback.
 
-The next runtime step is natural-language tool routing and a bounded multi-turn Agent Loop on top of these mature workflows. The project deliberately does **not** claim this part is complete yet.
+Natural-language routing and bounded tool-loop engineering are complete at the deterministic boundary. The remaining vNext 1.1 release evidence is an explicitly authorized live-Provider quality gate; it is not represented as a completed model-quality claim.
+
+### 7. Local MCP transport proof
+
+The current vNext 1.3 slice exposes three mature, read-only workflows through a local STDIO Model Context Protocol (MCP) server:
+
+```text
+Standard MCP Client
+        ↓ STDIO
+JobLens MCP Adapter
+        ↓
+Governed Context Builder → Tool Registry → existing Ranking / Gap / Preparation workflows
+```
+
+The slice is deliberately bounded to `rank_match_reports`, `target_cohort_gaps`, and `job_preparation`. It has no Provider calls, no business-fact writes, no remote HTTP service, no Pi Extension, and no automatic application actions.
 
 ## Architecture
 
@@ -174,11 +190,10 @@ JobLens-Agent/
 
 ## Engineering evidence
 
-Current local verification on the main development environment:
+Current local verification on the primary development environment:
 
-- **1027 Backend tests passing** (`pytest`);
-- **153 Web tests passing**;
-- **1180 automated tests passing in total**;
+- **1393 Backend tests passing** (`pytest`) in the current local suite;
+- Web tests, TypeScript typecheck and production build pass;
 - Web TypeScript typecheck passes;
 - schema migrations are managed by Alembic;
 - LLM release paths use explicit eval / review / gate boundaries;
@@ -230,6 +245,30 @@ Run tests:
 cd services/backend
 uv run pytest -q
 ```
+
+### Local MCP server (vNext 1.3 transport proof)
+
+The MCP server uses the official Python SDK and only exposes three read-only tools. It reads the same local SQLite database as the Backend; it does not start FastAPI and stdout is reserved for the MCP protocol.
+
+```bash
+cd services/backend
+uv sync
+DATABASE_URL=sqlite:///./data/joblens.db uv run python -m scripts.run_mcp_server
+```
+
+For a fully reproducible standard-client demonstration, create a disposable synthetic database (it contains 20 synthetic review cases because the same release gate is exercised), then call the server through the official SDK client:
+
+```bash
+cd services/backend
+uv run python -m scripts.seed_mcp_demo --database ./data/joblens-demo.db
+uv run python -m scripts.run_mcp_demo_client \
+  --database ./data/joblens-demo.db \
+  --job-id job_mcp_demo_01 \
+  --job-id job_mcp_demo_02 \
+  --prepare-job-id job_mcp_demo_01
+```
+
+The output lists discovered tools and the three structured MCP responses. Do not commit databases, resumes, raw job data or Provider credentials.
 
 ### Web
 
@@ -310,7 +349,7 @@ Skill Gap
 Trajectory Eval / Release Gate
 ```
 
-The first LangGraph slice is intentionally **not** a free-form chat demo. It focuses on a real long-running product path — `Ranking → Target Cohort → HITL → Resume → Skill Gap` — so State, Checkpoint and recovery are exercised against existing JobLens Workflows. Natural-language routing comes later, after the runtime path is recoverable and evaluable.
+The LangGraph path deliberately focuses on `Ranking → Target Cohort → HITL → Resume → Skill Gap`, so State, Checkpoint and recovery are exercised against existing JobLens Workflows. The local MCP adapter is a separate transport boundary: it reuses the governed Registry and never becomes a second Agent runtime.
 
 Detailed plans:
 
