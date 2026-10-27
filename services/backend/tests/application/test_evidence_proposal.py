@@ -210,3 +210,33 @@ def test_confirm_proposal_fails_closed_when_profile_has_changed():
         use_case.execute(workspace_id="ws1", proposal_id=proposal.proposal_id, actor_id="user1")
     assert save.commands == []
     assert timeline.items == []
+
+
+def test_selected_requirement_does_not_claim_every_requirement_of_the_action():
+    from dataclasses import replace
+    from app.application.application_workspace.evidence_context import EvidenceActionSource
+    action = replace(_action(), source_requirement_ids=('req1', 'req2'), source_gap_capability=None)
+    class Sources:
+        def resolve(self, action, workspace):
+            return EvidenceActionSource('a1', 'p1', 3, 'reqx1', None, None, (('req1', 'Python'), ('req2', 'LangGraph')))
+    use_case = CreateEvidenceProposalUseCase(workspaces=Workspaces(), actions=Actions(action), proposals=Proposals(),
+        now=lambda: NOW, new_id=lambda: 'ep1', sources=Sources(), profiles=Profiles(_profile()))
+    proposal = use_case.execute(workspace_id='ws1', action_id='a1', actor_id='user1', idempotency_key='one_requirement',
+        evidence_type=EvidenceType.PROJECT, evidence_summary='Actual Python outcome', evidence_source='Actual repository',
+        skill_level=SkillLevel.UNKNOWN, requirement_id='req1', expected_profile_id='p1', expected_profile_version=3,
+        reviewed_current_profile=True)
+    assert proposal.source_requirement_ids == ('req1',) and proposal.capability == 'Python'
+
+
+def test_only_latest_unconfirmed_replacement_is_actionable_even_with_equal_timestamps():
+    from dataclasses import replace
+    from app.application.application_workspace.evidence_proposal import pending_evidence_proposals
+    create, _ = _use_case()
+    original = create.execute(workspace_id='ws1', action_id='a1', actor_id='user1', idempotency_key='first',
+        evidence_type=EvidenceType.PROJECT, evidence_summary='Actual outcome', evidence_source='Actual repository',
+        skill_level=SkillLevel.WORKING)
+    first = replace(original, proposal_id='ep2', origin_proposal_id=original.proposal_id)
+    second = replace(first, proposal_id='ep3')
+    assert pending_evidence_proposals([second, original, first]) == (second,)
+    confirmed = replace(first, status=EvidenceProposalStatus.CONFIRMED)
+    assert pending_evidence_proposals([second, original, confirmed]) == ()

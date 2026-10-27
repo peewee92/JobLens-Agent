@@ -1,8 +1,11 @@
 "use client";
 
 import {useState} from "react";
+import {PreferenceCheckList} from "@/components/preference-check-list";
+import {useRouter, usePathname} from "next/navigation";
+import {SavedMatchReportNotice} from "@/components/saved-match-report-notice";
 
-import type {ApiErrorBody, JobMatchReport} from "@/lib/contracts";
+import type {ApiErrorBody, JobMatchReport, MatchReportHistoryItem} from "@/lib/contracts";
 import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
@@ -14,14 +17,20 @@ export function JobMatchReportPanel({
   jobId,
   enabled,
   disabledReason,
+  savedResult,
 }: {
   jobId: string;
   enabled: boolean;
   disabledReason?: string;
+  savedResult?: MatchReportHistoryItem | null;
 }) {
-  const [report, setReport] = useState<JobMatchReport | null>(null);
+  const [report, setReport] = useState<JobMatchReport | null>(savedResult?.report ?? null);
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const [generated, setGenerated] = useState(false);
 
   async function generateReport() {
     setStatus("submitting");
@@ -41,6 +50,9 @@ export function JobMatchReportPanel({
         );
       }
       setReport(body as JobMatchReport);
+      setGenerated(true);
+      router.replace(pathname, {scroll: false});
+      router.refresh();
       setStatus("idle");
     } catch (caught) {
       setStatus("error");
@@ -77,11 +89,12 @@ export function JobMatchReportPanel({
       ) : null}
       {enabled && !report ? (
         <p className="muted-copy match-report-disclaimer">
-          点击后会运行一次 AI 匹配分析；结果不会自动保存，也不会替你投递岗位。
+          点击后会运行一次 AI 匹配分析；成功后保存独立结果，不会替你投递岗位。
         </p>
       ) : null}
       {status === "error" ? <p className="inline-error">{message}</p> : null}
 
+      {savedResult && !generated ? <SavedMatchReportNotice result={savedResult} /> : null}
       {report ? (
         <div className="match-report-content">
           <section
@@ -93,9 +106,11 @@ export function JobMatchReportPanel({
             <div className="match-report-counts" aria-label="完整匹配建议统计">
               <span><strong>{report.matchedRequirementIds.length}</strong> 明确匹配</span>
               <span><strong>{report.partialRequirementIds.length}</strong> 有相关证据</span>
-              <span><strong>{report.missingRequirementIds.length}</strong> 硬条件缺口</span>
+              <span><strong>{report.missingRequirementIds.length}</strong> 岗位要求缺口</span>
             </div>
           </section>
+
+          <PreferenceCheckList checks={report.preferenceChecks ?? []} version={report.searchIntentVersion} />
 
           <div className="match-insight-grid">
             <section className="match-insight-section">
@@ -135,14 +150,14 @@ export function JobMatchReportPanel({
                   ))}
                 </div>
               ) : (
-                <p className="muted-copy">当前没有发现需要优先提醒的明显风险。</p>
+                <p className="muted-copy">当前没有发现岗位要求方面的额外风险；求职偏好冲突见上方。</p>
               )}
             </section>
           </div>
 
           {(report.strengths.length > 3 || report.risks.length > 3) ? (
             <p className="muted-copy">
-              下方“已匹配 / 待确认 / 明显缺失”仍保留全部逐条依据，可继续核对细节。
+              下方“已匹配 / 待确认 / 明确不满足”仍保留全部逐条依据，可继续核对细节。
             </p>
           ) : null}
         </div>

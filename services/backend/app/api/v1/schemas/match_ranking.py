@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from app.api.v1.schemas.common import CamelCaseModel
+from app.api.v1.schemas.preference_check import PreferenceCheckResponse
 from app.application.match_report import StoredMatchReport
 
 
@@ -14,6 +15,9 @@ class RankedMatchReportItemResponse(CamelCaseModel):
     profile_id: str
     profile_version: int
     extraction_id: str
+    search_intent_id: str | None
+    search_intent_version: int | None
+    preference_checks: list[PreferenceCheckResponse]
     eligibility: str
     recommendation: str
     summary: str
@@ -32,6 +36,9 @@ class RankedMatchReportItemResponse(CamelCaseModel):
             profile_id=report.profile_id,
             profile_version=report.profile_version,
             extraction_id=report.extraction_id,
+            search_intent_id=report.search_intent_id,
+            search_intent_version=report.search_intent_version,
+            preference_checks=[PreferenceCheckResponse.from_detail(item) for item in report.preference_checks],
             eligibility=report.eligibility.value,
             recommendation=report.recommendation.value,
             summary=report.summary,

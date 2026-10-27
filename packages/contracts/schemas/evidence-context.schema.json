@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/evidence-context.schema.json",
+  "$defs": {
+    "EvidenceActionSourceResponse": {
+      "properties": {
+        "actionId": {
+          "title": "Actionid",
+          "type": "string"
+        },
+        "profileId": {
+          "title": "Profileid",
+          "type": "string"
+        },
+        "profileVersion": {
+          "title": "Profileversion",
+          "type": "integer"
+        },
+        "extractionId": {
+          "title": "Extractionid",
+          "type": "string"
+        },
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Threadid"
+        },
+        "resultId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resultid"
+        },
+        "options": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "actionId",
+        "profileId",
+        "profileVersion",
+        "extractionId",
+        "threadId",
+        "resultId",
+        "options"
+      ],
+      "title": "EvidenceActionSourceResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "currentProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Currentprofileid"
+    },
+    "currentProfileVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Currentprofileversion"
+    },
+    "actionSources": {
+      "items": {
+        "$ref": "#/$defs/EvidenceActionSourceResponse"
+      },
+      "title": "Actionsources",
+      "type": "array"
+    },
+    "blockedActionIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Blockedactionids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "currentProfileId",
+    "currentProfileVersion",
+    "actionSources",
+    "blockedActionIds"
+  ],
+  "title": "EvidenceContextResponse",
+  "type": "object"
+}

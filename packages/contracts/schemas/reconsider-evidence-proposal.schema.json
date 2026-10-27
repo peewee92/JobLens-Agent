@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/reconsider-evidence-proposal.schema.json",
+  "properties": {
+    "actorId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Actorid",
+      "type": "string"
+    },
+    "idempotencyKey": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Idempotencykey",
+      "type": "string"
+    },
+    "expectedProfileId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Expectedprofileid",
+      "type": "string"
+    },
+    "expectedProfileVersion": {
+      "minimum": 1,
+      "title": "Expectedprofileversion",
+      "type": "integer"
+    },
+    "reviewedCurrentProfile": {
+      "title": "Reviewedcurrentprofile",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "actorId",
+    "idempotencyKey",
+    "expectedProfileId",
+    "expectedProfileVersion",
+    "reviewedCurrentProfile"
+  ],
+  "title": "ReconsiderEvidenceProposalRequest",
+  "type": "object"
+}

@@ -6,20 +6,20 @@ import type {
 
 export const eligibilityLabels: Record<EligibilityDecision, string> = {
   eligible: "基础硬条件已满足",
-  conditional: "有潜力，但还需要确认",
+  conditional: "有条件待核实",
   blocked: "当前不建议优先投入",
 };
 
 export const eligibilityDescriptions: Record<EligibilityDecision, string> = {
   eligible: "当前已确认职业背景没有发现明确的硬条件缺口。",
-  conditional: "暂时没有明确硬伤，但仍有硬条件缺少足够结构化证据，需要进一步确认。",
-  blocked: "当前已确认职业背景存在岗位明确硬条件的证据缺口，建议先补强或降低投入优先级。",
+  conditional: "岗位要求或求职偏好仍有条件需要核实；没有证据不代表明确不满足。",
+  blocked: "已确认事实与岗位明确硬条件冲突；这不同于没有填写技能或学历证据。",
 };
 
 export const requirementFitLabels: Record<RequirementFitStatus, string> = {
   matched: "已匹配",
   conditional: "待确认",
-  missing: "明显缺失",
+  missing: "明确不满足",
 };
 
 export function groupEligibilityRequirements(

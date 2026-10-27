@@ -61,3 +61,5 @@ class ApplicationWorkspace:
     current_fact_fingerprint: str
     created_at: datetime
     updated_at: datetime
+    current_analysis_thread_id: str | None = None
+    current_analysis_result_id: str | None = None

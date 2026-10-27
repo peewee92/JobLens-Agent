@@ -134,6 +134,8 @@ class ExecutionActionResponse(CamelCaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
+    source_analysis_thread_id: str | None = None
+    source_analysis_result_id: str | None = None
 
     @classmethod
     def from_model(cls, action: ExecutionActionItem) -> "ExecutionActionResponse":
@@ -144,6 +146,8 @@ class ExecutionActionResponse(CamelCaseModel):
             source_gap_capability=action.source_gap_capability, description=action.description,
             completion_criteria=list(action.completion_criteria), created_at=action.created_at,
             updated_at=action.updated_at, completed_at=action.completed_at,
+            source_analysis_thread_id=action.source_analysis_thread_id,
+            source_analysis_result_id=action.source_analysis_result_id,
         )
 
 
@@ -154,6 +158,11 @@ class CreateEvidenceProposalRequest(CamelCaseModel):
     evidence_summary: str = Field(min_length=1, max_length=2000)
     evidence_source: str = Field(min_length=1, max_length=1000)
     skill_level: SkillLevel
+
+    requirement_id: str | None = Field(default=None, min_length=1, max_length=100)
+    expected_profile_id: str | None = Field(default=None, min_length=1, max_length=100)
+    expected_profile_version: int | None = Field(default=None, ge=1)
+    reviewed_current_profile: bool = False
 
 
 class ConfirmEvidenceProposalRequest(CamelCaseModel):
@@ -178,6 +187,13 @@ class EvidenceProposalResponse(CamelCaseModel):
     confirmed_profile_version: int | None = None
     confirmed_at: datetime | None = None
 
+    source_analysis_thread_id: str | None = None
+    source_analysis_result_id: str | None = None
+    source_requirement_extraction_id: str | None = None
+    confirmation_base_profile_id: str | None = None
+    confirmation_base_profile_version: int | None = None
+    origin_proposal_id: str | None = None
+
     @classmethod
     def from_model(cls, proposal: EvidenceProposal) -> "EvidenceProposalResponse":
         return cls(
@@ -190,6 +206,13 @@ class EvidenceProposalResponse(CamelCaseModel):
             confirmed_profile_id=proposal.confirmed_profile_id,
             confirmed_profile_version=proposal.confirmed_profile_version,
             confirmed_at=proposal.confirmed_at,
+            source_analysis_thread_id=proposal.source_analysis_thread_id,
+            source_analysis_result_id=proposal.source_analysis_result_id,
+            source_requirement_extraction_id=proposal.source_requirement_extraction_id,
+            confirmation_base_profile_id=proposal.confirmation_base_profile_id,
+            confirmation_base_profile_version=proposal.confirmation_base_profile_version,
+            origin_proposal_id=proposal.origin_proposal_id,
+
         )
 
 
@@ -416,6 +439,8 @@ class ApplicationWorkspaceResponse(CamelCaseModel):
     current_fact_fingerprint: str
     created_at: datetime
     updated_at: datetime
+    current_analysis_thread_id: str | None = None
+    current_analysis_result_id: str | None = None
 
     @classmethod
     def from_model(cls, workspace: ApplicationWorkspace) -> "ApplicationWorkspaceResponse":
@@ -435,4 +460,43 @@ class ApplicationWorkspaceResponse(CamelCaseModel):
             current_fact_fingerprint=workspace.current_fact_fingerprint,
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
+            current_analysis_thread_id=workspace.current_analysis_thread_id,
+            current_analysis_result_id=workspace.current_analysis_result_id,
         )
+
+
+class WorkspaceCommandError(CamelCaseModel):
+    code: str
+    message: str
+    retryable: bool
+    repair_action: str
+    correlation_id: str
+
+
+class WorkspaceCommandErrorResponse(CamelCaseModel):
+    error: WorkspaceCommandError
+
+
+class ReconsiderEvidenceProposalRequest(CamelCaseModel):
+    actor_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=1, max_length=120)
+    expected_profile_id: str = Field(min_length=1, max_length=100)
+    expected_profile_version: int = Field(ge=1)
+    reviewed_current_profile: bool
+
+
+class EvidenceActionSourceResponse(CamelCaseModel):
+    action_id: str
+    profile_id: str
+    profile_version: int
+    extraction_id: str
+    thread_id: str | None
+    result_id: str | None
+    options: list[tuple[str, str]]
+
+
+class EvidenceContextResponse(CamelCaseModel):
+    current_profile_id: str | None
+    current_profile_version: int | None
+    action_sources: list[EvidenceActionSourceResponse]
+    blocked_action_ids: list[str]

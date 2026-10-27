@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from app.application.career_context.models import SearchIntentDetail
+from app.domain.jobs import RemoteStatus
 
 import pytest
 
@@ -22,6 +25,24 @@ from app.domain.job_requirements import RequirementImportance, RequirementType
 
 
 NOW = datetime(2026, 8, 9, tzinfo=UTC)
+
+
+def _intent(**overrides):
+    values = dict(id="intent_1", version=1, target_roles=(), cities=(), remote_accepted=None,
+                  minimum_salary_k=None, seniority=None, employment_types=(),
+                  exclude_keywords=(), hard_constraints=(), soft_preferences=(),
+                  created_at=datetime(2026, 8, 9, tzinfo=UTC))
+    return SearchIntentDetail(**(values | overrides))
+
+def _job(**overrides):
+    return SimpleNamespace(**(dict(id="job_1", title="Engineer", company="Example", area="武汉",
+        salary_min_k=20, salary_max_k=30, remote_status=RemoteStatus.REJECTED) | overrides))
+
+class _Jobs:
+    def __init__(self, job=None):
+        self.job = job or _job()
+    def get_job(self, job_id):
+        return self.job
 
 
 def _profile(
@@ -141,6 +162,8 @@ class _Readiness:
                     "CareerReadiness",
                     (),
                     {
+                        "search_intent_id": "intent_1",
+                        "search_intent_version": 1,
                         "profile_id": self.profile_id,
                         "profile_version": self.profile_version,
                     },
@@ -161,6 +184,9 @@ class _Profiles:
     def get_current_profile(self) -> ProfileDetail | None:
         return self.profile
 
+    def get_current_search_intent(self):
+        return _intent()
+
 
 class _Requirements:
     def __init__(self, extraction: JobRequirementExtractionDetail | None) -> None:
@@ -173,12 +199,13 @@ class _Requirements:
 def _use_case(profile: ProfileDetail, extraction: JobRequirementExtractionDetail, *, ready: bool = True):
     return EvaluateJobEligibilityUseCase(
         readiness=_Readiness(ready),
+        jobs=_Jobs(),
         profiles=_Profiles(profile),
         requirements=_Requirements(extraction),
     )
 
 
-def test_missing_must_have_java_and_specialized_backend_experience_block_job() -> None:
+def test_unknown_must_have_skill_and_specialized_experience_do_not_block() -> None:
     result = _use_case(
         _profile(),
         _extraction(
@@ -198,12 +225,13 @@ def test_missing_must_have_java_and_specialized_backend_experience_block_job() -
         ),
     ).execute("job_1")
 
-    assert result.eligibility is EligibilityDecision.BLOCKED
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
     assert [item.status for item in result.requirements] == [
-        RequirementFitStatus.MISSING,
-        RequirementFitStatus.MISSING,
+        RequirementFitStatus.CONDITIONAL,
+        RequirementFitStatus.CONDITIONAL,
     ]
-    assert result.missing_count == 2
+    assert result.missing_count == 0
+    assert result.conditional_count == 2
     assert all(item.evidence_ids == () for item in result.requirements)
 
 
@@ -257,8 +285,8 @@ def test_generic_total_experience_can_use_confirmed_profile_years_but_specialize
 
     assert result.requirements[0].status is RequirementFitStatus.MATCHED
     assert result.requirements[0].profile_fact_refs == ("yearsOfExperience",)
-    assert result.requirements[1].status is RequirementFitStatus.MISSING
-    assert result.eligibility is EligibilityDecision.BLOCKED
+    assert result.requirements[1].status is RequirementFitStatus.CONDITIONAL
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
 
 
 def test_plain_bachelor_evidence_satisfies_plain_bachelor_requirement() -> None:
@@ -400,9 +428,46 @@ def test_eligibility_fails_closed_if_profile_or_requirement_changes_after_readin
     )
     stale = EvaluateJobEligibilityUseCase(
         readiness=_Readiness(profile_version=99),
+        jobs=_Jobs(),
         profiles=_Profiles(profile),
         requirements=_Requirements(extraction),
     )
 
     with pytest.raises(EligibilityInputsNotReadyError, match="changed after readiness"):
         stale.execute("job_1")
+
+
+@pytest.mark.parametrize("years, expected", [
+    (None, EligibilityDecision.CONDITIONAL),
+    (3, EligibilityDecision.BLOCKED),
+    (5, EligibilityDecision.ELIGIBLE),
+])
+def test_confirmed_total_years_can_block_but_unknown_years_cannot(years, expected) -> None:
+    result = _use_case(_profile(years=years), _extraction(_requirement(
+        0, type=RequirementType.EXPERIENCE, text="5年以上工作经验",
+        importance=RequirementImportance.MUST_HAVE,
+    ))).execute("job_1")
+    assert result.eligibility is expected
+    assert result.provider_calls == result.db_writes == 0
+    if expected is EligibilityDecision.BLOCKED:
+        assert result.requirements[0].profile_fact_refs == ("yearsOfExperience",)
+        assert result.requirements[0].status is RequirementFitStatus.MISSING
+    elif years is None:
+        assert not result.requirements[0].profile_fact_refs
+
+
+@pytest.mark.parametrize("education", [None, "本科。", "完成课程。"])
+def test_missing_higher_degree_proof_does_not_prove_insufficient_education(education) -> None:
+    from dataclasses import replace
+    profile = _profile(education_summary=education or "")
+    if education is None:
+        profile = replace(profile, evidence=tuple(
+            item for item in profile.evidence if item.type is not EvidenceType.EDUCATION
+        ))
+    result = _use_case(profile, _extraction(_requirement(
+        0, type=RequirementType.EDUCATION, text="硕士及以上学历",
+        importance=RequirementImportance.MUST_HAVE,
+    ))).execute("job_1")
+    assert result.eligibility is EligibilityDecision.CONDITIONAL
+    assert result.missing_count == 0
+    assert result.requirements[0].evidence_ids == ()

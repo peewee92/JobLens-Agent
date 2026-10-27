@@ -1430,7 +1430,7 @@ export function ProfileEditor({
         ) : null}
       </form>
 
-      <form className="panel profile-form" onSubmit={saveIntent}>
+      <form className="panel profile-form" id="search-intent" onSubmit={saveIntent}>
         <div className="section-title-row">
           <div>
             <p className="eyebrow">我想找什么</p>
@@ -1472,6 +1472,7 @@ export function ProfileEditor({
           </div>
           <div className="field">
             <label htmlFor="remoteAccepted">接受远程</label>
+            <p className="muted-copy">选择接受，表示目标城市的线下岗位或远程岗位均可，并不是只接受远程。</p>
             <select
               id="remoteAccepted"
               value={remoteAccepted}
@@ -1519,6 +1520,7 @@ export function ProfileEditor({
           </div>
           <div className="field profile-span-2">
             <label htmlFor="hardConstraints">不能接受的条件</label>
+            <p className="muted-copy">自由文本限制会显示为待确认，不会被自动解释为已满足。</p>
             <textarea
               id="hardConstraints"
               value={hardConstraints}

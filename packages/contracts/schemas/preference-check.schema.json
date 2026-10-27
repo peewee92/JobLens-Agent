@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/preference-check.schema.json",
+  "title": "PreferenceCheck",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key", "status", "code", "reason", "intentFields", "jobFields"],
+  "properties": {
+    "key": {"type": "string", "minLength": 1},
+    "status": {"enum": ["matched", "conditional", "missing"]},
+    "code": {"type": "string", "minLength": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "intentFields": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "jobFields": {"type": "array", "items": {"type": "string"}}
+  }
+}

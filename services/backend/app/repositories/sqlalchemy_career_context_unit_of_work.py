@@ -29,6 +29,13 @@ class SqlAlchemyCareerContextUnitOfWork(AbstractCareerContextUnitOfWork):
         if self._session is not None:
             raise RuntimeError("CareerContext UnitOfWork is already active")
         self._session = self._session_factory()
+        try:
+            if self._session.get_bind().dialect.name == "sqlite":
+                self._session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        except Exception:
+            self._session.close()
+            self._session = None
+            raise
         self.context = SqlAlchemyCareerContextRepository(self._session)
         return self
 

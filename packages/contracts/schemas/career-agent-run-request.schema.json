@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/career-agent-run-request.schema.json",
+  "properties": {
+    "threadId": {
+      "minLength": 1,
+      "title": "Threadid",
+      "type": "string"
+    },
+    "runId": {
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+    },
+    "requestId": {
+      "minLength": 1,
+      "title": "Requestid",
+      "type": "string"
+    },
+    "jobIds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Jobids",
+      "type": "array"
+    },
+    "topN": {
+      "default": 3,
+      "maximum": 5,
+      "minimum": 1,
+      "title": "Topn",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "threadId",
+    "runId",
+    "requestId",
+    "jobIds"
+  ],
+  "title": "CareerAgentRunRequest",
+  "type": "object"
+}

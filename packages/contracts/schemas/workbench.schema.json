@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/workbench.schema.json",
+  "$defs": {
+    "WorkbenchActionResponse": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "href": {
+          "title": "Href",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "label",
+        "reason",
+        "href"
+      ],
+      "title": "WorkbenchActionResponse",
+      "type": "object"
+    },
+    "WorkbenchChangeResponse": {
+      "properties": {
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "title": "Occurredat",
+          "type": "string"
+        },
+        "href": {
+          "title": "Href",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "occurredAt",
+        "href"
+      ],
+      "title": "WorkbenchChangeResponse",
+      "type": "object"
+    },
+    "WorkbenchRunResponse": {
+      "properties": {
+        "threadId": {
+          "title": "Threadid",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "currentStep": {
+          "title": "Currentstep",
+          "type": "string"
+        },
+        "jobCount": {
+          "title": "Jobcount",
+          "type": "integer"
+        },
+        "targetCount": {
+          "title": "Targetcount",
+          "type": "integer"
+        },
+        "executionTargetCount": {
+          "title": "Executiontargetcount",
+          "type": "integer"
+        },
+        "resultId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resultid"
+        },
+        "resultIsCurrent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resultiscurrent"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "title": "Updatedat",
+          "type": "string"
+        },
+        "partial": {
+          "default": false,
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "completedReportCount": {
+          "default": 0,
+          "title": "Completedreportcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "threadId",
+        "status",
+        "currentStep",
+        "jobCount",
+        "targetCount",
+        "executionTargetCount",
+        "resultId",
+        "resultIsCurrent",
+        "updatedAt"
+      ],
+      "title": "WorkbenchRunResponse",
+      "type": "object"
+    },
+    "WorkbenchSnapshotResponse": {
+      "properties": {
+        "profileVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profileversion"
+        },
+        "searchIntentVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Searchintentversion"
+        },
+        "evidenceCount": {
+          "title": "Evidencecount",
+          "type": "integer"
+        },
+        "inputIssueCodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inputissuecodes",
+          "type": "array"
+        },
+        "jobCount": {
+          "title": "Jobcount",
+          "type": "integer"
+        },
+        "currentRun": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkbenchRunResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspaces": {
+          "items": {
+            "$ref": "#/$defs/WorkbenchWorkspaceResponse"
+          },
+          "maxItems": 5,
+          "title": "Workspaces",
+          "type": "array"
+        },
+        "changes": {
+          "items": {
+            "$ref": "#/$defs/WorkbenchChangeResponse"
+          },
+          "maxItems": 10,
+          "title": "Changes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "profileVersion",
+        "searchIntentVersion",
+        "evidenceCount",
+        "inputIssueCodes",
+        "jobCount",
+        "currentRun",
+        "workspaces",
+        "changes"
+      ],
+      "title": "WorkbenchSnapshotResponse",
+      "type": "object"
+    },
+    "WorkbenchWorkspaceResponse": {
+      "properties": {
+        "workspaceId": {
+          "title": "Workspaceid",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "openActionCount": {
+          "title": "Openactioncount",
+          "type": "integer"
+        },
+        "currentAnalysisThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentanalysisthreadid"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "title",
+        "status",
+        "openActionCount",
+        "currentAnalysisThreadId"
+      ],
+      "title": "WorkbenchWorkspaceResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "snapshot": {
+      "$ref": "#/$defs/WorkbenchSnapshotResponse"
+    },
+    "nextAction": {
+      "$ref": "#/$defs/WorkbenchActionResponse"
+    }
+  },
+  "required": [
+    "snapshot",
+    "nextAction"
+  ],
+  "title": "WorkbenchResponse",
+  "type": "object"
+}

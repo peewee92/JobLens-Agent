@@ -40,7 +40,7 @@ class CareerAgentDurableRunIdentity:
     thread_id: str
     run_id: str
     request_id: str
-    top_n: int = 5
+    top_n: int = 3
 
     def __post_init__(self) -> None:
         if not self.thread_id or not self.run_id or not self.request_id:

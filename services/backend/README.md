@@ -330,6 +330,23 @@ uv run pytest
 
 ## Migration commands
 
+### 先检查就绪，再验证副本
+
+`GET /api/v1/health` 仅检查进程存活。`GET /api/v1/readiness` 检查数据库连接、当前 Alembic 版本是否与程序一致、ORM 所需表是否齐全。全部通过返回 200，否则返回 503 和稳定原因码（`database_unavailable / migration_required / schema_incomplete / migration_metadata_unavailable`），不泄露连接串或异常栈，不创建数据库、不运行迁移、不调用模型。
+
+首页、Agent 页及求职工作区入口会先检查就绪；失败时提供中文说明，不继续读取业务表。该检查不是权限控制，也不拦截全部现有 API；API 使用者和部署脚本应显式检查就绪。它不验证每个列、索引及约束完全一致，结构漂移仍需 `alembic check` 和迁移回归测试。
+
+对真实 SQLite 数据，先验证一个**不存在的新副本路径**：
+
+```bash
+cd services/backend
+.venv/bin/python -m scripts.verify_migration_copy \
+  --source /absolute/path/to/source.db \
+  --output /absolute/path/to/new-copy.db
+```
+
+脚本以只读方式备份来源，仅对新副本执行迁移，并比较所有原有业务表、原有列的逐行摘要及行数，检查完整性、外键和就绪。拒绝覆盖任何已有输出。失败副本保留用于检查；**不会切换配置或升级来源数据库**。验证成功不等于已授权升级真实库；升级前仍需备份并确认目标连接。
+
 Alembic 已指向 `Base.metadata`：
 
 - `20260801_0001_create_job_data_foundation.py` 创建 `jobs / job_sources / job_imports / job_import_items`；
@@ -418,3 +435,100 @@ services/backend/
 ```
 
 分层调用方向：`API → Application → Domain → Repository → Database`。
+
+
+### 读取已保存的匹配结果
+
+`GET /api/v1/jobs/{job_id}/match-reports` 只读返回历史，不调用模型，也不自动启动分析。
+每项包含 `reportId`、`createdAt`、`isCurrent`、`staleReasons` 和完整原始 `report`。
+即使当前资料已删除或变化，也能读取原报告；旧策略结果明确标记过期，不重新解释。
+网页 `/jobs/{job_id}?reportId={report_id}` 可以重新打开指定结果；指定标识不存在或不属于该岗位时，不回退冒充其他结果。
+当前性是读取时的派生检查，不是跨请求锁；运行事实版本的原子校验与保存属于后续阶段 3。
+
+
+### 目标建议边界
+
+排序保留可读的 `low` 报告，但图只把 `strong / good / stretch` 选作默认目标。
+默认三个、人工最多五个、分析范围最多五十个。没有可靠建议时返回 `target_evidence_insufficient`，而不是凑齐 Top 3。
+`targetSuggestionMode=challenge_only` 表示本次建议只有挑战／待核实目标。该字段只是运行时展示提示，不替代原匹配报告和事实版本。
+
+### 主业务阶段 3A：同库运行状态
+
+正式运行存储使用既有 SQLAlchemy `SessionLocal`，由迁移 `20261025_0023` 创建 `career_agent_runs` 和 `career_agent_run_events`。运行与追加事件同事务写入；迁移需匹配修订、预期状态、步骤和运行身份，并检查合法状态迁移。竞争失败返回 409 `career_agent_state_conflict`，缺运行存储返回 503 `career_agent_storage_not_ready`；请求不会自动创建数据库或表。
+
+`CAREER_AGENT_CHECKPOINT_PATH` 在正式依赖中仅用于读取旧文件，不双写。旧完成运行显示没有原始结果快照；旧未完成运行显示需要重新分析，不允许继续旧流程。旧事件未导入，旧文件保留。历史测试适配器仍存在，不是正式权威存储。
+
+本阶段解决状态覆盖和部分提交，**不等同于**命令内容幂等、执行租约或完整结果持久化已经完成；这些属于 3B/3C。迁移仅在新副本验证，没有升级真实求职数据库。实现与重启证据见 [阶段 3A 交付记录](../../docs/implementation/P1-main-loop-runtime-store.md)。
+
+### 主业务阶段 3B-1：重复命令内容校验
+
+新开始命令保存规范化岗位范围、顺序及 `topN` 的摘要；新人工确认保存等待点、决定及所选岗位的摘要。标识与内容均相同，返回已有状态；标识相同但内容不同，返回 409，原状态不变。摘要随状态保存，已接受决定不能被后续迁移改写。重复岗位去重后视为同内容，但不同岗位顺序保留为不同请求。
+
+无摘要的旧已接受命令不能证明内容一致，拒绝重放并提示新分析，仍允许只读查看。此切片不替代执行租约，也不解决所有并发重复计算；网页发送前保存标识、显式继续及完整原始结果仍待交付。见 [阶段 3B-1 记录](../../docs/implementation/P1-main-loop-command-integrity.md)。
+
+### 主业务阶段 3B-2：执行领取与显式继续
+
+迁移 `20261025_0024` 为主运行表增加租约令牌及到期时间。正式开始先保存 `created` 和原始请求范围，再领取默认 120 秒的运行租约。领取和释放是短事务，工作流在事务外执行；运行提交同时检查令牌、有效期和状态修订。释放必须仍持有原令牌，过期执行者不能覆盖或释放新执行者的状态。
+
+`POST /api/v1/career-agent/runs/{thread_id}/continue` 无请求体，只推进已经接受的请求：`created` 从已保存输入排序，已保存排序直接建立等待点，`resuming` 继续已确认分析；等待确认和终态不推进。缺失运行返回 404，只读旧运行返回 409。`GET` 不领取租约、不调用工作流。网页对应“继续分析”和“重新查看状态”两个独立操作。
+
+本地首版没有后台调度和自动续租。执行超过租约会拒绝保存，并由用户显式继续；只读计算可能重算，不保证恰好一次。保存约束失败返回 503 `career_agent_save_failed`，不把所有保存失败误报为并发冲突；唯一键或修订竞争仍返回 409。网页发送前保存完整命令、最近运行查询以及原始结果快照仍待后续交付。见 [执行恢复记录](../../docs/implementation/P1-main-loop-execution-recovery.md)。
+
+### 主业务阶段 3B-3：请求重试与最近运行
+
+`GET /api/v1/career-agent/runs?limit=10` 直接投影主运行表，限制 1–20，按更新时间和 threadId 倒序；不领取租约、不调用模型、不写事件，不扫描旧独立检查点。公开状态增加 `decisionActionId`，网页可识别自己的决定已接受或被其他页面决定取代。
+
+网页在网络请求前保存完整开始／确认命令，失败后提供“查看请求状态”和“重试原请求”。重试不生成新标识，也不能覆盖未确认的不同请求。本地保存失败则不发送。首次响应丢失后先 GET；若没有服务端记录但仍有原开始命令，不丢弃，允许原样重试。页面地址保存 threadId，最近列表可在本地引用丢失后重开；打开和刷新不自动继续。岗位列表暂时不可用也不隐藏运行找回入口。
+
+本地存储不是并发锁，真正的决定竞争和执行保护仍在数据库。完整分析快照、工作台和反馈闭环仍待后续阶段。见 [请求恢复交付记录](../../docs/implementation/P1-main-loop-request-recovery.md)。
+完整报告引用与指纹仍保留，恢复验证没有因只显示三个建议而缩小范围。
+
+### 主闭环 3C：固定事实与保存分析
+
+迁移 `20261025_0025` 在主运行表保存版本化结果，包含本次事实绑定、共同差距和最多 5 个确认目标的确定性准备材料。计算不持有写事务；最终短事务复核事实、租约和修订，一起保存结果、完成状态与事件。事实已变化则保留原材料并标记过期。无需增加模型调用。
+
+- `GET /api/v1/career-agent/runs/{thread_id}/result`：只读原结果，另行返回 `isCurrent/staleReasons`，不自动重算。
+- 新结果页面 `/agent/results/[threadId]` 从原运行进入；旧指纹没有完整快照时明确缺失。
+- 原库不自动迁移，先用 `scripts/verify_migration_copy.py` 验证新副本。
+- 设计、失败复现及未完成范围：[3C 需求卡](../../docs/implementation/P1-main-loop-analysis-snapshot.md)。一键建立工作区与反馈更新尚未纳入此切片。
+
+### 从保存的分析开始执行（4A）
+
+迁移到 `20261025_0026` 后，可用 `POST /api/v1/career-agent/runs/{threadId}/execution`，提交 `commandId/resultId/jobIds`（最多 5 个原确认目标）。工作区、保存的简历事实草稿、来源行动、创建事件与命令回执在同一事务提交；失败整批回滚。相同命令同内容返回原结果，异内容 409；事实过期阻止首次创建，已保存回执仍可找回。
+
+`GET` 同一路径只查询已有结果；`GET /api/v1/application-workspaces/{workspaceId}/preparation` 返回引用的保存材料及当前性。工作区保留初始事实来源，当前分析与行动来源分别可追溯；打开历史材料不重算，也不调用模型。本地单用户范围，不宣称多租户部署。见 `docs/implementation/P1-main-loop-start-execution.md`。
+
+`GET /api/v1/workbench` 是现有事实的只读投影，包含资料/意向版本、具体输入问题、最近运行和原始结果引用、最多 5 个本地用户工作区、最多 10 条实际变化及一个下一步。不生成排序或模型输出，也不维护独立进度。共享契约 `workbench.schema.json`，实现及验证见 `P1-main-loop-workbench.md`。
+
+### 反馈事务（5A）
+
+提案创建/确认、行动状态和投递状态的生产写接口现在共用调用方 Session。确认提案使用既有 Profile 归一化规则在同一事务写入新版本、确认状态和事件，无内层提交。SQLite 短写锁与条件更新保护并发。失败返回 `workspace_transaction_save_failed`（503，含重试与修复信息）；重试前查询原记录，未知提交结果不伪报成功。此片未扩展其他旧写入口，也不自动合并过期提案。见 `P1-main-loop-feedback-transactions.md`。
+
+
+### 真实成果核对（5B）
+
+迁移至 `20261025_0027`。`GET /api/v1/application-workspaces/{id}/evidence-context` 只读返回当前资料版本、已完成行动的原始技能要求选项及不可核对的行动标识。行动有分析引用时从该分析读取来源，不使用工作区最初资料或当前实时材料代替。
+
+普通准备行动提交提案时须传 `requirementId/expectedProfileId/expectedProfileVersion/reviewedCurrentProfile`，保留用户输入的摘要、来源和技能程度；“暂不判断”保留已有技能程度。提案创建不写职业资料，确认才写新版。旧学习行动接口保持兼容，但确认仍检查版本。
+
+`POST /api/v1/application-workspaces/{id}/evidence-proposals/{proposalId}/reconsider` 要求显式核对当前版本和新的幂等标识，另存提案并关联原始提案；旧记录不改。替代链最多一次确认，已被替代或同源已确认的历史提案不再计入待处理数。原请求同内容返回回执，异内容冲突。沿用 5A 的同库短事务，不引入模型或第二套状态机。
+
+网页仅对提案创建、确认及重新核对保存本地待确认请求；成功清除，未知失败保留，刷新不发送。明确拒绝可由用户丢弃后修正。此存储含用户刚填的成果描述，界面明确告知，不作为服务端权威状态。投递/行动状态的浏览器命令恢复不在此片范围。
+
+旧单岗位重新匹配仍保留，执行前检查是否需要语义模型；需要则阻断，不自动付费，不代表 5C 的范围更新已实现。详细证据与失败复现见 [5B 记录](../../docs/implementation/P1-main-loop-evidence-review.md)。
+
+### 限定范围更新：只读预检（5C-1a）
+
+`GET /api/v1/career-agent/runs/{threadId}/update-plan?scope=targets|batch` 从原运行读取确认目标或原请求批次（最多 50），结合当前已确认资料、意向、岗位要求和最近报告，区分可复用、可规则重算、下一小批、需模型和输入阻断。首批新增分析候选最多 5 个；原结果不修改，GET 不运行 Match、不写 Trace 或业务数据。缺少原结果返回 404，数据库结构不可用返回安全的 503，不把空结果当成功。
+
+此接口 `advisoryOnly=true`：是输入预检，不是执行回执、预留、授权或强一致执行保证。事实在执行前仍须再次校验。语义模型需求判断与真实语义工作流、旧单岗位重新匹配共用 `needs_semantic_model`；它只判断是否需要模型，不代替授权、预算或实际调用计数。
+
+结果页 `/agent/results/{threadId}` 可进入 `/update` 选择范围。已接入显式有界规则更新、继续与独立新结果保存；新旧比较和完整反馈闭环验收仍待完成，不能把页面预检当成执行回执。设计与证据见 [5C 交付记录](../../docs/implementation/P1-main-loop-analysis-update.md)。
+
+#### 有界规则更新分析
+
+`POST /api/v1/career-agent/runs/{sourceThreadId}/updates` 消费更新预检的 `sourceResultId/scope/inputDigest`，加上新的 `threadId/runId/requestId/topN`。固定当前事实版本，复用兼容报告，每次最多尝试 5 个纯规则匹配。报告、步骤完成和追加事件在同一事务保存，沿用主运行存储与租约。分批 Continue 必须带 `actionId/expectedRevision/useCompletedOnly`，相同命令重放不会继续下一批。需要模型的岗位明确等待；用户可明确仅分析已完成岗位，运行与保存结果会标注部分范围。新结果不覆盖原分析，不调用模型、不在 GET 自动继续。
+
+### 保存结果比较
+
+`GET /api/v1/career-agent/runs/{threadId}/comparison` 只读新运行明确来源及两次绑定的归档报告，不重新匹配或查询最新事实补齐。岗位要求/策略变更、部分范围与报告缺失有稳定原因码；身份冲突返回 409，数据库不可读返回安全 503。无新表或模型调用。复现：`.venv/bin/python -m pytest tests/test_analysis_comparison.py -q`，须按测试说明配置隔离 SQLite、禁用模型。详见根目录 `docs/implementation/P1-main-loop-analysis-comparison.md`。

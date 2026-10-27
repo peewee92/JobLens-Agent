@@ -95,7 +95,7 @@ def _blocked_semantic_result(eligibility: JobEligibilityResult) -> JobSemanticMa
                 item.reason
                 if item.status is not RequirementFitStatus.CONDITIONAL
                 else (
-                    "整体 Eligibility 已因明确 must-have 缺口 blocked；"
+                    "整体 Eligibility 已因明确资格或求职偏好冲突 blocked；"
                     "本次 MatchReport 不再执行语义匹配，这条要求仅保留为未确认。"
                 )
             ),
@@ -109,6 +109,10 @@ def _blocked_semantic_result(eligibility: JobEligibilityResult) -> JobSemanticMa
         profile_version=eligibility.profile_version,
         extraction_id=eligibility.extraction_id,
         eligibility=eligibility.eligibility,
+        search_intent_id=eligibility.search_intent_id,
+        search_intent_version=eligibility.search_intent_version,
+        preference_checks=eligibility.preference_checks,
+        preference_fingerprint=eligibility.preference_fingerprint,
         assessments=assessments,
         matched_count=sum(item.verdict is SemanticMatchVerdict.MATCHED for item in assessments),
         partial_count=0,

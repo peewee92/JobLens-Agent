@@ -14,6 +14,7 @@ from app.api.deps import (
     get_latest_job_requirements_use_case,
     get_match_input_readiness_use_case,
     get_match_report_use_case,
+    get_match_report_history_use_case,
     get_semantic_match_use_case,
 )
 from app.api.v1.schemas import ApiErrorResponse
@@ -25,7 +26,10 @@ from app.api.v1.schemas.job_requirements import (
     JobRequirementReleaseReadinessResponse,
 )
 from app.api.v1.schemas.match_inputs import MatchInputReadinessResponse
-from app.api.v1.schemas.match_report import JobMatchReportResponse
+from app.api.v1.schemas.match_report import (
+    JobMatchReportResponse, MatchReportHistoryResponse, MatchReportHistoryItemResponse,
+)
+from app.application.match_report_history import GetMatchReportHistoryUseCase
 from app.api.v1.schemas.semantic_match import JobSemanticMatchResponse
 from app.application.eligibility import EvaluateJobEligibilityUseCase
 from app.application.evidence_retrieval import RetrieveJobEvidenceUseCase
@@ -208,3 +212,20 @@ def get_job_requirement_extraction(
     return JobRequirementExtractionResponse.from_detail(
         use_case.execute(job_id=job_id, extraction_id=extraction_id)
     )
+
+
+@router.get("/{job_id}/match-reports", response_model=MatchReportHistoryResponse)
+def get_match_report_history(
+    job_id: str,
+    use_case: Annotated[GetMatchReportHistoryUseCase, Depends(get_match_report_history_use_case)],
+) -> MatchReportHistoryResponse:
+    entries = use_case.execute(job_id)
+    return MatchReportHistoryResponse(items=[
+        MatchReportHistoryItemResponse(
+            report_id=item.stored.id,
+            created_at=item.stored.created_at,
+            is_current=not item.stale_reasons,
+            stale_reasons=list(item.stale_reasons),
+            report=JobMatchReportResponse.from_detail(item.stored.report),
+        ) for item in entries
+    ], count=len(entries))

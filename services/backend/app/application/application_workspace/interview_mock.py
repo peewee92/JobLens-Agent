@@ -73,7 +73,8 @@ class TimelineRepository(Protocol):
 class BuildInterviewMockQuestionSetUseCase:
     """Turn existing Interview Facts into executable, deterministic practice prompts."""
 
-    def __init__(self, *, workspaces: WorkspaceQuery, preparation: BuildJobPreparationBundleUseCase) -> None:
+    def __init__(self, *, workspaces: WorkspaceQuery, preparation: BuildJobPreparationBundleUseCase, saved_preparation=None) -> None:
+        self._saved_preparation = saved_preparation
         self._workspaces = workspaces
         self._preparation = preparation
 
@@ -81,10 +82,22 @@ class BuildInterviewMockQuestionSetUseCase:
         workspace = self._workspaces.get(workspace_id)
         if workspace is None:
             raise InterviewMockBlockedError("application_workspace_not_found")
+        if getattr(workspace, "current_analysis_thread_id", None):
+            try:
+                saved = self._saved_preparation.read(workspace)
+            except (LookupError, AttributeError) as exc:
+                raise InterviewMockBlockedError("application_workspace_saved_materials_missing") from exc
+            return self.execute_from_bundle(workspace, saved.bundle, snapshot=saved.snapshot)
         bundle = self._preparation.execute(workspace.job_id)
         if not bundle.facts_usable or bundle.interview_facts is None:
             raise InterviewMockBlockedError("interview_facts_not_ready")
-        snapshot = workspace.source_snapshot
+        return self.execute_from_bundle(workspace, bundle)
+
+    def execute_from_bundle(self, workspace, bundle, *, snapshot=None) -> InterviewMockQuestionSet:
+        if not bundle.facts_usable or bundle.interview_facts is None:
+            raise InterviewMockBlockedError("interview_facts_not_ready")
+        snapshot = snapshot or workspace.source_snapshot
+        workspace_id = workspace.workspace_id
         if (
             bundle.profile_id != snapshot.profile_id
             or bundle.profile_version != snapshot.profile_version

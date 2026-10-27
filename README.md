@@ -41,6 +41,10 @@ The product goal is deliberately narrow:
 
 ## What is implemented
 
+### 运行前检查
+
+后端的 `/api/v1/health` 仅代表进程存活；`/api/v1/readiness` 才检查数据库连接、迁移版本及所需表。首页、Agent 与求职工作区入口会在环境未就绪时提供中文修复说明，不自动迁移或调用模型。真实数据先用 `scripts.verify_migration_copy` 验证新副本，具体操作见 [后端迁移说明](services/backend/README.md#先检查就绪再验证副本)。主业务闭环优化目前仅落地这一环境切片，不代表运行恢复和反馈闭环已全部完成。
+
 ### 1. Real job collection
 
 `apps/collector-extension` is a Chrome extension used to collect real job postings and preserve source quality instead of feeding manually copied JD fragments into the model.
@@ -570,3 +574,31 @@ The detailed engineering history remains in `docs/`; the README intentionally fo
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+### 主业务闭环：阶段 2A（证据与资格）
+
+缺少技能、教育或专项年限证明不再直接判定不合格；确定性总年限冲突仍保留。没有核心证据支持的待核实岗位归为证据不足。新报告独立记录规则版本，旧快照保留原结论、不混入当前排序。偏好约束、完整推荐展示和运行恢复尚未包含在本切片，参见 [需求与验证记录](docs/implementation/P1-main-loop-eligibility-evidence.md)。
+
+### 主业务闭环：阶段 2B（求职偏好）
+
+城市、最低月薪、远程和排除词现在进入资格判断：明确冲突不进入默认推荐，未知条件保留待核实。“接受远程”不等于“只接受远程”。新报告保存意向版本及偏好依据，修改偏好或关键岗位字段后旧报告退出当前排序，历史快照不变。自由文本限制不由模型猜测解释，参见 [规则、边界与验证记录](docs/implementation/P1-main-loop-search-preferences.md)。
+
+### 主业务闭环进展：保存当次分析（2026-10-25）
+
+目标确认后，现在会保存当时的能力差距、逐岗位准备材料及事实版本，并可从原运行重新打开。刷新或重启不重新生成；资料变化后保留历史材料并明确提示不再适用。保存失败可显式继续，不留下“已完成但材料没保存”的半成品。
+
+详见 [事实绑定与保存结果](docs/implementation/P1-main-loop-analysis-snapshot.md)。该切片没有调用收费模型、没有修改真实求职记录；一键进入工作区、反馈后的新旧结果比较仍在后续阶段，不能据此宣称完整求职闭环已完成。
+
+主闭环 4A：已保存的分析结果页可以一键建立/复用目标岗位工作区、简历事实草稿和来源行动；刷新、并发和请求重试不会重复建立同一批材料，历史准备材料可以重新打开。尚未完成统一首页工作台和完整反馈再分析闭环，详见 [4A 交付记录](docs/implementation/P1-main-loop-start-execution.md)。
+
+主闭环 4B：首页现为任务工作台，汇总准备情况、当前分析、目标工作区和最近变化，只突出一个下一步；GET 不启动业务执行、不保存重复进度。见 [工作台交付记录](docs/implementation/P1-main-loop-workbench.md)。
+
+主闭环 5A：确认真实新事实时，新版职业资料、提案确认和确认事件共同提交；行动/投递状态与事件同样原子保存。并发、最后一步失败回滚与重复确认已用真实 SQLite 验证。反馈事务边界见 [5A 交付记录](docs/implementation/P1-main-loop-feedback-transactions.md)。
+
+主闭环 5B：普通准备行动也能提交真实成果；用户选择行动原始要求，核对当前职业资料后保存待确认提案。原始依据和确认基准分开保存，资料变化后显式另存重新核对提案，不改原文；同一来源只确认一次。网页暂存原事实请求以恢复网络失败，刷新不自动发送。完整范围再分析与结果比较仍待 5C。见 [真实成果核对交付记录](docs/implementation/P1-main-loop-evidence-review.md)。
+
+主闭环 5C-1a：已保存分析页新增更新范围预检，可查看原目标/整批岗位的复用、规则重算候选（最多 5 个）、模型授权缺口与输入修复。查看预检不改旧材料、不调用模型；更新执行、保存新结果和新旧比较仍在后续切片。见 [限定范围更新记录](docs/implementation/P1-main-loop-analysis-update.md)。
+
+**主闭环更新进展（5C-1b-2）**：确认新事实后，可从原目标/原批次预检进入独立新分析；复用兼容报告，每次最多规则重算 5 个岗位，逐项保留进度，重启后显式继续。报告与步骤同事务保存，旧结果保留；用户明确选择部分岗位时如实标注未完成范围。离线规则路径与恢复已验证，不调用模型；统一入口和完整反馈闭环验收尚未完成，新旧比较见下方最新进展。[实施与证据](docs/implementation/P1-main-loop-analysis-update.md)。
+
+**主闭环最新进展（5C-2）**：保存结果页可对比本次更新与明确来源的原结果，逐项查看推荐、证据与偏好判断；资料变了但结论没变也是合法结果。要求/规则不同、归档缺失或部分范围不伪造改善与名次升降。只读、零模型，离线浏览器与全量回归通过；入口收敛、模型授权计量和完整用户链路仍待后续。[结果比较实施证据](docs/implementation/P1-main-loop-analysis-comparison.md)。

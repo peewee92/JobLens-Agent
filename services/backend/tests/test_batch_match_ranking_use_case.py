@@ -10,6 +10,7 @@ from app.application.career_context.models import SearchIntentDetail
 from app.application.eligibility import EligibilityDecision
 from app.application.job_queries.models import JobListItem
 from app.application.match_ranking import BatchRankMatchReportsUseCase
+from app.application.search_preferences import preference_input_fingerprint
 from app.application.match_report import (
     MatchRecommendation,
     MatchReport,
@@ -20,11 +21,14 @@ from app.domain.career_context import Seniority
 from app.domain.jobs import RemoteConfidence, RemoteStatus
 
 
-def _stored(report_id: str, recommendation: MatchRecommendation) -> StoredMatchReport:
+def _stored(report_id: str, recommendation: MatchRecommendation, *, intent=None, job=None) -> StoredMatchReport:
     return StoredMatchReport(
         id=report_id,
         report=MatchReport(
             job_id=f"job_{report_id}",
+            search_intent_id=intent.id if intent else None,
+            search_intent_version=intent.version if intent else None,
+            preference_fingerprint=preference_input_fingerprint(intent, job) if intent and job else None,
             profile_id="profile_1",
             profile_version=1,
             extraction_id=f"reqrun_{report_id}",
@@ -102,9 +106,9 @@ def _current_requirements() -> Mock:
 def test_batch_ranking_composes_latest_reports_current_preferences_and_job_metadata() -> None:
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = (
-        _stored("plain-strong", MatchRecommendation.STRONG),
-        _stored("agent-strong", MatchRecommendation.STRONG),
-        _stored("blocked", MatchRecommendation.BLOCKED),
+        _stored("plain-strong", MatchRecommendation.STRONG, intent=_intent("AI Agent"), job=_job("job_plain-strong", "Frontend Engineer")),
+        _stored("agent-strong", MatchRecommendation.STRONG, intent=_intent("AI Agent"), job=_job("job_agent-strong", "AI Agent Engineer")),
+        _stored("blocked", MatchRecommendation.BLOCKED, intent=_intent("AI Agent"), job=_job("job_blocked", "AI Agent Architect")),
     )
     context_repo = _current_context()
     context_repo.get_current_search_intent.return_value = _intent("AI Agent")
@@ -132,7 +136,7 @@ def test_batch_ranking_composes_latest_reports_current_preferences_and_job_metad
     assert job_repo.get_job.call_count == 3
 
 
-def test_batch_ranking_is_fail_soft_when_search_intent_or_job_metadata_is_missing() -> None:
+def test_batch_ranking_requires_current_intent_and_job_facts() -> None:
     reports = (
         _stored("first", MatchRecommendation.GOOD),
         _stored("second", MatchRecommendation.GOOD),
@@ -153,12 +157,12 @@ def test_batch_ranking_is_fail_soft_when_search_intent_or_job_metadata_is_missin
         persistence_ready=lambda: True,
     ).execute(("job_first", "job_second"), include_blocked=True)
 
-    assert result == reports
+    assert result == ()
     assert job_repo.get_job.call_count == 2
 
 
 def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None:
-    current = _stored("current", MatchRecommendation.STRONG)
+    current = _stored("current", MatchRecommendation.STRONG, intent=_intent(), job=_job("job_current", "Engineer"))
     stale_profile = _stored("stale-profile", MatchRecommendation.STRONG)
     stale_profile = replace(
         stale_profile,
@@ -173,7 +177,7 @@ def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None
         stale_requirement,
     )
     context_repo = _current_context()
-    context_repo.get_current_search_intent.return_value = None
+    context_repo.get_current_search_intent.return_value = _intent()
     requirement_repo = _current_requirements()
     requirement_repo.get_latest.side_effect = lambda job_id: SimpleNamespace(
         extraction_id=(
@@ -183,7 +187,7 @@ def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None
         )
     )
     job_repo = Mock()
-    job_repo.get_job.return_value = None
+    job_repo.get_job.side_effect = lambda job_id: _job(job_id, "Engineer")
 
     result = BatchRankMatchReportsUseCase(
         report_repository=report_repo,
@@ -199,15 +203,15 @@ def test_batch_ranking_filters_stale_profile_and_requirement_snapshots() -> None
 def test_batch_ranking_returns_only_requested_top_n_after_ranking() -> None:
     report_repo = Mock()
     report_repo.list_latest_for_jobs.return_value = (
-        _stored("good", MatchRecommendation.GOOD),
-        _stored("strong", MatchRecommendation.STRONG),
-        _stored("stretch", MatchRecommendation.STRETCH),
+        _stored("good", MatchRecommendation.GOOD, intent=_intent(), job=_job("job_good", "Engineer")),
+        _stored("strong", MatchRecommendation.STRONG, intent=_intent(), job=_job("job_strong", "Engineer")),
+        _stored("stretch", MatchRecommendation.STRETCH, intent=_intent(), job=_job("job_stretch", "Engineer")),
     )
     context_repo = _current_context()
-    context_repo.get_current_search_intent.return_value = None
+    context_repo.get_current_search_intent.return_value = _intent()
     requirement_repo = _current_requirements()
     job_repo = Mock()
-    job_repo.get_job.return_value = None
+    job_repo.get_job.side_effect = lambda job_id: _job(job_id, "Engineer")
 
     result = BatchRankMatchReportsUseCase(
         report_repository=report_repo,

@@ -11,7 +11,8 @@ from app.application.application_workspace.models import (
 )
 from app.application.application_workspace.overview import BuildApplicationWorkspaceOverviewUseCase
 from app.application.application_workspace.execution_action import ExecutionActionStatus
-from app.application.application_workspace.evidence_proposal import EvidenceProposalStatus
+from app.application.application_workspace.evidence_proposal import EvidenceProposalStatus, EvidenceProposal
+from app.domain.career_context import EvidenceType, SkillLevel
 from app.application.application_workspace.resume_variant import ResumeVariantStatus
 
 NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
@@ -43,6 +44,13 @@ class Item:
         self.status = status
 
 
+def proposal(status):
+    return EvidenceProposal(proposal_id="proposal_1", workspace_id="app_1", action_id="action_1", actor_id="user_1",
+        idempotency_key="proposal_1", status=status, source_requirement_ids=("r",), capability="Python",
+        evidence_type=EvidenceType.PROJECT, evidence_summary="Actual outcome", evidence_source="Actual repository",
+        skill_level=SkillLevel.WORKING, source_profile_id="p", source_profile_version=1, created_at=NOW)
+
+
 def build(*, variants=(), actions=(), proposals=(), timeline=()):
     return BuildApplicationWorkspaceOverviewUseCase(
         workspaces=Repo(workspace()), variants=Repo(items=variants), actions=Repo(items=actions),
@@ -65,7 +73,7 @@ def test_next_best_action_prioritizes_pending_evidence_confirmation():
     result = build(
         variants=(Item(ResumeVariantStatus.REVIEWED),),
         actions=(Item(ExecutionActionStatus.DONE),),
-        proposals=(Item(EvidenceProposalStatus.PENDING_CONFIRMATION),),
+        proposals=(proposal(EvidenceProposalStatus.PENDING_CONFIRMATION),),
     )
     assert result.next_best_action.code == "confirm_evidence"
 
@@ -74,7 +82,7 @@ def test_next_best_action_requests_rematch_after_confirmed_evidence():
     result = build(
         variants=(Item(ResumeVariantStatus.REVIEWED),),
         actions=(Item(ExecutionActionStatus.DONE),),
-        proposals=(Item(EvidenceProposalStatus.CONFIRMED),),
+        proposals=(proposal(EvidenceProposalStatus.CONFIRMED),),
     )
     assert result.next_best_action.code == "rematch"
 
@@ -87,7 +95,7 @@ def test_next_best_action_does_not_repeat_rematch_after_timeline_proves_completi
     result = build(
         variants=(Item(ResumeVariantStatus.REVIEWED),),
         actions=(Item(ExecutionActionStatus.DONE),),
-        proposals=(Item(EvidenceProposalStatus.CONFIRMED),),
+        proposals=(proposal(EvidenceProposalStatus.CONFIRMED),),
         timeline=(event,),
     )
     assert result.next_best_action.code == "practice_interview"

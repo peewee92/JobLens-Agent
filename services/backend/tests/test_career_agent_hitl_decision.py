@@ -149,3 +149,17 @@ def test_wrong_interrupt_id_fails_without_mutating_checkpoint(tmp_path) -> None:
         )
 
     assert store.load(thread_id="thread_1") == before
+
+
+@pytest.mark.parametrize("decision", ["edit", "approve"])
+def test_final_target_selection_cannot_exceed_five_and_leaves_checkpoint_untouched(tmp_path, decision):
+    from dataclasses import replace
+    handler, store = _handler(tmp_path)
+    jobs = tuple(f"job_{i}" for i in range(1, 7))
+    state = replace(_interrupted_state(), requested_job_ids=jobs, ranked_job_ids=jobs,
+                    proposed_target_job_ids=jobs)
+    store.save(state)
+    with pytest.raises(HumanDecisionValidationError):
+        handler.submit(HumanDecisionRequest(thread_id="thread_1", interrupt_id="interrupt_1", action_id="too_many",
+                                             decision=decision, selected_job_ids=jobs))
+    assert store.load(thread_id="thread_1") == state

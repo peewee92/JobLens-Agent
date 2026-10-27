@@ -67,7 +67,8 @@ class ResumeVariantRepository(Protocol):
 
 
 class BuildResumeVariantProposalUseCase:
-    def __init__(self, *, workspaces: WorkspaceQuery, preparation: BuildJobPreparationBundleUseCase) -> None:
+    def __init__(self, *, workspaces: WorkspaceQuery, preparation: BuildJobPreparationBundleUseCase, saved_preparation=None) -> None:
+        self._saved_preparation = saved_preparation
         self._workspaces = workspaces
         self._preparation = preparation
 
@@ -75,10 +76,29 @@ class BuildResumeVariantProposalUseCase:
         workspace = self._workspaces.get(workspace_id)
         if workspace is None:
             raise ResumeVariantBlockedError("application_workspace_not_found")
+        if getattr(workspace, "current_analysis_thread_id", None):
+            try:
+                saved = self._saved_preparation.read(workspace)
+            except (LookupError, AttributeError) as exc:
+                raise ResumeVariantBlockedError("application_workspace_saved_materials_missing") from exc
+            return self.execute_from_bundle(workspace, saved.bundle, snapshot=saved.snapshot)
         bundle = self._preparation.execute(workspace.job_id)
         if not bundle.facts_usable or bundle.resume_delta is None:
             raise ResumeVariantBlockedError("resume_facts_not_ready")
-        snapshot = workspace.source_snapshot
+        return self.execute_from_bundle(workspace, bundle)
+
+    def assert_current(self, workspace_id):
+        workspace = self._workspaces.get(workspace_id)
+        if workspace is not None and getattr(workspace, "current_analysis_thread_id", None):
+            if self._saved_preparation is None or not self._saved_preparation.read(workspace).is_current:
+                raise ResumeVariantBlockedError("application_workspace_facts_stale")
+
+    @staticmethod
+    def execute_from_bundle(workspace, bundle, *, snapshot=None) -> ResumeVariantProposal:
+        if not bundle.facts_usable or bundle.resume_delta is None:
+            raise ResumeVariantBlockedError("resume_facts_not_ready")
+        snapshot = snapshot or workspace.source_snapshot
+        workspace_id = workspace.workspace_id
         if (
             bundle.profile_id != snapshot.profile_id
             or bundle.profile_version != snapshot.profile_version
@@ -121,6 +141,9 @@ class SaveResumeVariantUseCase:
                 raise ResumeVariantBlockedError("resume_variant_idempotency_conflict")
             self._ensure_saved_event(existing, actor_id, idempotency_key)
             return existing
+        assert_current = getattr(self._proposals, "assert_current", None)
+        if assert_current:
+            assert_current(workspace_id)
         proposal = self._proposals.execute(workspace_id)
         if not proposal.highlights:
             raise ResumeVariantBlockedError("resume_variant_has_no_grounded_content")

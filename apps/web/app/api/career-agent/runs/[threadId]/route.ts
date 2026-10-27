@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 
-import {backendResponse} from "@/lib/backend";
+import {backendProxyResponse as backendResponse} from "@/lib/backend";
 
 export async function GET(
   _request: Request,

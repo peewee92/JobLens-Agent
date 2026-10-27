@@ -1,13 +1,13 @@
 import {NextResponse} from "next/server";
 
-import {backendResponse} from "@/lib/backend";
+import {backendProxyResponse} from "@/lib/backend";
 
 export async function POST(
   request: Request,
   {params}: {params: Promise<{id: string}>},
 ) {
   const {id} = await params;
-  const response = await backendResponse(
+  const response = await backendProxyResponse(
     `/api/v1/application-workspaces/${encodeURIComponent(id)}/status`,
     {
       method: "POST",

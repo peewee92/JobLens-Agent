@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/analysis-update-start.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "threadId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Threadid",
+      "type": "string"
+    },
+    "runId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+    },
+    "requestId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Requestid",
+      "type": "string"
+    },
+    "sourceResultId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Sourceresultid",
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "targets",
+        "batch"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "inputDigest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Inputdigest",
+      "type": "string"
+    },
+    "topN": {
+      "default": 3,
+      "maximum": 5,
+      "minimum": 1,
+      "title": "Topn",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "threadId",
+    "runId",
+    "requestId",
+    "sourceResultId",
+    "scope",
+    "inputDigest"
+  ],
+  "title": "StartAnalysisUpdateRequest",
+  "type": "object"
+}

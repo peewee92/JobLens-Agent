@@ -12,6 +12,7 @@ from app.application.evidence_retrieval import (
     EvidenceRelevanceTier,
     JobEvidenceRetrievalResult,
 )
+from app.application.semantic_match.call_boundary import needs_semantic_model
 from app.application.ports.semantic_matcher import AbstractSemanticMatcher
 from app.application.ports.trace_unit_of_work import AbstractTraceUnitOfWork
 from app.application.semantic_match.errors import (
@@ -84,7 +85,7 @@ class SemanticMatchWorkflow:
                 )
                 continue
 
-            if not candidate_set.candidates:
+            if not needs_semantic_model(item.status, candidate_set.candidates):
                 deterministic[item.requirement_id] = SemanticRequirementAssessment(
                     requirement_id=item.requirement_id,
                     requirement_index=item.requirement_index,
@@ -315,6 +316,10 @@ class SemanticMatchWorkflow:
             profile_version=eligibility.profile_version,
             extraction_id=eligibility.extraction_id,
             eligibility=eligibility.eligibility,
+            search_intent_id=eligibility.search_intent_id,
+            search_intent_version=eligibility.search_intent_version,
+            preference_checks=eligibility.preference_checks,
+            preference_fingerprint=eligibility.preference_fingerprint,
             assessments=ordered,
             matched_count=sum(item.verdict is SemanticMatchVerdict.MATCHED for item in ordered),
             partial_count=sum(item.verdict is SemanticMatchVerdict.PARTIAL for item in ordered),
@@ -356,6 +361,8 @@ class SemanticMatchWorkflow:
                         "profileId": eligibility.profile_id,
                         "profileVersion": eligibility.profile_version,
                         "extractionId": eligibility.extraction_id,
+                        "searchIntentId": eligibility.search_intent_id,
+                        "searchIntentVersion": eligibility.search_intent_version,
                         "requirementIds": [item.requirement_id for item in provider_inputs],
                         "candidateEvidenceIds": [
                             candidate.evidence_id

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from hashlib import sha256
+from dataclasses import replace
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -43,7 +44,10 @@ from app.db.models import (
 from app.domain.career_context import EvidenceType, SkillLevel
 from app.domain.job_requirements import RequirementImportance, RequirementType
 from app.domain.jobs import RemoteConfidence, RemoteStatus
-from app.repositories.sqlalchemy_match_report_repository import _snapshot
+from app.repositories.sqlalchemy_match_report_repository import _snapshot, _stored
+from app.repositories.sqlalchemy_career_context_repository import SqlAlchemyCareerContextQueryRepository
+from app.repositories.sqlalchemy_job_query_repository import SqlAlchemyJobQueryRepository
+from app.application.search_preferences import evaluate_search_preferences, preference_input_fingerprint
 
 CASE_COUNT = 20
 PROFILE_ID = "prof_mcp_demo"
@@ -98,12 +102,12 @@ def _add_synthetic_profile(session: Session) -> None:
                 id="intent_mcp_demo",
                 intent_key="default",
                 version=1,
-                target_roles=["AI Application Engineer"],
+                target_roles=["Synthetic AI Engineer"],
                 cities=["Synthetic City"],
                 remote_accepted=True,
                 minimum_salary_k=None,
                 seniority=None,
-                employment_types=["full-time"],
+                employment_types=[],
                 exclude_keywords=[],
                 hard_constraints=[],
                 soft_preferences=["Synthetic City"],
@@ -301,6 +305,19 @@ def seed(database: Path) -> list[str]:
     with factory.begin() as session:
         _add_synthetic_profile(session)
         job_ids = _add_reviewed_jobs(session)
+    # Bind synthetic snapshots to the same versioned inputs required by live ranking.
+    # This updates only this newly created disposable demo database.
+    intent = SqlAlchemyCareerContextQueryRepository(factory).get_current_search_intent()
+    jobs = SqlAlchemyJobQueryRepository(factory)
+    with factory.begin() as session:
+        for job_id in job_ids:
+            record = session.get(MatchReportORM, f"match_mcp_demo_{job_id.rsplit('_', 1)[-1]}")
+            job = jobs.get_job(job_id)
+            report = replace(_stored(record).report, search_intent_id=intent.id,
+                             search_intent_version=intent.version,
+                             preference_checks=evaluate_search_preferences(intent, job),
+                             preference_fingerprint=preference_input_fingerprint(intent, job))
+            record.snapshot = _snapshot(report)
     engine.dispose()
     return job_ids
 

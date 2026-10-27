@@ -7,7 +7,7 @@ from sqlalchemy import inspect
 
 from app.agent.context import CareerAgentContextBuilder
 from app.agent.entrypoint import CareerAgentEntrypoint
-from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.repositories.sqlalchemy_career_agent_checkpoint import SqlAlchemyCareerAgentCheckpointStore
 from app.agent.graph.hitl_service import CareerAgentHitlService
 from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
@@ -661,6 +661,7 @@ def get_match_input_readiness_use_case(
 
 
 def get_job_eligibility_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
     readiness: GetMatchInputReadinessUseCase = Depends(
         get_match_input_readiness_use_case
     ),
@@ -672,6 +673,7 @@ def get_job_eligibility_use_case(
     ),
 ) -> EvaluateJobEligibilityUseCase:
     return EvaluateJobEligibilityUseCase(
+        jobs=jobs,
         readiness=readiness,
         profiles=profiles,
         requirements=requirements,
@@ -750,20 +752,16 @@ def get_application_timeline_repository() -> SqlAlchemyApplicationTimelineReposi
     return SqlAlchemyApplicationTimelineRepository(SessionLocal)
 
 
-def get_update_application_status_use_case(
-    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(
-        get_application_workspace_repository
-    ),
-    timeline: SqlAlchemyApplicationTimelineRepository = Depends(
-        get_application_timeline_repository
-    ),
-) -> UpdateApplicationStatusUseCase:
-    return UpdateApplicationStatusUseCase(
-        workspaces=workspaces,
-        timeline=timeline,
-        now=utc_now,
-        new_event_id=new_application_timeline_event_id,
-    )
+def _atomic_workspace_command(build):
+    from app.application.application_workspace.transaction import TransactionalWorkspaceCommand
+    from app.repositories.sqlalchemy_workspace_command import SqlAlchemyWorkspaceCommandUnitOfWork
+    return TransactionalWorkspaceCommand(lambda: SqlAlchemyWorkspaceCommandUnitOfWork(SessionLocal), build)
+
+
+def get_update_application_status_use_case():
+    return _atomic_workspace_command(lambda uow: UpdateApplicationStatusUseCase(
+        workspaces=uow.workspaces, timeline=uow.timeline, now=utc_now,
+        new_event_id=new_application_timeline_event_id))
 
 
 def get_resume_variant_repository() -> SqlAlchemyResumeVariantRepository:
@@ -774,26 +772,45 @@ def get_execution_action_repository() -> SqlAlchemyExecutionActionRepository:
     return SqlAlchemyExecutionActionRepository(SessionLocal)
 
 
+def get_career_analysis_facts(
+    match_inputs: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
+):
+    from app.repositories.sqlalchemy_career_analysis_facts import SqlAlchemyCareerAnalysisFacts
+    return SqlAlchemyCareerAnalysisFacts(SessionLocal,
+        readiness=GetJobPreparationReadinessUseCase(match_inputs=match_inputs))
+
+
+def get_workspace_saved_preparation(facts=Depends(get_career_analysis_facts)):
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyWorkspacePreparationReader
+    return SqlAlchemyWorkspacePreparationReader(SessionLocal, facts=facts)
+
+
+def get_start_analysis_execution_use_case(facts=Depends(get_career_analysis_facts)):
+    from uuid import uuid4
+    from app.application.application_workspace.start_analysis_execution import StartAnalysisExecutionUseCase
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyAnalysisExecutionUnitOfWork
+    return StartAnalysisExecutionUseCase(uow_factory=lambda: SqlAlchemyAnalysisExecutionUnitOfWork(SessionLocal, facts=facts),
+        now=utc_now, new_id=lambda: f"exec_{uuid4().hex}")
+
+
+def get_analysis_execution_query():
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyAnalysisExecutionQuery
+    return SqlAlchemyAnalysisExecutionQuery(SessionLocal)
+
+
 def get_create_study_execution_actions_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
     actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    saved_preparation=Depends(get_workspace_saved_preparation),
 ) -> CreateStudyExecutionActionsUseCase:
-    return CreateStudyExecutionActionsUseCase(workspaces=workspaces, preparation=preparation, actions=actions, now=utc_now, new_id=new_execution_action_id)
+    return CreateStudyExecutionActionsUseCase(workspaces=workspaces, preparation=preparation, actions=actions, now=utc_now, new_id=new_execution_action_id, saved_preparation=saved_preparation)
 
 
-def get_update_execution_action_status_use_case(
-    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
-    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
-    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
-) -> UpdateExecutionActionStatusUseCase:
-    return UpdateExecutionActionStatusUseCase(
-        workspaces=workspaces,
-        actions=actions,
-        timeline=timeline,
-        now=utc_now,
-        new_event_id=new_application_timeline_event_id,
-    )
+def get_update_execution_action_status_use_case():
+    return _atomic_workspace_command(lambda uow: UpdateExecutionActionStatusUseCase(
+        workspaces=uow.workspaces, actions=uow.actions, timeline=uow.timeline,
+        now=utc_now, new_event_id=new_application_timeline_event_id))
 
 
 def get_evidence_proposal_repository() -> SqlAlchemyEvidenceProposalRepository:
@@ -810,15 +827,14 @@ def get_application_workspace_overview_use_case(
     from app.application.application_workspace.overview import BuildApplicationWorkspaceOverviewUseCase
     return BuildApplicationWorkspaceOverviewUseCase(
         workspaces=workspaces, variants=variants, actions=actions, proposals=proposals, timeline=timeline,
+        analyses=SqlAlchemyCareerAgentCheckpointStore(SessionLocal),
     )
 
 
-def get_create_evidence_proposal_use_case(
-    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
-    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
-    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
-) -> CreateEvidenceProposalUseCase:
-    return CreateEvidenceProposalUseCase(workspaces=workspaces, actions=actions, proposals=proposals, now=utc_now, new_id=new_evidence_proposal_id)
+def get_create_evidence_proposal_use_case():
+    return _atomic_workspace_command(lambda uow: CreateEvidenceProposalUseCase(
+        workspaces=uow.workspaces, actions=uow.actions, proposals=uow.proposals,
+        now=utc_now, new_id=new_evidence_proposal_id, sources=uow.evidence_sources, profiles=uow.profiles))
 
 
 def get_evidence_confirmation_audit_use_case(
@@ -834,29 +850,20 @@ def get_evidence_confirmation_audit_use_case(
     )
 
 
-def get_confirm_evidence_proposal_use_case(
-    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
-    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
-    profiles: AbstractCareerContextQueryRepository = Depends(get_career_context_query_repository),
-    save_profile: SaveProfileUseCase = Depends(get_save_profile_use_case),
-    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
-) -> ConfirmEvidenceProposalUseCase:
-    return ConfirmEvidenceProposalUseCase(
-        workspaces=workspaces,
-        proposals=proposals,
-        profiles=profiles,
-        save_profile=save_profile,
-        timeline=timeline,
-        now=utc_now,
-        new_event_id=new_application_timeline_event_id,
-    )
+def get_confirm_evidence_proposal_use_case():
+    from app.application.application_workspace.transaction import SaveProfileInTransaction
+    return _atomic_workspace_command(lambda uow: ConfirmEvidenceProposalUseCase(
+        workspaces=uow.workspaces, proposals=uow.proposals, profiles=uow.profiles,
+        save_profile=SaveProfileInTransaction(uow.profile_writer), timeline=uow.timeline,
+        now=utc_now, new_event_id=new_application_timeline_event_id))
 
 
 def get_interview_mock_question_set_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    saved_preparation=Depends(get_workspace_saved_preparation),
 ) -> BuildInterviewMockQuestionSetUseCase:
-    return BuildInterviewMockQuestionSetUseCase(workspaces=workspaces, preparation=preparation)
+    return BuildInterviewMockQuestionSetUseCase(workspaces=workspaces, preparation=preparation, saved_preparation=saved_preparation)
 
 
 def get_review_interview_mock_answer_use_case(
@@ -874,8 +881,9 @@ def get_review_interview_mock_answer_use_case(
 def get_resume_variant_proposal_use_case(
     workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
     preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    saved_preparation=Depends(get_workspace_saved_preparation),
 ) -> BuildResumeVariantProposalUseCase:
-    return BuildResumeVariantProposalUseCase(workspaces=workspaces, preparation=preparation)
+    return BuildResumeVariantProposalUseCase(workspaces=workspaces, preparation=preparation, saved_preparation=saved_preparation)
 
 
 def get_save_resume_variant_use_case(
@@ -1195,6 +1203,7 @@ def get_career_agent_hitl_service(
     ),
     jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
     ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    match_inputs: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
     target_cohort_gaps: BuildSelectedFeedbackTargetCohortGapDetailsUseCase = Depends(
         get_target_cohort_gap_query_use_case
     ),
@@ -1202,6 +1211,12 @@ def get_career_agent_hitl_service(
         get_job_preparation_bundle_use_case
     ),
 ) -> CareerAgentHitlService:
+    from app.application.saved_career_analysis import BuildSavedCareerAnalysisUseCase
+    from app.repositories.sqlalchemy_career_analysis_facts import SqlAlchemyCareerAnalysisFacts
+    analysis = BuildSavedCareerAnalysisUseCase(
+        facts=SqlAlchemyCareerAnalysisFacts(SessionLocal,
+            readiness=GetJobPreparationReadinessUseCase(match_inputs=match_inputs)),
+        gaps=target_cohort_gaps, preparation=job_preparation)
     settings = get_settings()
     context_builder = CareerAgentContextBuilder(career_context=career_context, jobs=jobs)
     tools = CareerAgentToolRegistry(
@@ -1209,11 +1224,20 @@ def get_career_agent_hitl_service(
         target_cohort_gaps=target_cohort_gaps,
         job_preparation=job_preparation,
     )
-    checkpoints = SQLiteCareerAgentCheckpointStore(settings.career_agent_checkpoint_path)
+    checkpoints = SqlAlchemyCareerAgentCheckpointStore(SessionLocal, legacy_path=settings.career_agent_checkpoint_path)
+    from app.agent.graph.update_matching import UpdateMatchingExecutor
+    from app.application.rule_match import BuildPinnedRuleMatch
+    from app.repositories.sqlalchemy_analysis_update import SqlAlchemyAnalysisUpdateReader
+    from app.repositories.sqlalchemy_update_match_facts import SqlAlchemyUpdateMatchFacts
+    update_executor = UpdateMatchingExecutor(facts=SqlAlchemyUpdateMatchFacts(
+        reader=SqlAlchemyAnalysisUpdateReader(SessionLocal), readiness=match_inputs), matcher=BuildPinnedRuleMatch())
     return CareerAgentHitlService(
         checkpoints=checkpoints,
         context_builder=context_builder,
         tool_registry=tools,
+        analysis=analysis,
+        update_planner=get_analysis_update_plan_use_case(readiness=match_inputs),
+        update_executor=update_executor,
     )
 
 
@@ -1242,3 +1266,53 @@ def get_import_jobs_use_case(
     """Assemble the HTTP adapter around the stable application use case."""
 
     return ImportJobsUseCase(uow_factory)
+
+
+def get_match_report_history_use_case(
+    reports: AbstractMatchReportQueryRepository = Depends(get_match_report_query_repository),
+    context: AbstractCareerContextQueryRepository = Depends(get_career_context_query_repository),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    requirements: AbstractJobRequirementQueryRepository = Depends(get_job_requirement_query_repository),
+):
+    from app.application.match_report_history import GetMatchReportHistoryUseCase
+
+    return GetMatchReportHistoryUseCase(
+        reports=reports,
+        context=context,
+        jobs=jobs,
+        requirements=requirements,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+    )
+
+
+def get_workbench_use_case(facts=Depends(get_career_analysis_facts)):
+    from app.application.workbench import GetWorkbenchUseCase
+    from app.repositories.sqlalchemy_workbench import SqlAlchemyWorkbenchQuery
+    return GetWorkbenchUseCase(SqlAlchemyWorkbenchQuery(SessionLocal, facts=facts))
+
+
+def get_evidence_context_query():
+    from app.repositories.sqlalchemy_evidence_sources import SqlAlchemyEvidenceContextQuery
+    return SqlAlchemyEvidenceContextQuery(SessionLocal)
+
+
+def get_reconsider_evidence_proposal_use_case():
+    from app.application.application_workspace.evidence_proposal import ReconsiderEvidenceProposalUseCase
+    def build(uow):
+        creator = CreateEvidenceProposalUseCase(workspaces=uow.workspaces, actions=uow.actions,
+            proposals=uow.proposals, now=utc_now, new_id=new_evidence_proposal_id,
+            sources=uow.evidence_sources, profiles=uow.profiles)
+        return ReconsiderEvidenceProposalUseCase(proposals=uow.proposals, creator=creator)
+    return _atomic_workspace_command(build)
+
+
+def get_analysis_update_plan_use_case(readiness=Depends(get_match_input_readiness_use_case)):
+    from app.application.analysis_update import PlanAnalysisUpdateUseCase
+    from app.repositories.sqlalchemy_analysis_update import SqlAlchemyAnalysisUpdateReader
+    return PlanAnalysisUpdateUseCase(reader=SqlAlchemyAnalysisUpdateReader(SessionLocal), readiness=readiness)
+
+
+def get_analysis_comparison_use_case():
+    from app.application.analysis_comparison import CompareSavedAnalysesUseCase
+    from app.repositories.sqlalchemy_analysis_comparison import SqlAlchemyAnalysisComparisonReader
+    return CompareSavedAnalysesUseCase(SqlAlchemyAnalysisComparisonReader(SessionLocal))

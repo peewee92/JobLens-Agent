@@ -12,7 +12,7 @@ from dataclasses import replace
 from typing import Iterable, Protocol
 
 from app.agent.context import CareerAgentContext
-from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.agent.graph.checkpoint_port import CareerAgentCheckpointStore
 from app.agent.graph.state import CareerAgentState, CareerAgentStatus
 from app.agent.tool_registry import (
     CareerAgentToolName,
@@ -31,7 +31,7 @@ class ResumeStaleGuard:
     def __init__(
         self,
         *,
-        checkpoints: SQLiteCareerAgentCheckpointStore,
+        checkpoints: CareerAgentCheckpointStore,
         context_builder: CareerAgentContextLoader,
         tool_registry: CareerAgentToolRegistry,
     ) -> None:
@@ -78,6 +78,9 @@ class ResumeStaleGuard:
             # frozen at interrupt time. LG-1 now snapshots all ranked run jobs.
             return self._mark_stale(state, step="resume_stale_match_reports")
 
+        check_execution = getattr(self._checkpoints, "assert_execution", None)
+        if check_execution:
+            check_execution()
         ranked = self._tool_registry.invoke(
             context=context,
             tool=CareerAgentToolName.RANK_MATCH_REPORTS,
@@ -115,8 +118,7 @@ class ResumeStaleGuard:
             tool_call_count=state.tool_call_count + 1,
             node_count=state.node_count + 1,
         )
-        self._checkpoints.save(valid)
-        return valid
+        return self._checkpoints.transition(state, valid)
 
     def _mark_stale(self, state: CareerAgentState, *, step: str) -> CareerAgentState:
         stale = replace(
@@ -125,8 +127,7 @@ class ResumeStaleGuard:
             current_step=step,
             pending_approval=False,
         )
-        self._checkpoints.save(stale)
-        return stale
+        return self._checkpoints.transition(state, stale)
 
 
 __all__ = ["CareerAgentContextLoader", "ResumeStaleGuard"]

@@ -31,7 +31,7 @@ test("completed agent run hands the confirmed cohort to the existing readable ga
   const gapPanel = read("components/target-cohort-gap-panel.tsx");
 
   assert.match(agentPanel, /重试恢复/);
-  assert.match(agentPanel, /查看能力差距结果/);
+  assert.match(agentPanel, /按当前资料查看能力差距/);
   assert.match(gapPage, /initialJobIds/);
   assert.match(gapPanel, /initialJobIds/);
   assert.match(gapPanel, /已带入 Agent 确认的/);

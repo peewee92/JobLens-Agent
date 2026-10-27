@@ -1,5 +1,7 @@
 # JobLens Agent 路线图
 
+> 主业务闭环当前增量（2026-10-27）：限定原范围的预检、独立更新、每次最多 5 岗位规则重算、步骤持久化/幂等/租约恢复与明确部分结果已离线验证。同范围保存结果比较也已离线验证（[5C-2 证据](../implementation/P1-main-loop-analysis-comparison.md)）；下一步收敛工作台/工作区入口与完整链路验收。收费模型验收仍未授权，不能把工程回归通过称为真实模型质量通过。详见 [5C 实施证据](../implementation/P1-main-loop-analysis-update.md)。
+
 ## 总目标
 
 用最小工程成本打通：

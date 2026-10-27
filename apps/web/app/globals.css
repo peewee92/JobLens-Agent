@@ -3137,3 +3137,13 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Saved analysis comparison: one read-only view, no independent progress state. */
+.analysis-comparison {
+  display: grid;
+  gap: 24px;
+}
+.analysis-comparison .page-heading { margin-bottom: 0; }
+.analysis-comparison .panel { min-width: 0; overflow-wrap: anywhere; }
+.analysis-comparison details + details { margin-top: 16px; }
+.analysis-comparison summary { cursor: pointer; }

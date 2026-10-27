@@ -1,5 +1,6 @@
 """Explicit zero-provider Re-match after a user-confirmed Evidence proposal."""
 from __future__ import annotations
+from app.application.semantic_match.call_boundary import needs_semantic_model
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -139,7 +140,7 @@ class RunApplicationRematchUseCase:
         provider_required = tuple(
             item.requirement_id
             for item in eligibility.requirements
-            if item.status is not RequirementFitStatus.MATCHED and candidates_by_requirement.get(item.requirement_id, ())
+            if needs_semantic_model(item.status, candidates_by_requirement.get(item.requirement_id, ()))
         )
         if provider_required:
             raise ApplicationRematchBlockedError("application_rematch_provider_required")

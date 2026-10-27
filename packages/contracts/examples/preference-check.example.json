@@ -1,0 +1,8 @@
+{
+  "key": "salary",
+  "status": "conditional",
+  "code": "salary_negotiation_required",
+  "reason": "岗位月薪 15–25K 跨越底线 20K，需确认实际报价。",
+  "intentFields": ["minimumSalaryK"],
+  "jobFields": ["salaryMinK", "salaryMaxK"]
+}

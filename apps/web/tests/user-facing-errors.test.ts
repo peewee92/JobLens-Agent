@@ -50,3 +50,10 @@ test("unknown backend messages are not leaked into the ordinary user flow", () =
     "操作没有完成，请稍后重试。",
   );
 });
+
+test("connection outage retains the original command and suggests checking status first", () => {
+  const message = userFacingApiError({error: {code: "backend_unavailable", message: "private socket details"}}, "failed");
+  assert.match(message, /原请求已保留/);
+  assert.match(message, /查看请求状态/);
+  assert.doesNotMatch(message, /private socket/);
+});

@@ -138,3 +138,50 @@ def test_match_report_unit_of_work_rolls_back_uncommitted_snapshot(tmp_path: Pat
     assert SqlAlchemyMatchReportQueryRepository(factory).get(saved.id) is None
     with factory() as session:
         assert session.scalars(select(MatchReportORM)).all() == []
+
+
+
+def test_legacy_snapshot_retains_original_conclusion_but_is_not_current(tmp_path: Path) -> None:
+    from app.api.v1.schemas.match_report import JobMatchReportResponse
+    from app.application.match_ranking import rank_match_reports
+    factory = _factory(tmp_path)
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        saved = uow.reports.add(_report())
+        uow.commit()
+    with factory() as session:
+        record = session.get(MatchReportORM, saved.id)
+        payload = dict(record.snapshot)
+        assert payload.pop("policyVersion") == "match-policy-v3"
+        record.snapshot = payload
+        session.commit()
+    loaded = SqlAlchemyMatchReportQueryRepository(factory).get(saved.id)
+    assert loaded is not None
+    assert loaded.report.policy_version == "match-policy-v1"
+    assert loaded.report.recommendation is MatchRecommendation.BLOCKED
+    assert loaded.report.summary == _report().summary
+    assert rank_match_reports((loaded,), include_blocked=True) == ()
+    assert JobMatchReportResponse.from_detail(loaded.report).model_dump(by_alias=True)["policyVersion"] == "match-policy-v1"
+    with factory() as session:
+        assert "policyVersion" not in session.get(MatchReportORM, saved.id).snapshot
+
+
+def test_preference_snapshot_round_trip_and_history_stay_frozen(tmp_path: Path) -> None:
+    from dataclasses import replace
+    from app.application.search_preferences import evaluate_search_preferences, preference_input_fingerprint
+    from .test_eligibility_gate import _intent, _job
+    intent, job = _intent(minimum_salary_k=40), _job()
+    report = replace(_report(), search_intent_id=intent.id, search_intent_version=intent.version,
+                     preference_checks=evaluate_search_preferences(intent, job),
+                     preference_fingerprint=preference_input_fingerprint(intent, job))
+    factory = _factory(tmp_path)
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        first = uow.reports.add(report)
+        uow.commit()
+    with SqlAlchemyMatchReportUnitOfWork(factory) as uow:
+        second = uow.reports.add(replace(report, search_intent_version=2, preference_checks=()))
+        uow.commit()
+    repository = SqlAlchemyMatchReportQueryRepository(factory)
+    assert repository.get(first.id).report == report
+    assert repository.get(first.id).report.preference_checks[0].code == "salary_conflict"
+    assert repository.get(second.id).report.search_intent_version == 2
+    assert repository.get(first.id).report.preference_fingerprint == preference_input_fingerprint(intent, job)

@@ -48,7 +48,11 @@ from app.db.models.requirement_review import (
 from app.db.models.trace_span import TraceSpanORM
 from app.db.models.user_feedback import UserFeedbackORM
 
+from app.db.models.career_agent_run import CareerAgentRunORM, CareerAgentRunEventORM
+
 __all__ = [
+    "CareerAgentRunORM",
+    "CareerAgentRunEventORM",
     "ApplicationTimelineEventORM",
     "ApplicationWorkspaceORM",
     "ExecutionActionItemORM",
@@ -84,3 +88,5 @@ __all__ = [
     "TraceSpanORM",
     "UserFeedbackORM",
 ]
+
+from app.db.models.application_workspace import AnalysisExecutionReceiptORM

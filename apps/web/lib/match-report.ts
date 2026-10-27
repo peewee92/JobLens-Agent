@@ -26,7 +26,7 @@ export const matchRecommendationLabels: Record<MatchRecommendation, string> = {
   strong: "值得优先投",
   good: "值得投",
   stretch: "可以尝试",
-  low: "当前不建议优先投入",
+  low: "证据不足，当前不建议优先投入",
   blocked: "当前不建议投",
 };
 
@@ -45,3 +45,42 @@ export const matchRecommendationClasses: Record<MatchRecommendation, string> = {
   low: "match-recommendation-low",
   blocked: "match-recommendation-blocked",
 };
+
+
+const reportStaleReasonLabels: Record<string, string> = {
+  policy_changed: "匹配规则已更新，这份历史报告仍保留原规则结论",
+  profile_missing: "当前没有已确认职业资料",
+  profile_changed: "已确认职业资料已更新",
+  search_intent_missing: "当前没有已确认求职意向",
+  search_intent_changed: "求职意向已更新，或旧报告未绑定意向版本",
+  requirements_missing: "当前没有可用的岗位要求提取",
+  requirements_changed: "岗位要求已更新",
+  job_missing: "原岗位已不可用",
+  preference_inputs_changed: "岗位条件或求职偏好的分析输入已变化，或旧报告未记录输入指纹",
+};
+
+export function reportStaleReasonLabel(code: string): string {
+  return reportStaleReasonLabels[code] ?? "分析输入已变化，请核实后更新分析";
+}
+
+
+export const recommendationGroups = {
+  priority: {label: "优先投入", description: "核心证据支持，没有已确认硬冲突。优先比较这些岗位的投入价值。"},
+  challenge: {label: "挑战／待核实", description: "有相关基础，仍有关键未知或差距。可以有选择地尝试，不代表所有条件已经满足。"},
+  insufficient: {label: "证据不足", description: "目前不足以给出积极推荐；可查看要求、核实真实事实和准备方向，不会用来填满目标建议。"},
+  blocked: {label: "暂不建议", description: "已确认事实或明确偏好与岗位硬条件冲突。可检查或更正事实，不能用学习承诺替代现有资格。"},
+} as const;
+export type RecommendationGroup = keyof typeof recommendationGroups;
+export const recommendationGroupByType: Record<MatchRecommendation, RecommendationGroup> = {
+  strong: "priority", good: "priority", stretch: "challenge", low: "insufficient", blocked: "blocked",
+};
+
+export function groupRecommendationItems<T extends {report: {recommendation: MatchRecommendation}}>(items: readonly T[]) {
+  const groups: Record<RecommendationGroup, T[]> = {priority: [], challenge: [], insufficient: [], blocked: []};
+  for (const item of items) groups[recommendationGroupByType[item.report.recommendation]].push(item);
+  return groups;
+}
+
+export function selectDefaultTargetSuggestions<T extends {report: {recommendation: MatchRecommendation}}>(items: readonly T[]): T[] {
+  return items.filter(({report}) => ["strong", "good", "stretch"].includes(report.recommendation)).slice(0, 3);
+}

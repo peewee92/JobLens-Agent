@@ -103,8 +103,17 @@ def build_match_report(result: JobSemanticMatchResult) -> MatchReport:
         profile_version=result.profile_version,
         extraction_id=result.extraction_id,
         eligibility=result.eligibility,
+        search_intent_id=result.search_intent_id,
+        search_intent_version=result.search_intent_version,
+        preference_checks=result.preference_checks,
+        preference_fingerprint=result.preference_fingerprint,
         recommendation=recommendation,
-        summary=_SUMMARIES[recommendation],
+        summary=(
+            "已确认求职偏好与岗位条件冲突：" + "；".join(
+                item.reason for item in result.preference_checks if item.status.value == "missing"
+            ) if any(item.status.value == "missing" for item in result.preference_checks)
+            else _SUMMARIES[recommendation]
+        ),
         strengths=strengths,
         risks=risks,
         requirement_results=requirement_results,

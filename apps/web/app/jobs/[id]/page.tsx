@@ -1,3 +1,4 @@
+import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
@@ -8,6 +9,7 @@ import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchJobDetail,
+  fetchMatchReportHistory,
   fetchJobEligibility,
   fetchJobRequirementReleaseReadiness,
   fetchLatestJobRequirements,
@@ -35,10 +37,10 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError} = await searchParams;
+  const {requirementExtractionError, reportId} = await searchParams;
   let job;
   try {
     job = await fetchJobDetail(id);
@@ -53,6 +55,17 @@ export default async function JobDetailPage({
     return <ServiceError message={message} />;
   }
 
+  let history = null;
+  let historyError = "";
+  try {
+    history = await fetchMatchReportHistory(id);
+  } catch {
+    historyError = "暂时无法读取保存的匹配结果，请刷新重试；这不表示历史结果已丢失。";
+  }
+  const savedResult = reportId
+    ? history?.items.find((item) => item.reportId === reportId) ?? null
+    : history?.items[0] ?? null;
+  const selectedReportMissing = Boolean(reportId && history && !savedResult);
   let extraction = null;
   let releaseReadiness = null;
   let eligibility = null;
@@ -153,7 +166,24 @@ export default async function JobDetailPage({
               </div>
             </div>
 
+            {historyError ? <p className="inline-error">{historyError}</p> : null}
+            {selectedReportMissing ? <p className="inline-error">找不到指定结果，或它不属于此岗位。未自动替换为其他结果。<Link href={`/jobs/${encodeURIComponent(id)}`}>查看此岗位最新保存结果</Link></p> : null}
+            {history && history.items.length > 0 ? (
+              <details>
+                <summary>查看保存的匹配历史（{history.count} 份）</summary>
+                <ul>{history.items.map((item) => (
+                  <li key={item.reportId}>
+                    <Link href={`/jobs/${encodeURIComponent(id)}?reportId=${encodeURIComponent(item.reportId)}`}>
+                      {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
+                      {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
+                    </Link>
+                  </li>
+                ))}</ul>
+              </details>
+            ) : null}
             <JobMatchReportPanel
+              key={savedResult?.reportId ?? "no-saved-result"}
+              savedResult={savedResult}
               disabledReason={matchDisabledReason}
               enabled={eligibility !== null}
               jobId={job.id}
@@ -168,13 +198,19 @@ export default async function JobDetailPage({
                     <h3>{eligibilityLabels[eligibility.eligibility]}</h3>
                     <p>{eligibilityDescriptions[eligibility.eligibility]}</p>
                   </div>
-                  <div className="eligibility-counts" aria-label="匹配结果统计">
+                  <div className="eligibility-counts" aria-label="岗位要求判断统计">
+                    <span>岗位要求：</span>
                     <span><strong>{eligibility.matchedCount}</strong> 已匹配</span>
                     <span><strong>{eligibility.conditionalCount}</strong> 待确认</span>
-                    <span><strong>{eligibility.missingCount}</strong> 明显缺失</span>
+                    <span><strong>{eligibility.missingCount}</strong> 明确不满足</span>
                   </div>
                 </div>
 
+                <PreferenceCheckList checks={eligibility.preferenceChecks ?? []} version={eligibility.searchIntentVersion} />
+                <p className="notice">
+                  缺少技能、学历或专项年限证据只表示待核实，不代表你不具备这些条件，也不代表已经满足。
+                  <Link href="/profile">补充或确认职业资料</Link>
+                </p>
                 <div className="eligibility-groups">
                   {(["missing", "conditional", "matched"] as const).map((status) => {
                     const items = groupedEligibility[status];

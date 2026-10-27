@@ -44,6 +44,9 @@ def test_metadata_contains_job_data_foundation_tables() -> None:
     Base.metadata.create_all(engine)
 
     assert set(inspect(engine).get_table_names()) == {
+        "analysis_execution_receipts",
+        "career_agent_runs",
+        "career_agent_run_events",
         "application_workspaces",
         "application_timeline_events",
         "execution_action_items",

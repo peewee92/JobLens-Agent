@@ -249,3 +249,27 @@ def test_deterministic_matched_requirement_bypasses_provider_and_trace(
     assert result.trace_run_id is None
     with session_factory() as session:
         assert session.query(TraceSpanORM).count() == 0
+
+
+def test_preference_context_survives_semantic_workflow_and_report_builder(session_factory) -> None:
+    from dataclasses import replace
+    from app.application.search_preferences import evaluate_search_preferences, preference_input_fingerprint
+    from app.application.match_report import build_match_report
+    from .test_eligibility_gate import _intent, _job
+    intent, job = _intent(remote_accepted=True), _job()
+    eligibility = replace(
+        _eligibility(status=RequirementFitStatus.MATCHED, overall=EligibilityDecision.ELIGIBLE,
+                     evidence_ids=("ev_tools",)),
+        search_intent_id=intent.id, search_intent_version=intent.version,
+        preference_checks=evaluate_search_preferences(intent, job),
+        preference_fingerprint=preference_input_fingerprint(intent, job),
+    )
+    result = _workflow(session_factory, _ShouldNotRunMatcher()).execute(
+        eligibility=eligibility, evidence=_related_retrieval(),
+    )
+    report = build_match_report(result)
+    assert report.preference_checks == eligibility.preference_checks
+    assert report.search_intent_id == intent.id
+    assert report.search_intent_version == intent.version
+    assert report.preference_fingerprint == eligibility.preference_fingerprint
+    assert report.provider_calls == 0

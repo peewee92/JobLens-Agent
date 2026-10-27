@@ -40,6 +40,8 @@ class ExecutionActionItem:
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
+    source_analysis_thread_id: str | None = None
+    source_analysis_result_id: str | None = None
 
 
 class ExecutionActionRepository(Protocol):
@@ -66,7 +68,8 @@ class ExecutionActionBlockedError(RuntimeError):
 class CreateStudyExecutionActionsUseCase:
     """Materialize grounded Study Checklist items as user-trackable actions."""
 
-    def __init__(self, *, workspaces: WorkspaceRepository, preparation: BuildJobPreparationBundleUseCase, actions: ExecutionActionRepository, now: Callable[[], datetime], new_id: Callable[[], str]) -> None:
+    def __init__(self, *, workspaces: WorkspaceRepository, preparation: BuildJobPreparationBundleUseCase, actions: ExecutionActionRepository, now: Callable[[], datetime], new_id: Callable[[], str], saved_preparation=None) -> None:
+        self._saved_preparation = saved_preparation
         self._workspaces = workspaces
         self._preparation = preparation
         self._actions = actions
@@ -85,10 +88,33 @@ class CreateStudyExecutionActionsUseCase:
                 raise ExecutionActionBlockedError("execution_action_idempotency_conflict")
             return tuple(action for action in self._actions.list_for_workspace(workspace_id) if action.idempotency_key == idempotency_key or action.idempotency_key.startswith(f"{idempotency_key}:"))
 
+        if getattr(workspace, "current_analysis_thread_id", None):
+            try:
+                saved = self._saved_preparation.read(workspace)
+            except (LookupError, AttributeError) as exc:
+                raise ExecutionActionBlockedError("application_workspace_saved_materials_missing") from exc
+            if not saved.is_current:
+                raise ExecutionActionBlockedError("application_workspace_facts_stale")
+            return self.execute_from_bundle(workspace=workspace, bundle=saved.bundle, snapshot=saved.snapshot,
+                actor_id=actor_id, idempotency_key=idempotency_key)
         bundle = self._preparation.execute(workspace.job_id)
+        return self.execute_from_bundle(workspace=workspace, bundle=bundle, actor_id=actor_id,
+            idempotency_key=idempotency_key)
+
+    def execute_from_bundle(self, *, workspace, bundle, actor_id, idempotency_key, snapshot=None):
+        workspace_id = workspace.workspace_id
+        existing = self._actions.get_by_actor_and_idempotency_key(actor_id, idempotency_key)
+        if existing is not None:
+            if existing.workspace_id != workspace_id:
+                raise ExecutionActionBlockedError("execution_action_idempotency_conflict")
+            return tuple(action for action in self._actions.list_for_workspace(workspace_id)
+                if action.idempotency_key == idempotency_key or action.idempotency_key.startswith(f"{idempotency_key}:"))
+        snapshot = snapshot or workspace.source_snapshot
+        if workspace.actor_id != actor_id:
+            raise ExecutionActionBlockedError("application_workspace_actor_mismatch")
         if not bundle.facts_usable or bundle.study_checklist is None:
             raise ExecutionActionBlockedError("study_checklist_not_ready")
-        if bundle.profile_id != workspace.source_snapshot.profile_id or bundle.profile_version != workspace.source_snapshot.profile_version or bundle.extraction_id != workspace.source_snapshot.requirement_extraction_id:
+        if bundle.profile_id != snapshot.profile_id or bundle.profile_version != snapshot.profile_version or bundle.extraction_id != snapshot.requirement_extraction_id:
             raise ExecutionActionBlockedError("application_workspace_facts_stale")
 
         created: list[ExecutionActionItem] = []
@@ -101,6 +127,8 @@ class CreateStudyExecutionActionsUseCase:
                 status=ExecutionActionStatus.TODO, source_requirement_ids=(item.requirement_id,),
                 source_gap_capability=item.capability, description=item.requirement_text,
                 completion_criteria=item.completion_criteria, created_at=now, updated_at=now,
+                source_analysis_thread_id=getattr(workspace, "current_analysis_thread_id", None),
+                source_analysis_result_id=getattr(workspace, "current_analysis_result_id", None),
             )
             created.append(self._actions.add(action))
         return tuple(created)
@@ -128,6 +156,11 @@ class UpdateExecutionActionStatusUseCase:
             raise ExecutionActionBlockedError("execution_action_not_found")
         if workspace.actor_id != actor_id or action.actor_id != actor_id:
             raise ExecutionActionBlockedError("execution_action_actor_mismatch")
+        # Reaching an already requested target state is a read/replay, not a new transition.
+        if action.status is new_status and new_status in self._allowed[expected_status]:
+            if new_status is ExecutionActionStatus.DONE:
+                self._ensure_completed_event(action)
+            return action
         if action.status != expected_status:
             raise ExecutionActionBlockedError("execution_action_status_conflict")
         if new_status not in self._allowed[expected_status]:

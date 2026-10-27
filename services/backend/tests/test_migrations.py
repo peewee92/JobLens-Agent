@@ -64,8 +64,9 @@ REQUIREMENT_ACCEPTANCE_TABLES = (
 )
 MATCH_REPORT_TABLES = {"match_reports"}
 USER_FEEDBACK_TABLES = {"user_feedback"}
-APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants", "execution_action_items", "evidence_proposals"}
+APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants", "execution_action_items", "evidence_proposals", "analysis_execution_receipts"}
 RESUME_VARIANT_TABLES = {"resume_variants"}
+CAREER_AGENT_RUNTIME_TABLES = {"career_agent_runs", "career_agent_run_events"}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
@@ -79,6 +80,7 @@ EXPECTED_TABLES = (
     | USER_FEEDBACK_TABLES
     | APPLICATION_WORKSPACE_TABLES
     | RESUME_VARIANT_TABLES
+    | CAREER_AGENT_RUNTIME_TABLES
 )
 
 
@@ -408,6 +410,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - CAREER_AGENT_RUNTIME_TABLES
         - APPLICATION_WORKSPACE_TABLES
         - RESUME_VARIANT_TABLES
         - USER_FEEDBACK_TABLES
@@ -428,6 +431,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - CAREER_AGENT_RUNTIME_TABLES
         - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
@@ -451,6 +455,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     assert "description_snapshot" not in downgraded_columns
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - CAREER_AGENT_RUNTIME_TABLES
         - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
@@ -474,6 +479,7 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     engine = create_engine(database_url)
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - CAREER_AGENT_RUNTIME_TABLES
         - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES

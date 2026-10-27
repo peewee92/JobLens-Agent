@@ -371,8 +371,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(page, /已有完整匹配/);
   assert.match(page, /查看为什么/);
   assert.match(page, /当前没有值得优先投的已分析岗位/);
-  assert.match(page, /这些岗位当前有明确硬条件缺口/);
-  assert.match(page, /当前缺少足够 Profile 证据的硬条件/);
+  assert.match(page, /这些岗位当前有明确硬条件或偏好冲突/);
+  assert.match(page, /当前报告列出的明确硬条件冲突/);
   assert.match(page, /jobBlockers\.find/);
   assert.match(page, /requirement\.originalText/);
   assert.match(page, /去补对应证据/);
@@ -390,8 +390,8 @@ test("recommendations page surfaces the MVP Top-N value without fake probability
   assert.match(refresh, /focus-job-\$\{focusJobId\}/);
   assert.match(refresh, /renderedReportId !== focusReportId/);
   assert.match(refresh, /framesRemaining = 120/);
-  assert.match(page, /这次补充的证据已经让它进入优先候选/);
-  assert.match(page, /重算后仍有 .* 条硬条件缺口/);
+  assert.match(page, /不因补充证据就自动提高优先级/);
+  assert.match(page, /重算后仍有明确硬条件或偏好冲突/);
   assert.match(page, /硬条件缺口较少的岗位排在前面/);
   assert.match(page, /这不是成功概率/);
   assert.match(page, /哪些资料最可能解锁更多岗位判断/);
@@ -687,7 +687,8 @@ test("job detail explains deterministic eligibility without fake match scores", 
   assert.match(page, /这个岗位适合我吗/);
   assert.match(page, /已匹配/);
   assert.match(page, /待确认/);
-  assert.match(page, /明显缺失/);
+  assert.match(page, /明确不满足/);
+  assert.match(page, /不代表你不具备这些条件/);
   assert.match(page, /不使用模糊的百分制匹配分数/);
   assert.match(eligibility, /当前不建议优先投入/);
   assert.doesNotMatch(page, /匹配度[:：]?\s*\d+%/);
@@ -750,12 +751,11 @@ test("Target Cohort Gap blockers explain readiness instead of exposing internal 
 });
 
 
-test("home page explains the product as a simple job-search workflow", async () => {
+test("home page loads the real workbench without silently redirecting", async () => {
   const page = await source("app/page.tsx");
-  assert.match(page, /先把自己和岗位看清楚/);
-  assert.match(page, /完善我的背景/);
-  assert.match(page, /添加感兴趣的岗位/);
-  assert.match(page, /查看岗位/);
+  assert.match(page, /fetchWorkbench/);
+  assert.match(page, /WorkbenchView/);
+  assert.match(page, /systemReadinessNotice/);
   assert.doesNotMatch(page, /redirect\(/);
 });
 

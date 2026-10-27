@@ -294,7 +294,9 @@ def create_evidence_proposal(
             workspace_id=workspace_id, action_id=action_id, actor_id=request.actor_id,
             idempotency_key=request.idempotency_key, evidence_type=request.evidence_type,
             evidence_summary=request.evidence_summary, evidence_source=request.evidence_source,
-            skill_level=request.skill_level,
+            skill_level=request.skill_level, requirement_id=request.requirement_id,
+            expected_profile_id=request.expected_profile_id, expected_profile_version=request.expected_profile_version,
+            reviewed_current_profile=request.reviewed_current_profile,
         )
     except EvidenceProposalBlockedError as error:
         detail = str(error)
@@ -399,3 +401,45 @@ def get_application_workspace(
     if workspace is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
     return ApplicationWorkspaceResponse.from_model(workspace)
+
+
+from app.api.deps import get_workspace_saved_preparation
+from app.api.v1.schemas.analysis_execution import WorkspaceSavedPreparationResponse
+
+
+@router.get("/{workspace_id}/preparation", response_model=WorkspaceSavedPreparationResponse)
+def get_saved_workspace_preparation(workspace_id: str,
+                                    workspaces=Depends(get_application_workspace_repository),
+                                    reader=Depends(get_workspace_saved_preparation)):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="application_workspace_not_found")
+    if workspace.current_analysis_thread_id is None:
+        raise HTTPException(status_code=404, detail="此旧工作区没有保存分析引用，不会用实时生成冒充历史材料")
+    try:
+        return WorkspaceSavedPreparationResponse.from_result(reader.read(workspace))
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+from dataclasses import asdict
+from app.api.deps import get_evidence_context_query, get_reconsider_evidence_proposal_use_case
+from app.api.v1.schemas.application_workspace import EvidenceContextResponse, ReconsiderEvidenceProposalRequest
+
+
+@router.get("/{workspace_id}/evidence-context", response_model=EvidenceContextResponse)
+def get_evidence_context(workspace_id: str, query=Depends(get_evidence_context_query)):
+    try:
+        return EvidenceContextResponse.model_validate(asdict(query.read(workspace_id)))
+    except EvidenceProposalBlockedError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/reconsider", response_model=EvidenceProposalResponse)
+def reconsider_evidence_proposal(workspace_id: str, proposal_id: str,
+        request: ReconsiderEvidenceProposalRequest, use_case=Depends(get_reconsider_evidence_proposal_use_case)):
+    try:
+        result = use_case.execute(workspace_id=workspace_id, proposal_id=proposal_id, **request.model_dump(by_alias=False))
+        return EvidenceProposalResponse.from_model(result)
+    except EvidenceProposalBlockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

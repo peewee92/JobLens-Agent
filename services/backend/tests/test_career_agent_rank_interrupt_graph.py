@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+
+import pytest
 
 from app.agent.context import CareerAgentContext, CareerAgentProfileContext
 from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
@@ -179,3 +181,45 @@ def test_rank_to_target_cohort_interrupt_fails_closed_when_no_current_reports(tm
     assert result.pending_approval is False
     assert result.provider_call_count == 0
     assert result.tool_call_count == 1
+
+
+
+@pytest.mark.parametrize("adapter", [RankToTargetCohortInterrupt, LangGraphRankToTargetCohortInterrupt])
+@pytest.mark.parametrize("recommendations, proposed, step, mode", [
+    ((MatchRecommendation.LOW,), (), "target_evidence_insufficient", None),
+    ((MatchRecommendation.BLOCKED,), (), "target_evidence_insufficient", None),
+    ((MatchRecommendation.LOW, MatchRecommendation.STRETCH), ("job_2",), "target_cohort_confirmation", "challenge_only"),
+    ((MatchRecommendation.STRONG, MatchRecommendation.GOOD, MatchRecommendation.STRETCH, MatchRecommendation.LOW), ("job_1", "job_2", "job_3"), "target_cohort_confirmation", "supported"),
+    ((MatchRecommendation.GOOD, MatchRecommendation.LOW), ("job_1",), "target_cohort_confirmation", "supported"),
+    ((MatchRecommendation.STRONG,) * 5, ("job_1", "job_2", "job_3"), "target_cohort_confirmation", "supported"),
+])
+def test_graph_default_targets_never_pad_with_low_or_blocked(tmp_path, adapter, recommendations, proposed, step, mode):
+    reports = tuple(replace(_stored(f"mr_{i}", f"job_{i}"), report=replace(_stored(f"mr_{i}", f"job_{i}").report, recommendation=rec))
+                    for i, rec in enumerate(recommendations, 1))
+    ranking = _RankingWorkflow(reports=reports, calls=[])
+    store = SQLiteCareerAgentCheckpointStore(tmp_path / "agent.sqlite3")
+    graph = adapter(tool_registry=CareerAgentToolRegistry(
+        ranking=ranking, target_cohort_gaps=_UnusedWorkflow(), job_preparation=_UnusedWorkflow(),
+    ), checkpoints=store)
+    result = graph.run(context=_context(), thread_id="thread_groups", run_id="run", request_id="request",
+                       job_ids=tuple(item.report.job_id for item in reports))
+    assert result.proposed_target_job_ids == proposed
+    assert result.current_step == step
+    assert result.target_suggestion_mode == mode
+    assert result.pending_approval is bool(proposed)
+    assert result.current_match_report_ids == tuple(item.id for item in reports)
+    assert result.ranked_job_ids == tuple(item.report.job_id for item in reports)
+    assert result.provider_call_count == 0
+    assert store.load(thread_id="thread_groups") == result
+
+
+@pytest.mark.parametrize("adapter", [RankToTargetCohortInterrupt, LangGraphRankToTargetCohortInterrupt])
+def test_explicit_target_count_and_job_scope_are_bounded_before_tool_call(tmp_path, adapter):
+    workflow = _RankingWorkflow(reports=(), calls=[])
+    graph = adapter(tool_registry=CareerAgentToolRegistry(
+        ranking=workflow, target_cohort_gaps=_UnusedWorkflow(), job_preparation=_UnusedWorkflow(),
+    ), checkpoints=SQLiteCareerAgentCheckpointStore(tmp_path / "agent.sqlite3"))
+    for kwargs in ({"job_ids": ("job",), "top_n": 6}, {"job_ids": tuple(f"job_{i}" for i in range(51))}):
+        with pytest.raises(ValueError):
+            graph.run(context=_context(), thread_id="thread", run_id="run", request_id="request", **kwargs)
+    assert workflow.calls == []

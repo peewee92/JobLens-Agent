@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/create-evidence-proposal.schema.json",
+  "$defs": {
+    "EvidenceType": {
+      "enum": [
+        "work",
+        "project",
+        "education",
+        "achievement",
+        "self_report"
+      ],
+      "title": "EvidenceType",
+      "type": "string"
+    },
+    "SkillLevel": {
+      "enum": [
+        "strong",
+        "working",
+        "basic",
+        "unknown"
+      ],
+      "title": "SkillLevel",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "actorId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Actorid",
+      "type": "string"
+    },
+    "idempotencyKey": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Idempotencykey",
+      "type": "string"
+    },
+    "evidenceType": {
+      "$ref": "#/$defs/EvidenceType"
+    },
+    "evidenceSummary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Evidencesummary",
+      "type": "string"
+    },
+    "evidenceSource": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Evidencesource",
+      "type": "string"
+    },
+    "skillLevel": {
+      "$ref": "#/$defs/SkillLevel"
+    },
+    "requirementId": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requirementid"
+    },
+    "expectedProfileId": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expectedprofileid"
+    },
+    "expectedProfileVersion": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expectedprofileversion"
+    },
+    "reviewedCurrentProfile": {
+      "default": false,
+      "title": "Reviewedcurrentprofile",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "actorId",
+    "idempotencyKey",
+    "evidenceType",
+    "evidenceSummary",
+    "evidenceSource",
+    "skillLevel"
+  ],
+  "title": "CreateEvidenceProposalRequest",
+  "type": "object"
+}

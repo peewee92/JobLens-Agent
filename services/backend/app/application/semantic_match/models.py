@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.application.search_preferences import PreferenceCheck
+
 from app.application.eligibility.models import EligibilityDecision, RequirementFitStatus
 from app.application.evidence_retrieval.models import (
     EvidenceRelevanceTier,
@@ -96,6 +98,10 @@ class JobSemanticMatchResult:
     prompt_version: str
     model: str | None
     trace_run_id: str | None
+    search_intent_id: str | None = None
+    search_intent_version: int | None = None
+    preference_checks: tuple[PreferenceCheck, ...] = ()
+    preference_fingerprint: str | None = None
     db_writes: int = 0
     provider_calls: int = 0
     trace_runs_created: int = 0

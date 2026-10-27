@@ -1,0 +1,510 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/analysis-comparison.schema.json",
+  "$defs": {
+    "AnalysisJobComparisonResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "previousReportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousreportid"
+        },
+        "currentReportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentreportid"
+        },
+        "previousExtractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousextractionid"
+        },
+        "currentExtractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentextractionid"
+        },
+        "previousPolicyVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previouspolicyversion"
+        },
+        "currentPolicyVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentpolicyversion"
+        },
+        "previousRecommendation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousrecommendation"
+        },
+        "currentRecommendation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentrecommendation"
+        },
+        "previousRank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousrank"
+        },
+        "currentRank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentrank"
+        },
+        "rankChange": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rankchange"
+        },
+        "signal": {
+          "enum": [
+            "improved",
+            "weakened",
+            "unchanged",
+            "mixed",
+            "not_comparable",
+            "unavailable"
+          ],
+          "title": "Signal",
+          "type": "string"
+        },
+        "recommendationChange": {
+          "enum": [
+            "improved",
+            "weakened",
+            "unchanged",
+            "mixed",
+            "not_comparable",
+            "unavailable"
+          ],
+          "title": "Recommendationchange",
+          "type": "string"
+        },
+        "coverageChange": {
+          "enum": [
+            "improved",
+            "weakened",
+            "unchanged",
+            "mixed",
+            "not_comparable",
+            "unavailable"
+          ],
+          "title": "Coveragechange",
+          "type": "string"
+        },
+        "reasonCodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasoncodes",
+          "type": "array"
+        },
+        "requirements": {
+          "items": {
+            "$ref": "#/$defs/RequirementChangeResponse"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "preferences": {
+          "items": {
+            "$ref": "#/$defs/PreferenceChangeResponse"
+          },
+          "title": "Preferences",
+          "type": "array"
+        }
+      },
+      "required": [
+        "jobId",
+        "title",
+        "previousReportId",
+        "currentReportId",
+        "previousExtractionId",
+        "currentExtractionId",
+        "previousPolicyVersion",
+        "currentPolicyVersion",
+        "previousRecommendation",
+        "currentRecommendation",
+        "previousRank",
+        "currentRank",
+        "rankChange",
+        "signal",
+        "recommendationChange",
+        "coverageChange",
+        "reasonCodes",
+        "requirements",
+        "preferences"
+      ],
+      "title": "AnalysisJobComparisonResponse",
+      "type": "object"
+    },
+    "PreferenceChangeResponse": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "previousStatus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousstatus"
+        },
+        "currentStatus": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentstatus"
+        },
+        "previousCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previouscode"
+        },
+        "currentCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentcode"
+        },
+        "previousReason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previousreason"
+        },
+        "currentReason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentreason"
+        }
+      },
+      "required": [
+        "key",
+        "previousStatus",
+        "currentStatus",
+        "previousCode",
+        "currentCode",
+        "previousReason",
+        "currentReason"
+      ],
+      "title": "PreferenceChangeResponse",
+      "type": "object"
+    },
+    "RequirementChangeResponse": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "originalText": {
+          "title": "Originaltext",
+          "type": "string"
+        },
+        "previousCoverage": {
+          "enum": [
+            "supported",
+            "partial",
+            "unverified",
+            "hard_conflict"
+          ],
+          "title": "Previouscoverage",
+          "type": "string"
+        },
+        "currentCoverage": {
+          "enum": [
+            "supported",
+            "partial",
+            "unverified",
+            "hard_conflict"
+          ],
+          "title": "Currentcoverage",
+          "type": "string"
+        },
+        "previousReason": {
+          "title": "Previousreason",
+          "type": "string"
+        },
+        "currentReason": {
+          "title": "Currentreason",
+          "type": "string"
+        },
+        "previousEvidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Previousevidenceids",
+          "type": "array"
+        },
+        "currentEvidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Currentevidenceids",
+          "type": "array"
+        },
+        "previousFactRefs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Previousfactrefs",
+          "type": "array"
+        },
+        "currentFactRefs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Currentfactrefs",
+          "type": "array"
+        },
+        "change": {
+          "enum": [
+            "improved",
+            "weakened",
+            "unchanged",
+            "mixed",
+            "not_comparable",
+            "unavailable"
+          ],
+          "title": "Change",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirementId",
+        "originalText",
+        "previousCoverage",
+        "currentCoverage",
+        "previousReason",
+        "currentReason",
+        "previousEvidenceIds",
+        "currentEvidenceIds",
+        "previousFactRefs",
+        "currentFactRefs",
+        "change"
+      ],
+      "title": "RequirementChangeResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "comparisonVersion": {
+      "const": 1,
+      "title": "Comparisonversion",
+      "type": "integer"
+    },
+    "sourceThreadId": {
+      "title": "Sourcethreadid",
+      "type": "string"
+    },
+    "sourceResultId": {
+      "title": "Sourceresultid",
+      "type": "string"
+    },
+    "threadId": {
+      "title": "Threadid",
+      "type": "string"
+    },
+    "resultId": {
+      "title": "Resultid",
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "targets",
+        "batch"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "previousProfileVersion": {
+      "title": "Previousprofileversion",
+      "type": "integer"
+    },
+    "currentProfileVersion": {
+      "title": "Currentprofileversion",
+      "type": "integer"
+    },
+    "previousIntentVersion": {
+      "title": "Previousintentversion",
+      "type": "integer"
+    },
+    "currentIntentVersion": {
+      "title": "Currentintentversion",
+      "type": "integer"
+    },
+    "requestedJobIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Requestedjobids",
+      "type": "array"
+    },
+    "rankingComparable": {
+      "title": "Rankingcomparable",
+      "type": "boolean"
+    },
+    "partial": {
+      "title": "Partial",
+      "type": "boolean"
+    },
+    "reasonCodes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasoncodes",
+      "type": "array"
+    },
+    "addedTargetIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Addedtargetids",
+      "type": "array"
+    },
+    "removedTargetIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Removedtargetids",
+      "type": "array"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AnalysisJobComparisonResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "comparisonVersion",
+    "sourceThreadId",
+    "sourceResultId",
+    "threadId",
+    "resultId",
+    "scope",
+    "previousProfileVersion",
+    "currentProfileVersion",
+    "previousIntentVersion",
+    "currentIntentVersion",
+    "requestedJobIds",
+    "rankingComparable",
+    "partial",
+    "reasonCodes",
+    "addedTargetIds",
+    "removedTargetIds",
+    "items"
+  ],
+  "title": "AnalysisComparisonResponse",
+  "type": "object"
+}

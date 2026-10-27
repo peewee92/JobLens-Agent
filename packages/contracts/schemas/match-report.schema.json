@@ -28,6 +28,9 @@
     "traceRunsCreated"
   ],
   "properties": {
+    "searchIntentId": {"type": ["string", "null"]},
+    "searchIntentVersion": {"type": ["integer", "null"], "minimum": 1},
+    "preferenceChecks": {"type": "array", "items": {"$ref": "preference-check.schema.json"}},
     "jobId": {"type": "string", "minLength": 1},
     "profileId": {"type": "string", "minLength": 1},
     "profileVersion": {"type": "integer", "minimum": 1},
@@ -79,11 +82,12 @@
         }
       }
     },
+    "policyVersion": {"type": "string", "minLength": 1, "description": "Deterministic rule version. Missing means legacy match-policy-v1; never reinterpret history as v2."},
     "matcherVersion": {"type": "string", "minLength": 1},
     "promptVersion": {"type": "string", "minLength": 1},
     "model": {"type": ["string", "null"]},
     "traceRunId": {"type": ["string", "null"]},
-    "dbWrites": {"const": 1},
+    "dbWrites": {"type": "integer", "minimum": 0, "description": "Writes recorded by the original generation, not by history retrieval. POST persists one report; legacy/demo snapshots may record zero."},
     "providerCalls": {"type": "integer", "minimum": 0, "maximum": 1},
     "traceRunsCreated": {"type": "integer", "minimum": 0, "maximum": 1}
   },

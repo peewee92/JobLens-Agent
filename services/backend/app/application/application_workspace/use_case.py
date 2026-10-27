@@ -118,6 +118,20 @@ class CreateApplicationWorkspaceUseCase:
             requirement_extraction_id=release.extraction_id,
             match_report_id=current_report.id,
         )
+        return self.execute_from_snapshot(command, snapshot)
+
+    def execute_from_snapshot(self, command: CreateApplicationWorkspaceCommand,
+                              snapshot: ApplicationWorkspaceSourceSnapshot) -> ApplicationWorkspace:
+        """Caller owns release/identity validation and transaction for this exact snapshot."""
+        job_id, actor_id, idempotency_key = command.job_id, command.actor_id, command.idempotency_key
+        if not all((job_id.strip(), actor_id.strip(), idempotency_key.strip())):
+            raise ValueError("job_id, actor_id and idempotency_key are required")
+        existing = self._workspaces.get_by_actor_and_idempotency_key(actor_id, idempotency_key)
+        if existing is not None:
+            if existing.job_id != job_id or existing.source_snapshot != snapshot:
+                raise ApplicationWorkspaceBlockedError("idempotency_key_conflict")
+            self._ensure_created_event(existing)
+            return existing
         fingerprint = _fingerprint(job_id, snapshot)
         created_at = self._now()
         workspace = self._workspaces.add(

@@ -1,4 +1,5 @@
 import "server-only";
+import {isSystemReadiness, type SystemReadiness} from "@/lib/system-readiness";
 
 import type {
   ApiErrorBody,
@@ -16,6 +17,7 @@ import type {
   MatchReviewReadiness,
   RecommendationCoverage,
   JobDetail,
+  MatchReportHistory,
   JobEligibilityResult,
   JobImportDetail,
   JobPreparationBundle,
@@ -96,6 +98,18 @@ export async function backendResponse(
   }
 }
 
+/** Preserve actionable transport errors at same-origin recovery endpoints. */
+export async function backendProxyResponse(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await backendResponse(path, init);
+  } catch (error) {
+    if (!(error instanceof BackendApiError)) throw error;
+    return new Response(JSON.stringify({error: {code: error.code, message: error.message}}), {
+      status: error.status, headers: {"Content-Type": "application/json"},
+    });
+  }
+}
+
 export async function backendJson<T>(
   path: string,
   init?: RequestInit,
@@ -105,6 +119,17 @@ export async function backendJson<T>(
     throw await publicError(response);
   }
   return (await response.json()) as T;
+}
+
+export async function fetchSystemReadiness(): Promise<SystemReadiness> {
+  const response = await backendResponse("/api/v1/readiness", {signal: AbortSignal.timeout(5000)});
+  if (response.status !== 200 && response.status !== 503) throw await publicError(response);
+  let body: unknown;
+  try { body = await response.json(); } catch { body = null; }
+  if (!isSystemReadiness(body) || body.ready !== response.ok) {
+    throw new BackendApiError(503, "readiness_unavailable", "暂时无法确认运行环境，请检查后端版本。");
+  }
+  return body;
 }
 
 export function fetchJobPage(query: URLSearchParams): Promise<JobPage> {
@@ -390,4 +415,22 @@ export function fetchAcceptedRequirementReviewBaseline(): Promise<AcceptedRequir
   return backendJson<AcceptedRequirementReviewBaseline>(
     "/api/v1/requirement-review-batches/accepted-baseline",
   );
+}
+
+
+export function fetchMatchReportHistory(jobId: string): Promise<MatchReportHistory> {
+  return backendJson<MatchReportHistory>(`/api/v1/jobs/${encodeURIComponent(jobId)}/match-reports`);
+}
+
+export function fetchWorkspaceSavedPreparation(workspaceId: string): Promise<import("./contracts").WorkspaceSavedPreparation> {
+  return backendJson(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/preparation`);
+}
+
+export async function fetchWorkbench(): Promise<import("@/lib/workbench").Workbench> {
+  return backendJson("/api/v1/workbench");
+}
+
+
+export function fetchApplicationEvidenceContext(workspaceId: string): Promise<import("@/lib/contracts").ApplicationEvidenceContext> {
+  return backendJson(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/evidence-context`);
 }

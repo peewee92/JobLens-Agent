@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.agent.graph.state import CareerAgentState
+from app.agent.graph.checkpoint_port import CheckpointConflictError, next_revision
 
 
 class SQLiteCareerAgentCheckpointStore:
@@ -81,6 +82,30 @@ class SQLiteCareerAgentCheckpointStore:
                 """,
                 (state.thread_id, payload_json),
             )
+
+    def transition(self, previous: CareerAgentState | None, candidate: CareerAgentState) -> CareerAgentState:
+        """CAS adapter for frozen local tests; production uses SQLAlchemy storage."""
+        state = next_revision(previous, candidate)
+        payload_json = json.dumps(state.to_payload(), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        try:
+            with self._connect() as connection:
+                if previous is None:
+                    connection.execute(
+                        "INSERT INTO career_agent_checkpoints (thread_id,run_id,status,current_step,payload_json) VALUES (?,?,?,?,?)",
+                        (state.thread_id,state.run_id,state.status.value,state.current_step,payload_json))
+                else:
+                    row = connection.execute("SELECT payload_json FROM career_agent_checkpoints WHERE thread_id=?", (previous.thread_id,)).fetchone()
+                    if row is None or any(getattr(CareerAgentState.from_payload(json.loads(row[0])), key) != getattr(previous, key) for key in ("revision", "status", "current_step", "run_id", "request_id")):
+                        raise CheckpointConflictError("运行已被其他请求推进，请读取最新状态")
+                    changed = connection.execute(
+                        "UPDATE career_agent_checkpoints SET status=?,current_step=?,payload_json=?,updated_at=CURRENT_TIMESTAMP WHERE thread_id=? AND payload_json=?",
+                        (state.status.value,state.current_step,payload_json,state.thread_id,row[0]))
+                    if changed.rowcount != 1:
+                        raise CheckpointConflictError("运行已被其他请求推进，请读取最新状态")
+                connection.execute("INSERT INTO career_agent_checkpoint_events (thread_id,payload_json) VALUES (?,?)", (state.thread_id,payload_json))
+        except sqlite3.IntegrityError as exc:
+            raise CheckpointConflictError("运行或修订已存在，请读取最新状态") from exc
+        return state
 
     def load(self, *, thread_id: str) -> CareerAgentState | None:
         payload = self.load_payload(thread_id=thread_id)

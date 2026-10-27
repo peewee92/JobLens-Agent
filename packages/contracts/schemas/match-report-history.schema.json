@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/match-report-history.schema.json",
+  "title": "MatchReportHistory",
+  "description": "Read-only immutable report snapshots with separately derived currentness. Historical counters describe original generation, not this GET.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items",
+    "count"
+  ],
+  "properties": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reportId",
+          "createdAt",
+          "isCurrent",
+          "staleReasons",
+          "report"
+        ],
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "staleReasons": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "policy_changed",
+                "profile_missing",
+                "profile_changed",
+                "search_intent_missing",
+                "search_intent_changed",
+                "requirements_missing",
+                "requirements_changed",
+                "job_missing",
+                "preference_inputs_changed"
+              ]
+            }
+          },
+          "report": {
+            "$ref": "match-report.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

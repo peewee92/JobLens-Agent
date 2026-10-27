@@ -21,6 +21,8 @@ from app.application.ports.match_report_repository import (
     AbstractMatchReportRepository,
 )
 from app.application.semantic_match import SemanticMatchVerdict
+from app.application.match_policy_version import LEGACY_MATCH_POLICY_VERSION
+from app.application.search_preferences import PreferenceCheck, PreferenceFitStatus
 from app.db.models import MatchReportORM
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
@@ -31,7 +33,7 @@ class SqlAlchemyMatchReportRepository(AbstractMatchReportRepository):
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def add(self, report: MatchReport) -> StoredMatchReport:
+    def add(self, report: MatchReport, *, report_id: str | None = None) -> StoredMatchReport:
         record = MatchReportORM(
             job_id=report.job_id,
             profile_id=report.profile_id,
@@ -45,6 +47,8 @@ class SqlAlchemyMatchReportRepository(AbstractMatchReportRepository):
             trace_run_id=report.trace_run_id,
             snapshot=_snapshot(report),
         )
+        if report_id is not None:
+            record.id = report_id
         self._session.add(record)
         self._session.flush()
         self._session.refresh(record)
@@ -95,6 +99,15 @@ class SqlAlchemyMatchReportQueryRepository(AbstractMatchReportQueryRepository):
 
 def _snapshot(report: MatchReport) -> dict:
     return {
+        "policyVersion": report.policy_version,
+        "searchIntentId": report.search_intent_id,
+        "searchIntentVersion": report.search_intent_version,
+        "preferenceFingerprint": report.preference_fingerprint,
+        "preferenceChecks": [
+            {"key": item.key, "status": item.status.value, "code": item.code,
+             "reason": item.reason, "intentFields": list(item.intent_fields),
+             "jobFields": list(item.job_fields)} for item in report.preference_checks
+        ],
         "summary": report.summary,
         "strengths": [_insight(item) for item in report.strengths],
         "risks": [_insight(item) for item in report.risks],
@@ -178,6 +191,15 @@ def _stored(record: MatchReportORM) -> StoredMatchReport:
             )
             for item in payload["evidenceLinks"]
         ),
+        policy_version=str(payload.get("policyVersion", LEGACY_MATCH_POLICY_VERSION)),
+        search_intent_id=payload.get("searchIntentId"),
+        search_intent_version=payload.get("searchIntentVersion"),
+        preference_fingerprint=payload.get("preferenceFingerprint"),
+        preference_checks=tuple(PreferenceCheck(
+            key=item["key"], status=PreferenceFitStatus(item["status"]), code=item["code"],
+            reason=item["reason"], intent_fields=tuple(item["intentFields"]),
+            job_fields=tuple(item["jobFields"]),
+        ) for item in payload.get("preferenceChecks", [])),
         matcher_version=record.matcher_version,
         prompt_version=record.prompt_version,
         model=record.model,

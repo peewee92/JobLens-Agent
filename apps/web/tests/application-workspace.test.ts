@@ -48,7 +48,8 @@ test("application workspace lets the user explicitly update application status",
   assert.match(controls, /投递状态只由你显式更新/);
   assert.match(controls, /expectedStatus: currentStatus/);
   assert.match(controls, /newStatus: selectedStatus/);
-  assert.match(controls, /web-application-status-\$\{workspaceId\}/);
+  assert.match(controls, /useProgressRequest/);
+  assert.doesNotMatch(controls, /Date.now/);
   assert.match(proxy, /application-workspaces\/\$\{encodeURIComponent\(id\)\}\/status/);
 });
 
@@ -60,14 +61,14 @@ test("application workspace can create and advance real execution actions", () =
 
   assert.match(page, /ApplicationActionControls/);
   assert.match(controls, /把学习清单建立为行动/);
-  assert.match(controls, /expectedStatus: action\.status/);
-  assert.match(controls, /newStatus: transition\.status/);
+  assert.match(controls, /expectedStatus:\s*action\.status/);
+  assert.match(controls, /newStatus:\s*transition\.status/);
   assert.match(controls, /web-study-actions-\$\{workspaceId\}/);
   assert.match(createProxy, /application-workspaces\/\$\{encodeURIComponent\(id\)\}\/actions/);
   assert.match(statusProxy, /actions\/\$\{encodeURIComponent\(actionId\)\}\/status/);
 });
 
-test("application workspace completes evidence confirm and rematch from the same user surface", () => {
+test("application workspace confirms facts and prefers scoped update while keeping legacy rematch explicit", () => {
   const page = source("app/applications/[id]/page.tsx");
   const controls = source("components/application-evidence-controls.tsx");
   const createProxy = source("app/api/application-workspaces/[id]/actions/[actionId]/evidence-proposals/route.ts");
@@ -75,9 +76,9 @@ test("application workspace completes evidence confirm and rematch from the same
   const rematchProxy = source("app/api/application-workspaces/[id]/evidence-proposals/[proposalId]/rematch/route.ts");
 
   assert.match(page, /ApplicationEvidenceControls/);
-  assert.match(controls, /Action 完成状态自动推断能力/);
+  assert.match(controls, /完成准备行动不会自动升级能力/);
   assert.match(controls, /确认这是真实职业事实/);
-  assert.match(controls, /用新事实重新验证岗位匹配/);
+  assert.match(controls, /仅重新匹配此岗位（旧入口，不调用模型）/);
   assert.match(controls, /web-rematch-\$\{proposal\.proposalId\}/);
   assert.match(createProxy, /evidence-proposals/);
   assert.match(confirmProxy, /\/confirm/);

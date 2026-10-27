@@ -77,6 +77,7 @@ def test_match_report_api_returns_recommendation_and_traceable_evidence() -> Non
 
     assert response.status_code == 200
     body = response.json()
+    assert body["policyVersion"] == "match-policy-v3"
     assert body["eligibility"] == "blocked"
     assert body["recommendation"] == "blocked"
     assert body["partialRequirementIds"] == ["req_mcp"]

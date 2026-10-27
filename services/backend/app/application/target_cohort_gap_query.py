@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from app.application.career_context.models import ProfileDetail
 from app.application.create_target_cohort import (
     CreateFeedbackTargetCohortCommand,
     CreateFeedbackTargetCohortResult,
@@ -73,6 +74,15 @@ class BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
         cohort = cohort_result.cohort
         aggregation = self._requirement_aggregator.execute(cohort)
         profile = self._profiles.get_current_profile()
+        return self.execute_from_facts(cohort=cohort, aggregation=aggregation, profile=profile)
+
+    def execute_from_facts(
+        self, *, cohort: TargetCohortSnapshot,
+        aggregation: TargetCohortRequirementAggregationResult, profile: ProfileDetail | None,
+    ) -> BuildTargetCohortGapDetailsResult:
+        """Compose the same pipeline from one captured, released fact snapshot."""
+        if aggregation.cohort_id != cohort.id or aggregation.job_ids != cohort.job_ids:
+            raise ValueError("cohort aggregation identity mismatch")
         if not aggregation.facts_usable:
             blockers = tuple(
                 f"{blocker.job_id}:{code}"

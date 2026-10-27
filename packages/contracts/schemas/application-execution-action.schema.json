@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/application-execution-action.schema.json",
+  "properties": {
+    "actionId": {
+      "title": "Actionid",
+      "type": "string"
+    },
+    "workspaceId": {
+      "title": "Workspaceid",
+      "type": "string"
+    },
+    "actionType": {
+      "title": "Actiontype",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "sourceRequirementIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sourcerequirementids",
+      "type": "array"
+    },
+    "sourceGapCapability": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sourcegapcapability"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "completionCriteria": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Completioncriteria",
+      "type": "array"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "updatedAt": {
+      "format": "date-time",
+      "title": "Updatedat",
+      "type": "string"
+    },
+    "completedAt": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Completedat"
+    },
+    "sourceAnalysisThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourceanalysisthreadid"
+    },
+    "sourceAnalysisResultId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourceanalysisresultid"
+    }
+  },
+  "required": [
+    "actionId",
+    "workspaceId",
+    "actionType",
+    "status",
+    "sourceRequirementIds",
+    "sourceGapCapability",
+    "description",
+    "completionCriteria",
+    "createdAt",
+    "updatedAt",
+    "completedAt"
+  ],
+  "title": "ExecutionActionResponse",
+  "type": "object"
+}

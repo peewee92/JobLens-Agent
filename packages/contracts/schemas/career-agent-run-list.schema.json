@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/career-agent-run-list.schema.json",
+  "$defs": {
+    "CareerAgentRunStateResponse": {
+      "properties": {
+        "threadId": {
+          "title": "Threadid",
+          "type": "string"
+        },
+        "runId": {
+          "title": "Runid",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/CareerAgentStatus"
+        },
+        "currentStep": {
+          "title": "Currentstep",
+          "type": "string"
+        },
+        "revision": {
+          "default": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "legacyReadOnly": {
+          "default": false,
+          "title": "Legacyreadonly",
+          "type": "boolean"
+        },
+        "requestedJobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requestedjobids",
+          "type": "array"
+        },
+        "rankedJobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Rankedjobids",
+          "type": "array"
+        },
+        "proposedTargetJobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Proposedtargetjobids",
+          "type": "array"
+        },
+        "targetSuggestionMode": {
+          "anyOf": [
+            {
+              "enum": [
+                "supported",
+                "challenge_only"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Targetsuggestionmode"
+        },
+        "confirmedTargetJobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Confirmedtargetjobids",
+          "type": "array"
+        },
+        "pendingApproval": {
+          "title": "Pendingapproval",
+          "type": "boolean"
+        },
+        "interruptId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Interruptid"
+        },
+        "humanDecision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Humandecision"
+        },
+        "decisionActionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decisionactionid"
+        },
+        "gapResultFingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Gapresultfingerprint"
+        },
+        "resultId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resultid"
+        },
+        "updateSourceThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updatesourcethreadid"
+        },
+        "updateSourceResultId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updatesourceresultid"
+        },
+        "updateScope": {
+          "anyOf": [
+            {
+              "enum": [
+                "targets",
+                "batch"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updatescope"
+        },
+        "updatePartial": {
+          "default": false,
+          "title": "Updatepartial",
+          "type": "boolean"
+        },
+        "updateSteps": {
+          "items": {
+            "$ref": "#/$defs/UpdateMatchStepResponse"
+          },
+          "title": "Updatesteps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "threadId",
+        "runId",
+        "status",
+        "currentStep",
+        "requestedJobIds",
+        "rankedJobIds",
+        "proposedTargetJobIds",
+        "confirmedTargetJobIds",
+        "pendingApproval",
+        "interruptId",
+        "humanDecision",
+        "gapResultFingerprint"
+      ],
+      "title": "CareerAgentRunStateResponse",
+      "type": "object"
+    },
+    "CareerAgentStatus": {
+      "enum": [
+        "created",
+        "running",
+        "interrupted",
+        "resuming",
+        "completed",
+        "cancelled",
+        "blocked",
+        "failed",
+        "stale"
+      ],
+      "title": "CareerAgentStatus",
+      "type": "string"
+    },
+    "UpdateMatchStepResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "extractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Extractionid"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "running",
+            "completed",
+            "reused",
+            "failed",
+            "requires_model",
+            "input_blocked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "reportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reportid"
+        },
+        "attempt": {
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Errorcode"
+        }
+      },
+      "required": [
+        "jobId",
+        "extractionId",
+        "status",
+        "reportId",
+        "attempt",
+        "errorCode"
+      ],
+      "title": "UpdateMatchStepResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/CareerAgentRunStateResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "CareerAgentRunListResponse",
+  "type": "object"
+}

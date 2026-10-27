@@ -195,7 +195,8 @@ def test_mcp_related_tools_evidence_is_candidate_but_does_not_change_eligibility
     assert "Function Calling" in candidates[0].matched_terms
 
     eligibility = evaluate_eligibility(profile=profile, extraction=extraction)
-    assert eligibility.requirements[0].status is RequirementFitStatus.MISSING
+    assert eligibility.requirements[0].status is RequirementFitStatus.CONDITIONAL
+    assert eligibility.requirements[0].evidence_ids == ()
 
 
 def test_explicit_capability_text_in_evidence_is_direct_candidate_without_skill_record() -> None:

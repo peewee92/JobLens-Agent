@@ -147,3 +147,33 @@ def test_openapi_registers_durable_career_agent_run_contracts() -> None:
     assert "/api/v1/career-agent/runs" in paths
     assert "/api/v1/career-agent/runs/{thread_id}" in paths
     assert "/api/v1/career-agent/runs/{thread_id}/resume" in paths
+
+
+def test_start_defaults_to_three_and_rejects_excessive_scope_and_target_count():
+    from app.api.v1.schemas.career_agent import CareerAgentRunRequest, CareerAgentResumeRequest
+    from pydantic import ValidationError
+    import pytest
+    fields = dict(threadId="thread", runId="run", requestId="request", jobIds=["job"])
+    assert CareerAgentRunRequest(**fields).to_command().top_n == 3
+    with pytest.raises(ValidationError):
+        CareerAgentRunRequest(**fields, topN=6)
+    with pytest.raises(ValidationError):
+        CareerAgentRunRequest(**(fields | {"jobIds": [f"job_{i}" for i in range(51)]}))
+    with pytest.raises(ValidationError):
+        CareerAgentResumeRequest(interruptId="interrupt", actionId="action", decision="edit",
+                                selectedJobIds=[f"job_{i}" for i in range(6)])
+
+
+def test_shared_run_contracts_match_python_models():
+    import json
+    from pathlib import Path
+    from app.api.v1.schemas.career_agent import CareerAgentRunRequest, CareerAgentResumeRequest, CareerAgentRunStateResponse, CareerAgentRunListResponse
+    root = Path(__file__).resolve().parents[3] / "packages/contracts/schemas"
+    for model, name in [(CareerAgentRunRequest, "career-agent-run-request"),
+                        (CareerAgentResumeRequest, "career-agent-resume-request"),
+                        (CareerAgentRunStateResponse, "career-agent-run-state"),
+                        (CareerAgentRunListResponse, "career-agent-run-list")]:
+        schema = json.loads((root / f"{name}.schema.json").read_text())
+        schema.pop("$id")
+        schema.pop("$schema")
+        assert schema == model.model_json_schema(by_alias=True)

@@ -136,16 +136,10 @@ def _evaluate_skill(
             evidence_ids=skill.evidence_ids,
             reason=f"已确认技能中存在“{skill.name}”，并能追溯到真实经历。",
         )
-    if requirement.importance is RequirementImportance.MUST_HAVE:
-        return _result(
-            requirement,
-            status=RequirementFitStatus.MISSING,
-            reason="这是岗位明确的硬技能要求，但当前已确认技能和经历中没有对应证据。",
-        )
     return _result(
         requirement,
         status=RequirementFitStatus.CONDITIONAL,
-        reason="当前没有对应的已确认技能证据，但这不是岗位硬门槛，不因此直接淘汰。",
+        reason="当前没有对应的已确认技能证据，不能据此认定你不会该技能；请补充真实证据或进一步核实。",
     )
 
 
@@ -216,7 +210,7 @@ def _evaluate_experience(
                 "不能用总工作年限代替。"
             ),
         )
-    return _unknown_or_missing(
+    return _unknown(
         requirement,
         "这是专项经验要求；当前已确认经历里没有足够证据，且不能用总工作年限代替专项年限。",
     )
@@ -228,7 +222,7 @@ def _evaluate_education(
 ) -> RequirementEligibilityResult:
     required_degree = _required_degree(requirement.original_text)
     if required_degree is None:
-        return _unknown_or_missing(requirement, "当前资料不足以可靠判断这条学历/专业要求。")
+        return _unknown(requirement, "当前资料不足以可靠判断这条学历/专业要求。")
 
     education = [item for item in profile.evidence if item.type.value == "education"]
     degree_matching_ids: list[str] = []
@@ -261,20 +255,16 @@ def _evaluate_education(
                 "当前教育证据没有直接证明该限定。"
             ),
         )
-    return _unknown_or_missing(requirement, f"当前已确认教育经历没有“{required_degree}及以上”的直接证据。")
+    return _unknown(requirement, f"当前已确认教育经历没有“{required_degree}及以上”的直接证据。")
 
 
-def _unknown_or_missing(
+def _unknown(
     requirement: JobRequirementDetail,
     reason: str,
 ) -> RequirementEligibilityResult:
     return _result(
         requirement,
-        status=(
-            RequirementFitStatus.MISSING
-            if requirement.importance is RequirementImportance.MUST_HAVE
-            else RequirementFitStatus.CONDITIONAL
-        ),
+        status=RequirementFitStatus.CONDITIONAL,
         reason=reason,
     )
 

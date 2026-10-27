@@ -1,0 +1,841 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/career-agent-analysis-result.schema.json",
+  "$defs": {
+    "AnalysisJobBindingResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "extractionId": {
+          "title": "Extractionid",
+          "type": "string"
+        },
+        "matchReportId": {
+          "title": "Matchreportid",
+          "type": "string"
+        },
+        "policyVersion": {
+          "title": "Policyversion",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "company": {
+          "title": "Company",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "extractionId",
+        "matchReportId",
+        "policyVersion",
+        "title",
+        "company"
+      ],
+      "title": "AnalysisJobBindingResponse",
+      "type": "object"
+    },
+    "ExperiencePriorityItemResponse": {
+      "properties": {
+        "evidenceId": {
+          "title": "Evidenceid",
+          "type": "string"
+        },
+        "evidenceType": {
+          "title": "Evidencetype",
+          "type": "string"
+        },
+        "supportingRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supportingrequirementids",
+          "type": "array"
+        },
+        "matchedCapabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matchedcapabilities",
+          "type": "array"
+        },
+        "mustHaveCount": {
+          "title": "Musthavecount",
+          "type": "integer"
+        },
+        "requirementCount": {
+          "title": "Requirementcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evidenceId",
+        "evidenceType",
+        "supportingRequirementIds",
+        "matchedCapabilities",
+        "mustHaveCount",
+        "requirementCount"
+      ],
+      "title": "ExperiencePriorityItemResponse",
+      "type": "object"
+    },
+    "ExperiencePriorityResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ExperiencePriorityItemResponse"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ExperiencePriorityResponse",
+      "type": "object"
+    },
+    "InterviewFactItemResponse": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "requirementType": {
+          "title": "Requirementtype",
+          "type": "string"
+        },
+        "requirementText": {
+          "title": "Requirementtext",
+          "type": "string"
+        },
+        "importance": {
+          "title": "Importance",
+          "type": "string"
+        },
+        "normalizedCapability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Normalizedcapability"
+        },
+        "preparationPriority": {
+          "title": "Preparationpriority",
+          "type": "string"
+        },
+        "evidenceStatus": {
+          "title": "Evidencestatus",
+          "type": "string"
+        },
+        "profileSkillIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Profileskillids",
+          "type": "array"
+        },
+        "evidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidenceids",
+          "type": "array"
+        },
+        "evidenceSummaries": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidencesummaries",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirementId",
+        "requirementType",
+        "requirementText",
+        "importance",
+        "normalizedCapability",
+        "preparationPriority",
+        "evidenceStatus",
+        "profileSkillIds",
+        "evidenceIds",
+        "evidenceSummaries"
+      ],
+      "title": "InterviewFactItemResponse",
+      "type": "object"
+    },
+    "InterviewFactsResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/InterviewFactItemResponse"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "InterviewFactsResponse",
+      "type": "object"
+    },
+    "JobPreparationResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "factsUsable": {
+          "title": "Factsusable",
+          "type": "boolean"
+        },
+        "profileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profileid"
+        },
+        "profileVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profileversion"
+        },
+        "extractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Extractionid"
+        },
+        "resumeDelta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResumeDeltaResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "experiencePriority": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExperiencePriorityResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storyFacts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoryFactsResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interviewFacts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InterviewFactsResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "studyChecklist": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyChecklistResponse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        },
+        "dbWrites": {
+          "title": "Dbwrites",
+          "type": "integer"
+        },
+        "providerCalls": {
+          "title": "Providercalls",
+          "type": "integer"
+        },
+        "traceRunsCreated": {
+          "title": "Tracerunscreated",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "jobId",
+        "factsUsable",
+        "profileId",
+        "profileVersion",
+        "extractionId",
+        "resumeDelta",
+        "experiencePriority",
+        "storyFacts",
+        "interviewFacts",
+        "studyChecklist",
+        "blockers",
+        "dbWrites",
+        "providerCalls",
+        "traceRunsCreated"
+      ],
+      "title": "JobPreparationResponse",
+      "type": "object"
+    },
+    "ResumeDeltaGapResponse": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "capability": {
+          "title": "Capability",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "profileSkillIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Profileskillids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirementId",
+        "capability",
+        "status",
+        "profileSkillIds"
+      ],
+      "title": "ResumeDeltaGapResponse",
+      "type": "object"
+    },
+    "ResumeDeltaHighlightResponse": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "capability": {
+          "title": "Capability",
+          "type": "string"
+        },
+        "profileSkillIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Profileskillids",
+          "type": "array"
+        },
+        "evidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidenceids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirementId",
+        "capability",
+        "profileSkillIds",
+        "evidenceIds"
+      ],
+      "title": "ResumeDeltaHighlightResponse",
+      "type": "object"
+    },
+    "ResumeDeltaResponse": {
+      "properties": {
+        "highlights": {
+          "items": {
+            "$ref": "#/$defs/ResumeDeltaHighlightResponse"
+          },
+          "title": "Highlights",
+          "type": "array"
+        },
+        "evidenceGaps": {
+          "items": {
+            "$ref": "#/$defs/ResumeDeltaGapResponse"
+          },
+          "title": "Evidencegaps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "highlights",
+        "evidenceGaps"
+      ],
+      "title": "ResumeDeltaResponse",
+      "type": "object"
+    },
+    "StoryFactItemResponse": {
+      "properties": {
+        "evidenceId": {
+          "title": "Evidenceid",
+          "type": "string"
+        },
+        "evidenceType": {
+          "title": "Evidencetype",
+          "type": "string"
+        },
+        "evidenceSummary": {
+          "title": "Evidencesummary",
+          "type": "string"
+        },
+        "supportingRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supportingrequirementids",
+          "type": "array"
+        },
+        "supportingRequirementTexts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supportingrequirementtexts",
+          "type": "array"
+        },
+        "matchedCapabilities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matchedcapabilities",
+          "type": "array"
+        },
+        "mustHaveCount": {
+          "title": "Musthavecount",
+          "type": "integer"
+        },
+        "requirementCount": {
+          "title": "Requirementcount",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evidenceId",
+        "evidenceType",
+        "evidenceSummary",
+        "supportingRequirementIds",
+        "supportingRequirementTexts",
+        "matchedCapabilities",
+        "mustHaveCount",
+        "requirementCount"
+      ],
+      "title": "StoryFactItemResponse",
+      "type": "object"
+    },
+    "StoryFactsResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/StoryFactItemResponse"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "StoryFactsResponse",
+      "type": "object"
+    },
+    "StudyChecklistItemResponse": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "requirementText": {
+          "title": "Requirementtext",
+          "type": "string"
+        },
+        "capability": {
+          "title": "Capability",
+          "type": "string"
+        },
+        "importance": {
+          "title": "Importance",
+          "type": "string"
+        },
+        "evidenceStatus": {
+          "title": "Evidencestatus",
+          "type": "string"
+        },
+        "need": {
+          "title": "Need",
+          "type": "string"
+        },
+        "profileSkillIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Profileskillids",
+          "type": "array"
+        },
+        "completionCriteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Completioncriteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirementId",
+        "requirementText",
+        "capability",
+        "importance",
+        "evidenceStatus",
+        "need",
+        "profileSkillIds",
+        "completionCriteria"
+      ],
+      "title": "StudyChecklistItemResponse",
+      "type": "object"
+    },
+    "StudyChecklistResponse": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/StudyChecklistItemResponse"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "StudyChecklistResponse",
+      "type": "object"
+    },
+    "TargetCohortGapItemResponse": {
+      "properties": {
+        "capability": {
+          "title": "Capability",
+          "type": "string"
+        },
+        "priority": {
+          "title": "Priority",
+          "type": "string"
+        },
+        "whyImportant": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Whyimportant",
+          "type": "object"
+        },
+        "supportingRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supportingrequirementids",
+          "type": "array"
+        },
+        "supportingJobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supportingjobids",
+          "type": "array"
+        },
+        "profileSkillIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Profileskillids",
+          "type": "array"
+        },
+        "evidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidenceids",
+          "type": "array"
+        },
+        "currentState": {
+          "title": "Currentstate",
+          "type": "string"
+        },
+        "completionCriteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Completioncriteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "capability",
+        "priority",
+        "whyImportant",
+        "supportingRequirementIds",
+        "supportingJobIds",
+        "profileSkillIds",
+        "evidenceIds",
+        "currentState",
+        "completionCriteria"
+      ],
+      "title": "TargetCohortGapItemResponse",
+      "type": "object"
+    },
+    "TargetCohortGapResponse": {
+      "properties": {
+        "cohortId": {
+          "title": "Cohortid",
+          "type": "string"
+        },
+        "jobIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Jobids",
+          "type": "array"
+        },
+        "factsUsable": {
+          "title": "Factsusable",
+          "type": "boolean"
+        },
+        "profileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profileid"
+        },
+        "profileVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profileversion"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/TargetCohortGapItemResponse"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "blockers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockers",
+          "type": "array"
+        },
+        "dbWrites": {
+          "title": "Dbwrites",
+          "type": "integer"
+        },
+        "providerCalls": {
+          "title": "Providercalls",
+          "type": "integer"
+        },
+        "traceRunsCreated": {
+          "title": "Tracerunscreated",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cohortId",
+        "jobIds",
+        "factsUsable",
+        "profileId",
+        "profileVersion",
+        "items",
+        "blockers",
+        "dbWrites",
+        "providerCalls",
+        "traceRunsCreated"
+      ],
+      "title": "TargetCohortGapResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "resultId": {
+      "title": "Resultid",
+      "type": "string"
+    },
+    "threadId": {
+      "title": "Threadid",
+      "type": "string"
+    },
+    "runId": {
+      "title": "Runid",
+      "type": "string"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "profileId": {
+      "title": "Profileid",
+      "type": "string"
+    },
+    "profileVersion": {
+      "title": "Profileversion",
+      "type": "integer"
+    },
+    "searchIntentId": {
+      "title": "Searchintentid",
+      "type": "string"
+    },
+    "searchIntentVersion": {
+      "title": "Searchintentversion",
+      "type": "integer"
+    },
+    "selectedJobIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Selectedjobids",
+      "type": "array"
+    },
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/AnalysisJobBindingResponse"
+      },
+      "title": "Bindings",
+      "type": "array"
+    },
+    "gaps": {
+      "$ref": "#/$defs/TargetCohortGapResponse"
+    },
+    "preparations": {
+      "items": {
+        "$ref": "#/$defs/JobPreparationResponse"
+      },
+      "title": "Preparations",
+      "type": "array"
+    },
+    "isCurrent": {
+      "title": "Iscurrent",
+      "type": "boolean"
+    },
+    "staleReasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Stalereasons",
+      "type": "array"
+    },
+    "updateSourceThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updatesourcethreadid"
+    },
+    "updateSourceResultId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updatesourceresultid"
+    },
+    "updatePartial": {
+      "default": false,
+      "title": "Updatepartial",
+      "type": "boolean"
+    },
+    "unanalysedJobIds": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Unanalysedjobids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "resultId",
+    "threadId",
+    "runId",
+    "createdAt",
+    "profileId",
+    "profileVersion",
+    "searchIntentId",
+    "searchIntentVersion",
+    "selectedJobIds",
+    "bindings",
+    "gaps",
+    "preparations",
+    "isCurrent",
+    "staleReasons"
+  ],
+  "title": "SavedCareerAnalysisResponse",
+  "type": "object"
+}

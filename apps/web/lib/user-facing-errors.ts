@@ -1,7 +1,11 @@
 import type {ApiErrorBody} from "@/lib/contracts";
 
 const messages: Record<string, string> = {
+  backend_unavailable: "暂时无法连接分析服务。原请求已保留；请恢复服务后先查看请求状态，再重试原请求。",
   request_validation_error: "有些填写内容格式不正确，请检查必填项后重试。",
+  career_agent_storage_not_ready: "运行数据库尚未准备好，请先检查就绪状态，并在副本验证数据库升级。历史文件不需要删除。",
+  career_agent_save_failed: "本次分析结果未能保存，相关状态已回滚。请先重新查看状态，再点击继续分析，不要重复提交决定。",
+  career_agent_state_conflict: "本次运行已被其他请求更新。请重新读取运行状态，再决定下一步，不要重复启动分析。",
   context_version_conflict: "这份信息刚刚发生了更新。请刷新页面，确认最新内容后再保存。",
   invalid_career_context: "有些背景或求职偏好还不完整，请检查页面提示后再保存。",
   invalid_collector_report: "这个岗位文件格式不正确，请重新从 JobLens 浏览器插件导出。",

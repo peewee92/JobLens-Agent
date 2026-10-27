@@ -29,6 +29,8 @@ class ApplicationWorkspaceORM(Base):
     requirement_extraction_id: Mapped[str] = mapped_column(String(100), nullable=False)
     match_report_id: Mapped[str] = mapped_column(String(100), nullable=False)
     current_fact_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    current_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
 
@@ -72,6 +74,8 @@ class ExecutionActionItemORM(Base):
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    source_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 class EvidenceProposalORM(Base):
@@ -99,6 +103,14 @@ class EvidenceProposalORM(Base):
     confirmed_profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     confirmed_profile_version: Mapped[int | None] = mapped_column(nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    source_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_requirement_extraction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmation_base_profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmation_base_profile_version: Mapped[int | None] = mapped_column(nullable=True)
+    origin_proposal_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    command_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
 
 
 class ApplicationTimelineEventORM(Base):
@@ -117,4 +129,17 @@ class ApplicationTimelineEventORM(Base):
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     from_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     to_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+
+class AnalysisExecutionReceiptORM(Base):
+    """A business command receipt, not another Agent run/progress state."""
+    __tablename__ = "analysis_execution_receipts"
+    __table_args__ = (UniqueConstraint("actor_id", "command_id", name="uq_analysis_execution_actor_command"),)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    command_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    command_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    response: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)

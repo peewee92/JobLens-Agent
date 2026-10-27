@@ -2,12 +2,16 @@
 from __future__ import annotations
 
 import logging
+from uuid import uuid4
+from app.application.application_workspace.transaction import WorkspacePersistenceError
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1.schemas import ApiError, ApiErrorResponse
+from app.api.v1.schemas.application_workspace import WorkspaceCommandErrorResponse
+from app.agent.graph.checkpoint_port import CheckpointNotReadyError, CheckpointConflictError, CheckpointPersistenceError
 from app.application.career_context import (
     ContextVersionConflictError,
     InvalidCareerContextError,
@@ -99,6 +103,27 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register protocol-level mappings without leaking HTTP into Application."""
+    @app.exception_handler(CheckpointNotReadyError)
+    async def handle_runtime_schema_not_ready(_request: Request, error: CheckpointNotReadyError) -> JSONResponse:
+        return _error_response(503, "career_agent_storage_not_ready", str(error))
+
+    @app.exception_handler(WorkspacePersistenceError)
+    async def handle_workspace_save_failure(_request: Request, error: WorkspacePersistenceError) -> JSONResponse:
+        correlation_id = f"workspace-{uuid4().hex}"
+        logger.warning("workspace transaction result unconfirmed correlation_id=%s", correlation_id)
+        body = WorkspaceCommandErrorResponse(error={
+            "code": "workspace_transaction_save_failed",
+            "message": "本次保存结果尚未确认。请刷新查看原记录后使用原操作重试；不会自动确认新的职业事实。",
+            "retryable": True, "repairAction": "reload_then_retry_original", "correlationId": correlation_id})
+        return JSONResponse(status_code=503, content=body.model_dump(by_alias=True))
+
+    @app.exception_handler(CheckpointPersistenceError)
+    async def handle_runtime_save_failure(_request: Request, error: CheckpointPersistenceError) -> JSONResponse:
+        return _error_response(503, "career_agent_save_failed", str(error))
+
+    @app.exception_handler(CheckpointConflictError)
+    async def handle_runtime_conflict(_request: Request, error: CheckpointConflictError) -> JSONResponse:
+        return _error_response(409, "career_agent_state_conflict", str(error))
 
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation_error(

@@ -30,7 +30,10 @@ from app.api.v1.requirement_reviews import router as requirement_reviews_router
 from app.api.v1.target_cohort_gaps import router as target_cohort_gaps_router
 from app.api.v1.user_feedback import router as user_feedback_router
 
+from app.api.v1.workbench import router as workbench_router
+
 api_router = APIRouter()
+api_router.include_router(workbench_router, tags=["workbench"])
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(application_workspaces_router, tags=["application-workspaces"])
 api_router.include_router(career_agent_router, tags=["career-agent"])
