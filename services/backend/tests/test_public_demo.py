@@ -147,7 +147,7 @@ def test_public_entrypoint_bootstraps_without_opening_configured_private_db(tmp_
            'REQUIREMENT_EXTRACTOR_PROVIDER': 'openai', 'JOBLENS_DEMO_PROXY_SECRET': SECRET,
            'JOBLENS_DEMO_FRONTEND_ORIGIN': ORIGIN}
     with (tmp_path/'startup.log').open('w+') as log:
-        process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.demo.public_main:app', '--host', '127.0.0.1', '--port', str(port), '--no-access-log'], env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.demo.public_main:app', '--host', '127.0.0.1', '--port', str(port), '--no-access-log'], env=env, cwd=Path(__file__).parents[1], stdout=log, stderr=log)
         try:
             with httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False) as c:
                 for _ in range(100):
