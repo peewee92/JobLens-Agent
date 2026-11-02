@@ -60,3 +60,6 @@ docs/dev-journal/
 *.db-shm
 *.sqlite-wal
 *.sqlite-shm
+
+# Local deployment linkage and downloaded environment.
+.vercel/

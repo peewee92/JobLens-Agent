@@ -1,4 +1,5 @@
 import "server-only";
+import {forwardBackendResponse} from "@/lib/proxy-response";
 import {cookies} from "next/headers";
 import {DEMO_COOKIE, demoBackendHeaders, publicDemoEnabled} from "@/lib/public-demo";
 import {isSystemReadiness, type SystemReadiness} from "@/lib/system-readiness";
@@ -110,7 +111,7 @@ export async function backendResponse(
 /** Preserve actionable transport errors at same-origin recovery endpoints. */
 export async function backendProxyResponse(path: string, init?: RequestInit): Promise<Response> {
   try {
-    return await backendResponse(path, init);
+    return forwardBackendResponse(await backendResponse(path, init));
   } catch (error) {
     if (!(error instanceof BackendApiError)) throw error;
     return new Response(JSON.stringify({error: {code: error.code, message: error.message}}), {

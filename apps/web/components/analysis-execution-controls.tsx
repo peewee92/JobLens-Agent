@@ -3,7 +3,7 @@
 import Link from "next/link";
 import React, {useEffect, useState} from "react";
 import type {AnalysisExecutionResult} from "@/lib/contracts";
-import {readPendingExecution, clearPendingExecution, sendAnalysisExecution, isTerminalStaleExecution, type PendingAnalysisExecution} from "@/lib/analysis-execution";
+import {readPendingExecution, clearPendingExecution, sendAnalysisExecution, isTerminalStaleExecution, readExecutionResponse, type PendingAnalysisExecution} from "@/lib/analysis-execution";
 
 export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent, jobLabels = {}, isUpdate = false}: {
   threadId: string; resultId: string; jobIds: string[]; isCurrent: boolean; jobLabels?: Record<string, string>; isUpdate?: boolean;
@@ -21,7 +21,7 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
       if (!response.ok) throw new Error("暂时无法读取已保存工作区，请确认连接后再查看。");
       const body = await response.json() as {execution: AnalysisExecutionResult | null};
       setExecution(body.execution);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "读取工作区失败。"); }
+    } catch (caught) { setError(caught instanceof TypeError || caught instanceof SyntaxError ? "暂时无法读取工作区，请确认连接后再查看。" : caught instanceof Error ? caught.message : "读取工作区失败。"); }
   }
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
     setPending(command);
     try {
       const response = await sendAnalysisExecution(window.localStorage, command);
-      const body = await response.json();
+      const body = await readExecutionResponse(response) as AnalysisExecutionResult & {error?: {message?: string}};
       if (!response.ok) {
         if (isTerminalStaleExecution(response.status, body, command)) {
           clearPendingExecution(window.localStorage, command);
@@ -59,7 +59,7 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
       setExecution(body as AnalysisExecutionResult);
       await load();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "执行结果尚未确认。请先查看工作区，再重试原请求。");
+      setError(caught instanceof TypeError ? "连接中断，保存结果尚未确认。请先查看工作区，再重试原请求。" : caught instanceof Error ? caught.message : "执行结果尚未确认。请先查看工作区，再重试原请求。");
     } finally { setBusy(false); }
   }
 

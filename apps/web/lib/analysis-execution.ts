@@ -53,3 +53,9 @@ export function isTerminalStaleExecution(status: number, body: unknown, command:
   return error?.code === "analysis_execution_facts_stale" && error.retryable === false
     && error.correlationId === command.body.commandId;
 }
+
+/** A gateway HTML page is not a confirmed write result; retain the request identity. */
+export async function readExecutionResponse(response: Response): Promise<unknown> {
+  try { return await response.json(); }
+  catch { throw new Error("暂时无法确认保存结果。请先查看已保存工作区，再重试原请求；不会自动重复创建。"); }
+}
