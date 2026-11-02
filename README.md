@@ -7,13 +7,17 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 [![CI](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-![本地合成演示的实际工作台截图](docs/assets/workbench-synthetic-demo.png)
+**[在线体验：三个岗位，先准备哪个？](https://joblens-public-demo.vercel.app/demo)** · [操作录屏与预发布版本](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)
+
+![线上合成演示：开始行动并刷新后仍保留进度](docs/assets/public-demo-live-workspace.png)
 
 *实际运行截图，使用公开合成样本；不是生成的界面设计图或真实求职结论。*
 
 ## 公开演示交付状态
 
-公开部署配置已提供，**线上地址尚未发布／验收**，不提供占位链接冒充可用入口。
+**已发布 Vercel＋Render 免费合成演示**，不需要登录或私人简历，不调用在线模型。已验证比较 → 确认 → 建立工作区 → 开始行动 → 刷新保留。免费后端会休眠，唤醒失败时请稍后手动重试；进度在会话到期或重启后重置。
+
+访问验证使用本机已有代理；**尚未通过两个国内普通网络验收，不承诺国内直连稳定**。真实模型小样本提取报告与在线演示分开，[查看五个岗位的真实模型结果与失败点](docs/release/REAL-MODEL-RESULTS.md)。录屏约 39 秒，无配音，不是完整三分钟介绍视频。
 
 - [免费部署与回滚步骤](docs/release/DEPLOY.md)：Vercel 网页＋Render 单进程后端，独立临时合成会话，禁止在线模型与私人上传。
 - [真实模型与用户验收](docs/release/QUALITY-AND-USER-STUDY.md)：真实效果与合成演示分开；三人试用仍待执行。
