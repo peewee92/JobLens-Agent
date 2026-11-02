@@ -1,6 +1,6 @@
 # 免费公开演示部署
 
-当前交付的是部署配置，不代表线上已发布。主方案：Vercel Hobby + Render Free + 临时 SQLite。
+Render 免费后端已部署并完成五访客接口验证；Vercel 网页尚未发布，不能作为完整线上体验交付。当前证据见 [交付状态](STATUS.md)。主方案：Vercel Hobby + Render Free + 临时 SQLite。
 
 ## 1. 发布前检查
 
