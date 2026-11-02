@@ -175,7 +175,8 @@ def test_runner_drives_real_approve_handlers_and_duplicate_resume(tmp_path) -> N
     assert case.snapshot.state.status is CareerAgentStatus.COMPLETED
     assert case.snapshot.visited_nodes == case.expected_nodes
     assert case.snapshot.state.provider_call_count == 0
-    assert case.snapshot.business_state_writes == 0
+    assert case.snapshot.business_state_writes is None
+    assert case.snapshot.observed_provider_calls is None
     assert gaps.calls == 1
 
 

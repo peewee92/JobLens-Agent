@@ -9,18 +9,27 @@ Layout:
 
 Schemas:
 
+- `semantic-call-command.schema.json` / `semantic-call-plan.schema.json` / `semantic-call-record.schema.json` — 单岗位语义匹配逐次授权。`GET /jobs/{id}/semantic-call-plan` 只读显示待判断要求、候选经历摘要、绑定的资料/意向/提取版本与最近请求；`executionMode=offline` 仅用于已配置的离线替身，其他需模型情形先检查 `available` 再明确授权。`POST /jobs/{id}/semantic-calls` 默认预算零，要求 `confirmed=true`、`maxProviderCalls=1`、当前摘要与 `actionId`；查询 `/semantic-calls/{actionId}` 不启动执行。复用提取请求的短事务领取、单次 HTTP 记录、幂等与不确定结果确认机制，不放开旧匹配接口的真实模型调用。模型只接收岗位要求和候选经历，不读原始 JD 或完整简历；冻结输入序列化最多 12000 字符，最多 50 项要求、4096 输出 token、各网络阶段超时最多 60 秒，无重试、重定向或备用模型。模型外执行结束后，在短事务内复查当前资料/意向/岗位要求与有效性，报告和完成状态一并提交；用量记录独立保留，结果无效或保存失败不伪报成功。`reportId` 指向可重开的历史报告，不覆盖旧报告。
+- `requirement-call-command.schema.json` / `requirement-call-plan.schema.json` / `requirement-call-record.schema.json` — 单岗位逐次授权：`GET /jobs/{id}/requirement-call-plan` 只读展示输入摘要、模型、一次请求上限、输出上限和最近记录；`POST /jobs/{id}/requirement-calls` 要求 `confirmed=true`、`maxProviderCalls=1`、当前 `planDigest` 与持久化 `actionId`。默认预算为零，同标识同内容不重复执行，不同内容冲突；`GET /jobs/{id}/requirement-calls/{actionId}` 只查询。网络超时或进程中断超过两分钟显示 `uncertain`，新调用必须明确带 `acknowledgedPriorRequestId`；迟到执行者不能覆盖新决定。最多 12000 字符输入、4096 输出 token、每项网络超时最多 60 秒；无自动重试、重定向或备用模型。`attempts` 在发送前持久记录，表示可能已发送的尝试，不保证服务商收到或已计费；未知 token 为 null，不推算金额。提取结果和请求完成状态同事务保存，现有 Trace/事实检查继续生效。旧提取 HTTP 入口仍禁止在线模型，不因旧 `confirmLiveCost=true` 放行。
+
+- `manual-job-input.schema.json` / `manual-job-import-response.schema.json` — `POST /api/v1/job-imports/manual`：名称、公司、完整描述和可选 HTTP(S) 来源链接；使用原有导入事务，返回 `jobId` 供页面直达。`source=manual`，无链接时公开 `sourceUrl` 为空字符串、内部规范化 URL 为 NULL；不伪造招聘来源，不调用模型。相同无链接内容复用岗位，内容不同另存；有链接时按规范化链接更新，原文保存在逐次导入记录中。
+
+- `match-report-history.schema.json` — 历史匹配报告与当前性；`job_description_changed` 表示岗位描述已不同于提取时输入，`job_description_unavailable` 表示无法核实描述或原分析依据；旧报告均不可用于当前排序
+
 - `system-readiness.schema.json` — 只读运行就绪检查；连接、迁移版本及所需表全部通过时 HTTP 200，否则 503；不自动迁移，不调用模型
 
 - `user-profile.schema.json` — 已确认的版本化职业画像；每个 Skill 至少关联一个 Evidence ID，偏好不再重复内嵌
 - `profile-extraction-proposal.schema.json` — 简历文本生成的待确认 Profile Proposal，包含 evidenceSpan 与 run/model/prompt 版本，不代表 confirmed fact
 - `profile-eval-run-detail.schema.json` — 不可变 Profile Eval Run 详情；记录 dataset/provider/model/prompt/gate 版本、聚合指标、逐案例失败与 Trace 引用，不包含简历文本
 - `job.schema.json` — 标准化 Job 读模型；`id` 为 JobLens internal ID，包含三态远程信息和 JD 质量门禁；`sourceRaw` 由 Backend 的 JobSource 持久化，不进入普通 Job Contract
+- `job-user-availability-request.schema.json` / `job-user-availability.schema.json` — 用户主动标记岗位失效或恢复的请求和响应；不是招聘网站实时状态。写入使用 `userMarkedInactive` 和 `expectedRevision`，修订不匹配返回冲突。
 - `collector-requirement-review-dataset.schema.json` — Collector v1.4.6 导出的 Requirement 人工质量验收数据集；只包含具备岗位职责/任职条件证据、无页面噪声、无招聘者尾部且经过近重复去重的 `full_jd` 岗位，20 条独立样本齐备才标记 `ready`
 - `job-page.schema.json` — Job Pool 分页响应，包含 `total / limit / offset / items`
 - `job-import-detail.schema.json` — 单次导入审计详情，包含批次统计、快照、candidateSummary 和逐条 outcome；错误 raw / candidateRaw 不进入公开契约
 - `search-intent.schema.json` — 独立版本化求职意向，区分 hardConstraints 与 softPreferences
 - `job-requirement.schema.json` — 单条 evidence-grounded JobRequirement；包含 Extraction ID、原文、归一化能力、importance、evidenceSpan、confidence 与 extractorVersion
 - `job-requirement-extraction.schema.json` — 不可变 Requirement Extraction Run；记录 Job/input hash/provider/model/prompt/Trace 与逐条 Requirements，作为 Match/Gap/Prepare 统一事实来源
+- `job-requirement-confirmation-request.schema.json` / `job-requirement-confirmation-response.schema.json` — `POST /api/v1/jobs/{jobId}/requirement-confirmations`，用户明确核对当前岗位的一版要求。请求绑定 `extractionId`、`inputHash`、`factsDigest`、`actionId` 和 `confirmed=true`；同标识同内容重放、不同内容冲突。服务端在短事务内核对最新事实和轨迹完整性。仅个人匹配路径接受该确认，正式 `requirement-release-readiness` 仍执行整体质量评审；不创建正式评审结论，不调用模型。提取响应新增 `factsDigest`；个人输入就绪响应的 `userConfirmationId`、`requirementFactsDigest` 说明确认范围，不代表模型质量通过。
 - `evidence-retrieval.schema.json` — Phase 4 只读候选证据检索结果；区分 `direct / related` 与检索依据，只返回已确认 Profile Evidence，不包含 `matched/status` 等 Match verdict 字段
 - `semantic-match.schema.json` — Phase 4 Semantic Match 暂态结果；保留 deterministic `eligibility / eligibilityStatus`，另行输出 `matched / partial / not_matched` 语义判断，Provider 无权输出或升级 Eligibility、推荐等级或分数；当前 promptVersion 为 `semantic-match-v3`，在 v2 的 transferable-capability 校准上进一步约束“表面流程相似 ≠ shared core mechanism”
 - `semantic-match-eval-case.schema.json` — Match Eval JSONL 单案例契约；人工标注 expected verdict / evidence IDs，并显式携带冻结 Eligibility 与 Candidate Evidence
@@ -28,6 +37,8 @@ Schemas:
 - `user-feedback.schema.json` — 用户对推荐的人类反馈；必须绑定 immutable `matchReportId`，decision 为 `interested / maybe / rejected`，reasons 使用稳定枚举，`rejected` 至少一个 reason，`other` 必须附 note
 - `job-target.schema.json` — 目标岗位集，v0.2 演进为 TargetCohort
 - `match-report.schema.json` — Phase 4 persisted MatchReport snapshot；组合 immutable Eligibility 与 Semantic Match，Backend policy 输出 `strong / good / stretch / low / blocked`，包含可追溯 strengths/risks/requirementResults/evidenceLinks，不包含百分制匹配概率；runtime 成功时 `dbWrites=1`
+- `batch-match-ranking.schema.json` — 当前只读批量排序响应；每项 `targetCandidate` 由与目标确认相同的后端规则计算，表示可提出目标建议，并非承诺最终获选，也不是能力评价。
+- `ranking-preflight.schema.json` — 只读分析前检查；列出可排序报告及每个未参与岗位的原因和过期原因码。检查是当前快照，不执行模型或写入。
 - `skill-gap.schema.json` — 能力差距；v0.2，P1 增强优先级字段
 
 领域关系见 `docs/architecture/DOMAIN-MODEL.md`。
@@ -120,3 +131,11 @@ Schemas:
 ### 保存结果比较（5C-2）
 
 `analysis-comparison.schema.json` 对应只读 `GET /career-agent/runs/{threadId}/comparison`：来源结果、固定范围/版本、推荐及证据覆盖变化、逐要求理由/引用、偏好判断、目标增减和可比较排序。`signal` 为保存判断的变化，不是能力评分；要求或策略不同使用 `not_comparable`，归档缺失/未完成使用 `unavailable`，不可比时 `rankChange=null`。没有调用次数常量或隐式执行。`career-agent-analysis-result.schema.json` 增加可空来源运行/结果标识，旧运行为空。Python 模式逐项同步，TypeScript/实际浏览器消费。
+
+- `schemas/workbench-workspace-page.schema.json`：工作台历史工作区只读分页。
+
+### 公开临时演示会话
+
+`demo-session.schema.json` 是后端给网页服务端的创建／重置回执；令牌不可返回浏览器脚本。`POST /api/v1/demo/session` 创建，`GET` 验证状态，`DELETE` 显式重置并签发新令牌。需要服务间代理凭证；写操作需要固定前端 Origin。浏览器只收到 `{active:true}` 和安全 Cookie。
+
+默认 30 分钟闲置／两小时最长生命周期／20 个同时会话；过期 410、频繁请求 429、容量已满 503、来源与未开放路由 403、无代理凭证 401。服务重启令牌失效；业务契约不变，不承诺临时数据持久保存。

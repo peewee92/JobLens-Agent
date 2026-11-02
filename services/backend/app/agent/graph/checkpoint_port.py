@@ -25,7 +25,7 @@ def next_revision(previous: CareerAgentState | None, candidate: CareerAgentState
             raise CheckpointConflictError("旧运行仅供查看，请重新分析")
         frozen = ("thread_id", "run_id", "request_id", "goal", "profile_id", "profile_version",
                   "search_intent_id", "search_intent_version", "requested_job_ids", "start_command_digest", "requested_top_n",
-                  "update_source_thread_id", "update_source_result_id", "update_scope", "update_input_digest", "update_report_ids", "update_policy_version")
+                  "update_legacy_workspace_id", "update_source_thread_id", "update_source_result_id", "update_scope", "update_input_digest", "update_report_ids", "update_policy_version")
         if any(getattr(previous, key) != getattr(candidate, key) for key in frozen):
             raise CheckpointConflictError("不能更改已有运行的身份或事实版本")
         if previous.update_steps:

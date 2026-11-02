@@ -68,7 +68,7 @@ test("application workspace can create and advance real execution actions", () =
   assert.match(statusProxy, /actions\/\$\{encodeURIComponent\(actionId\)\}\/status/);
 });
 
-test("application workspace confirms facts and prefers scoped update while keeping legacy rematch explicit", () => {
+test("application workspace confirms facts and routes legacy workspaces to a new analysis", () => {
   const page = source("app/applications/[id]/page.tsx");
   const controls = source("components/application-evidence-controls.tsx");
   const createProxy = source("app/api/application-workspaces/[id]/actions/[actionId]/evidence-proposals/route.ts");
@@ -78,8 +78,8 @@ test("application workspace confirms facts and prefers scoped update while keepi
   assert.match(page, /ApplicationEvidenceControls/);
   assert.match(controls, /完成准备行动不会自动升级能力/);
   assert.match(controls, /确认这是真实职业事实/);
-  assert.match(controls, /仅重新匹配此岗位（旧入口，不调用模型）/);
-  assert.match(controls, /web-rematch-\$\{proposal\.proposalId\}/);
+  assert.match(controls, /核对该岗位并准备新分析/);
+  assert.doesNotMatch(controls, /web-rematch-\$\{proposal\.proposalId\}/);
   assert.match(createProxy, /evidence-proposals/);
   assert.match(confirmProxy, /\/confirm/);
   assert.match(rematchProxy, /\/rematch/);

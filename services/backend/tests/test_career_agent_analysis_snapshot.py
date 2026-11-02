@@ -198,3 +198,26 @@ def test_shared_saved_result_schema_is_exact():
     from jsonschema import Draft202012Validator
     example = json.loads((Path(__file__).parents[3] / "packages/contracts/examples/career-agent-analysis-result.example.json").read_text())
     Draft202012Validator(schema).validate(example)
+
+
+def test_unranked_requested_jobs_are_explicit_after_confirmation_and_reopen(synthetic_api):
+    client, _, ids = synthetic_api
+    requested = [ids[0], "missing_synthetic_job"]
+    response = client.post("/api/v1/career-agent/runs", json={
+        "threadId":"partial_rank", "runId":"run_partial_rank", "requestId":"req_partial_rank",
+        "jobIds":requested, "topN":2})
+    assert response.status_code == 200, response.text
+    state = response.json()
+    assert state["status"] == "interrupted"
+    assert state["requestedJobIds"] == requested
+    assert state["rankedJobIds"] == [ids[0]]
+    assert len(state["rankedReportRefs"]) == 1
+    assert state["rankedReportRefs"][0]["jobId"] == ids[0]
+    report_id = state["rankedReportRefs"][0]["reportId"]
+    history = client.get(f"/api/v1/jobs/{ids[0]}/match-reports").json()
+    assert any(item["reportId"] == report_id for item in history["items"])
+    assert approve(client, state).json()["status"] == "completed"
+    result = client.get("/api/v1/career-agent/runs/partial_rank/result")
+    assert result.status_code == 200
+    assert result.json()["unrankedJobIds"] == ["missing_synthetic_job"]
+    assert client.get("/api/v1/career-agent/runs/partial_rank/result").json()["unrankedJobIds"] == ["missing_synthetic_job"]

@@ -33,3 +33,14 @@ test("current snapshot shows saved versions, not an invitation to rerun automati
 test("unknown reason stays understandable and does not expose raw server codes", () => {
   assert.equal(reportStaleReasonLabel("future-private-code"), "分析输入已变化，请核实后更新分析");
 });
+
+test("changed job description is explained as a requirement re-analysis", () => {
+  assert.match(reportStaleReasonLabel("job_description_changed"), /岗位描述已变化/);
+  assert.match(reportStaleReasonLabel("job_description_changed"), /重新分析岗位要求/);
+});
+
+test("unavailable job description is not called a confirmed change", () => {
+  const message = reportStaleReasonLabel("job_description_unavailable");
+  assert.match(message, /无法核实/);
+  assert.doesNotMatch(message, /已变化/);
+});

@@ -15,6 +15,7 @@ from app.application.profile_extraction import (
     ProfileExtractorFailedError,
     ProfileExtractorResult,
     ProfileExtractorUnavailableError,
+    ProfileModelAuthorizationRequiredError,
     ProposedEvidence,
     ProposedSkill,
 )
@@ -55,6 +56,13 @@ class DisabledProfileExtractor(AbstractProfileExtractor):
     def extract(self, resume_text: str) -> ProfileExtractorResult:
         raise ProfileExtractorUnavailableError(
             "Profile extractor is disabled. Configure PROFILE_EXTRACTOR_PROVIDER."
+        )
+
+
+class AuthorizationRequiredProfileExtractor(DisabledProfileExtractor):
+    def extract(self, resume_text: str) -> ProfileExtractorResult:
+        raise ProfileModelAuthorizationRequiredError(
+            "Live profile extraction requires per-request authorization and cost tracking."
         )
 
 

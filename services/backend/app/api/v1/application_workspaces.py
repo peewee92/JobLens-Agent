@@ -4,8 +4,17 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
+from app.agent.graph.checkpoint_port import CheckpointNotReadyError, CheckpointConflictError, CheckpointPersistenceError
+from app.application.analysis_update import AnalysisUpdatePlanError
+from app.api.v1.schemas.analysis_update import LegacyWorkspaceAnalysisPlanResponse, LegacyWorkspaceAnalysisStartRequest
+from app.api.v1.schemas.career_agent import CareerAgentRunStateResponse
+from app.agent.graph.hitl_service import LegacyWorkspaceRunRequest
+from fastapi.responses import JSONResponse
 
 from app.api.deps import (
+    get_analysis_update_plan_use_case,
+    get_career_agent_hitl_service,
     get_application_timeline_repository,
     get_application_workspace_overview_use_case,
     get_application_workspace_repository,
@@ -17,7 +26,6 @@ from app.api.deps import (
     get_create_evidence_proposal_use_case,
     get_confirm_evidence_proposal_use_case,
     get_interview_mock_question_set_use_case,
-    get_application_rematch_use_case,
     get_review_interview_mock_answer_use_case,
     get_resume_variant_proposal_use_case,
     get_resume_variant_repository,
@@ -51,7 +59,6 @@ from app.api.v1.schemas.application_workspace import (
 )
 from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
 from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase, EvidenceConfirmationAuditBlockedError
-from app.application.application_workspace.rematch import ApplicationRematchBlockedError, RunApplicationRematchUseCase
 from app.application.application_workspace.execution_action import (
     CreateStudyExecutionActionsUseCase,
     ExecutionActionBlockedError,
@@ -351,25 +358,50 @@ def confirm_evidence_proposal(
     return EvidenceProposalResponse.from_model(proposal)
 
 
-@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/rematch", response_model=ApplicationRematchResponse)
+@router.get("/{workspace_id}/analysis-plan", response_model=LegacyWorkspaceAnalysisPlanResponse)
+def get_legacy_workspace_analysis_plan(workspace_id: str, use_case=Depends(get_analysis_update_plan_use_case)):
+    try:
+        return LegacyWorkspaceAnalysisPlanResponse.from_result(
+            workspace_id, use_case.execute_legacy_workspace(workspace_id))
+    except AnalysisUpdatePlanError as exc:
+        code = status.HTTP_404_NOT_FOUND if str(exc) == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        raise CheckpointNotReadyError("分析预检无法读取数据库，请检查就绪状态；没有启动分析。") from exc
+
+
+@router.post("/{workspace_id}/analysis-runs", response_model=CareerAgentRunStateResponse)
+def start_legacy_workspace_analysis(workspace_id: str, payload: LegacyWorkspaceAnalysisStartRequest,
+                                    service=Depends(get_career_agent_hitl_service)):
+    try:
+        request = LegacyWorkspaceRunRequest(workspace_id=workspace_id, **payload.model_dump(by_alias=False))
+        return CareerAgentRunStateResponse.from_state(service.start_legacy_workspace(request))
+    except AnalysisUpdatePlanError:
+        return JSONResponse(status_code=409, content={"error": {"code": "analysis_update_source_unavailable",
+            "message": "工作区已关联分析或不可读取，请重新查看工作区。", "retryable": False,
+            "repairAction": "review_original", "correlationId": payload.request_id}})
+    except CheckpointConflictError as exc:
+        return JSONResponse(status_code=409, content={"error": {"code": "analysis_update_conflict", "message": str(exc),
+            "retryable": False, "repairAction": "review_run_or_preflight", "correlationId": payload.request_id}})
+    except (SQLAlchemyError, CheckpointPersistenceError):
+        return JSONResponse(status_code=503, content={"error": {"code": "analysis_update_save_uncertain",
+            "message": "分析状态未确认，请查看原运行或重试原请求，不要创建新请求。", "retryable": True,
+            "repairAction": "check_then_retry_original", "correlationId": payload.request_id}})
+
+
+@router.post(
+    "/{workspace_id}/evidence-proposals/{proposal_id}/rematch",
+    response_model=ApplicationRematchResponse,
+    responses={410: {"description": "Legacy single-job writes have been retired."}},
+)
 def run_application_rematch(
     workspace_id: str,
     proposal_id: str,
     request: ApplicationRematchRequest,
-    use_case: Annotated[RunApplicationRematchUseCase, Depends(get_application_rematch_use_case)],
 ) -> ApplicationRematchResponse:
-    try:
-        result = use_case.execute(
-            workspace_id=workspace_id,
-            proposal_id=proposal_id,
-            actor_id=request.actor_id,
-            idempotency_key=request.idempotency_key,
-        )
-    except ApplicationRematchBlockedError as error:
-        detail = str(error)
-        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
-        raise HTTPException(status_code=code, detail=detail) from error
-    return ApplicationRematchResponse.from_model(result)
+    # Never inspect mutable workspace state before this decision: the legacy
+    # report and timeline were not atomic and could race analysis linkage.
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail="application_rematch_retired")
 
 
 @router.get("/{workspace_id}/timeline", response_model=list[ApplicationTimelineEventResponse])

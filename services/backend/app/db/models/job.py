@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, Enum as SAEnum, Float, Index, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum as SAEnum, Float, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -60,6 +60,8 @@ class JobORM(Base):
     education: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     skills: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    user_marked_inactive: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    availability_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     remote_status: Mapped[RemoteStatus] = mapped_column(
         SAEnum(

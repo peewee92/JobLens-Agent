@@ -73,6 +73,11 @@ class ContinueAnalysisRequest(CamelCaseModel):
         return UpdateBatchRequest(**self.model_dump(by_alias=False))
 
 
+class RankedReportReference(CamelCaseModel):
+    job_id: str
+    report_id: str
+
+
 class CareerAgentRunStateResponse(CamelCaseModel):
     thread_id: str
     run_id: str
@@ -82,6 +87,7 @@ class CareerAgentRunStateResponse(CamelCaseModel):
     legacy_read_only: bool = False
     requested_job_ids: list[str]
     ranked_job_ids: list[str]
+    ranked_report_refs: list[RankedReportReference] = Field(default_factory=list)
     proposed_target_job_ids: list[str]
     target_suggestion_mode: Literal["supported", "challenge_only"] | None = None
     confirmed_target_job_ids: list[str]
@@ -108,6 +114,12 @@ class CareerAgentRunStateResponse(CamelCaseModel):
             legacy_read_only=state.legacy_read_only,
             requested_job_ids=list(state.requested_job_ids),
             ranked_job_ids=list(state.ranked_job_ids),
+            ranked_report_refs=[RankedReportReference(job_id=job, report_id=report)
+                for job, report in zip(state.ranked_job_ids, state.current_match_report_ids, strict=True)]
+                if len(state.ranked_job_ids) == len(state.current_match_report_ids)
+                and len(set(state.ranked_job_ids)) == len(state.ranked_job_ids)
+                and len(set(state.current_match_report_ids)) == len(state.current_match_report_ids)
+                and all(state.ranked_job_ids) and all(state.current_match_report_ids) else [],
             proposed_target_job_ids=list(state.proposed_target_job_ids),
             target_suggestion_mode=state.target_suggestion_mode,
             confirmed_target_job_ids=list(state.confirmed_target_job_ids),

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/initial-scope-start-request.schema.json",
+  "title": "InitialScopeStartRequest", "type": "object", "additionalProperties": false,
+  "required": ["jobIds", "threadId", "runId", "requestId", "inputDigest"],
+  "properties": {
+    "jobIds": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "string", "minLength": 1, "maxLength": 100}},
+    "threadId": {"type": "string", "minLength": 1, "maxLength": 100},
+    "runId": {"type": "string", "minLength": 1, "maxLength": 100},
+    "requestId": {"type": "string", "minLength": 1, "maxLength": 100},
+    "inputDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "topN": {"type": "integer", "minimum": 1, "maximum": 5, "default": 3}
+  }
+}

@@ -22,11 +22,13 @@ export function isBlankProfileDraft(draft: ProfileProposalDraft): boolean {
     evidence.type === "project" &&
     evidence.summary.trim() === "" &&
     evidence.source === "confirmed by user" &&
-    draft.skills.length === 1 &&
-    Boolean(skill) &&
-    skill.name.trim() === "" &&
-    skill.level === "working" &&
-    skill.evidenceKeys.length === 0
+    (draft.skills.length === 0 || (
+      draft.skills.length === 1 &&
+      Boolean(skill) &&
+      skill.name.trim() === "" &&
+      skill.level === "working" &&
+      skill.evidenceKeys.length === 0
+    ))
   );
 }
 

@@ -10,6 +10,8 @@ from app.application.eligibility import (
     JobEligibilityResult,
     RequirementFitStatus,
 )
+from app.application.job_availability_guard import matching_availability_revision
+from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.match_report.builder import build_match_report
 from app.application.match_report.models import MatchReport
 from app.application.ports.match_report_unit_of_work import AbstractMatchReportUnitOfWork
@@ -47,7 +49,9 @@ class BuildJobMatchReportUseCase:
         eligibility: EligibilityRunner | None = None,
         persistence_ready: PersistenceReadyCheck | None = None,
         uow_factory: MatchReportUnitOfWorkFactory | None = None,
+        jobs: AbstractJobQueryRepository | None = None,
     ) -> None:
+        self._jobs = jobs
         self._semantic_match = semantic_match
         self._eligibility = eligibility
         self._persistence_ready = persistence_ready
@@ -59,6 +63,7 @@ class BuildJobMatchReportUseCase:
                 "MatchReport persistence schema is not ready; apply the approved database migration before generating reports."
             )
 
+        availability_revision = matching_availability_revision(self._jobs, job_id) if self._jobs else None
         eligibility = self._eligibility.execute(job_id) if self._eligibility is not None else None
         if eligibility is not None and eligibility.eligibility is EligibilityDecision.BLOCKED:
             report = build_match_report(_blocked_semantic_result(eligibility))
@@ -69,6 +74,8 @@ class BuildJobMatchReportUseCase:
 
         persisted_report = replace(report, db_writes=1)
         with self._uow_factory() as uow:
+            if availability_revision is not None:
+                uow.ensure_job_availability(job_id, availability_revision)
             uow.reports.add(persisted_report)
             uow.commit()
         return persisted_report

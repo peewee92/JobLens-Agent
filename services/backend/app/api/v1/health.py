@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Response
 from app.api.v1.schemas.system_readiness import SystemReadinessResponse
 from app.repositories.sqlalchemy_system_readiness import SystemReadinessProbe
 from app.db.session import engine
+from app.db.context import current_database
 
 router = APIRouter()
 
@@ -18,7 +19,8 @@ def health() -> dict:
 
 
 def get_readiness_probe() -> SystemReadinessProbe:
-    return SystemReadinessProbe(engine)
+    context = current_database.get()
+    return SystemReadinessProbe(context.engine if context else engine)
 
 
 @router.get(

@@ -81,6 +81,7 @@ class SemanticRequirementAssessment:
     profile_fact_refs: tuple[str, ...]
     reason: str
     source: SemanticAssessmentSource
+    candidate_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

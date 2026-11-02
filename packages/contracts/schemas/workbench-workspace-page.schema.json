@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "WorkbenchWorkspaceResponse": {
+      "properties": {
+        "workspaceId": {
+          "title": "Workspaceid",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "openActionCount": {
+          "title": "Openactioncount",
+          "type": "integer"
+        },
+        "currentAnalysisThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currentanalysisthreadid"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "title",
+        "status",
+        "openActionCount",
+        "currentAnalysisThreadId"
+      ],
+      "title": "WorkbenchWorkspaceResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/WorkbenchWorkspaceResponse"
+      },
+      "maxItems": 20,
+      "title": "Items",
+      "type": "array"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "hasMore": {
+      "title": "Hasmore",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "items",
+    "offset",
+    "hasMore"
+  ],
+  "title": "WorkbenchWorkspacePageResponse",
+  "type": "object"
+}

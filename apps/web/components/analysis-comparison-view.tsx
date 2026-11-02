@@ -7,6 +7,7 @@ const coverage: Record<string, string> = {supported: '已有证据支持', parti
 const reasons: Record<string, string> = {
   profile_changed: '职业资料版本发生变化', intent_changed: '求职意向版本发生变化', targets_changed: '确认的目标集合发生变化，不能直接比较汇总差距数量',
   ranking_scope_not_comparable: '排序参与岗位或可比较依据不完整，不比较名次升降', requirements_changed: '岗位要求版本不同，请分别查看两次要求，不能当成个人能力升降',
+  retrieval_changed: '证据检索规则不同，不能把变化归因于能力改善',
   policy_changed: '匹配规则版本不同，不给出改善或变差结论', judgment_method_changed: '匹配方法、提示词或模型不同，不能只把变化归因于新增事实',
   requirement_snapshot_mismatch: '同一要求的保存内容不一致，不能直接比较', preference_judgment_changed: '保存的求职偏好判断发生变化',
   current_not_analysed: '本次没有完成这个岗位的分析，不代表已经淘汰', historical_not_saved: '原分析没有保存该岗位报告的明确引用，不能用最新报告补造历史',

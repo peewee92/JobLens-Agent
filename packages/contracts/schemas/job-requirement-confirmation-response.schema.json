@@ -1,0 +1,40 @@
+{
+  "properties": {
+    "actionId": {
+      "title": "Actionid",
+      "type": "string"
+    },
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "extractionId": {
+      "title": "Extractionid",
+      "type": "string"
+    },
+    "inputHash": {
+      "title": "Inputhash",
+      "type": "string"
+    },
+    "factsDigest": {
+      "title": "Factsdigest",
+      "type": "string"
+    },
+    "confirmedAt": {
+      "format": "date-time",
+      "title": "Confirmedat",
+      "type": "string"
+    }
+  },
+  "required": [
+    "actionId",
+    "jobId",
+    "extractionId",
+    "inputHash",
+    "factsDigest",
+    "confirmedAt"
+  ],
+  "title": "JobRequirementConfirmationResponse",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -58,3 +58,14 @@ test('partial completion never reads as all requested jobs analysed',()=>{
   for(const text of ['部分范围已保存','只完成或复用了 5 个岗位','不代表已淘汰']) assert.ok(html.includes(text),text);
   assert.equal(workbenchChangeLabel('analysis_partial'),'保存了部分范围分析');
 });
+
+test("recent changes render real timestamps in Beijing time, respecting offsets", () => {
+  const data: Workbench = {...empty, snapshot: {...empty.snapshot, changes: [
+    {kind: "action_completed", occurredAt: "2026-10-28T02:15:00+02:00", href: "/applications/w"},
+  ]}};
+  const html = renderToStaticMarkup(React.createElement(WorkbenchView, {data}));
+  assert.match(html, /2026年10月28日 08:15/);
+  assert.match(html, /北京时间/);
+  assert.match(html, /dateTime="2026-10-28T02:15:00\+02:00"/);
+  assert.doesNotMatch(html, /协调世界时/);
+});

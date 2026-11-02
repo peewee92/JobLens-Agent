@@ -21,6 +21,7 @@
     "extractionId": {"type": "string", "minLength": 1},
     "jobId": {"type": "string", "minLength": 1},
     "inputHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "factsDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$", "description": "Digest of this exact extraction and its ordered requirement facts; used to bind a user's single-posting confirmation."},
     "extractorVersion": {"type": "string", "minLength": 1},
     "provider": {"type": "string", "minLength": 1},
     "model": {"type": "string", "minLength": 1},

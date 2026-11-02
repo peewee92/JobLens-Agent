@@ -48,6 +48,7 @@ export const matchRecommendationClasses: Record<MatchRecommendation, string> = {
 
 
 const reportStaleReasonLabels: Record<string, string> = {
+  retrieval_changed: "证据检索规则已更新，请保留历史结果并按当前事实更新匹配",
   policy_changed: "匹配规则已更新，这份历史报告仍保留原规则结论",
   profile_missing: "当前没有已确认职业资料",
   profile_changed: "已确认职业资料已更新",
@@ -55,7 +56,11 @@ const reportStaleReasonLabels: Record<string, string> = {
   search_intent_changed: "求职意向已更新，或旧报告未绑定意向版本",
   requirements_missing: "当前没有可用的岗位要求提取",
   requirements_changed: "岗位要求已更新",
+  requirements_not_released: "岗位要求的可用性检查未通过，请核对提取与审核记录",
+  job_description_changed: "岗位描述已变化，需要重新分析岗位要求",
+  job_description_unavailable: "无法核实岗位描述或原分析依据，请检查后重新分析",
   job_missing: "原岗位已不可用",
+  job_user_marked_inactive: "你已标记此岗位失效；恢复标记后可重新检查",
   preference_inputs_changed: "岗位条件或求职偏好的分析输入已变化，或旧报告未记录输入指纹",
 };
 

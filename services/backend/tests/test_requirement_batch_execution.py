@@ -126,3 +126,45 @@ def test_requirement_batch_deduplicates_input_and_rejects_oversized_batches() ->
         assert "at most 5" in str(error)
     else:
         raise AssertionError("expected oversized Requirement batch to fail")
+
+
+def test_missing_live_authorization_stops_batch_without_provider_calls():
+    from app.application.job_requirements.errors import RequirementModelAuthorizationRequiredError
+    runner = _Runner({"job_1": RequirementModelAuthorizationRequiredError("not authorized")})
+    result = ExecuteRequirementBatchUseCase(coverage=_Coverage(("job_1", "job_2")), extraction_runner=runner).execute(("job_1", "job_2"))
+    assert runner.calls == ["job_1"]
+    assert result.items[0].error_code == "requirement_model_authorization_required"
+    assert result.provider_calls == 0
+    assert result.deferred_count == 1
+
+
+def test_availability_failures_continue_other_jobs_and_disclose_unknown_counts():
+    from app.application.job_availability_guard import JobUnavailableForMatchingError
+    runner = _Runner({'job_1': JobUnavailableForMatchingError('inactive'),
+                      'job_2': JobUnavailableForMatchingError('changed', code='job_availability_changed')})
+    result = ExecuteRequirementBatchUseCase(coverage=_Coverage(('job_1', 'job_2', 'job_3')),
+        extraction_runner=runner).execute(('job_1', 'job_2', 'job_3'))
+    assert [item.error_code for item in result.items] == ['job_user_marked_inactive', 'job_availability_changed', None]
+    assert result.succeeded_count == 1 and result.failed_count == 2
+    assert result.side_effect_counts_complete is False
+    assert runner.calls == ['job_1', 'job_2', 'job_3']
+
+
+def test_description_change_does_not_stop_other_jobs_or_claim_complete_counts():
+    from app.application.job_requirements.errors import JobDescriptionChangedDuringExtractionError
+    runner = _Runner({'job_1': JobDescriptionChangedDuringExtractionError('changed')})
+    result = ExecuteRequirementBatchUseCase(coverage=_Coverage(('job_1', 'job_2')),
+        extraction_runner=runner).execute(('job_1', 'job_2'))
+    assert result.items[0].error_code == 'job_description_changed_during_extraction'
+    assert result.items[1].status == RequirementBatchExecutionStatus.SUCCEEDED
+    assert result.side_effect_counts_complete is False
+
+
+def test_superseded_extraction_isolated_and_side_effect_counts_uncertain():
+    from app.application.job_requirements.errors import RequirementExtractionSupersededError
+    runner = _Runner({'job_1': RequirementExtractionSupersededError('superseded')})
+    result = ExecuteRequirementBatchUseCase(coverage=_Coverage(('job_1', 'job_2')),
+        extraction_runner=runner).execute(('job_1', 'job_2'))
+    assert result.items[0].error_code == 'requirement_extraction_superseded'
+    assert result.items[1].status == RequirementBatchExecutionStatus.SUCCEEDED
+    assert result.side_effect_counts_complete is False

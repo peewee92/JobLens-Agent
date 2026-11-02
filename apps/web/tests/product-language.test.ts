@@ -14,8 +14,8 @@ test("main navigation is organized around job seeker tasks instead of eval modul
   assert.match(layout, />首页</);
   assert.match(layout, />我的背景</);
   assert.match(layout, />我的岗位</);
-  assert.match(layout, />优先投递</);
-  assert.match(layout, />添加岗位</);
+  assert.match(layout, />我的准备</);
+  assert.doesNotMatch(layout.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "", />添加岗位</);
   assert.match(layout, /质量检查（高级）/);
   const primaryNav = layout.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.doesNotMatch(primaryNav, /质量检查/);
@@ -49,10 +49,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /已有当前匹配结果/);
   assert.match(page, /要求已准备，可进入匹配/);
   assert.match(page, /岗位要求还未准备好/);
-  assert.match(page, /fetchJobRequirementReleaseReadiness/);
+  assert.match(page, /fetchJobMatchInputReadiness/);
   assert.match(page, /fetchJobDetail/);
   assert.match(page, /fetchMatchRanking/);
-  assert.match(page, /fetchMatchReviewReadiness/);
+  assert.match(page, /fetchJobMatchInputReadiness/);
   assert.match(page, /ImportBatchMatch jobIds=\{matchReadyJobs\} importId=\{id\}/);
   assert.match(page, /这批岗位当前的匹配结果/);
   assert.match(page, /fetchLatestUserFeedback/);
@@ -98,10 +98,10 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /投递判断：\{feedbackDecisionShortLabel/);
   assert.match(page, /本批处理进度：已处理 \{batchProcessedCount\}\/\{batchProcessingTotal\}/);
   assert.match(page, /还剩 \{batchProcessingRemaining\} 个岗位没有完成当前处理/);
-  assert.match(page, /还没形成 MatchReport/);
+  assert.match(page, /尚未确认当前匹配/);
   assert.match(page, /等待投递判断/);
   assert.match(page, /等待 Evidence 改善/);
-  assert.match(page, /还没形成 MatchReport 的岗位卡在哪里/);
+  assert.match(page, /尚未确认当前匹配的岗位卡在哪里/);
   assert.match(page, /Requirement 已 ready，可显式 Match/);
   assert.match(page, /Requirement 仍 blocked/);
   assert.match(page, /Readiness 暂无法确认/);
@@ -197,7 +197,7 @@ test("import detail summarizes zero-provider next steps for the imported batch",
   assert.match(page, /blockers\.slice\(0, 2\)/);
   assert.match(page, /不会自动分析岗位、调用 Provider 或替你发起匹配/);
   assert.match(page, /真正的匹配仍必须由你显式点击发起/);
-  assert.match(page, /不会被误报为“尚未准备”/);
+  assert.match(page, /系统不会猜测它们是否已准备好/);
   assert.match(page, /afterMatchJobs/);
   assert.match(page, /刚完成显式 Match 后，这些岗位进入了哪里/);
   assert.match(page, /等待投递判断/);
@@ -270,11 +270,11 @@ test("import batch matching is explicit, bounded, and never auto-resumes", async
   const component = await source("components/import-batch-match.tsx");
 
   assert.match(component, /fetch\("\/api\/match-batch"/);
-  assert.match(component, /maxReadyJobs: 10/);
+  assert.match(component, /maxReadyJobs: 5/);
   assert.match(component, /onClick=\{run\}/);
   assert.match(component, /只有你点击后才会执行/);
-  assert.match(component, /可能调用已配置的模型/);
-  assert.match(component, /setPendingJobIds\(result\.resumeJobIds\)/);
+  assert.match(component, /不会调用真实模型/);
+  assert.match(component, /setPendingJobIds\(nextPendingJobIds\)/);
   assert.match(component, /item\.status === "succeeded"/);
   assert.match(component, /afterMatchJobs=/);
   assert.match(component, /router\.replace/);
@@ -313,8 +313,8 @@ test("requirement extraction gives a clear live processing state for long reques
   const button = await source("components/job-requirement-extract-button.tsx");
   const css = await source("app/globals.css");
 
-  assert.match(button, /Analyzing job requirements…/);
-  assert.match(button, /This can take a moment\./);
+  assert.match(button, /正在分析岗位要求…/);
+  assert.match(button, /请保持页面打开/);
   assert.match(button, /role="status"/);
   assert.match(button, /aria-live="polite"/);
   assert.match(button, /requirement-processing-indicator/);
@@ -786,10 +786,10 @@ test("focused evidence actions classify exact profile facts before asking for mo
   assert.match(editor, /matchingSkills\.flatMap/);
 });
 
-test("career background defaults to card review and only expands the detailed editor on demand", async () => {
+test("career background keeps explicit fact review and a manual editing path", async () => {
   const editor = await source("components/profile-editor.tsx");
 
-  assert.match(editor, /AI 对我的理解/);
+  assert.match(editor, /我确认的职业事实/);
   assert.match(editor, /内容没问题，确认保存/);
   assert.match(editor, /有问题，编辑详情/);
   assert.match(editor, /待你确认/);

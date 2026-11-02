@@ -1,5 +1,6 @@
 """Preference rules do not guess career facts or reinterpret unknowns as conflicts."""
 from dataclasses import replace
+from hashlib import sha256
 from unittest.mock import Mock
 
 import pytest
@@ -144,12 +145,14 @@ def test_ranking_rejects_stale_preference_inputs_without_rewriting_report(change
     context.get_current_profile.return_value = _profile()
     context.get_current_search_intent.return_value = intent
     reqs = Mock()
-    reqs.get_latest.return_value = type("Extraction", (), {"extraction_id": "reqrun_current"})()
+    reqs.get_latest.return_value = type("Extraction", (), {
+        "extraction_id": "reqrun_current", "input_hash": sha256((job.description or "").strip().encode("utf-8")).hexdigest()
+    })()
     reports, jobs = Mock(), Mock()
     reports.list_latest_for_jobs.return_value = (stored,)
     jobs.get_job.return_value = job
     ranking = BatchRankMatchReportsUseCase(report_repository=reports, career_context_repository=context,
-                                          requirement_repository=reqs, job_repository=jobs, persistence_ready=lambda: True)
+                                          requirement_repository=reqs, job_repository=jobs, requirement_release=Mock(execute=Mock(return_value=Mock(release_eligible=True))), persistence_ready=lambda: True)
     assert ranking.execute((job.id,)) == (stored,)
     original = stored.report
     if change == "intent":

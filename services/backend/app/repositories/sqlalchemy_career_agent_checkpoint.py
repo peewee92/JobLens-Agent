@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import time
 from uuid import uuid4
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from sqlalchemy import inspect, select, update, or_
 from sqlalchemy.exc import IntegrityError
@@ -26,7 +27,10 @@ class SqlAlchemyCareerAgentCheckpointStore:
         with self._factory() as session:
             bind = session.get_bind()
             if bind.url.get_backend_name() == "sqlite" and bind.url.database not in (None, "", ":memory:"):
-                if not Path(bind.url.database).is_file():
+                database = bind.url.database
+                if database.startswith("file:") and bind.url.query.get("uri") == "true":
+                    database = unquote(urlsplit(database).path)
+                if not Path(database).is_file():
                     raise CheckpointNotReadyError("主数据库不存在，请先配置并迁移数据库；读取运行不会创建空数据库")
             inspector = inspect(bind)
             if not all(inspector.has_table(name) for name in ("career_agent_runs", "career_agent_run_events")):

@@ -63,6 +63,9 @@ class JobDetail:
     requirement_review_eligible: bool | None
     requirement_review_ineligibility_reasons: tuple[str, ...]
     collected_at: datetime | None
+    last_seen_at: datetime | None = None
+    user_marked_inactive: bool = False
+    availability_revision: int = 0
 
 
 @dataclass(frozen=True, slots=True)

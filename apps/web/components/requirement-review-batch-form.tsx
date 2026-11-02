@@ -112,7 +112,7 @@ export function RequirementReviewBatchForm({
                 setSelectedIds(formalCandidateIds);
               }}
             >
-              一键选择正式 20 条
+              一键选择同版本 20 条
             </button>
           ) : null}
           {selectedCohort ? <span className="code">{selectedCohort}</span> : null}
@@ -141,6 +141,7 @@ export function RequirementReviewBatchForm({
               <div className="meta-list compact-meta">
                 <div><span className="meta-label">Provider / Model</span><strong>{candidate.provider} / {candidate.model}</strong></div>
                 <div><span className="meta-label">Extractor / Prompt</span><strong>{candidate.extractorVersion} / {candidate.promptVersion}</strong></div>
+                <div><span className="meta-label">语义策略</span><strong>{candidate.semanticPolicyVersion ?? "未记录"}</strong></div>
                 <div><span className="meta-label">Trace</span><strong className="code">{candidate.traceRunId}</strong></div>
               </div>
             </label>

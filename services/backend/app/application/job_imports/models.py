@@ -140,7 +140,7 @@ class NormalizedJobInput:
     source_version: str
     source_job_id: str | None
     source_url: str
-    normalized_source_url: str
+    normalized_source_url: str | None
     source_raw: dict[str, Any]
 
     canonical_key: str

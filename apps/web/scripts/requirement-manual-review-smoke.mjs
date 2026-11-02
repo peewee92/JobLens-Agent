@@ -4,14 +4,23 @@ import {mkdtemp, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
+import {createServer} from "node:net";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "../..");
 const backendRoot = join(repoRoot, "services/backend");
 const backendBin = join(backendRoot, ".venv/bin");
-const backendPort = 8891;
-const webPort = 8892;
+async function freePort() {
+  const server = createServer();
+  await new Promise((ok, fail) => server.once("error", fail).listen(0, "127.0.0.1", ok));
+  const port = server.address().port;
+  await new Promise((ok, fail) => server.close((error) => error ? fail(error) : ok()));
+  return port;
+}
+const backendPort = await freePort();
+let webPort = await freePort();
+while (webPort === backendPort) webPort = await freePort();
 const backendUrl = `http://127.0.0.1:${backendPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
 const tempRoot = await mkdtemp(join(tmpdir(), "joblens-requirement-manual-review-"));
@@ -31,8 +40,9 @@ function start(command, args, options) {
   return child;
 }
 
-async function waitFor(url, attempts = 100) {
+async function waitFor(url, child, attempts = 100) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Server exited before ready: ${url}`);
     try {
       const response = await fetch(url);
       if (response.ok) return;
@@ -69,7 +79,12 @@ try {
     ...process.env,
     APP_ENV: "test",
     DATABASE_URL: databaseUrl,
+    CAREER_AGENT_CHECKPOINT_PATH: join(tempRoot, "checkpoints.db"),
     REQUIREMENT_EXTRACTOR_PROVIDER: "fixture",
+    REQUIREMENT_EXTRACTOR_FALLBACK_PROVIDER: "disabled",
+    SEMANTIC_MATCH_PROVIDER: "disabled",
+    PROFILE_EXTRACTOR_PROVIDER: "disabled",
+    CAREER_INTENT_PROVIDER: "disabled",
   };
 
   console.log("[manual-review-smoke] migrating and seeding simulated data");
@@ -89,7 +104,7 @@ try {
   }
 
   console.log("[manual-review-smoke] starting FastAPI");
-  start(
+  const backend = start(
     join(backendBin, "uvicorn"),
     [
       "app.main:app",
@@ -100,7 +115,7 @@ try {
     ],
     {cwd: backendRoot, env: backendEnv},
   );
-  await waitFor(`${backendUrl}/api/v1/health`);
+  await waitFor(`${backendUrl}/api/v1/health`, backend);
   const seededCandidates = await responseJson(
     await fetch(`${backendUrl}/api/v1/requirement-review-batches/candidates?limit=100`),
   );
@@ -112,7 +127,7 @@ try {
   );
 
   console.log("[manual-review-smoke] starting production Next");
-  start(
+  const web = start(
     "env",
     [
       "-u",
@@ -124,11 +139,12 @@ try {
     ],
     {cwd: webRoot, env: {...process.env, JOBLENS_BACKEND_URL: backendUrl}},
   );
-  await waitFor(`${webUrl}/evals/requirements/manual`);
+  await waitFor(`${webUrl}/evals/requirements/manual`, web);
 
   console.log("[manual-review-smoke] selecting a coherent 20-extraction cohort");
   const initialPage = await pageHtml("/evals/requirements/manual");
-  assert.match(initialPage, /个带最新 Requirement Extraction 的岗位/);
+  assert.match(initialPage, /正式验收准备状态/);
+  assert.match(initialPage, /已可选取 20 条同版本候选/);
   assert.match(initialPage, /simulated-live-requirement-model/);
   assert.match(initialPage, /系统不会替你生成人工判断/);
 
@@ -221,8 +237,7 @@ try {
 
   const jobBeforeFinalDecision = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(jobBeforeFinalDecision, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(jobBeforeFinalDecision, /系统还在确认 AI 分析是否足够可靠/);
-  assert.match(jobBeforeFinalDecision, /accepted_baseline_missing/);
+  assert.match(jobBeforeFinalDecision, /当前没有有效的岗位要求审核基线/);
 
   const completedPage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,
@@ -286,7 +301,7 @@ try {
 
   const releasedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(releasedJobPage, /岗位要求已准备好，可用于后续匹配/);
-  assert.match(releasedJobPage, new RegExp(finalDecision.evidenceFingerprint));
+  assert.match(releasedJobPage, /这份岗位要求符合当前匹配规则/);
 
   const finalizedPage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,
@@ -308,14 +323,14 @@ try {
   assert.equal(stale.summary.staleCaseCount, 1);
   assert.equal(stale.summary.formalEvidenceEligible, false);
   assert.equal(stale.summary.finalDecision, "accept_for_match");
-  assert.equal(stale.summary.matchReleaseEligible, false);
+  assert.equal(stale.summary.matchReleaseEligible, true);
   assert.equal(stale.finalDecision.id, finalDecision.id);
   assert.equal(stale.cases[0].review.decision, "rejected");
 
   const baselineAfterStale = await fetch(
     `${backendUrl}/api/v1/requirement-review-batches/accepted-baseline`,
   );
-  assert.equal(baselineAfterStale.status, 404);
+  assert.equal(baselineAfterStale.status, 200);
 
   const releaseAfterStale = await responseJson(
     await fetch(
@@ -325,25 +340,46 @@ try {
   assert.equal(releaseAfterStale.releaseEligible, false);
   assert.ok(
     releaseAfterStale.blockers.some(
-      (item) => item.code === "accepted_baseline_missing",
+      (item) => item.code === "extraction_cohort_mismatch",
     ),
   );
 
   const blockedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(blockedJobPage, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(blockedJobPage, /accepted_baseline_missing/);
+  assert.match(blockedJobPage, /岗位分析版本与审核基线不一致/);
+
+  const unaffected = await responseJson(await fetch(`${backendUrl}/api/v1/jobs/job_manual_smoke_01/requirement-release-readiness`));
+  assert.equal(unaffected.releaseEligible, true);
 
   const stalePage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,
   );
   assert.match(stalePage, /已过期：1 条不是当前版本/);
   assert.match(stalePage, /已过期版本/);
-  assert.match(stalePage, /历史已接受，但当前证据已过期/);
-  assert.match(stalePage, /Match 门禁已自动撤销/);
+  assert.match(stalePage, /冻结审核基线有效，样本已有更新/);
+  assert.match(stalePage, /每个岗位的当前描述和要求仍须单独检查/);
   assert.match(stalePage, new RegExp(finalDecision.evidenceFingerprint));
 
+  console.log("[manual-review-smoke] checking that a failed trace still blocks its own job");
+  // Only the disposable test database is modified; do not touch the user's database.
+  const corruptTrace = spawnSync(join(backendBin, "python"), [
+    "-c",
+    "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute('UPDATE trace_spans SET error = ? WHERE id = ?', ('simulated failure', 'run_manual_smoke_01')); c.commit(); c.close()",
+    join(tempRoot, "joblens.db"),
+  ], {encoding: "utf8"});
+  assert.equal(corruptTrace.status, 0, corruptTrace.stderr);
+  const failedTraceRelease = await responseJson(await fetch(
+    `${backendUrl}/api/v1/jobs/job_manual_smoke_01/requirement-release-readiness`,
+  ));
+  assert.equal(failedTraceRelease.releaseEligible, false);
+  assert.ok(failedTraceRelease.blockers.some((item) => item.code === "trace_failed"));
+  const stillAccepted = await fetch(
+    `${backendUrl}/api/v1/requirement-review-batches/accepted-baseline`,
+  );
+  assert.equal(stillAccepted.status, 200);
+
   console.log(
-    "Requirement manual review smoke passed: select 20 → review → final accept → Job Requirement facts released → re-extract → release gate revoked with history preserved.",
+    "Requirement manual review smoke passed: select 20 → review → final accept → Job Requirement facts released → re-extract → changed job independently blocked, unaffected job retains frozen baseline.",
   );
 } catch (error) {
   for (const item of children) {

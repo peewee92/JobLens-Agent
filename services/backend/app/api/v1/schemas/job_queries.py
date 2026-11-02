@@ -36,6 +36,9 @@ class JobDetailResponse(JobListItemResponse):
     description_quality: str | None
     requirement_review_eligible: bool | None
     requirement_review_ineligibility_reasons: list[str]
+    last_seen_at: datetime | None = None
+    user_marked_inactive: bool = False
+    availability_revision: int = 0
 
     @classmethod
     def from_detail(cls, detail: JobDetail) -> "JobDetailResponse":
@@ -61,6 +64,9 @@ class JobDetailResponse(JobListItemResponse):
                 detail.requirement_review_ineligibility_reasons
             ),
             collected_at=detail.collected_at,
+            last_seen_at=detail.last_seen_at,
+            user_marked_inactive=detail.user_marked_inactive,
+            availability_revision=detail.availability_revision,
         )
 
 

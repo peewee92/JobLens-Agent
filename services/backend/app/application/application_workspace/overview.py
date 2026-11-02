@@ -1,11 +1,12 @@
 """Read-only Application Workspace overview and deterministic next action."""
 from __future__ import annotations
+from urllib.parse import quote
 
 from dataclasses import dataclass
 
 from app.application.application_workspace.evidence_proposal import EvidenceProposalStatus, pending_evidence_proposals
 from app.application.application_workspace.execution_action import ExecutionActionStatus
-from app.application.application_workspace.models import ApplicationTimelineEventType, ApplicationWorkspace
+from app.application.application_workspace.models import ApplicationWorkspace
 from app.application.application_workspace.resume_variant import ResumeVariantStatus
 
 
@@ -53,7 +54,6 @@ class BuildApplicationWorkspaceOverviewUseCase:
         reviewed_resume = any(item.status == ResumeVariantStatus.REVIEWED for item in variants)
         pending_evidence = pending_evidence_proposals(proposals)
         confirmed_evidence = tuple(item for item in proposals if item.status == EvidenceProposalStatus.CONFIRMED)
-        rematch_completed = any(item.event_type == ApplicationTimelineEventType.REMATCH_COMPLETED for item in timeline)
         open_actions = tuple(item for item in actions if item.status in {ExecutionActionStatus.TODO, ExecutionActionStatus.IN_PROGRESS})
         done_actions = tuple(item for item in actions if item.status == ExecutionActionStatus.DONE)
 
@@ -64,17 +64,16 @@ class BuildApplicationWorkspaceOverviewUseCase:
                 needs_scoped_update = any(p.confirmed_profile_version is None or
                     p.confirmed_profile_version > analysis.inputs.profile_version for p in confirmed_evidence)
         base = f"/applications/{workspace_id}"
-        if not reviewed_resume:
-            next_action = ApplicationNextBestAction("prepare_resume_variant", "审核岗位简历", "先把已确认经历整理成这个岗位可用的简历版本。", f"{base}#resume")
-        elif pending_evidence:
-            next_action = ApplicationNextBestAction("confirm_evidence", "确认真实经历证据", "已有行动产生待确认 Evidence，只有你确认后才能进入职业事实。", f"{base}#evidence")
-        elif needs_scoped_update:
-            from urllib.parse import quote
+        if needs_scoped_update:
             next_action = ApplicationNextBestAction("update_analysis", "核对范围并更新分析",
                 "已有新增事实；先检查关联分析的版本和可复用结果，不自动重算，也不承诺结论改善。",
                 f"/agent/results/{quote(workspace.current_analysis_thread_id, safe='')}/update")
-        elif confirmed_evidence and not getattr(workspace, "current_analysis_thread_id", None) and not rematch_completed:
-            next_action = ApplicationNextBestAction("rematch", "重新验证岗位匹配", "新的职业事实已经确认，需要显式重新匹配才能核对判断变化；不承诺改善。", f"{base}#evidence")
+        elif confirmed_evidence and not getattr(workspace, "current_analysis_thread_id", None):
+            next_action = ApplicationNextBestAction("start_new_analysis", "重新选择岗位并创建分析", "此历史工作区没有保存分析；已确认事实和历史记录保留。先核对该岗位的匹配报告，再选择是否创建分析。", f"/agent?jobId={quote(workspace.job_id, safe='')}")
+        elif pending_evidence:
+            next_action = ApplicationNextBestAction("confirm_evidence", "核对待确认事实", "你已提交新的经历或成果；请先核对，只有明确确认后才会进入职业资料。", f"{base}#evidence")
+        elif not reviewed_resume:
+            next_action = ApplicationNextBestAction("prepare_resume_variant", "审核岗位简历", "先把已确认经历整理成这个岗位可用的简历版本。", f"{base}#resume")
         elif not actions:
             next_action = ApplicationNextBestAction("create_execution_actions", "建立准备行动", "把当前岗位的学习与准备清单变成可跟踪行动。", f"{base}#actions")
         elif open_actions:

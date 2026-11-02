@@ -256,6 +256,7 @@ def test_get_job_returns_detail_without_internal_or_raw_fields(
         salary_max=35,
         remote_status=RemoteStatus.CONFIRMED,
         source_id="src_detail",
+        last_seen=dt(3),
     )
 
     response = client.get("/api/v1/jobs/job_detail")
@@ -265,6 +266,10 @@ def test_get_job_returns_detail_without_internal_or_raw_fields(
     assert body["id"] == "job_detail"
     assert body["description"] == "AI Engineer description"
     assert body["skills"] == ["Python"]
+    assert datetime.fromisoformat(body["lastSeenAt"].replace("Z", "+00:00")) == dt(3)
+    from jsonschema import Draft202012Validator
+    schema_path = Path(__file__).resolve().parents[3] / "packages/contracts/schemas/job.schema.json"
+    Draft202012Validator(json.loads(schema_path.read_text())).validate(body)
     assert "canonicalKey" not in body
     assert "canonicalKeyVersion" not in body
     assert "sourceRaw" not in body

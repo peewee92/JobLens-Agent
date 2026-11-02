@@ -6,6 +6,7 @@ from app.application.job_requirements.errors import (
     JobRequirementExtractionNotFoundError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementModelAuthorizationRequiredError,
     RequirementLiveCostConfirmationRequiredError,
 )
 from app.application.job_requirements.models import (

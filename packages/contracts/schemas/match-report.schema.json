@@ -28,82 +28,206 @@
     "traceRunsCreated"
   ],
   "properties": {
-    "searchIntentId": {"type": ["string", "null"]},
-    "searchIntentVersion": {"type": ["integer", "null"], "minimum": 1},
-    "preferenceChecks": {"type": "array", "items": {"$ref": "preference-check.schema.json"}},
-    "jobId": {"type": "string", "minLength": 1},
-    "profileId": {"type": "string", "minLength": 1},
-    "profileVersion": {"type": "integer", "minimum": 1},
-    "extractionId": {"type": "string", "minLength": 1},
-    "eligibility": {"enum": ["eligible", "conditional", "blocked"]},
-    "recommendation": {"enum": ["strong", "good", "stretch", "low", "blocked"]},
-    "summary": {"type": "string", "minLength": 1},
+    "searchIntentId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "searchIntentVersion": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "preferenceChecks": {
+      "type": "array",
+      "items": {
+        "$ref": "preference-check.schema.json"
+      }
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profileId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profileVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "extractionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "eligibility": {
+      "enum": [
+        "eligible",
+        "conditional",
+        "blocked"
+      ]
+    },
+    "recommendation": {
+      "enum": [
+        "strong",
+        "good",
+        "stretch",
+        "low",
+        "blocked"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
     "strengths": {
       "type": "array",
-      "items": {"$ref": "#/$defs/insight"}
+      "items": {
+        "$ref": "#/$defs/insight"
+      }
     },
     "risks": {
       "type": "array",
-      "items": {"$ref": "#/$defs/insight"}
+      "items": {
+        "$ref": "#/$defs/insight"
+      }
     },
     "requirementResults": {
       "type": "array",
-      "items": {"$ref": "#/$defs/requirementResult"}
+      "items": {
+        "$ref": "#/$defs/requirementResult"
+      }
     },
     "matchedRequirementIds": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "partialRequirementIds": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "missingRequirementIds": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "minLength": 1}
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "evidenceLinks": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["requirementId", "evidenceIds"],
+        "required": [
+          "requirementId",
+          "evidenceIds"
+        ],
         "properties": {
-          "requirementId": {"type": "string", "minLength": 1},
+          "requirementId": {
+            "type": "string",
+            "minLength": 1
+          },
           "evidenceIds": {
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,
-            "items": {"type": "string", "minLength": 1}
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
     },
-    "policyVersion": {"type": "string", "minLength": 1, "description": "Deterministic rule version. Missing means legacy match-policy-v1; never reinterpret history as v2."},
-    "matcherVersion": {"type": "string", "minLength": 1},
-    "promptVersion": {"type": "string", "minLength": 1},
-    "model": {"type": ["string", "null"]},
-    "traceRunId": {"type": ["string", "null"]},
-    "dbWrites": {"type": "integer", "minimum": 0, "description": "Writes recorded by the original generation, not by history retrieval. POST persists one report; legacy/demo snapshots may record zero."},
-    "providerCalls": {"type": "integer", "minimum": 0, "maximum": 1},
-    "traceRunsCreated": {"type": "integer", "minimum": 0, "maximum": 1}
+    "policyVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Deterministic rule version. Missing means legacy match-policy-v1; never reinterpret history as v2."
+    },
+    "matcherVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "promptVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "traceRunId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dbWrites": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Writes recorded by the original generation, not by history retrieval. POST persists one report; legacy/demo snapshots may record zero."
+    },
+    "providerCalls": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "traceRunsCreated": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "retrievalVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
   },
   "$defs": {
     "insight": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["requirementId", "requirementText", "reason", "evidenceIds"],
+      "required": [
+        "requirementId",
+        "requirementText",
+        "reason",
+        "evidenceIds"
+      ],
       "properties": {
-        "requirementId": {"type": "string", "minLength": 1},
-        "requirementText": {"type": "string", "minLength": 1},
-        "reason": {"type": "string", "minLength": 1},
+        "requirementId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requirementText": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
         "evidenceIds": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -124,27 +248,89 @@
         "reason"
       ],
       "properties": {
-        "requirementId": {"type": "string", "minLength": 1},
-        "requirementIndex": {"type": "integer", "minimum": 0},
-        "type": {
-          "enum": ["skill", "experience", "education", "responsibility", "domain", "constraint"]
+        "requirementId": {
+          "type": "string",
+          "minLength": 1
         },
-        "importance": {"enum": ["must_have", "preferred", "bonus"]},
-        "originalText": {"type": "string", "minLength": 1},
-        "normalizedCapability": {"type": ["string", "null"]},
-        "eligibilityStatus": {"enum": ["matched", "conditional", "missing"]},
-        "semanticVerdict": {"enum": ["matched", "partial", "not_matched"]},
+        "requirementIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type": {
+          "enum": [
+            "skill",
+            "experience",
+            "education",
+            "responsibility",
+            "domain",
+            "constraint"
+          ]
+        },
+        "importance": {
+          "enum": [
+            "must_have",
+            "preferred",
+            "bonus"
+          ]
+        },
+        "originalText": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalizedCapability": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "eligibilityStatus": {
+          "enum": [
+            "matched",
+            "conditional",
+            "missing"
+          ]
+        },
+        "semanticVerdict": {
+          "enum": [
+            "matched",
+            "partial",
+            "not_matched"
+          ]
+        },
         "evidenceIds": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "profileFactRefs": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string", "minLength": 1}
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
-        "reason": {"type": "string", "minLength": 1}
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "candidateCount": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "assessmentSource": {
+          "enum": [
+            "deterministic",
+            "provider",
+            null
+          ]
+        }
       }
     }
   }

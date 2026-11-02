@@ -126,6 +126,8 @@ class RequirementReviewBatchFinalDecisionWrite:
     issue_code_counts: dict[str, int]
     evidence_fingerprint: str
     decided_at: datetime
+    evidence_snapshot: dict | None = None
+    evidence_snapshot_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

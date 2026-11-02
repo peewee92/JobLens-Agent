@@ -20,12 +20,13 @@ export const requirementReviewIssueLabels: Record<RequirementReviewIssueCode, st
 export function requirementReviewCohortKey(
   candidate: RequirementReviewCandidate,
 ): string {
-  return [
+  return JSON.stringify([
     candidate.provider,
     candidate.model,
     candidate.extractorVersion,
     candidate.promptVersion,
-  ].join("::");
+    candidate.semanticPolicyVersion ?? null,
+  ]);
 }
 
 export function canSelectRequirementCandidate(
@@ -69,7 +70,7 @@ export function buildRequirementReviewFormalReadiness(
   const targetIds = new Set(targetCandidates.map((item) => item.extractionId));
 
   return {
-    formalReady: targetCandidates.length === 20,
+    formalReady: targetCandidates.length >= 20,
     requiredCount: 20,
     targetCohortKey: targetCohortKey ?? null,
     targetCandidates,
@@ -95,6 +96,7 @@ export function requirementReviewFinalDecisionLabel(
 export function requirementReviewMatchGateLabel(
   summary: RequirementReviewBatchSummary,
 ): string {
+  if (summary.matchReleaseEligible && summary.staleCaseCount > 0) return "冻结审核基线有效，样本已有更新";
   if (summary.matchReleaseEligible) return "Match 门禁已放行";
   if (summary.finalDecision === "accept_for_match" && summary.staleCaseCount > 0) {
     return "历史已接受，但当前证据已过期";

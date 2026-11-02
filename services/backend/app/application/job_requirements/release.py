@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
+from app.application.job_requirements.confirmation import requirement_facts_digest
 
 from app.application.job_queries.errors import JobNotFoundError
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
@@ -56,12 +57,14 @@ class JobRequirementReleaseReadiness:
     accepted_baseline_decision_id: str | None
     accepted_baseline_evidence_fingerprint: str | None
     blockers: tuple[JobRequirementReleaseBlocker, ...]
+    user_confirmation_id: str | None = None
+    requirement_facts_digest: str | None = None
 
 
 # This is the last extractor explicitly allowed by the historical MVP no-baseline
-# escape hatch. A newer extractor version must earn a human accepted baseline before
-# Match Release; do not advance this constant merely because extraction development
-# moves forward.
+# escape hatch. Do not advance it merely because extraction development moves
+# forward. A separate, explicit single-posting confirmation may authorize personal
+# matching, but never changes the formal model-quality baseline.
 MVP_FROZEN_EXTRACTOR_VERSION = "requirement-extractor-v42.95"
 
 
@@ -76,29 +79,41 @@ class GetJobRequirementReleaseReadinessUseCase:
         reviews: AbstractRequirementReviewQueryRepository,
         traces: AbstractJobRequirementReleaseQueryRepository,
         allow_frozen_mvp_without_baseline: bool = False,
+        allow_user_confirmation: bool = False,
     ) -> None:
         self._jobs = jobs
         self._requirements = requirements
         self._reviews = reviews
         self._traces = traces
         self._allow_frozen_mvp_without_baseline = allow_frozen_mvp_without_baseline
+        self._allow_user_confirmation = allow_user_confirmation
 
     def execute(self, job_id: str) -> JobRequirementReleaseReadiness:
+        return self._execute(job_id, integrity_only=False)
+
+    def inspect_facts(self, job_id: str) -> JobRequirementReleaseReadiness:
+        """Check current persisted facts before confirmation; not a release authorization."""
+        return self._execute(job_id, integrity_only=True)
+
+    def _execute(self, job_id: str, *, integrity_only: bool) -> JobRequirementReleaseReadiness:
         job = self._jobs.get_job(job_id)
         if job is None:
             raise JobNotFoundError(f"Job {job_id!r} was not found")
 
         normalized_description = (job.description or "").strip()
         description_sha256 = sha256(normalized_description.encode("utf-8")).hexdigest()
-        baseline = self._reviews.get_accepted_baseline()
         extraction = self._requirements.get_latest(job_id)
+        personally_confirmed = bool(
+            extraction and extraction.user_confirmation_id and self._allow_user_confirmation
+        )
+        baseline = self._reviews.get_accepted_baseline() if not (integrity_only or personally_confirmed) else None
         blockers: list[JobRequirementReleaseBlocker] = []
 
         def block(code: JobRequirementReleaseBlockerCode, message: str) -> None:
             blockers.append(JobRequirementReleaseBlocker(code=code, message=message))
 
         if extraction is None:
-            if baseline is None:
+            if baseline is None and not integrity_only:
                 block(
                     JobRequirementReleaseBlockerCode.ACCEPTED_BASELINE_MISSING,
                     "No current human-accepted Requirement Review baseline exists.",
@@ -127,7 +142,7 @@ class GetJobRequirementReleaseReadinessUseCase:
                 blockers=tuple(blockers),
             )
 
-        if baseline is None and not (
+        if baseline is None and not integrity_only and not personally_confirmed and not (
             self._allow_frozen_mvp_without_baseline
             and extraction.extractor_version == MVP_FROZEN_EXTRACTOR_VERSION
         ):
@@ -147,7 +162,7 @@ class GetJobRequirementReleaseReadinessUseCase:
                 "The latest Extraction no longer matches the current Job description.",
             )
 
-        if baseline is not None:
+        if baseline is not None and not personally_confirmed:
             baseline_cohort = (
                 baseline.batch.provider.casefold(),
                 baseline.batch.model,
@@ -254,4 +269,6 @@ class GetJobRequirementReleaseReadinessUseCase:
                 baseline.decision.evidence_fingerprint if baseline else None
             ),
             blockers=tuple(blockers),
+            user_confirmation_id=extraction.user_confirmation_id,
+            requirement_facts_digest=requirement_facts_digest(extraction),
         )

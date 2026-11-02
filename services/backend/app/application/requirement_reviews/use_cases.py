@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import asdict
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -187,52 +188,61 @@ class FinalizeRequirementReviewBatchUseCase:
         reviewer: str,
         notes: str,
     ) -> RequirementReviewBatchFinalDecisionDetail:
-        batch = self._repository.get_batch(batch_id)
-        if batch is None:
-            raise RequirementReviewBatchNotFoundError(
-                f"Requirement Review Batch {batch_id!r} was not found"
-            )
-        if self._repository.get_final_decision(batch_id) is not None:
-            raise RequirementReviewBatchFinalDecisionAlreadyExistsError(
-                f"Requirement Review Batch {batch_id!r} already has an immutable final decision"
-            )
-
-        normalized_reviewer = reviewer.strip()
-        normalized_notes = notes.strip()
-        if normalized_reviewer != batch.summary.reviewer:
-            raise InvalidRequirementReviewBatchFinalDecisionError(
-                "Final decision reviewer must match the reviewer who owns the Batch"
-            )
-        if len(normalized_notes) < MIN_FINAL_DECISION_NOTES:
-            raise InvalidRequirementReviewBatchFinalDecisionError(
-                f"notes must contain at least {MIN_FINAL_DECISION_NOTES} characters after trimming"
-            )
-        if not batch.summary.formal_evidence_eligible:
-            raise InvalidRequirementReviewBatchFinalDecisionError(
-                "Final decision requires exactly 20 reviewed, current, non-Fixture Cases"
-            )
-        if any(case.review is None for case in batch.cases):
-            raise InvalidRequirementReviewBatchFinalDecisionError(
-                "Every Batch Case must have an immutable human review"
-            )
-
-        decided_at = datetime.now(timezone.utc)
-        detail = RequirementReviewBatchFinalDecisionDetail(
-            id=f"reqbatchdecision_{uuid4().hex}",
-            batch_id=batch.summary.id,
-            decision=decision,
-            reviewer=normalized_reviewer,
-            notes=normalized_notes,
-            sample_size=batch.summary.sample_size,
-            reviewed_count=batch.summary.reviewed_count,
-            accepted_count=batch.summary.accepted_count,
-            rejected_count=batch.summary.rejected_count,
-            stale_case_count=batch.summary.stale_case_count,
-            issue_code_counts=dict(batch.issue_code_counts),
-            evidence_fingerprint=_batch_evidence_fingerprint(batch),
-            decided_at=decided_at,
-        )
         with self._uow_factory() as uow:
+            batch = uow.load_batch_for_final_decision(batch_id)
+            if batch is None:
+                raise RequirementReviewBatchNotFoundError(
+                    f"Requirement Review Batch {batch_id!r} was not found"
+                )
+            if batch.final_decision is not None:
+                raise RequirementReviewBatchFinalDecisionAlreadyExistsError(
+                    f"Requirement Review Batch {batch_id!r} already has an immutable final decision"
+                )
+
+            normalized_reviewer = reviewer.strip()
+            normalized_notes = notes.strip()
+            if normalized_reviewer != batch.summary.reviewer:
+                raise InvalidRequirementReviewBatchFinalDecisionError(
+                    "Final decision reviewer must match the reviewer who owns the Batch"
+                )
+            if len(normalized_notes) < MIN_FINAL_DECISION_NOTES:
+                raise InvalidRequirementReviewBatchFinalDecisionError(
+                    f"notes must contain at least {MIN_FINAL_DECISION_NOTES} characters after trimming"
+                )
+            if not batch.summary.formal_evidence_eligible:
+                raise InvalidRequirementReviewBatchFinalDecisionError(
+                    "Final decision requires exactly 20 reviewed, current, non-Fixture Cases"
+                )
+            if any(case.review is None for case in batch.cases):
+                raise InvalidRequirementReviewBatchFinalDecisionError(
+                    "Every Batch Case must have an immutable human review"
+                )
+
+            decided_at = datetime.now(timezone.utc)
+            detail = RequirementReviewBatchFinalDecisionDetail(
+                id=f"reqbatchdecision_{uuid4().hex}",
+                batch_id=batch.summary.id,
+                decision=decision,
+                reviewer=normalized_reviewer,
+                notes=normalized_notes,
+                sample_size=batch.summary.sample_size,
+                reviewed_count=batch.summary.reviewed_count,
+                accepted_count=batch.summary.accepted_count,
+                rejected_count=batch.summary.rejected_count,
+                stale_case_count=batch.summary.stale_case_count,
+                issue_code_counts=dict(batch.issue_code_counts),
+                evidence_fingerprint=_batch_evidence_fingerprint(batch),
+                decided_at=decided_at,
+            )
+            traces = uow.load_evidence_traces(tuple(case.trace_run_id for case in batch.cases))
+            snapshot = json.loads(json.dumps(
+                {"schemaVersion": 2, "baselinePolicy": "frozen_cohort_v1", "batch": asdict(batch), "traces": traces},
+                ensure_ascii=False,
+                default=lambda value: value.isoformat(),
+            ))
+            snapshot_bytes = json.dumps(
+                snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
             uow.reviews.add_final_decision(
                 RequirementReviewBatchFinalDecisionWrite(
                     decision_id=detail.id,
@@ -248,6 +258,8 @@ class FinalizeRequirementReviewBatchUseCase:
                     issue_code_counts=dict(detail.issue_code_counts),
                     evidence_fingerprint=detail.evidence_fingerprint,
                     decided_at=detail.decided_at,
+                    evidence_snapshot=snapshot,
+                    evidence_snapshot_sha256=sha256(snapshot_bytes).hexdigest(),
                 )
             )
             uow.commit()

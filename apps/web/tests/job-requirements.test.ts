@@ -67,10 +67,11 @@ test("Requirement release labels distinguish allowed facts from blockers", () =>
     "岗位要求还在准备中，暂时不会用于匹配",
   );
   assert.deepEqual(requirementReleaseBlockerCopy("accepted_baseline_missing"), {
-    title: "项目级 AI 质量验收还未完成",
+    title: "当前没有有效的岗位要求审核基线",
     description:
-      "这不是当前岗位漏做了某一步。系统还没有形成经过人工接受的 Requirement 分析基线；你仍然可以先分析这个岗位，但正式匹配会继续保持锁定。",
+      "可能尚未建立审核基线，也可能原有基线已失效。仅重新分析当前岗位不能保证恢复匹配；请查看人工审核状态，或联系维护人员处理。",
   });
+  assert.match(requirementReleaseBlockerCopy("extraction_cohort_mismatch").description, /不保证解除阻断/);
   assert.deepEqual(requirementReleaseBlockerCopy("requirement_extraction_missing"), {
     title: "这个岗位还没有完成要求分析",
     description:
@@ -90,4 +91,25 @@ test("must-have Requirements sort before preferred and bonus without mutation", 
 
   assert.deepEqual(sorted.map((item) => item.id), ["must", "preferred", "bonus"]);
   assert.deepEqual(input.map((item) => item.id), ["bonus", "preferred", "must"]);
+});
+
+test("short or missing descriptions give a repair step instead of an unavailable analysis action", async () => {
+  const {hasEnoughJobDescription, requirementReleaseBlockerCopy, shortJobDescriptionGuidance} = await import("../lib/job-requirements");
+  assert.equal(hasEnoughJobDescription(" short "), false);
+  assert.equal(hasEnoughJobDescription("x".repeat(40)), true);
+  assert.equal(requirementReleaseBlockerCopy("requirement_extraction_missing", null).description, shortJobDescriptionGuidance);
+  assert.match(requirementReleaseBlockerCopy("requirement_extraction_missing", "x".repeat(40)).description, /点击/);
+  assert.match(requirementReleaseBlockerCopy("requirement_extraction_missing").description, /点击/);
+});
+
+test("description length follows the backend's Unicode code point limits", async () => {
+  const {hasEnoughJobDescription, jobDescriptionIssue, requirementReleaseBlockerCopy, longJobDescriptionGuidance} = await import("../lib/job-requirements");
+  assert.equal(hasEnoughJobDescription("😀".repeat(39)), false);
+  assert.equal(hasEnoughJobDescription("😀".repeat(40)), true);
+  assert.equal(hasEnoughJobDescription("字".repeat(50_000)), true);
+  assert.equal(hasEnoughJobDescription("字".repeat(50_001)), false);
+  assert.equal(jobDescriptionIssue("字".repeat(50_001)), longJobDescriptionGuidance);
+  assert.equal(requirementReleaseBlockerCopy("extraction_input_stale", "字".repeat(50_001)).description, longJobDescriptionGuidance);
+  assert.match(requirementReleaseBlockerCopy("extraction_input_stale", "x".repeat(40)).description, /重新分析/);
+  assert.match(requirementReleaseBlockerCopy("extraction_input_stale").description, /重新分析/);
 });

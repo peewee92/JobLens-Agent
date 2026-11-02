@@ -7,12 +7,15 @@ from hashlib import sha256
 from time import perf_counter
 from uuid import uuid4
 
+from app.application.evidence_retrieval.strategy import RETRIEVAL_VERSION
 from app.application.eligibility import JobEligibilityResult, RequirementFitStatus
 from app.application.evidence_retrieval import (
     EvidenceRelevanceTier,
     JobEvidenceRetrievalResult,
 )
-from app.application.semantic_match.call_boundary import needs_semantic_model
+from app.application.semantic_match.call_boundary import (
+    needs_semantic_model, semantic_requirement_input, semantic_input_payload,
+)
 from app.application.ports.semantic_matcher import AbstractSemanticMatcher
 from app.application.ports.trace_unit_of_work import AbstractTraceUnitOfWork
 from app.application.semantic_match.errors import (
@@ -24,7 +27,6 @@ from app.application.semantic_match.errors import (
 from app.application.semantic_match.models import (
     JobSemanticMatchResult,
     SemanticAssessmentSource,
-    SemanticCandidateInput,
     SemanticMatchOutput,
     SemanticMatchVerdict,
     SemanticRequirementAssessment,
@@ -82,6 +84,7 @@ class SemanticMatchWorkflow:
                         "无需模型再次判断。"
                     ),
                     source=SemanticAssessmentSource.DETERMINISTIC,
+                    candidate_count=len(candidate_set.candidates),
                 )
                 continue
 
@@ -99,29 +102,11 @@ class SemanticMatchWorkflow:
                     profile_fact_refs=item.profile_fact_refs,
                     reason="没有检索到可供语义判断的已确认职业证据。",
                     source=SemanticAssessmentSource.DETERMINISTIC,
+                    candidate_count=len(candidate_set.candidates),
                 )
                 continue
 
-            provider_inputs.append(
-                SemanticRequirementInput(
-                    requirement_id=item.requirement_id,
-                    requirement_index=item.requirement_index,
-                    type=item.type,
-                    importance=item.importance,
-                    original_text=item.original_text,
-                    normalized_capability=item.normalized_capability,
-                    candidates=tuple(
-                        SemanticCandidateInput(
-                            evidence_id=candidate.evidence_id,
-                            evidence_type=candidate.evidence_type,
-                            summary=candidate.summary,
-                            relevance_tier=candidate.relevance_tier,
-                            retrieval_basis=candidate.retrieval_basis,
-                        )
-                        for candidate in candidate_set.candidates
-                    ),
-                )
-            )
+            provider_inputs.append(semantic_requirement_input(item, candidate_set.candidates))
 
         if not provider_inputs:
             return self._build_result(
@@ -204,6 +189,7 @@ class SemanticMatchWorkflow:
                 profile_fact_refs=eligibility_item.profile_fact_refs,
                 reason=provider_item.reason.strip(),
                 source=SemanticAssessmentSource.PROVIDER,
+                candidate_count=len(requirement_input.candidates),
             )
 
         self._record_trace(
@@ -357,6 +343,7 @@ class SemanticMatchWorkflow:
                     model=model,
                     prompt_version=PROMPT_VERSION,
                     input_refs={
+                        "retrievalVersion": RETRIEVAL_VERSION,
                         "jobId": eligibility.job_id,
                         "profileId": eligibility.profile_id,
                         "profileVersion": eligibility.profile_version,
@@ -394,28 +381,7 @@ class SemanticMatchWorkflow:
 def _provider_input_dict(
     requirements: tuple[SemanticRequirementInput, ...],
 ) -> dict[str, object]:
-    return {
-        "requirements": [
-            {
-                "requirementId": item.requirement_id,
-                "type": item.type.value,
-                "importance": item.importance.value,
-                "originalText": item.original_text,
-                "normalizedCapability": item.normalized_capability,
-                "candidates": [
-                    {
-                        "evidenceId": candidate.evidence_id,
-                        "evidenceType": candidate.evidence_type.value,
-                        "summary": candidate.summary,
-                        "relevanceTier": candidate.relevance_tier.value,
-                        "retrievalBasis": candidate.retrieval_basis.value,
-                    }
-                    for candidate in item.candidates
-                ],
-            }
-            for item in requirements
-        ]
-    }
+    return semantic_input_payload(requirements)
 
 
 def _semantic_output_dict(output: SemanticMatchOutput) -> dict[str, object]:

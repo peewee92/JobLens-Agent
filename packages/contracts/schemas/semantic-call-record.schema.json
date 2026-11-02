@@ -1,0 +1,109 @@
+{
+  "properties": {
+    "actionId": {
+      "title": "Actionid",
+      "type": "string"
+    },
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "running",
+        "completed",
+        "failed",
+        "uncertain"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "attempts": {
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "responseStatus": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Responsestatus"
+    },
+    "inputTokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Inputtokens"
+    },
+    "outputTokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Outputtokens"
+    },
+    "reportId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reportid"
+    },
+    "errorCode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Errorcode"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "maxOutputTokens": {
+      "title": "Maxoutputtokens",
+      "type": "integer"
+    },
+    "timeoutSeconds": {
+      "title": "Timeoutseconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "actionId",
+    "jobId",
+    "status",
+    "attempts",
+    "responseStatus",
+    "inputTokens",
+    "outputTokens",
+    "reportId",
+    "errorCode",
+    "model",
+    "maxOutputTokens",
+    "timeoutSeconds"
+  ],
+  "title": "SemanticCallRecord",
+  "type": "object"
+}

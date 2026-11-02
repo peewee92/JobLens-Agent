@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import {formatDateTime} from "@/lib/format";
 import {inputIssueLabel, runStatusLabels, workspaceStatusLabels, workbenchChangeLabel, type Workbench} from "@/lib/workbench";
 
 export function WorkbenchView({data}: {data: Workbench}) {
@@ -9,13 +10,13 @@ export function WorkbenchView({data}: {data: Workbench}) {
     <section className="hero product-hero">
       <p className="eyebrow">JobLens · 求职任务工作台</p>
       <h1>把有依据的选择，变成下一步行动</h1>
-      <p className="lede">先确认真实资料，再比较岗位、准备材料并记录结果。不会编造经历，也不会自动投递。</p>
+      <p className="lede">确认我的背景 → 比较几个岗位 → 选择准备目标 → 开始一项行动。不会编造经历，也不会自动投递。</p>
       <h2>下一步：{action.label}</h2><p>{action.reason}</p>
       <div className="actions"><Link className="button" href={action.href}>{action.label}</Link></div>
     </section>
     <section className="detail-card" aria-label="当前准备情况">
       <h2>当前准备情况</h2>
-      <p>职业资料：{view.profileVersion ? `已确认 v${view.profileVersion}` : "尚未确认"} · 求职意向：{view.searchIntentVersion ? `已确认 v${view.searchIntentVersion}` : "尚未确认"}</p>
+      <details><summary>资料确认与版本详情</summary><p>职业资料：{view.profileVersion ? `已确认 v${view.profileVersion}` : "尚未确认"} · 求职意向：{view.searchIntentVersion ? `已确认 v${view.searchIntentVersion}` : "尚未确认"}</p></details>
       <p>{view.evidenceCount} 项已确认经历证据 · {view.jobCount} 个已导入岗位{run ? ` · 最近分析范围 ${run.jobCount} 个岗位` : ""}</p>
       {view.inputIssueCodes.length ? <ul>{view.inputIssueCodes.map(code => <li key={code}>{inputIssueLabel(code)}</li>)}</ul> : <p>资料与意向已确认；具体岗位的数据质量、要求和证据覆盖仍需逐项核对。</p>}
       <div className="actions"><Link href="/profile">核对我的资料与意向</Link><Link href="/import">添加岗位</Link><Link href="/jobs">检查岗位描述、要求和输入问题</Link></div>
@@ -43,12 +44,13 @@ export function WorkbenchView({data}: {data: Workbench}) {
         {workspace.currentAnalysisThreadId && <Link href={`/agent/results/${encodeURIComponent(workspace.currentAnalysisThreadId)}`}>查看关联分析、差距与准备材料</Link>}
         {workspace.currentAnalysisThreadId && <p><Link href={`/agent/results/${encodeURIComponent(workspace.currentAnalysisThreadId)}/update`}>从该工作区关联分析更新</Link></p>}
       </li>)}</ul> : <p>还没有建立工作区。确认目标并保存分析后，即可一键开始执行。</p>}
-      <p className="muted-copy">最多显示 5 个最近工作区。行动完成只记录进度，不会自动增加职业事实。</p>
+      <p className="muted-copy">这里只显示 5 个最近工作区。行动完成只记录进度，不会自动增加职业事实。</p>
+      <Link href="/applications">查看全部求职工作区</Link>
     </section>
     <section className="detail-card" aria-label="最近变化">
       <h2>最近变化</h2>
       {view.changes.length ? <ul>{view.changes.map((change, i) => <li key={`${change.kind}-${change.occurredAt}-${i}`}>
-        <Link href={change.href}>{workbenchChangeLabel(change.kind)}</Link><small> · {change.occurredAt.replace("T", " ").slice(0, 16)}（协调世界时）</small>
+        <Link href={change.href}>{workbenchChangeLabel(change.kind)}</Link><small> · <time dateTime={change.occurredAt}>{formatDateTime(change.occurredAt)}</time>（北京时间）</small>
       </li>)}</ul> : <p>暂无已保存的变化。</p>}
       <p>这里汇总实际保存的事实和事件，不把点击按钮当成业务完成。</p>
     </section>

@@ -1,17 +1,25 @@
 "use client";
+import {RankedJobExplanation} from "@/components/ranked-job-explanation";
+
+import {validatedRunLabels} from "@/lib/agent-run-labels";
+import {UnrankedJobs} from "@/components/unranked-jobs";
+import {appendAgentJobPage} from "@/lib/agent-job-pages";
+import {rankingPreflight, rankingScope, staleReasonLabels, type RankingPreflight} from "@/lib/agent-ranking-preflight";
 
 import Link from "next/link";
+import {agentScopeHref, initialAgentJobScope, jobDetailWithAgentScope, initialScopeAnalysisHref} from "@/lib/agent-job-scope";
 import {UpdateMatchProgress} from "./update-match-progress";
 import {useEffect, useMemo, useState} from "react";
 
 import {
   CareerAgentRunHttpError,
+  careerAgentStepSummary,
   buildGapHandoffHref,
   shouldForgetPendingThread,
   targetSelectionBlockMessage,
 } from "@/lib/career-agent-run";
 import {
-  clearRunCommand, commandResolution, loadRunCommand, runHref, saveRunCommand,
+  clearRunCommand, commandResolution, hasRunCommandRecord, loadRunCommand, rankedReportHref, runHref, saveRunCommand,
   sendRunCommand, validThreadReference, type SavedRunCommand,
 } from "@/lib/career-agent-commands";
 import {userFacingApiError} from "@/lib/user-facing-errors";
@@ -20,7 +28,7 @@ import type {ApiErrorBody, JobListItem, CareerAgentRunState as RunState} from "@
 type Decision = "approve" | "edit" | "reject";
 const RUN_STATUS_LABELS: Record<string, string> = {
   created: "已保存输入", running: "分析待继续", interrupted: "等待确认", resuming: "分析待继续",
-  completed: "已完成", cancelled: "已结束", blocked: "需要补齐输入", failed: "执行失败", stale: "资料已变化",
+  completed: "已完成", cancelled: "已结束", blocked: "需要补齐输入", failed: "执行失败", stale: "分析依据已变化",
 };
 const STORAGE_KEY = "joblens.careerAgent.pendingThread";
 
@@ -39,24 +47,47 @@ async function parseResponse(response: Response): Promise<RunState> {
   throw new CareerAgentRunHttpError(response.status, message);
 }
 
-export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
-  const [selected, setSelected] = useState<string[]>(() => jobs.slice(0, 5).map((job) => job.id));
+export function RankedJobLabel({job, label, jobId}: {job?: JobListItem; label?: string; jobId: string}) {
+  return job ? <><strong>{job.title}</strong> · {job.company}</> : <>{label ?? jobId}</>;
+}
+
+export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialScope, initialPageOffset = 0, initialHasMore = false}: {jobs: JobListItem[]; initialJobId?: string; initialScope?: string[]; initialPageOffset?: number; initialHasMore?: boolean}) {
+  const [jobs, setJobs] = useState(initialJobs);
+  const [pageOffset, setPageOffset] = useState(initialPageOffset);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobPageError, setJobPageError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>(() => initialAgentJobScope(jobs.map(job => job.id), initialScope ?? initialJobId));
+  const [preflight, setPreflight] = useState<RankingPreflight | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [preflightError, setPreflightError] = useState<{scope: string; message: string} | null>(null);
   const [edited, setEdited] = useState<string[]>([]);
   const [run, setRun] = useState<RunState | null>(null);
+  const [runLabels, setRunLabels] = useState<Record<string, string>>({});
   const [recoverableThreadId, setRecoverableThreadId] = useState<string | null>(null);
   const [pendingCommand, setPendingCommand] = useState<SavedRunCommand | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunState[]>([]);
   const [recentError, setRecentError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("选择已有匹配结果的岗位，然后让 Agent 给出目标岗位建议。");
+  const [message, setMessage] = useState("选择已有报告的岗位，检查后查看建议与依据。");
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
+  const currentScope = rankingScope(selected);
+  const currentPreflight = preflight?.scope === currentScope ? preflight : null;
 
   useEffect(() => {
     void loadRecentRuns();
     const fromUrl = new URLSearchParams(window.location.search).get("threadId");
     let local: string | null = null;
     try { local = window.localStorage.getItem(STORAGE_KEY); } catch {}
-    const threadId = validThreadReference(fromUrl) ? fromUrl : validThreadReference(local) ? local : null;
+    // An explicit job scope wins over an old local run, but never hide an unresolved command.
+    let localCommand = false;
+    let localCommandChecked = false;
+    if (validThreadReference(local)) {
+      try { localCommand = hasRunCommandRecord(window.localStorage, local); localCommandChecked = true; } catch {}
+    }
+    const explicitScope = initialScope !== undefined || initialJobId !== undefined;
+    const threadId = validThreadReference(fromUrl) ? fromUrl :
+      validThreadReference(local) && (!explicitScope || !localCommandChecked || localCommand) ? local : null;
     if (!threadId) return;
     setRecoverableThreadId(threadId);
     try {
@@ -66,6 +97,21 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
     } catch {}
     void recoverRun(threadId);
   }, []);
+
+  const runLabelScope = run?.requestedJobIds.join("\u0000") ?? "";
+  useEffect(() => {
+    if (!runLabelScope) { setRunLabels({}); return; }
+    const ids = runLabelScope.split("\u0000");
+    const query = new URLSearchParams();
+    ids.forEach(id => query.append("jobId", id));
+    let cancelled = false;
+    setRunLabels({});
+    void fetch(`/api/jobs/labels?${query}`, {cache: "no-store"})
+      .then(response => response.ok ? response.json() : null)
+      .then(body => { if (!cancelled) setRunLabels(validatedRunLabels(ids, body)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [runLabelScope]);
 
   async function loadRecentRuns() {
     try {
@@ -119,7 +165,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       if (shouldForgetPendingThread(error) && saved?.kind !== "start") {
         try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
         setRecoverableThreadId(null);
-        setMessage("上次 Agent Run 已不存在，可以开始新的 Run。");
+        setMessage("上次 Agent Run 已不存在，可以开始新的比较。");
       } else {
         setRecoverableThreadId(threadId);
         setPendingCommand(saved);
@@ -142,18 +188,47 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       if (!run) setRecoverableThreadId(command.threadId);
       const state = await parseResponse(await sendRunCommand(window.localStorage, command));
       displayState(state);
-      setMessage(state.pendingApproval ? "Agent 已暂停，等待你确认目标岗位。" :
+      setMessage(state.pendingApproval ? "比较已完成，请确认准备目标。" :
         state.status === "completed" ? "能力差距分析已完成。" :
         state.status === "cancelled" ? "你已拒绝这组目标岗位，本次分析已结束。" :
-        state.status === "stale" ? "职业事实已变化，本次分析已安全停止，请新建分析。" :
+        state.status === "stale" ? careerAgentStepSummary(state.currentStep) :
         targetSelectionBlockMessage(state.currentStep) ?? "分析状态已更新。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "暂时无法提交；原请求已保留，请先查看状态或重试原请求。");
     } finally { setBusy(false); }
   }
 
+  async function loadMoreJobs() {
+    if (loadingJobs || !hasMore) return;
+    setLoadingJobs(true); setJobPageError(null);
+    try {
+      const response = await fetch(`/api/jobs?offset=${pageOffset}`);
+      if (!response.ok) throw new Error("暂时无法读取更多岗位，请稍后重试。");
+      const page = await response.json();
+      const next = appendAgentJobPage(jobs, page, pageOffset);
+      setJobs(next.jobs); setPageOffset(next.offset); setHasMore(next.hasMore);
+    } catch (error) { setJobPageError(error instanceof Error ? error.message : "暂时无法读取更多岗位，请稍后重试。"); }
+    finally { setLoadingJobs(false); }
+  }
+
+  async function checkRanking() {
+    if (!selected.length || checking) return;
+    const ids = [...selected];
+    const scope = rankingScope(ids);
+    setChecking(true); setPreflight(null); setPreflightError(null);
+    try {
+      const params = new URLSearchParams();
+      ids.forEach(id => params.append("jobId", id));
+      const response = await fetch(`/api/match-ranking/preflight?${params}`, {cache: "no-store"});
+      if (!response.ok) throw new Error("暂时无法检查排序，请确认服务可用后重试。");
+      setPreflight(rankingPreflight(ids, await response.json()));
+    } catch (error) {
+      setPreflightError({scope, message: error instanceof Error ? error.message : "暂时无法检查排序，请重试。"});
+    } finally { setChecking(false); }
+  }
+
   async function startRun() {
-    if (selected.length === 0 || pendingCommand) return;
+    if (!currentPreflight?.candidates.length || checking || busy || pendingCommand) return;
     const threadId = newId("thread");
     await submitSavedCommand({version: 1, kind: "start", threadId, body: {
       threadId, runId: newId("run"), requestId: newId("request"),
@@ -181,7 +256,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       displayState(state);
       setMessage(state.pendingApproval ? "分析已恢复，请确认目标岗位。" :
         state.status === "completed" ? "本次分析已完成。" :
-        state.status === "stale" ? "资料已经变化，请保留旧结果并新建分析。" :
+        state.status === "stale" ? careerAgentStepSummary(state.currentStep) :
         targetSelectionBlockMessage(state.currentStep) ?? "分析状态已更新。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "暂时无法继续，请先重新查看状态。");
@@ -193,28 +268,31 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
   const gapHandoffHref = run?.status === "completed" && !run.legacyReadOnly
     ? buildGapHandoffHref(run.confirmedTargetJobIds)
     : null;
+  const unrankedJobIds = run && (run.pendingApproval || ["completed", "blocked", "rejected"].includes(run.status))
+    ? run.requestedJobIds.filter(id => !run.rankedJobIds.includes(id)) : [];
+  const jobLabels = {...runLabels, ...Object.fromEntries(jobs.map(job => [job.id, job.title]))};
   const activeJobIds = run?.requestedJobIds ?? selected;
-  const activeJobNames = activeJobIds.map((id) => jobsById.get(id)?.title ?? id);
+  const activeJobNames = activeJobIds.map((id) => jobLabels[id] ?? id);
   const requestSummary = activeJobNames.length > 0
     ? `帮我先比较这 ${activeJobNames.length} 个岗位，找出最值得优先考虑的岗位，再分析共同能力差距。`
     : "帮我比较目标岗位并分析共同能力差距。";
   const planSummary = run?.pendingApproval
-    ? "已完成岗位排序；下一步需要你确认目标岗位，然后才会分析共同能力差距。"
+    ? unrankedJobIds.length ? "仅部分所选岗位进入排序；请先查看未参与岗位，再决定是否确认目标。" : "已完成岗位排序；下一步需要你确认目标岗位，然后才会分析共同能力差距。"
     : run?.status === "completed"
-      ? run.updatePartial ? "已保存部分范围的目标分析；未完成岗位仍明确列出，不代表已淘汰。" : "岗位排序 → 人工确认 → 能力差距分析已完成。"
+      ? run.updatePartial || unrankedJobIds.length ? "已保存部分范围的目标分析；未参与排序的岗位不代表已淘汰。" : "岗位排序 → 人工确认 → 能力差距分析已完成。"
       : run?.currentStep === "update_matching"
         ? "已按固定事实处理当前小批；请查看逐岗位结果，明确继续下一批或仅使用已完成岗位。"
       : run
-        ? `当前步骤：${run.currentStep}。系统只会沿已受治理的 Ranking → 人工确认 → Skill Gap 路径执行。`
+        ? careerAgentStepSummary(run.currentStep)
         : "选择岗位后，系统会先读取已有匹配结果并排序；目标岗位必须由你确认后才继续能力差距分析。";
 
   return (
     <div className="stack-lg">
       <section className="card stack-md" aria-label="Career Agent Chat">
         <div>
-          <p className="eyebrow">Career Agent Chat</p>
-          <h2>受治理的求职分析对话</h2>
-          <p className="muted">当前界面只展示已经接通并通过持久化验证的 Agent 路径；自由文本意图模型仍受 Release Gate 管理，不会在这里伪装成已上线能力。</p>
+          <p className="eyebrow">本次求职分析</p>
+          <h2>比较进度与下一步</h2>
+          <p className="muted">先比较已有报告，再由你确认目标，最后保存准备材料。这里不会自由聊天、编造经历或自动投递。</p>
         </div>
         <div className="stack-sm">
           <div>
@@ -238,7 +316,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
           </details>
         </div>
       </section>
-      {!!run?.updateSteps?.length && <UpdateMatchProgress key={run.threadId} run={run} jobTitles={Object.fromEntries(jobs.map(j => [j.id, j.title]))} onState={state => {
+      {!!run?.updateSteps?.length && <UpdateMatchProgress key={run.threadId} run={run} jobTitles={jobLabels} onState={state => {
         displayState(state);
         setMessage(state.pendingApproval ? "岗位排序已完成，请确认目标岗位。" : targetSelectionBlockMessage(state.currentStep) ?? "本次处理已保存，请查看当前状态。");
       }} />}
@@ -247,7 +325,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
           <h2>这次请求的结果尚未确认</h2>
           <p>原岗位范围和决定已保存。请先查看服务端状态；需要重试时会沿用原标识和原内容，不会改成另一决定。</p>
           <p className="muted">{pendingCommand.kind === "start"
-            ? `原请求：分析 ${pendingCommand.body.jobIds.map((id) => jobsById.get(id)?.title ?? id).join("、")}；最多建议 ${pendingCommand.body.topN} 个目标。`
+            ? `原请求：分析 ${pendingCommand.body.jobIds.map((id) => jobLabels[id] ?? id).join("、")}；最多建议 ${pendingCommand.body.topN} 个目标。`
             : `原决定：${pendingCommand.body.decision === "approve" ? "确认建议" : pendingCommand.body.decision === "reject" ? "拒绝并结束" : `确认所选 ${pendingCommand.body.selectedJobIds.length} 个目标`}。`}</p>
           <div className="button-row">
             <button className="button primary" disabled={busy} onClick={() => void recoverRun(pendingCommand.threadId)} type="button">查看请求状态</button>
@@ -259,9 +337,9 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       {!run && recoverableThreadId && (
         <section className="card stack-md">
           <div>
-            <p className="eyebrow">恢复已有 Run</p>
-            <h2>上次 Agent Run 仍可恢复</h2>
-            <p className="muted">刚才可能只是网络或服务暂时不可用。JobLens 已保留 durable thread 引用，不会因为一次恢复失败就重新 Ranking。</p>
+            <p className="eyebrow">继续上次比较</p>
+            <h2>上次比较仍可继续</h2>
+            <p className="muted">刚才可能只是网络或服务暂时不可用。JobLens 已保留 已保存的运行引用，不会因为一次读取失败就重新排序。</p>
           </div>
           <div className="button-row">
             <button className="button primary" disabled={busy} onClick={() => void recoverRun(recoverableThreadId)} type="button">
@@ -279,7 +357,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
               }}
               type="button"
             >
-              放弃旧 Run
+              结束上次比较
             </button>
           </div>
         </section>
@@ -288,7 +366,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       {!run && !recoverableThreadId && (
         <section className="card stack-md">
           <div>
-            <p className="eyebrow">Step 1 · 选择岗位</p>
+            <p className="eyebrow">第一步 · 选择岗位</p>
             <h2>选择要一起分析的岗位</h2>
             <p className="muted">一次最多比较 50 个岗位，只读取已有匹配报告；默认建议最多 3 个目标，不会重新调用模型或自动修改职业事实。</p>
           </div>
@@ -298,6 +376,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
                 <input
                   type="checkbox"
                   checked={selected.includes(job.id)}
+                  disabled={!selected.includes(job.id) && selected.length >= 50}
                   onChange={(event) => setSelected((current) => event.target.checked
                     ? Array.from(new Set([...current, job.id])).slice(0, 50)
                     : current.filter((id) => id !== job.id))}
@@ -306,8 +385,34 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
               </label>
             ))}
           </div>
-          <button className="button primary" disabled={busy || selected.length === 0} onClick={startRun} type="button">
-            {busy ? "正在运行…" : `运行 Agent（${selected.length} 个岗位）`}
+          {hasMore && <button className="button" disabled={loadingJobs} onClick={() => void loadMoreJobs()} type="button">{loadingJobs ? "正在读取岗位…" : "加载更多岗位"}</button>}
+          {jobPageError && <p role="alert">{jobPageError}</p>}
+          <p className="muted">已选择 {selected.length} / 50 个岗位；加载更多不会清除已选岗位。</p>
+          <button className="button" disabled={busy || checking || selected.length === 0} onClick={() => void checkRanking()} type="button">{checking ? "正在检查…" : "检查所选岗位"}</button>
+          {preflightError?.scope === currentScope && <p role="alert">{preflightError.message}</p>}
+          {currentPreflight && <div className="stack-sm" aria-live="polite">
+            <p>当前有 {currentPreflight.ranked.length} / {selected.length} 个岗位可进入默认排序。检查只反映当前快照，不代表这些岗位一定会被推荐；正式分析时会重新检查。</p>
+            {currentPreflight.omissions.length > 0 && <aside className="notice" aria-label="未进入排序的岗位及原因">
+              <strong>{currentPreflight.omissions.length} 个岗位暂未进入默认排序</strong>
+              <p>未进入排序不等于你不具备相关能力。以下原因仅基于当前保存的记录，正式分析时会重新检查。</p>
+              <ul>{currentPreflight.omissions.map(item => <li key={item.jobId}>
+                <Link href={jobDetailWithAgentScope(item.jobId, selected)}>{jobsById.get(item.jobId)?.title ?? item.jobId}</Link>：{item.reason === "report_missing" ? "尚无匹配报告，请查看岗位并按页面提示准备匹配。" : item.reason === "report_stale" ? `${staleReasonLabels(item.staleReasons)}；请先核对岗位与分析依据。` : "当前报告存在明确硬冲突，请查看具体依据并核对相关事实。"}
+              </li>)}</ul>
+            </aside>}
+            {currentPreflight.omissions.some(item => item.reason === "report_missing" || item.reason === "report_stale") && <aside className="notice stack-sm">
+              <p>缺少或过期的报告可以按当前已确认事实重新分析。先预览这批岗位需要哪些处理，再明确启动；旧报告保留，需要模型时不会自动调用。</p>
+              <Link className="button primary" href={initialScopeAnalysisHref(selected)}>按当前事实分析这批岗位</Link>
+            </aside>}
+            {currentPreflight.insufficient.length > 0 && <aside className="notice" aria-label="暂不提出目标建议的岗位">
+              <strong>{currentPreflight.insufficient.length} 个岗位可以查看，但当前证据不足以提出目标建议</strong>
+              <p>这不代表你不具备相应能力。可以查看要求、核对已有事实，补充确认后的真实证据，再更新匹配报告。</p>
+              <ul>{currentPreflight.insufficient.map(id => <li key={id}><Link href={jobDetailWithAgentScope(id, selected)}>{jobLabels[id] ?? id}：查看岗位和匹配依据</Link></li>)}</ul>
+            </aside>}
+            {currentPreflight.ranked.length > 0 && !currentPreflight.candidates.length && <p>当前没有足够依据提出目标建议，请先查看岗位及匹配依据，更新后重新检查。</p>}
+          </div>}
+          {!currentPreflight && selected.length > 0 && <p className="muted">请先检查当前所选岗位；更改选择后需重新检查。</p>}
+          <button className="button primary" disabled={busy || checking || !currentPreflight?.candidates.length} onClick={startRun} type="button">
+            {busy ? "正在运行…" : `比较所选岗位（${selected.length} 个岗位）`}
           </button>
         </section>
       )}
@@ -326,17 +431,18 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       {run?.pendingApproval && (
         <section className="card stack-md">
           <div>
-            <p className="eyebrow">Step 2 · 需要你的决定</p>
+            <p className="eyebrow">第二步 · 确认目标</p>
             <h2>确认目标岗位集合</h2>
             <p className="muted">默认建议最多 3 个；你可调整并确认最多 5 个。只有确认后才会继续能力差距分析，不能直接选择没有有效报告的岗位。</p>
             {run.targetSuggestionMode === "challenge_only" ? <p className="notice">本次只有挑战／待核实目标，没有优先投入建议。相关基础不代表条件已全部满足，请先查看关键未知。</p> : null}
-            <Link href="/recommendations">核对分组、证据和关键未知</Link>
+            <p>请查看每个岗位本次排序所用的已保存匹配依据；报告可帮助你核对支持证据和待确认条件。</p>
+            <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} />
           </div>
           <div className="stack-sm">
-            {run.rankedJobIds.map((jobId) => {
+            {run.rankedJobIds.map((jobId, index) => {
               const job = jobsById.get(jobId);
               return (
-                <label className="check-row" key={jobId}>
+                <div className="stack-sm" key={jobId}><label className="check-row">
                   <input
                     type="checkbox"
                     checked={edited.includes(jobId)}
@@ -345,8 +451,11 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
                       ? Array.from(new Set([...current, jobId])).slice(0, 5)
                       : current.filter((id) => id !== jobId))}
                   />
-                  <span>{job ? <><strong>{job.title}</strong> · {job.company}</> : jobId}{!run.proposedTargetJobIds.includes(jobId) ? " · 非默认建议，请先核对证据与未知" : ""}</span>
+                  <span><RankedJobLabel job={job} label={jobLabels[jobId]} jobId={jobId} />{!run.proposedTargetJobIds.includes(jobId) ? " · 非默认建议，请先核对证据与未知" : ""}</span>
                 </label>
+                {run.rankedReportRefs?.find(ref => ref.jobId === jobId)?.reportId ? <RankedJobExplanation jobId={jobId} reportId={run.rankedReportRefs.find(ref => ref.jobId === jobId)!.reportId} position={index + 1} /> : null}
+                {run.rankedReportRefs?.find(ref => ref.jobId === jobId)?.reportId ? <Link href={rankedReportHref(jobId, run.rankedReportRefs.find(ref => ref.jobId === jobId)!.reportId, run.threadId)}>查看本次排序使用的匹配依据</Link> : <p className="muted">本次运行未保存可核对的报告引用，请查看岗位详情，不会将最新报告冒充当时依据。</p>}
+                </div>
               );
             })}
           </div>
@@ -361,15 +470,20 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
       {run && !run.pendingApproval && !["created", "running", "resuming"].includes(run.status) && (
         <section className="card stack-md">
           <p className="eyebrow">Run 状态 · {run.status}</p>
-          <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "Agent 已完成能力差距分析" : "Agent Run 已结束或暂停"}</h2>
+          <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "目标与准备材料已保存" : "Agent Run 已结束或暂停"}</h2>
           <p>{message}</p>
+          {run.status === "stale" && <div className="notice">
+            <p>{careerAgentStepSummary(run.currentStep)}</p>
+            <a href={run.requestedJobIds.length ? agentScopeHref(run.requestedJobIds) : "/agent"}>检查原岗位范围并重新分析</a>
+          </div>}
+          <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} />
           {run.currentStep === "analysis_facts_changed" ? <p className="notice">分析期间资料、意向或岗位事实发生变化。本次材料如已保存，仅供历史查看；请使用当前事实新建分析。</p> : null}
           {run.legacyReadOnly ? <p className="notice">旧运行仅供历史查看。旧结果没有保存可重开的原始分析快照，未完成的旧运行也不会按新规则继续；请开始新分析。</p> : null}
           {run.status === "blocked" ? <div className="actions">
             <Link href="/recommendations">查看分类和逐项原因</Link>
             <Link href="/profile">核实职业资料与求职意向</Link>
           </div> : null}
-          {run.confirmedTargetJobIds.length > 0 && <p className="muted">已确认目标岗位：{run.confirmedTargetJobIds.map((id) => jobsById.get(id)?.title ?? id).join("、")}</p>}
+          {run.confirmedTargetJobIds.length > 0 && <p className="muted">已确认目标岗位：{run.confirmedTargetJobIds.map((id) => jobLabels[id] ?? id).join("、")}</p>}
           {run.gapResultFingerprint && !run.resultId && <p className="muted">已保存本次分析指纹，完整结果快照尚未保存（{run.gapResultFingerprint.slice(0, 12)}…）。</p>}
           {run.resultId ? <div className="actions">
             <Link className="button primary" href={`/agent/results/${encodeURIComponent(run.threadId)}`}>打开已保存的分析与准备材料</Link>
@@ -381,7 +495,7 @@ export function CareerAgentHitlPanel({jobs}: {jobs: JobListItem[]}) {
               <p className="muted">已确认的目标岗位会直接带入现有能力差距工作区，由同一套 JobRequirement / Profile Evidence 规则展示 P0/P1、影响岗位和补齐标准。</p>
             </div>
           )}
-          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的 Agent Run。");}}>开始新的 Run</button>
+          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的 Agent Run。");}}>开始新的比较</button>
         </section>
       )}
 

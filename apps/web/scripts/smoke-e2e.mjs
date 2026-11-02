@@ -4,6 +4,7 @@ import {mkdtemp, readFile, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
+import {createServer} from "node:net";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
@@ -12,8 +13,16 @@ const backendRoot = join(repoRoot, "services/backend");
 const backendBin = join(backendRoot, ".venv/bin");
 const nextBin = join(webRoot, "node_modules/next/dist/bin/next");
 const samplePath = join(repoRoot, "data/samples/collector-report-minimal.json");
-const backendPort = 8871;
-const webPort = 8872;
+async function freePort() {
+  const server = createServer();
+  await new Promise((ok, fail) => server.once("error", fail).listen(0, "127.0.0.1", ok));
+  const port = server.address().port;
+  await new Promise((ok, fail) => server.close((error) => error ? fail(error) : ok()));
+  return port;
+}
+const backendPort = await freePort();
+let webPort = await freePort();
+while (webPort === backendPort) webPort = await freePort();
 const backendUrl = `http://127.0.0.1:${backendPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
 const tempRoot = await mkdtemp(join(tmpdir(), "joblens-web-e2e-"));
@@ -33,8 +42,9 @@ function start(command, args, options) {
   return child;
 }
 
-async function waitFor(url, attempts = 80) {
+async function waitFor(url, child, attempts = 80) {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Server exited before ready: ${url}`);
     try {
       const response = await fetch(url);
       if (response.ok) return;
@@ -62,24 +72,28 @@ try {
   assert.equal(migration.status, 0, migration.stdout + migration.stderr);
 
   console.log("[smoke] starting FastAPI");
-  start(join(backendBin, "uvicorn"), ["app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
+  const backend = start(join(backendBin, "uvicorn"), ["app.main:app", "--host", "127.0.0.1", "--port", String(backendPort)], {
     cwd: backendRoot,
     env: {
       ...process.env,
       APP_ENV: "test",
       DATABASE_URL: databaseUrl,
+      CAREER_AGENT_CHECKPOINT_PATH: join(tempRoot, "checkpoints.db"),
       PROFILE_EXTRACTOR_PROVIDER: "fixture",
       REQUIREMENT_EXTRACTOR_PROVIDER: "fixture",
+      REQUIREMENT_EXTRACTOR_FALLBACK_PROVIDER: "disabled",
+      SEMANTIC_MATCH_PROVIDER: "disabled",
+      CAREER_INTENT_PROVIDER: "disabled",
     },
   });
-  await waitFor(`${backendUrl}/api/v1/health`);
+  await waitFor(`${backendUrl}/api/v1/health`, backend);
 
   console.log("[smoke] starting Next.js");
-  start(process.execPath, [nextBin, "start", "-p", String(webPort)], {
+  const web = start(process.execPath, [nextBin, "start", "-p", String(webPort)], {
     cwd: webRoot,
     env: {...process.env, NODE_OPTIONS: "", JOBLENS_BACKEND_URL: backendUrl},
   });
-  await waitFor(`${webUrl}/import`);
+  await waitFor(`${webUrl}/import`, web);
 
   console.log("[smoke] uploading DOCX, confirming Profile and saving SearchIntent");
   const resumeText = [

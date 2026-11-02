@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from dataclasses import replace
+from app.application.evidence_retrieval.strategy import TECHNOLOGIES, RESPONSIBILITIES, MAX_CANDIDATES
 
 from app.application.career_context.models import EvidenceDetail, ProfileDetail
 from app.application.evidence_retrieval.models import (
@@ -65,7 +67,7 @@ def _retrieve_for_requirement(
     capability = requirement.normalized_capability.strip() if requirement.normalized_capability else ""
     normalized_capability = _normalize(capability)
 
-    if normalized_capability:
+    if normalized_capability and _specific_skill(capability):
         for skill in profile.skills:
             if _normalize(skill.name) != normalized_capability:
                 continue
@@ -104,9 +106,9 @@ def _retrieve_for_requirement(
                 )
 
     normalized_original = _normalize(requirement.original_text)
-    if normalized_original:
+    if normalized_original and _specific_skill(requirement.original_text):
         for evidence in profile.evidence:
-            if normalized_original in _normalize(evidence.summary):
+            if _contains_explicit_term(evidence.summary, requirement.original_text):
                 _keep_best(
                     candidates,
                     _candidate(
@@ -159,16 +161,49 @@ def _retrieve_for_requirement(
                 ),
             )
 
-    evidence_order = {item.id: index for index, item in enumerate(profile.evidence)}
+    # A long capability label or sentence need not occur verbatim in the profile.
+    # Only explicit technical terms or concrete, shared responsibility groups qualify.
+    requirement_text = f"{capability}\n{requirement.original_text}"
+    technical_groups = list(TECHNOLOGIES) + [(skill.name,) for skill in profile.skills
+        if _specific_skill(skill.name)]
+    for evidence in profile.evidence:
+        linked_skills = [skill.name for skill in profile.skills if evidence.id in skill.evidence_ids]
+        evidence_text = "\n".join([evidence.summary, *linked_skills])
+        terms = set()
+        for aliases in technical_groups:
+            if any(_contains_explicit_term(requirement_text, term) for term in aliases) and any(
+                _contains_explicit_term(evidence_text, term) for term in aliases
+            ):
+                terms.add(aliases[0])
+        if terms:
+            _keep_best(candidates, _candidate(evidence,
+                relevance_tier=EvidenceRelevanceTier.DIRECT,
+                retrieval_basis=EvidenceRetrievalBasis.EXPLICIT_TEXT_OVERLAP,
+                matched_terms=tuple(sorted(terms)),
+                reason=f"明确技术词重合（{'、'.join(sorted(terms))}），仅作为待比较候选，不代表满足要求。"))
+        related = []
+        for group in RESPONSIBILITIES:
+            requirement_hits = [term for term in group if _contains_explicit_term(requirement_text, term)]
+            evidence_hits = [term for term in group if _contains_explicit_term(evidence_text, term)]
+            if requirement_hits and evidence_hits:
+                related.append(f"{requirement_hits[0]} ↔ {evidence_hits[0]}")
+        if related:
+            _keep_best(candidates, _candidate(evidence,
+                relevance_tier=EvidenceRelevanceTier.RELATED,
+                retrieval_basis=EvidenceRetrievalBasis.RELATED_CAPABILITY_HINT,
+                matched_terms=tuple(related),
+                reason=f"具体职责线索相关（{'、'.join(related)}），仅供语义核对，不能据此认定满足要求。"))
+
     ordered = tuple(
         sorted(
             candidates.values(),
             key=lambda item: (
                 0 if item.relevance_tier is EvidenceRelevanceTier.DIRECT else 1,
                 _BASIS_PRIORITY[item.retrieval_basis],
-                evidence_order[item.evidence_id],
+                -len(item.matched_terms),
+                item.evidence_id,
             ),
-        )
+        )[:MAX_CANDIDATES]
     )
     return RequirementEvidenceCandidates(
         requirement_id=requirement.id,
@@ -207,8 +242,12 @@ def _keep_best(
     candidate: CandidateEvidence,
 ) -> None:
     current = candidates.get(candidate.evidence_id)
-    if current is None or _candidate_priority(candidate) < _candidate_priority(current):
+    if current is None:
         candidates[candidate.evidence_id] = candidate
+        return
+    best = candidate if _candidate_priority(candidate) < _candidate_priority(current) else current
+    candidates[candidate.evidence_id] = replace(best,
+        matched_terms=tuple(sorted(set(current.matched_terms + candidate.matched_terms))))
 
 
 def _candidate_priority(candidate: CandidateEvidence) -> tuple[int, int]:
@@ -235,3 +274,10 @@ def _contains_explicit_term(text: str, term: str) -> bool:
 
 def _normalize(value: str) -> str:
     return re.sub(r"[\s._/\\\-、，,。；;:：()（）]+", "", value).casefold()
+
+
+def _specific_skill(name: str) -> bool:
+    return name.strip().casefold() not in {
+        "负责", "参与", "开发", "系统", "产品", "工作", "技术", "软件", "工程", "能力",
+        "development", "system", "product", "software", "engineering",
+    } and len(name.strip()) >= 2

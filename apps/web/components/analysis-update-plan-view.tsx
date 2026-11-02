@@ -7,9 +7,14 @@ const statusLabels: Record<AnalysisUpdatePlan["items"][number]["status"], string
   reuse: "可复用当前报告", ready: "可由规则重算（尚未执行）", deferred: "留待下一小批",
   requires_model: "需要单独授权模型", input_blocked: "先修复输入",
 };
-const reasonLabels: Record<string, string> = {
+export const reasonLabels: Record<string, string> = {
   profile_changed: "职业资料已更新", search_intent_changed: "求职意向已更新", policy_changed: "匹配规则已更新",
   requirements_changed: "岗位要求已有新版本", requirements_missing: "缺少岗位要求", job_missing: "原岗位记录缺失",
+  requirements_not_released: "岗位要求的可用性检查未通过，请核对提取与审核记录",
+  job_description_changed: "岗位描述已变化，需要重新分析岗位要求",
+  job_user_marked_inactive: "你已标记此岗位失效；恢复标记后可重新检查",
+  job_description_unavailable: "无法核实岗位描述或原分析依据，请检查后重新分析",
+  extraction_input_stale: "岗位描述已变化，原岗位要求不再适用于当前描述",
   preference_inputs_changed: "岗位偏好相关信息已变化", match_report_missing: "尚无保存的匹配报告",
   profile_missing: "尚未确认职业资料", search_intent_missing: "尚未确认求职意向",
   model_authorization_required: "需要语义判断，当前未授权模型调用", update_inputs_changed: "资料在预检期间变化，请重新预检",
@@ -32,7 +37,14 @@ export function AnalysisUpdatePlanView({plan}: {plan: AnalysisUpdatePlan}) {
       <p className="notice">当前仅预检，没有重算、保存新结果或调用模型。执行时必须重新检查事实；预检通过不是模型授权，也不承诺排名提高。</p>
     </section>
     <section className="card stack-md"><h2>逐项检查</h2>
-      {plan.items.map(item => <article className="eligibility-result-card" key={item.jobId}>
+      <AnalysisPlanItems items={plan.items} />
+    </section>
+    <AnalysisUpdateStart key={plan.scope} plan={plan} />
+  </>;
+}
+
+export function AnalysisPlanItems({items}: {items: AnalysisUpdatePlan["items"]}) {
+  return <>{items.map(item => <article className="eligibility-result-card" key={item.jobId}>
         <h3>{item.title}</h3><p>{statusLabels[item.status]}</p>
         {item.requiredOperations.includes("semantic_match") && <p>现有证据需要语义匹配；未授权时停在这里，不自动调用或切换模型。</p>}
         {item.requiredOperations.includes("extract_requirements") && <p>需要先补充并检查岗位要求；本页不会重新提取。</p>}
@@ -40,8 +52,5 @@ export function AnalysisUpdatePlanView({plan}: {plan: AnalysisUpdatePlan}) {
         {item.status !== "reuse" && <Link href={item.repairHref}>核对该项输入与依据</Link>}
         <details><summary>查看版本与原因码</summary><p>岗位：{item.jobId}；要求：{item.extractionId ?? "缺失"}；复用报告：{item.reusableReportId ?? "无"}</p>
           <p>{[...item.staleReasons, ...item.blockerCodes].join("、") || "报告版本兼容"}</p></details>
-      </article>)}
-    </section>
-    <AnalysisUpdateStart key={plan.scope} plan={plan} />
-  </>;
+      </article>)}</>;
 }

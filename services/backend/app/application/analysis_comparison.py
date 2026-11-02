@@ -185,8 +185,8 @@ class CompareSavedAnalysesUseCase:
             context_reasons.append('targets_changed')
         comparable = not state.update_partial and set(old_rank) == set(new_rank) and bool(old_rank)
         comparable = comparable and all(j in old_reports and j in new_reports and
-            (old_reports[j].report.extraction_id, old_reports[j].report.policy_version) ==
-            (new_reports[j].report.extraction_id, new_reports[j].report.policy_version) for j in scope)
+            (old_reports[j].report.extraction_id, old_reports[j].report.policy_version, old_reports[j].report.retrieval_version) ==
+            (new_reports[j].report.extraction_id, new_reports[j].report.policy_version, new_reports[j].report.retrieval_version) for j in scope)
         if not comparable:
             context_reasons.append('ranking_scope_not_comparable')
         items = []
@@ -205,6 +205,7 @@ class CompareSavedAnalysesUseCase:
                 br, ar = before.report, after.report
                 if br.extraction_id != ar.extraction_id: reasons.append('requirements_changed')
                 if br.policy_version != ar.policy_version: reasons.append('policy_changed')
+                if br.retrieval_version != ar.retrieval_version: reasons.append('retrieval_changed')
                 if (br.matcher_version, br.prompt_version, br.model) != (ar.matcher_version, ar.prompt_version, ar.model):
                     reasons.append('judgment_method_changed')
                 old_requirements = {r.requirement_id: r for r in br.requirement_results}
@@ -226,7 +227,7 @@ class CompareSavedAnalysesUseCase:
                     for key in dict.fromkeys((*old_preferences, *new_preferences)))
                 if any((p.previous_status, p.previous_code) != (p.current_status, p.current_code) for p in preferences):
                     reasons.append('preference_judgment_changed')
-                if any(code in reasons for code in ('requirements_changed', 'policy_changed', 'requirement_snapshot_mismatch')):
+                if any(code in reasons for code in ('requirements_changed', 'policy_changed', 'retrieval_changed', 'requirement_snapshot_mismatch')):
                     signal = recommendation_change = coverage_change = 'not_comparable'
                 else:
                     requirements = tuple(RequirementChange(k, r.original_text, _coverage(r), _coverage(new_requirements[k]),

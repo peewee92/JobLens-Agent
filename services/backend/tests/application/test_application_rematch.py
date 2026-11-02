@@ -115,3 +115,36 @@ def test_rematch_fails_before_match_write_when_semantic_provider_would_be_requir
         use_case.execute(workspace_id="ws1", proposal_id="ep1", actor_id="user1", idempotency_key="rematch-1")
     assert runner.calls == 0
     assert timeline.items == []
+
+
+def test_linked_analysis_cannot_use_legacy_rematch_even_for_replay():
+    from dataclasses import replace
+    use_case, runner, timeline = _use_case()
+    use_case._workspaces.get = lambda _: replace(_workspace(), current_analysis_thread_id='saved', current_analysis_result_id='result')
+    with pytest.raises(ApplicationRematchBlockedError, match='application_rematch_use_scoped_update'):
+        use_case.execute(workspace_id='ws1', proposal_id='ep1', actor_id='user1', idempotency_key='rematch-1')
+    assert runner.calls == 0 and timeline.items == []
+
+
+def test_preflight_race_cannot_reach_provider_or_persist_report():
+    from unittest.mock import Mock
+    from app.application.application_workspace.rematch import NoProviderRematchMatcher, no_rematch_provider_trace
+    from app.application.match_report.use_case import BuildJobMatchReportUseCase
+    from app.application.semantic_match.use_case import RunJobSemanticMatchUseCase
+    from app.workflows.semantic_match import SemanticMatchWorkflow
+    use_case, _, timeline = _use_case()
+    eligibility = Mock()
+    eligibility.execute.side_effect = [_eligibility(), _eligibility(RequirementFitStatus.CONDITIONAL), _eligibility(RequirementFitStatus.CONDITIONAL)]
+    evidence = Mock()
+    evidence.execute.side_effect = [_retrieval(), _retrieval(with_candidate=True)]
+    matcher = NoProviderRematchMatcher()
+    workflow = SemanticMatchWorkflow(matcher=matcher, trace_uow_factory=no_rematch_provider_trace)
+    semantic = RunJobSemanticMatchUseCase(eligibility=eligibility, evidence=evidence, workflow=workflow)
+    uow = Mock(side_effect=AssertionError('report persistence must not begin'))
+    use_case._eligibility, use_case._evidence = eligibility, evidence
+    use_case._report_runner = BuildJobMatchReportUseCase(semantic, eligibility=eligibility, uow_factory=uow)
+    with pytest.raises(ApplicationRematchBlockedError, match='application_rematch_provider_required'):
+        use_case.execute(workspace_id='ws1', proposal_id='ep1', actor_id='user1', idempotency_key='race')
+    assert evidence.execute.call_count == 2 and eligibility.execute.call_count == 3
+    uow.assert_not_called()
+    assert timeline.items == []

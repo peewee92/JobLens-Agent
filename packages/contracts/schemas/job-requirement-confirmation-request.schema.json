@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actionId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "\\S",
+      "title": "Actionid",
+      "type": "string"
+    },
+    "extractionId": {
+      "maxLength": 90,
+      "minLength": 1,
+      "title": "Extractionid",
+      "type": "string"
+    },
+    "inputHash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Inputhash",
+      "type": "string"
+    },
+    "factsDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Factsdigest",
+      "type": "string"
+    },
+    "confirmed": {
+      "title": "Confirmed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "actionId",
+    "extractionId",
+    "inputHash",
+    "factsDigest",
+    "confirmed"
+  ],
+  "title": "JobRequirementConfirmationRequest",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

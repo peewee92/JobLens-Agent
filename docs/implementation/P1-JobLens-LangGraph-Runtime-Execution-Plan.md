@@ -541,6 +541,10 @@ Done：
 
 第一纵向切片已建立 Runtime Release Gate 的确定性 grader foundation：新增 `CareerAgentTrajectorySnapshot / Case / EvalReport`，以显式 Runtime State、visited node sequence、Provider call counter 与 business-state-write counter 为输入；Release Gate 强制至少 20 个唯一 Case ID，并支持 expected status、expected node ordering、forbidden node、`max_provider_calls`、`max_business_state_writes` 断言。测试先证明模块缺失，再验证 20-case all-pass gate，以及注入 forbidden Provider node + Provider call + business write 后能精确指出三类 guardrail failure。
 
+**后续校正（2026-10-28）：**上述及下文对发布门禁的完成表述属于当时记录，不代表已证明真实调用或副作用为零。20 条冻结轨迹是手工构造的状态序列，代表性的处理器轨迹使用替身工作流；状态内的调用计数也不是独立观测。此前检查点快照将业务写入固定记为零，不能作为实际测量。现已改为未知：合成轨迹只能报告控制路径检查结果，不能通过发布门禁；缺少独立调用或写入观测的轨迹同样不能通过。当前运行器尚未接入这些独立观测，因此尚无据此通过的真实执行门禁；后续必须在实际边界采集证据，不能手工把零填回去。
+
+验证：隔离 SQLite、禁用模型提供方的完整后端回归 1678 项通过；新增测试覆盖缺失观测、合成轨迹、运行状态自报与独立观测不一致。上述通过仅代表自动化测试，不代表真实用户端到端验收完成。
+
 第二纵向切片把 Trace 从测试手写数组接到真实 durable checkpoint：`SQLiteCareerAgentCheckpointStore.save()` 除维护 latest checkpoint 外，还会 append-only 保存去重后的状态转换事件；`build_persisted_trajectory_snapshot()` 可在 Runtime/Store 重建后仅凭 SQLite history 还原 final state 与 visited step sequence，重复保存同一状态不会制造重复 Trace event。该 history 仍只保存原有 compact `CareerAgentState` payload，不复制 raw Resume/JD/Secret/大 Tool Output，也不新增业务状态写入。
 
 第三纵向切片用 `career_agent_runtime_dataset.py` 冻结正式 20-case cohort，替换原先 20 个重复 happy-path fixture。Case 覆盖 approve 单/多岗位、edit 单/重排、reject、Profile identity/version stale、SearchIntent identity/version stale、Match fingerprint/order stale、missing Match、empty Ranking、invalid target selection、pending/restart interrupt、duplicate approve/edit/reject replay、restart completed 等控制路径，至少产生 8 种不同 persisted trace shape。每条 Case 都通过 `SQLiteCareerAgentCheckpointStore` 写入 durable history，再由 `build_persisted_trajectory_snapshot()` 回读进入同一 Release Gate，统一断言 forbidden Provider/Requirement/Semantic Match/business-write node、`provider_calls=0` 与 `business_state_writes=0`。

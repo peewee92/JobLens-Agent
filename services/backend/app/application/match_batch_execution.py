@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from app.application.job_availability_guard import JobUnavailableForMatchingError
+from app.application.semantic_match.errors import SemanticModelAuthorizationRequiredError
 from app.application.match_batch_planning import (
     BatchMatchPlanStatus,
     PlanBatchMatchUseCase,
@@ -51,7 +53,7 @@ class BatchMatchExecutionResult:
 class ExecuteBatchMatchUseCase:
     """Execute only planner-approved jobs, with a hard per-run ready-job bound."""
 
-    MAX_READY_JOBS = 10
+    MAX_READY_JOBS = 5
     MAX_BATCH_JOBS = 50
 
     def __init__(
@@ -70,7 +72,7 @@ class ExecuteBatchMatchUseCase:
         max_ready_jobs: int = MAX_READY_JOBS,
     ) -> BatchMatchExecutionResult:
         if not 1 <= max_ready_jobs <= self.MAX_READY_JOBS:
-            raise ValueError("max_ready_jobs must be between 1 and 10")
+            raise ValueError("max_ready_jobs must be between 1 and 5")
         if len(job_ids) > self.MAX_BATCH_JOBS:
             raise ValueError("batch must contain at most 50 jobs")
 
@@ -114,6 +116,22 @@ class ExecuteBatchMatchUseCase:
             ready_executed += 1
             try:
                 report = self._report_runner.execute(planned.job_id)
+            except JobUnavailableForMatchingError as error:
+                # A model call may already have happened before a commit-time change.
+                side_effect_counts_complete = False
+                # It may have changed after planning; other jobs still proceed.
+                items.append(BatchMatchExecutionItem(job_id=planned.job_id,
+                    status=BatchMatchExecutionStatus.INPUT_BLOCKED,
+                    blocker_codes=(error.code,)))
+                continue
+            except SemanticModelAuthorizationRequiredError as error:
+                # The model was not constructed or called; keep the reason and
+                # any recorded failure trace instead of masking it as a crash.
+                trace_runs_created += int(bool(error.run_id))
+                items.append(BatchMatchExecutionItem(
+                    job_id=planned.job_id, status=BatchMatchExecutionStatus.FAILED,
+                    error_code="semantic_model_authorization_required"))
+                continue
             except Exception:
                 side_effect_counts_complete = False
                 items.append(

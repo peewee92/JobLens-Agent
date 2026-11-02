@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actionId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "title": "Actionid",
+      "type": "string"
+    },
+    "planDigest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "confirmed": {
+      "default": false,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "maxProviderCalls": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Maxprovidercalls",
+      "type": "integer"
+    },
+    "acknowledgedPriorRequestId": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledgedpriorrequestid"
+    }
+  },
+  "required": [
+    "actionId",
+    "planDigest"
+  ],
+  "title": "RequirementCallCommand",
+  "type": "object"
+}

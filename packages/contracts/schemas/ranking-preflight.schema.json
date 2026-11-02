@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/ranking-preflight.schema.json",
+  "$defs": {
+    "PreferenceCheckResponse": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "intentFields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Intentfields",
+          "type": "array"
+        },
+        "jobFields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Jobfields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "status",
+        "code",
+        "reason",
+        "intentFields",
+        "jobFields"
+      ],
+      "title": "PreferenceCheckResponse",
+      "type": "object"
+    },
+    "RankedMatchReportItemResponse": {
+      "properties": {
+        "reportId": {
+          "title": "Reportid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "profileId": {
+          "title": "Profileid",
+          "type": "string"
+        },
+        "profileVersion": {
+          "title": "Profileversion",
+          "type": "integer"
+        },
+        "extractionId": {
+          "title": "Extractionid",
+          "type": "string"
+        },
+        "searchIntentId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Searchintentid"
+        },
+        "searchIntentVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Searchintentversion"
+        },
+        "preferenceChecks": {
+          "items": {
+            "$ref": "#/$defs/PreferenceCheckResponse"
+          },
+          "title": "Preferencechecks",
+          "type": "array"
+        },
+        "eligibility": {
+          "title": "Eligibility",
+          "type": "string"
+        },
+        "recommendation": {
+          "title": "Recommendation",
+          "type": "string"
+        },
+        "targetCandidate": {
+          "title": "Targetcandidate",
+          "type": "boolean"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "matchedRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matchedrequirementids",
+          "type": "array"
+        },
+        "partialRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Partialrequirementids",
+          "type": "array"
+        },
+        "missingRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missingrequirementids",
+          "type": "array"
+        },
+        "evidenceLinks": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Evidencelinks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reportId",
+        "createdAt",
+        "jobId",
+        "profileId",
+        "profileVersion",
+        "extractionId",
+        "searchIntentId",
+        "searchIntentVersion",
+        "preferenceChecks",
+        "eligibility",
+        "recommendation",
+        "targetCandidate",
+        "summary",
+        "matchedRequirementIds",
+        "partialRequirementIds",
+        "missingRequirementIds",
+        "evidenceLinks"
+      ],
+      "title": "RankedMatchReportItemResponse",
+      "type": "object"
+    },
+    "RankingOmissionResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "report_missing",
+            "report_stale",
+            "hard_conflict"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "staleReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stalereasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "jobId",
+        "reason",
+        "staleReasons"
+      ],
+      "title": "RankingOmissionResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/RankedMatchReportItemResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "omissions": {
+      "items": {
+        "$ref": "#/$defs/RankingOmissionResponse"
+      },
+      "title": "Omissions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "items",
+    "omissions"
+  ],
+  "title": "RankingPreflightResponse",
+  "type": "object"
+}

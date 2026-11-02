@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import timezone
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,7 +17,8 @@ from app.application.ports.job_requirement_repository import (
     AbstractJobRequirementQueryRepository,
     AbstractJobRequirementRepository,
 )
-from app.db.models import JobRequirementExtractionORM, JobRequirementORM, TraceSpanORM
+from app.db.models import JobRequirementExtractionORM, JobRequirementORM, TraceSpanORM, JobRequirementConfirmationORM
+from app.application.job_requirements.confirmation import requirement_facts_digest
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 SessionFactory = Callable[[], Session]
@@ -77,6 +79,14 @@ class SqlAlchemyJobRequirementQueryRepository(
             )
             return _detail(session, record) if record is not None else None
 
+    def get_latest_id(self, job_id: str) -> str | None:
+        with self._session_factory() as session:
+            return session.scalar(select(JobRequirementExtractionORM.id)
+                .where(JobRequirementExtractionORM.job_id == job_id)
+                .order_by(JobRequirementExtractionORM.created_at.desc(),
+                          JobRequirementExtractionORM.id.asc())
+                .limit(1))
+
     def get_extraction(
         self,
         *,
@@ -114,7 +124,7 @@ def _detail(
         if isinstance(raw_semantic_policy_version, str) and raw_semantic_policy_version.strip():
             semantic_policy_version = raw_semantic_policy_version.strip()
 
-    return JobRequirementExtractionDetail(
+    detail = JobRequirementExtractionDetail(
         extraction_id=record.id,
         job_id=record.job_id,
         input_hash=record.input_hash,
@@ -143,3 +153,10 @@ def _detail(
         ),
         semantic_policy_version=semantic_policy_version,
     )
+    confirmation = session.scalar(select(JobRequirementConfirmationORM.action_id).where(
+        JobRequirementConfirmationORM.extraction_id == detail.extraction_id,
+        JobRequirementConfirmationORM.job_id == detail.job_id,
+        JobRequirementConfirmationORM.input_hash == detail.input_hash,
+        JobRequirementConfirmationORM.facts_digest == requirement_facts_digest(detail),
+    ).order_by(JobRequirementConfirmationORM.confirmed_at.asc(), JobRequirementConfirmationORM.action_id.asc()).limit(1))
+    return replace(detail, user_confirmation_id=confirmation)

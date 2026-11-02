@@ -76,6 +76,7 @@ def main() -> int:
                 ).hexdigest(),
             },
             output={
+                "semanticPolicyVersion": "requirement-semantics-v1",
                 "requirements": [
                     {
                         "type": "skill",

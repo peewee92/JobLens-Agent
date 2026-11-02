@@ -50,6 +50,11 @@ export function loadRunCommand(storage: CommandStorage, threadId: string): Saved
   return parseSavedRunCommand(storage.getItem(PREFIX + threadId), threadId);
 }
 
+/** A malformed journal still counts as a record and must not be silently bypassed. */
+export function hasRunCommandRecord(storage: CommandStorage, threadId: string): boolean {
+  return storage.getItem(PREFIX + threadId) !== null;
+}
+
 export function saveRunCommand(storage: CommandStorage, command: SavedRunCommand): void {
   const normalized = parseSavedRunCommand(JSON.stringify(command), command.threadId);
   if (!normalized) throw new Error("请求内容无法安全保存，尚未发送。请检查所选岗位。");
@@ -90,4 +95,9 @@ export async function sendRunCommand(
 
 export function runHref(threadId: string): string {
   return `/agent?${new URLSearchParams({threadId})}`;
+}
+
+export function rankedReportHref(jobId: string, reportId: string, threadId: string): string {
+  const query = new URLSearchParams({reportId, returnThreadId: threadId});
+  return `/jobs/${encodeURIComponent(jobId)}?${query}`;
 }

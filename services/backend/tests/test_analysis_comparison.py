@@ -78,7 +78,7 @@ def test_missing_bound_report_never_falls_back_to_latest(synthetic_api):
     assert not data['rankingComparable'] and _dump(factory) == before
 
 
-@pytest.mark.parametrize('mode,expected', [('improved','improved'), ('weakened','weakened'), ('mixed','mixed'), ('policy','not_comparable'), ('requirements','not_comparable')])
+@pytest.mark.parametrize('mode,expected', [('improved','improved'), ('weakened','weakened'), ('mixed','mixed'), ('policy','not_comparable'), ('requirements','not_comparable'), ('retrieval','not_comparable')])
 def test_synthetic_snapshot_judgment_directions_and_comparability(synthetic_api, mode, expected):
     client, factory, ids = synthetic_api
     _saved(client, ids)
@@ -95,6 +95,8 @@ def test_synthetic_snapshot_judgment_directions_and_comparability(synthetic_api,
     if mode == 'policy':
         new = replace(new, report=replace(new.report, policy_version='synthetic-next-policy'))
         current = replace(current, result=replace(current.result, bindings=(replace(binding, policy_version=new.report.policy_version), *current.result.bindings[1:])))
+    if mode == 'retrieval':
+        new = replace(new, report=replace(new.report, retrieval_version='different-retrieval'))
     if mode == 'requirements':
         new = replace(new, report=replace(new.report, requirement_results=tuple(replace(r, original_text='Changed saved requirement') for r in new.report.requirement_results)))
     previous = replace(previous, reports={**previous.reports, old.id: old})

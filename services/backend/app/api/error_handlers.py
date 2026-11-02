@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import uuid4
 from app.application.application_workspace.transaction import WorkspacePersistenceError
 
@@ -18,6 +19,7 @@ from app.application.career_context import (
     ProfileNotFoundError,
     SearchIntentNotFoundError,
 )
+from app.application.job_availability_guard import JobUnavailableForMatchingError
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
 from app.application.create_target_cohort import TargetCohortSelectionError
@@ -32,6 +34,7 @@ from app.application.semantic_match.errors import (
     InvalidSemanticMatcherOutputError,
     SemanticMatcherFailedError,
     SemanticMatcherUnavailableError,
+    SemanticModelAuthorizationRequiredError,
     SemanticMatchInputsNotReadyError,
 )
 from app.application.job_import_queries import JobImportNotFoundError
@@ -41,12 +44,14 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
+from app.application.job_requirements.errors import JobDescriptionChangedDuringExtractionError, RequirementExtractionSupersededError
 from app.application.job_requirements import (
     InvalidRequirementExtractorOutputError,
     JobDescriptionNotExtractableError,
     JobRequirementExtractionNotFoundError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementModelAuthorizationRequiredError,
     RequirementLiveCostConfirmationRequiredError,
 )
 from app.application.profile_evals import (
@@ -82,6 +87,7 @@ from app.application.profile_extraction import (
     InvalidResumeTextError,
     ProfileExtractorFailedError,
     ProfileExtractorUnavailableError,
+    ProfileModelAuthorizationRequiredError,
 )
 from app.application.resume_documents import (
     InvalidResumeDocumentError,
@@ -135,6 +141,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             "request_validation_error",
             "Request body or parameters are invalid.",
         )
+
+    @app.exception_handler(RequirementExtractionSupersededError)
+    async def handle_superseded_extraction(_request: Request, error: RequirementExtractionSupersededError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "requirement_extraction_superseded", str(error))
+
+    @app.exception_handler(JobDescriptionChangedDuringExtractionError)
+    async def handle_changed_description(_request: Request, error: JobDescriptionChangedDuringExtractionError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "job_description_changed_during_extraction", str(error))
+
+    @app.exception_handler(JobUnavailableForMatchingError)
+    async def handle_unavailable_match(_request: Request, error: JobUnavailableForMatchingError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, error.code, str(error))
 
     @app.exception_handler(EligibilityInputsNotReadyError)
     async def handle_eligibility_inputs_not_ready(
@@ -234,6 +252,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             "feedback_match_report_stale",
             str(error),
         )
+
+    @app.exception_handler(SemanticModelAuthorizationRequiredError)
+    async def handle_semantic_model_authorization_required(
+        _request: Request, error: SemanticModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "semantic_model_authorization_required", str(error))
 
     @app.exception_handler(SemanticMatcherUnavailableError)
     async def handle_semantic_matcher_unavailable(
@@ -388,6 +412,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             "requirement_live_cost_confirmation_required",
             str(error),
         )
+
+    @app.exception_handler(RequirementModelAuthorizationRequiredError)
+    async def handle_requirement_model_authorization_required(
+        _request: Request, error: RequirementModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "requirement_model_authorization_required", str(error))
 
     @app.exception_handler(RequirementExtractorUnavailableError)
     async def handle_requirement_extractor_unavailable(
@@ -708,6 +738,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             str(error),
         )
 
+    @app.exception_handler(ProfileModelAuthorizationRequiredError)
+    async def handle_profile_model_authorization_required(
+        _request: Request, error: ProfileModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "profile_model_authorization_required", str(error))
+
     @app.exception_handler(ProfileExtractorUnavailableError)
     async def handle_profile_extractor_unavailable(
         _request: Request,
@@ -740,6 +776,15 @@ def register_exception_handlers(app: FastAPI) -> None:
             "invalid_profile_extractor_output",
             str(error),
         )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def handle_database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
+        # Infrastructure exceptions are mapped here, never imported by feature routers.
+        if request.url.path.endswith("/requirement-confirmations"):
+            return JSONResponse({"error": {"code": "requirement_confirmation_save_uncertain", "message": "暂时无法确认保存结果，请刷新查看；相同请求可以安全重试。"}}, status_code=503)
+        if request.url.path.endswith("/requirement-calls"):
+            return JSONResponse({"error": {"code": "requirement_call_save_uncertain", "message": "暂时无法确认保存结果，请查询原请求状态，不要重新授权调用。", "retryable": True, "repairAction": "get_requirement_call", "correlationId": getattr(request.state, "requirement_action_id", None)}}, status_code=503)
+        return _error_response(503, "persistence_unavailable", "暂时无法读取或保存数据，请稍后核对原请求状态。")
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(

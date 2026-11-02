@@ -79,6 +79,7 @@ export default async function RequirementManualReviewDetailPage({
             </span>
           </div>
 
+          {detail.summary.matchReleaseEligible && detail.summary.staleCaseCount > 0 ? <p>原审核基线来自已保存的证据快照；以下样本现已更新。每个岗位的当前描述和要求仍须单独检查。</p> : null}
           {cases.map((item) => {
             const requirements = sortJobRequirements(item.requirements);
             const mustHaveCount = requirements.filter((item) => item.importance === "must_have").length;
@@ -250,7 +251,7 @@ export default async function RequirementManualReviewDetailPage({
           <section className="detail-section">
             <h3>正式证据条件</h3>
             <p className="notice">
-              需要正好 20 条、全部人工审查、没有 stale Case、Provider 不是 Fixture。满足这些条件只表示证据结构有效；只有不可变 Final Decision 为 accept_for_match 且证据仍为当前版本时，Match 门禁才会放行。
+              最终决定前需要正好 20 条当前样本、全部人工审查，且提供方不是离线替身。新的接受决定会冻结该版本的审核证据；样本后来更新不会自动撤销基线，但每个岗位仍须单独检查当前要求。旧决定继续遵循原有的样本当前性规则。
             </p>
           </section>
         </aside>

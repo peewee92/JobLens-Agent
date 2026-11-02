@@ -7,6 +7,7 @@ from hashlib import sha256
 from uuid import uuid4
 
 from app.application.job_queries.errors import JobNotFoundError
+from app.application.job_availability_guard import JobUnavailableForMatchingError
 from app.application.job_requirements import (
     JobDescriptionNotExtractableError,
     JobRequirementExtractionDetail,
@@ -54,6 +55,11 @@ class ExtractJobRequirementsUseCase:
         job = self._jobs.get_job(job_id)
         if job is None:
             raise JobNotFoundError(f"Job {job_id!r} was not found")
+        if job.user_marked_inactive:
+            raise JobUnavailableForMatchingError(
+                "岗位已标记为失效，请先在岗位详情中恢复，或从本次分析中移除。"
+            )
+        availability_revision = job.availability_revision
         if (
             (job.source_version or "").startswith("1.4.")
             and job.requirement_review_eligible is not True
@@ -67,6 +73,7 @@ class ExtractJobRequirementsUseCase:
                 f"reasons={reasons}"
             )
         description = job.description or ""
+        previous_id = self._query_repository.get_latest_id(job_id)
         proposal = self._workflow.execute(job_id=job_id, description=description)
         normalized_description = description.strip()
         extraction_id = f"reqrun_{uuid4().hex}"
@@ -101,6 +108,9 @@ class ExtractJobRequirementsUseCase:
             ),
         )
         with self._uow_factory() as uow:
+            uow.ensure_job_availability(job_id, availability_revision)
+            uow.ensure_description_hash(job_id, write.input_hash)
+            uow.ensure_latest_extraction(job_id, previous_id)
             uow.requirements.add(write)
             uow.commit()
         result = self._query_repository.get_extraction(

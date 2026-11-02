@@ -37,6 +37,7 @@ class SavedCareerAnalysisResponse(CamelCaseModel):
     update_source_result_id: str | None = None
     update_partial: bool = False
     unanalysed_job_ids: list[str] = []
+    unranked_job_ids: list[str] = []
 
     @classmethod
     def from_result(cls, result: SavedCareerAnalysis, stale_reasons: tuple[str, ...], update_state=None):
@@ -53,5 +54,7 @@ class SavedCareerAnalysisResponse(CamelCaseModel):
             update_source_result_id=update_state.update_source_result_id if update_state else None,
             update_partial=update_state.update_partial if update_state else False,
             unanalysed_job_ids=[s.job_id for s in update_state.update_steps if s.status not in {"completed", "reused"}]
-                if update_state and update_state.update_partial else [])
+                if update_state and update_state.update_partial else [],
+            unranked_job_ids=[job_id for job_id in update_state.requested_job_ids if job_id not in set(update_state.ranked_job_ids)]
+                if update_state else [])
 

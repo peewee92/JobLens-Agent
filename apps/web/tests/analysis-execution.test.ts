@@ -57,3 +57,14 @@ test("action ordering exposes open evidence work before optional preparation, wi
   assert.deepEqual(prioritizeApplicationActions(original).map(a => a.actionId), ["active", "evidence", "resume", "done"]);
   assert.equal(original[0].actionId, "resume");
 });
+
+test("only a correlated, non-retryable stale rejection is terminal", async () => {
+  const {isTerminalStaleExecution} = await import("../lib/analysis-execution");
+  const body = {error: {code: "analysis_execution_facts_stale", retryable: false, correlationId: "command"}};
+  assert.equal(isTerminalStaleExecution(409, body, command), true);
+  assert.equal(isTerminalStaleExecution(503, body, command), false);
+  assert.equal(isTerminalStaleExecution(409, {...body, error: {...body.error, correlationId: "other"}}, command), false);
+  assert.equal(isTerminalStaleExecution(409, {...body, error: {...body.error, retryable: true}}, command), false);
+  assert.equal(isTerminalStaleExecution(409, {error: {code: "analysis_execution_command_conflict", retryable: false, correlationId: "command"}}, command), false);
+  assert.equal(isTerminalStaleExecution(409, null, command), false);
+});

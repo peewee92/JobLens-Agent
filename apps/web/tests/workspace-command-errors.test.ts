@@ -16,3 +16,13 @@ test("malformed and network errors do not become a false success", () => {
   assert.match(workspaceCommandError(null), /操作未完成/);
   assert.match(workspaceCommandError({detail: [{type: "missing"}]}), /操作未完成/);
 });
+
+test("a linked analysis redirects legacy rematch to the saved scoped update", () => {
+  assert.match(workspaceCommandError({detail: "application_rematch_use_scoped_update"}), /关联分析的更新入口/);
+  assert.doesNotMatch(workspaceCommandError({detail: "application_rematch_use_scoped_update"}), /已完成|自动更新/);
+});
+
+
+test("retired legacy write explains the available recovery", () => {
+  assert.match(workspaceCommandError({detail: "application_rematch_retired"}), /重新选择岗位创建分析/);
+});

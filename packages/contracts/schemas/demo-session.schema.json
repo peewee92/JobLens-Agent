@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/demo-session.schema.json",
+  "title": "Internal public-demo session creation or reset receipt",
+  "description": "Backend-to-web-server only. The web server writes an HttpOnly cookie and returns only active:true to browser JavaScript. Tokens are opaque and invalid after backend restart.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sessionToken", "idleSeconds", "maxAgeSeconds"],
+  "properties": {
+    "sessionToken": {"type": "string", "minLength": 43, "maxLength": 43, "pattern": "^[A-Za-z0-9_-]+$"},
+    "idleSeconds": {"const": 1800},
+    "maxAgeSeconds": {"const": 7200}
+  }
+}

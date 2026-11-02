@@ -129,3 +129,44 @@ def test_workbench_database_error_is_actionable_not_a_false_empty_success(synthe
         assert 'private' not in response.text
     finally:
         app.dependency_overrides.pop(get_workbench_use_case)
+
+
+def test_workbench_normalizes_sqlite_and_offset_timestamps_without_changing_instant(synthetic_api):
+    from datetime import UTC, datetime, timedelta, timezone
+    from app.repositories.sqlalchemy_workbench import _as_utc
+    assert _as_utc(datetime(2026, 10, 28, 8, 0)).isoformat() == '2026-10-28T08:00:00+00:00'
+    assert _as_utc(datetime(2026, 10, 28, 8, 0, tzinfo=timezone(timedelta(hours=8)))) == datetime(2026, 10, 28, 0, 0, tzinfo=UTC)
+    client, _, ids = synthetic_api
+    state = start(client, ids, 'time_workbench')
+    assert approve(client, state).status_code == 200
+    result = client.get('/api/v1/workbench').json()['snapshot']
+    for value in [result['currentRun']['updatedAt'], *(item['occurredAt'] for item in result['changes'])]:
+        assert datetime.fromisoformat(value.replace('Z', '+00:00')).utcoffset() == timedelta(0)
+    moments = [datetime.fromisoformat(item['occurredAt'].replace('Z', '+00:00')) for item in result['changes']]
+    assert moments == sorted(moments, reverse=True)
+
+
+def test_workspace_page_is_bounded_actor_scoped_and_read_only(synthetic_api):
+    from app.db.models import ApplicationWorkspaceORM
+    from app.application.application_workspace.start_analysis_execution import LOCAL_ACTOR_ID
+    from datetime import datetime, UTC
+    client, factory, ids = synthetic_api
+    with factory.begin() as session:
+        for i in range(22):
+            session.add(ApplicationWorkspaceORM(id=f'page_{i:02}', actor_id=LOCAL_ACTOR_ID,
+                job_id=ids[i % len(ids)], idempotency_key=f'key_{i}', status='preparing', profile_id='p', profile_version=1, search_intent_id='s', search_intent_version=1, requirement_extraction_id='r', match_report_id='m', current_fact_fingerprint='f', created_at=datetime.now(UTC), updated_at=datetime.now(UTC)))
+        session.add(ApplicationWorkspaceORM(id='other_actor_page', actor_id='other', job_id=ids[0],
+            idempotency_key='other_key', status='preparing', profile_id='p', profile_version=1, search_intent_id='s', search_intent_version=1, requirement_extraction_id='r', match_report_id='m', current_fact_fingerprint='f', created_at=datetime.now(UTC), updated_at=datetime.now(UTC)))
+    first = client.get('/api/v1/workbench/workspaces').json()
+    second = client.get('/api/v1/workbench/workspaces?offset=20').json()
+    assert len(first['items']) == 20 and first['hasMore'] is True
+    assert len(second['items']) == 2 and second['hasMore'] is False
+    assert len({x['workspaceId'] for x in first['items'] + second['items']}) == 22
+    assert all(x['workspaceId'] != 'other_actor_page' for x in first['items'] + second['items'])
+    assert client.get('/api/v1/workbench/workspaces?offset=-1').status_code == 422
+
+
+def test_workspace_page_schema_matches_python():
+    from app.api.v1.schemas.workbench import WorkbenchWorkspacePageResponse
+    path = Path(__file__).parents[3] / 'packages/contracts/schemas/workbench-workspace-page.schema.json'
+    assert json.loads(path.read_text()) == WorkbenchWorkspacePageResponse.model_json_schema(by_alias=True)

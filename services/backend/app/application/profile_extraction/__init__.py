@@ -6,6 +6,7 @@ from app.application.profile_extraction.errors import (
     ProfileExtractionExecutionError,
     ProfileExtractorFailedError,
     ProfileExtractorUnavailableError,
+    ProfileModelAuthorizationRequiredError,
 )
 from app.application.profile_extraction.models import (
     ProfileExtractionOutput,

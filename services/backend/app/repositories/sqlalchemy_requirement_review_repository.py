@@ -49,6 +49,7 @@ from app.db.models import (
     TraceSpanORM,
 )
 from app.domain.job_requirements import RequirementImportance, RequirementType
+from app.repositories.requirement_review_frozen_baseline import frozen_baseline_policy, intact_legacy_snapshot
 
 SessionFactory = Callable[[], Session]
 FORMAL_REVIEW_SAMPLE_SIZE = 20
@@ -123,6 +124,8 @@ class SqlAlchemyRequirementReviewRepository(AbstractRequirementReviewRepository)
                 stale_case_count=decision.stale_case_count,
                 issue_code_counts=dict(decision.issue_code_counts),
                 evidence_fingerprint=decision.evidence_fingerprint,
+                evidence_snapshot=decision.evidence_snapshot,
+                evidence_snapshot_sha256=decision.evidence_snapshot_sha256,
                 decided_at=decision.decided_at,
             )
         )
@@ -485,12 +488,21 @@ def _batch_detail(
     final_decision = (
         _final_decision_detail(final_record) if final_record is not None else None
     )
+    frozen_policy = None
+    if final_record is not None and (final_record.evidence_snapshot is not None or final_record.evidence_snapshot_sha256 is not None):
+        frozen_policy = frozen_baseline_policy(final_record, batch)
+        eligible_evidence = frozen_policy is not None or (intact_legacy_snapshot(final_record) and formal_evidence_eligible)
+    else:
+        # Old decisions have no frozen evidence; keep the historic currentness rule.
+        eligible_evidence = formal_evidence_eligible
     match_release_eligible = (
-        formal_evidence_eligible
+        eligible_evidence
         and final_decision is not None
         and final_decision.decision
         is RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH
     )
+    if match_release_eligible and frozen_policy is not None:
+        semantic_policy_version = frozen_policy
     return RequirementReviewBatchDetail(
         summary=RequirementReviewBatchSummary(
             id=batch.id,

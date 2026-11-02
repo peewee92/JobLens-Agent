@@ -177,3 +177,13 @@ def test_shared_run_contracts_match_python_models():
         schema.pop("$id")
         schema.pop("$schema")
         assert schema == model.model_json_schema(by_alias=True)
+
+
+def test_report_references_are_not_invented_for_inconsistent_legacy_state():
+    from app.api.v1.schemas.career_agent import CareerAgentRunStateResponse
+    mismatched = replace(_INTERRUPTED, ranked_job_ids=("a", "b"), current_match_report_ids=("r1",))
+    assert CareerAgentRunStateResponse.from_state(mismatched).ranked_report_refs == []
+    duplicates = replace(_INTERRUPTED, ranked_job_ids=("a", "b"), current_match_report_ids=("r1", "r1"))
+    assert CareerAgentRunStateResponse.from_state(duplicates).ranked_report_refs == []
+    valid = replace(_INTERRUPTED, ranked_job_ids=("a", "b"), current_match_report_ids=("r1", "r2"))
+    assert [(x.job_id, x.report_id) for x in CareerAgentRunStateResponse.from_state(valid).ranked_report_refs] == [("a", "r1"), ("b", "r2")]

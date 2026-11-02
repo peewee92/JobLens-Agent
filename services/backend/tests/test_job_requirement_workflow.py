@@ -11644,3 +11644,25 @@ def test_short_description_is_rejected_before_provider_and_trace(
 
     with session_factory() as session:
         assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+
+
+@pytest.mark.parametrize("description", ["😀" * 39, "字" * 50_001])
+def test_description_bounds_reject_before_any_provider_or_trace(
+    session_factory: sessionmaker[Session], description: str
+) -> None:
+    with pytest.raises(JobDescriptionNotExtractableError):
+        _workflow(session_factory, DisabledJobRequirementExtractor()).execute(
+            job_id="job_bounds", description=description
+        )
+    with session_factory() as session:
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+
+
+@pytest.mark.parametrize("description", ["😀" * 40, "字" * 50_000])
+def test_description_bounds_allow_provider_boundary(
+    session_factory: sessionmaker[Session], description: str
+) -> None:
+    with pytest.raises(RequirementExtractorUnavailableError):
+        _workflow(session_factory, DisabledJobRequirementExtractor()).execute(
+            job_id="job_bounds", description=description
+        )

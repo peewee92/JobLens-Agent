@@ -159,6 +159,17 @@ export interface SaveSearchIntentPayload {
   softPreferences: string[];
 }
 
+export interface ManualJobInput {
+  title: string;
+  company: string;
+  description: string;
+  sourceUrl?: string | null;
+}
+
+export interface ManualJobImportResult extends JobImportResult {
+  jobId: string;
+}
+
 export interface JobListItem {
   id: string;
   title: string;
@@ -175,6 +186,9 @@ export interface JobListItem {
 }
 
 export interface JobDetail extends JobListItem {
+  lastSeenAt?: string | null;
+  userMarkedInactive?: boolean;
+  availabilityRevision?: number;
   experience: string | null;
   education: string | null;
   description: string | null;
@@ -182,6 +196,12 @@ export interface JobDetail extends JobListItem {
   descriptionQuality: string | null;
   requirementReviewEligible: boolean | null;
   requirementReviewIneligibilityReasons: string[];
+}
+
+export interface JobDescriptionObservations {
+  jobId: string;
+  hasMore: boolean;
+  items: {importId: string; inputIndex: number; recordedAt: string; description: string | null; truncated: boolean}[];
 }
 
 export interface JobPage {
@@ -226,6 +246,8 @@ export interface JobRequirementReleaseReadiness {
   acceptedBaselineDecisionId: string | null;
   acceptedBaselineEvidenceFingerprint: string | null;
   blockers: JobRequirementReleaseBlocker[];
+  userConfirmationId?: string | null;
+  requirementFactsDigest?: string | null;
 }
 
 export type RequirementFitStatus = "matched" | "conditional" | "missing";
@@ -286,6 +308,8 @@ export interface MatchReportInsight {
 }
 
 export interface MatchReportRequirementResult {
+  candidateCount?: number | null;
+  assessmentSource?: "deterministic" | "provider" | null;
   requirementId: string;
   requirementIndex: number;
   type: RequirementType;
@@ -305,6 +329,7 @@ export interface MatchEvidenceLink {
 }
 
 export interface RankedMatchReportItem extends PreferenceContext {
+  targetCandidate: boolean;
   reportId: string;
   createdAt: string;
   jobId: string;
@@ -540,6 +565,7 @@ export interface UserFeedbackHistory {
 }
 
 export interface JobMatchReport extends PreferenceContext {
+  retrievalVersion?: string | null;
   jobId: string;
   profileId: string;
   profileVersion: number;
@@ -811,6 +837,7 @@ export interface JobRequirementExtraction {
   requirementCount: number;
   createdAt: string;
   requirements: JobRequirement[];
+  factsDigest?: string;
 }
 
 export interface ImportResultError {
@@ -1067,6 +1094,7 @@ export interface RequirementReviewCandidate {
   model: string;
   extractorVersion: string;
   promptVersion: string;
+  semanticPolicyVersion: string | null;
   traceRunId: string;
   requirementCount: number;
   createdAt: string;
@@ -1392,6 +1420,7 @@ export interface CareerAgentRunState {
   currentStep: string;
   requestedJobIds: string[];
   rankedJobIds: string[];
+  rankedReportRefs?: {jobId: string; reportId: string}[];
   proposedTargetJobIds: string[];
   targetSuggestionMode?: "supported" | "challenge_only" | null;
   revision?: number;
@@ -1411,6 +1440,7 @@ export interface SavedCareerAnalysis {
   updateSourceResultId?: string | null;
   updatePartial?: boolean;
   unanalysedJobIds?: string[];
+  unrankedJobIds?: string[];
   schemaVersion: 1;
   resultId: string;
   threadId: string;
@@ -1478,6 +1508,9 @@ export interface UpdateMatchStep {
   reportId: string | null; attempt: number; errorCode: string | null;
 }
 
+/** Existing backend initial-scope preflight; no saved source analysis is required. */
+export type InitialScopePlan = Omit<AnalysisUpdatePlan, 'sourceThreadId' | 'sourceResultId' | 'scope' | 'previousProfileVersion'>;
+
 export type AnalysisChange = 'improved' | 'weakened' | 'unchanged' | 'mixed' | 'not_comparable' | 'unavailable';
 export interface AnalysisJobComparison {
   jobId: string; title: string; previousReportId: string | null; currentReportId: string | null;
@@ -1498,4 +1531,49 @@ export interface AnalysisComparison {
   previousIntentVersion: number; currentIntentVersion: number; requestedJobIds: string[];
   rankingComparable: boolean; partial: boolean; reasonCodes: string[]; addedTargetIds: string[]; removedTargetIds: string[];
   items: AnalysisJobComparison[];
+}
+
+export interface LegacyWorkspaceAnalysisPlan {
+  workspaceId: string;
+  profileId: string | null; profileVersion: number | null;
+  searchIntentId: string | null; searchIntentVersion: number | null;
+  item: AnalysisUpdatePlan['items'][number];
+  inputDigest: string; advisoryOnly: true;
+}
+
+/** One explicit bounded extraction request; attempts do not prove provider billing. */
+export interface RequirementCallRecord {
+  actionId: string; jobId: string; status: "running" | "completed" | "failed" | "uncertain";
+  attempts: number; responseStatus: number | null; inputTokens: number | null; outputTokens: number | null;
+  extractionId: string | null; errorCode: string | null; model: string; maxOutputTokens: number; timeoutSeconds: number;
+}
+export interface RequirementCallPlan {
+  jobId: string; planDigest: string; inputHash: string; available: boolean; blockerCode: string | null;
+  model: string; maxProviderCalls: 1; maxOutputTokens: number; timeoutSeconds: number;
+  descriptionCharacters: number; latestRequest: RequirementCallRecord | null;
+}
+
+/** Full existing match preflight contract; requirements alone do not prove readiness. */
+export interface JobMatchInputReadiness {
+  jobId: string;
+  inputsReleaseEligible: boolean;
+  careerContext: CareerContextReleaseReadiness;
+  jobRequirements: JobRequirementReleaseReadiness;
+  blockers: Array<{source: string; code: string; message: string}>;
+  dbWrites: number;
+  providerCalls: number;
+  traceRunsCreated: number;
+}
+
+export interface SemanticCallRecord extends Omit<RequirementCallRecord, "extractionId"> {
+  reportId: string | null;
+}
+export interface SemanticCallPlan {
+  executionMode: "offline" | "authorized";
+  jobId: string; planDigest: string; available: boolean; blockerCode: string | null;
+  model: string; maxProviderCalls: number; maxOutputTokens: number; timeoutSeconds: number;
+  profileVersion: number; searchIntentVersion: number | null; extractionId: string;
+  requirements: Array<{requirementId: string; requirementText: string;
+    candidates: Array<{evidenceId: string; summary: string}>}>;
+  latestRequest: SemanticCallRecord | null;
 }

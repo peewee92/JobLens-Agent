@@ -1,3 +1,7 @@
+import {requirementReleaseBlockerCopy} from "@/lib/job-requirements";
+import {ImportAnalysisScopes} from "@/components/import-analysis-scopes";
+import {ImportUpdatedNotice} from "@/components/import-updated-notice";
+import {fetchImportFeedbackBatches} from "@/lib/import-feedback-batches";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
@@ -11,12 +15,11 @@ import {
   fetchImportDetail,
   fetchJobDetail,
   fetchJobPreparation,
-  fetchJobRequirementReleaseReadiness,
   fetchLatestUserFeedback,
   fetchMatchBlockerSummary,
   fetchMatchImprovement,
   fetchMatchRanking,
-  fetchMatchReviewReadiness,
+  fetchJobMatchInputReadiness,
 } from "@/lib/backend";
 import {buildApplicationChecklistItems} from "@/lib/application-checklist";
 import {selectBatchNextAction} from "@/lib/batch-next-action";
@@ -27,6 +30,7 @@ import {
   selectNextEvidencePriority,
 } from "@/lib/evidence-priority";
 import {formatDateTime} from "@/lib/format";
+import {classifyImportMatchReadiness, importedUniqueJobIds, validImportMatchInputs} from "@/lib/import-match-readiness";
 import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
@@ -111,7 +115,8 @@ export default async function ImportDetailPage({
     return <ServiceError message={message} />;
   }
 
-  const importedJobIds = detail.items.flatMap((item) => (item.jobId ? [item.jobId] : []));
+  const importedJobIds = importedUniqueJobIds(detail.items);
+  const linkedObservationCount = detail.items.filter(item => Boolean(item.jobId)).length;
   const preparationProgressResult = requestedAfterPreparationJobId && importedJobIds.includes(requestedAfterPreparationJobId)
     ? await fetchJobPreparation(requestedAfterPreparationJobId)
         .then((value) => ({status: "fulfilled" as const, value}))
@@ -120,7 +125,7 @@ export default async function ImportDetailPage({
   const preparationProgressItems = preparationProgressResult?.status === "fulfilled" && preparationProgressResult.value.factsUsable
     ? buildApplicationChecklistItems(preparationProgressResult.value)
     : null;
-  const [rankingResult, matchReviewReadinessResult, jobDetailResults, readinessResults] = await Promise.all([
+  const [rankingResult, matchInputResults, jobDetailResults] = await Promise.all([
     importedJobIds.length > 0
       ? fetchMatchRanking(importedJobIds, {includeBlocked: true})
           .then((value) => ({status: "fulfilled" as const, value}))
@@ -129,36 +134,34 @@ export default async function ImportDetailPage({
           status: "fulfilled" as const,
           value: {items: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0},
         }),
-    fetchMatchReviewReadiness()
-      .then((value) => ({status: "fulfilled" as const, value}))
-      .catch((reason) => ({status: "rejected" as const, reason})),
+    Promise.allSettled(importedJobIds.map((jobId) => fetchJobMatchInputReadiness(jobId))),
     Promise.allSettled(importedJobIds.map((jobId) => fetchJobDetail(jobId))),
-    Promise.allSettled(importedJobIds.map((jobId) => fetchJobRequirementReleaseReadiness(jobId))),
   ]);
   const rankingAvailable = rankingResult.status === "fulfilled";
   const rankedJobIds = new Set(
     rankingAvailable ? rankingResult.value.items.map((item) => item.jobId) : [],
   );
-  const matchInputReadinessAvailable = matchReviewReadinessResult.status === "fulfilled";
-  const matchInputReadyJobIds = new Set(
-    matchInputReadinessAvailable ? matchReviewReadinessResult.value.reviewableJobIds : [],
-  );
+  const matchInputByJobId = new Map(matchInputResults.flatMap((result, index) =>
+    result.status === "fulfilled" && validImportMatchInputs(importedJobIds[index], result.value)
+      ? [[importedJobIds[index], result.value] as const] : []));
   const jobDetailById = new Map(
     jobDetailResults.flatMap((result) =>
       result.status === "fulfilled" ? [[result.value.id, result.value] as const] : [],
     ),
   );
-  const readinessByJobId = new Map(
-    readinessResults.flatMap((result) =>
-      result.status === "fulfilled" ? [[result.value.jobId, result.value] as const] : [],
-    ),
-  );
+  const matchStatusByJobId = new Map(importedJobIds.map(jobId => [jobId, classifyImportMatchReadiness({
+    rankingAvailable, ranked: rankedJobIds.has(jobId),
+    userMarkedInactive: jobDetailById.get(jobId)?.userMarkedInactive ?? null,
+    matchInputsReady: matchInputByJobId.get(jobId)?.inputsReleaseEligible ?? null,
+    requirementsReady: matchInputByJobId.get(jobId)?.jobRequirements.releaseEligible ?? null,
+  })] as const));
+  const inactiveJobs = importedJobIds.filter(jobId => matchStatusByJobId.get(jobId) === "inactive");
   const matchedReports = rankingAvailable
-    ? rankingResult.value.items.filter((item) => importedJobIds.includes(item.jobId))
+    ? rankingResult.value.items.filter((item) => matchStatusByJobId.get(item.jobId) === "matched")
     : [];
   const matchedCount = matchedReports.length;
   const latestFeedbackResult = matchedReports.length > 0
-    ? await fetchLatestUserFeedback(matchedReports.map((report) => report.reportId))
+    ? await fetchImportFeedbackBatches(matchedReports.map((report) => report.reportId), fetchLatestUserFeedback)
         .then((value) => ({status: "fulfilled" as const, value}))
         .catch((reason) => ({status: "rejected" as const, reason}))
     : {status: "fulfilled" as const, value: {feedback: [], count: 0, dbWrites: 0, providerCalls: 0, traceRunsCreated: 0}};
@@ -304,12 +307,13 @@ export default async function ImportDetailPage({
         return Boolean(feedback) && (feedback?.decision === "rejected" || !blockerByJobId.has(report.jobId));
       })
     : [];
-  const batchProcessingTotal = importedJobIds.length;
+  const batchProcessingTotal = importedJobIds.length - inactiveJobs.length;
   const batchProcessedCount = feedbackQueueAvailable ? completedDecisionReports.length : null;
   const batchProcessingRemaining = batchProcessedCount === null
     ? null
     : Math.max(batchProcessingTotal - batchProcessedCount, 0);
   const batchProcessingComplete = feedbackQueueAvailable
+    && batchProcessingTotal > 0
     && matchedCount === batchProcessingTotal
     && completedDecisionReports.length === batchProcessingTotal;
   const unmatchedProcessingCount = feedbackQueueAvailable
@@ -548,30 +552,12 @@ export default async function ImportDetailPage({
   const batchEvidenceProfileHref = batchEvidenceAction
     ? `/profile?next=/recommendations&returnImport=${encodeURIComponent(id)}&focusRequirement=${encodeURIComponent(batchEvidenceAction.requirementType)}&focusJob=${encodeURIComponent(batchEvidenceFocusJobId ?? "")}${batchEvidenceRequirement ? `&focusRequirementId=${encodeURIComponent(batchEvidenceRequirement.requirementId)}` : ""}${batchEvidenceAction.normalizedCapability ? `&focusCapability=${encodeURIComponent(batchEvidenceAction.normalizedCapability)}` : ""}${batchEvidenceAction.examples[0] ? `&focusRequirementText=${encodeURIComponent(batchEvidenceAction.examples[0])}` : ""}${batchEvidenceImpactTargets.length > 0 ? `&focusImpactJobs=${encodeURIComponent(batchEvidenceImpactTargets.slice(0, 3).map((target) => target.jobId).join(","))}` : ""}${batchEvidenceAction.requirementIds.length > 0 ? `&focusImpactRequirementIds=${encodeURIComponent(batchEvidenceAction.requirementIds.slice(0, 20).join(","))}` : ""}${requestedAfterMatchJobIds.length > 0 ? `&afterMatchJobs=${encodeURIComponent(requestedAfterMatchJobIds.join(","))}` : ""}#profile-evidence-focus`
     : null;
-  const matchReadyCount = importedJobIds.filter(
-    (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
-  ).length;
-  const requirementBlockedCount = importedJobIds.filter((jobId) => {
-    const readiness = readinessByJobId.get(jobId);
-    return !rankedJobIds.has(jobId) && !matchInputReadyJobIds.has(jobId) && readiness?.releaseEligible === false;
-  }).length;
-  const unknownReadinessCount = importedJobIds.length - matchedCount - matchReadyCount - requirementBlockedCount;
-  const matchReadyJobs = importedJobIds.filter(
-    (jobId) => rankingAvailable && !rankedJobIds.has(jobId) && matchInputReadyJobIds.has(jobId),
-  );
-  const requirementBlockedJobs = importedJobIds.filter((jobId) => {
-    const readiness = readinessByJobId.get(jobId);
-    return !rankedJobIds.has(jobId) && !matchInputReadyJobIds.has(jobId) && readiness?.releaseEligible === false;
-  });
-  const unknownReadinessJobs = importedJobIds.filter((jobId) => {
-    if (rankedJobIds.has(jobId)) {
-      return false;
-    }
-    const readiness = readinessByJobId.get(jobId);
-    return !readiness || (
-      readiness.releaseEligible && (!rankingAvailable || !matchInputReadinessAvailable)
-    );
-  });
+  const matchReadyJobs = importedJobIds.filter(jobId => matchStatusByJobId.get(jobId) === "ready");
+  const requirementBlockedJobs = importedJobIds.filter(jobId => matchStatusByJobId.get(jobId) === "requirements_blocked");
+  const unknownReadinessJobs = importedJobIds.filter(jobId => matchStatusByJobId.get(jobId) === "unknown");
+  const matchReadyCount = matchReadyJobs.length;
+  const requirementBlockedCount = requirementBlockedJobs.length;
+  const unknownReadinessCount = unknownReadinessJobs.length;
   const jobLabel = (jobId: string) => {
     const job = jobDetailById.get(jobId);
     return job ? `${job.title} · ${job.company}` : `岗位 ${jobId}`;
@@ -659,11 +645,17 @@ export default async function ImportDetailPage({
       </section>
 
       <div className="summary-grid">
-        <div className="summary-card"><span>文件中的岗位</span><strong>{detail.received}</strong></div>
+        <div className="summary-card"><span>{detail.sourceVersion === "manual-paste-v1" ? "手动添加的岗位" : "文件中的岗位"}</span><strong>{detail.received}</strong></div>
         <div className="summary-card"><span>新增</span><strong>{detail.created}</strong></div>
         <div className="summary-card"><span>信息已更新</span><strong>{detail.updated}</strong></div>
         <div className="summary-card"><span>未添加</span><strong>{detail.skipped}</strong></div>
       </div>
+
+      {linkedObservationCount > importedJobIds.length ? <p className="notice">
+        {linkedObservationCount} 条导入记录对应 {importedJobIds.length} 个不同岗位；重复记录保留在下方，匹配和处理进度按岗位计算。
+      </p> : null}
+
+      <ImportUpdatedNotice items={detail.items} labels={Object.fromEntries(importedJobIds.map(jobId => [jobId, jobLabel(jobId)]))} />
 
       {importedJobIds.length > 0 ? (
         <section className="detail-card" style={{marginBottom: "1rem"}}>
@@ -675,6 +667,7 @@ export default async function ImportDetailPage({
             <div className="summary-card"><span>已有当前匹配结果</span><strong>{matchedCount}</strong></div>
             <div className="summary-card"><span>要求已准备，可进入匹配</span><strong>{matchReadyCount}</strong></div>
             <div className="summary-card"><span>岗位要求还未准备好</span><strong>{requirementBlockedCount}</strong></div>
+            {inactiveJobs.length > 0 ? <div className="summary-card"><span>已标记失效（不计入处理进度）</span><strong>{inactiveJobs.length}</strong></div> : null}
             {unknownReadinessCount > 0 ? (
               <div className="summary-card"><span>暂时无法确认</span><strong>{unknownReadinessCount}</strong></div>
             ) : null}
@@ -832,14 +825,14 @@ export default async function ImportDetailPage({
                 <>
                   <p className="muted">还剩 {batchProcessingRemaining} 个岗位没有完成当前处理。下面只按当前事实拆分剩余阶段，不把 unknown 状态塞进某个可执行队列。</p>
                   <div className="summary-grid">
-                    <div className="summary-card"><span>还没形成 MatchReport</span><strong>{unmatchedProcessingCount}</strong></div>
+                    <div className="summary-card"><span>尚未确认当前匹配</span><strong>{unmatchedProcessingCount}</strong></div>
                     <div className="summary-card"><span>等待投递判断</span><strong>{pendingApplyDecisionCount}</strong></div>
                     <div className="summary-card"><span>等待 Evidence 改善</span><strong>{pendingEvidenceCount}</strong></div>
                   </div>
                   <p className="muted">“等待投递判断”只包含当前无 hard blocker 且尚未反馈的岗位；“等待 Evidence 改善”保留感兴趣/再看看且仍有 blocker 的岗位，明确“不考虑”的岗位已经退出。</p>
                   {unmatchedProcessingCount > 0 ? (
                     <div className="detail-section">
-                      <strong>还没形成 MatchReport 的岗位卡在哪里</strong>
+                      <strong>尚未确认当前匹配的岗位卡在哪里</strong>
                       <div className="summary-grid">
                         <div className="summary-card"><span>Requirement 已 ready，可显式 Match</span><strong>{matchReadyJobs.length}</strong></div>
                         <div className="summary-card"><span>Requirement 仍 blocked</span><strong>{requirementBlockedJobs.length}</strong></div>
@@ -1384,6 +1377,8 @@ export default async function ImportDetailPage({
             </section>
           ) : null}
 
+          <ImportAnalysisScopes jobIds={matchedReports.map((report) => report.jobId)} />
+
           {matchedReports.length > 0 ? (
             <section className="detail-section">
               <h3>这批岗位当前的匹配结果</h3>
@@ -1554,14 +1549,14 @@ export default async function ImportDetailPage({
               <p className="muted">先看具体阻塞原因，再决定是否进入该岗位处理；这里不会自动发起分析。</p>
               <ul>
                 {requirementBlockedJobs.map((jobId) => {
-                  const readiness = readinessByJobId.get(jobId);
+                  const readiness = matchInputByJobId.get(jobId)?.jobRequirements;
                   return (
                     <li key={jobId} style={{marginBottom: "0.85rem"}}>
                       <Link href={`/jobs/${jobId}`}><strong>{jobLabel(jobId)}</strong></Link>
                       {readiness && readiness.blockers.length > 0 ? (
                         <ul>
                           {readiness.blockers.slice(0, 2).map((blocker) => (
-                            <li key={`${jobId}-${blocker.code}`}>{blocker.message}</li>
+                            <li key={`${jobId}-${blocker.code}`}>{requirementReleaseBlockerCopy(blocker.code, jobDetailById.get(jobId)?.description).title}：{requirementReleaseBlockerCopy(blocker.code, jobDetailById.get(jobId)?.description).description}</li>
                           ))}
                         </ul>
                       ) : (
@@ -1573,6 +1568,12 @@ export default async function ImportDetailPage({
               </ul>
             </section>
           ) : null}
+
+          {inactiveJobs.length > 0 ? <section className="detail-section">
+            <h3>已由你标记失效</h3>
+            <p className="muted">这些岗位不会进入当前分析；如需重新考虑，请打开岗位恢复标记。</p>
+            <ul>{inactiveJobs.map(jobId => <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>)}</ul>
+          </section> : null}
 
           {matchReadyJobs.length > 0 ? (
             <section className="detail-section" id="batch-match">
@@ -1589,7 +1590,7 @@ export default async function ImportDetailPage({
           {unknownReadinessJobs.length > 0 ? (
             <section className="detail-section">
               <h3>暂时无法确认的岗位</h3>
-              <p className="muted">这些岗位的 Requirement 状态读取失败，因此不会被误报为“尚未准备”。</p>
+              <p className="muted">这些岗位的输入或匹配状态读取失败，或不同检查结果不一致。请刷新页面或打开岗位核对；系统不会猜测它们是否已准备好。</p>
               <ul>
                 {unknownReadinessJobs.map((jobId) => (
                   <li key={jobId}><Link href={`/jobs/${jobId}`}>{jobLabel(jobId)}</Link></li>
@@ -1625,6 +1626,7 @@ export default async function ImportDetailPage({
                     <th>序号</th>
                     <th>结果</th>
                     <th>岗位</th>
+                    <th>当前来源记录时间</th>
                     <th>错误</th>
                   </tr>
                 </thead>
@@ -1635,9 +1637,10 @@ export default async function ImportDetailPage({
                       <td><ImportOutcomePill outcome={item.outcome} /></td>
                       <td>
                         {item.jobId ? (
-                          <Link href={`/jobs/${item.jobId}`}>查看岗位</Link>
+                          <Link href={`/jobs/${encodeURIComponent(item.jobId)}`}>{jobLabel(item.jobId)}</Link>
                         ) : "—"}
                       </td>
+                      <td>{item.jobId ? formatDateTime(jobDetailById.get(item.jobId)?.lastSeenAt ?? null) : "—"}</td>
                       <td>{item.errorMessage || item.errorCode || "—"}</td>
                     </tr>
                   ))}
@@ -1645,6 +1648,7 @@ export default async function ImportDetailPage({
               </table>
             </div>
           )}
+          <p className="muted-copy">岗位名称及时间来自当前记录，不一定是本批次的历史内容；时间缺失时可能使用报告时间或系统记录时间，不能据此判断岗位是否仍在招聘。</p>
 
           {detail.errors.length > 0 ? (
             <section className="detail-section">
@@ -1662,8 +1666,8 @@ export default async function ImportDetailPage({
         <aside className="detail-card">
           <h2>这批数据</h2>
           <div className="meta-list">
-            <div><span className="meta-label">插件版本</span><strong>{detail.collectorVersion || detail.sourceVersion}</strong></div>
-            <div><span className="meta-label">采集时间</span><strong>{formatDateTime(detail.collectedAt)}</strong></div>
+            <div><span className="meta-label">{detail.sourceVersion === "manual-paste-v1" ? "添加方式" : "插件版本"}</span><strong>{detail.sourceVersion === "manual-paste-v1" ? "手动粘贴" : detail.collectorVersion || detail.sourceVersion}</strong></div>
+            <div><span className="meta-label">{detail.sourceVersion === "manual-paste-v1" ? "保存时间" : "采集时间"}</span><strong>{formatDateTime(detail.collectedAt)}</strong></div>
             <div><span className="meta-label">添加时间</span><strong>{formatDateTime(detail.createdAt)}</strong></div>
           </div>
 

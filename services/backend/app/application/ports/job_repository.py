@@ -69,6 +69,7 @@ class JobImportItemWrite:
     job_source_id: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+    source_raw_snapshot: dict[str, Any] | None = None
 
 
 class AbstractJobRepository(ABC):

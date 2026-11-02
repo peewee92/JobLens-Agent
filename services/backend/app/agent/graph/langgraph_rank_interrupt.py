@@ -142,7 +142,7 @@ class LangGraphRankToTargetCohortInterrupt:
                     suggested_job_ids.append(job_id)
 
         # An update must never silently consume reports created after its preflight.
-        if state.update_source_thread_id and any(ref not in (
+        if (state.update_source_thread_id or state.update_legacy_workspace_id) and any(ref not in (
             tuple(step.report_id for step in state.update_steps if step.report_id) if state.update_steps
             else state.update_report_ids) for ref in report_refs):
             stale = self._checkpoints.transition(previous, replace(state, status=CareerAgentStatus.STALE,

@@ -13,8 +13,22 @@ from app.api.v1.schemas import (
 )
 from app.application.job_import_queries.use_cases import GetJobImportDetailUseCase
 from app.application.job_imports import ImportJobsUseCase
+from app.application.job_imports.manual import ManualJobInput
+from app.api.v1.schemas.job_imports import ManualJobImportResponse
 
 router = APIRouter(prefix="/job-imports")
+
+
+@router.post("/manual", response_model=ManualJobImportResponse, status_code=201)
+def create_manual_job_import(
+    payload: ManualJobInput,
+    use_case: Annotated[ImportJobsUseCase, Depends(get_import_jobs_use_case)],
+) -> ManualJobImportResponse:
+    """Persist pasted text with honest provenance using the existing import transaction."""
+    result = use_case.execute_manual(payload)
+    return ManualJobImportResponse(
+        **JobImportResponse.from_result(result).model_dump(), jobId=result.job_ids[0],
+    )
 
 
 @router.get(

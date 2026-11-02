@@ -817,6 +817,14 @@
       },
       "title": "Unanalysedjobids",
       "type": "array"
+    },
+    "unrankedJobIds": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Unrankedjobids",
+      "type": "array"
     }
   },
   "required": [

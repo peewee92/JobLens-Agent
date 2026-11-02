@@ -123,7 +123,7 @@ function initialEvidence(profile: UserProfile | null): EvidenceDraft[] {
 }
 
 function initialSkills(profile: UserProfile | null): SkillDraft[] {
-  if (!profile) return [{...EMPTY_SKILL}];
+  if (!profile) return [];
   const keyById = new Map(profile.evidence.map((item) => [item.id, item.key]));
   return profile.skills.map((item) => ({
     name: item.name,
@@ -174,7 +174,7 @@ export function ProfileEditor({
   const [profileDirty, setProfileDirty] = useState(false);
   const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
-    Boolean(focusEvidenceType || focusRequirementType),
+    Boolean(!initialProfile || focusEvidenceType || focusRequirementType),
   );
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
@@ -688,11 +688,15 @@ export function ProfileEditor({
 
   return (
     <div className="profile-layout">
-      <ResumeProposalPanel
-        onProposalReady={handleProposalReady}
-        onApply={(proposal) => applyProposal(proposal, "replace")}
-        onReviewDraft={focusProfileDraft}
-      />
+      <details className="detail-card">
+        <summary>可选：从简历整理草稿</summary>
+        <p>不需要先整理简历才能开始。当前此入口仅支持离线替身，不会调用真实模型；你可以直接在下方手动填写并确认。</p>
+        <ResumeProposalPanel
+          onProposalReady={handleProposalReady}
+          onApply={(proposal) => applyProposal(proposal, "replace")}
+          onReviewDraft={focusProfileDraft}
+        />
+      </details>
       <form
         id="profile-background"
         ref={profileFormRef}
@@ -701,10 +705,10 @@ export function ProfileEditor({
       >
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">AI 对我的理解</p>
+            <p className="eyebrow">我确认的职业事实</p>
             <h2>我的职业背景</h2>
             <p className="section-support-copy">
-              先快速确认 JobLens 对你的理解是否准确；只有发现问题时，才需要展开详细编辑。
+              先填写职业定位和一段真实经历，再核对并确认保存。技能和教育信息可暂不填写；没有证据不等于你不具备。
             </p>
           </div>
           <span className={`version-badge${profileDirty ? " profile-status-dirty" : ""}`}>
@@ -861,7 +865,7 @@ export function ProfileEditor({
             <div>
               <h3>还没有可确认的职业背景</h3>
               <p>
-                推荐先用上方“AI 简历整理”自动生成草稿；如果暂时没有简历，也可以手动填写。
+                直接在下方填写真实经历即可开始，不需要调用模型。填写后先返回卡片核对，再确认保存。
               </p>
             </div>
             <button
@@ -1332,7 +1336,7 @@ export function ProfileEditor({
         <div className="subsection-heading">
           <div>
             <h3>我的技能</h3>
-            <p>每项技能至少选择一段能证明它的真实经历，避免把“想学”误当成“已经会”。</p>
+            <p>技能可以暂不填写；已填写的技能需要关联真实经历，避免把“想学”误当成“已经会”。</p>
           </div>
           <button
             className="button-secondary"
@@ -1396,7 +1400,6 @@ export function ProfileEditor({
               <button
                 className="danger-link"
                 type="button"
-                disabled={skills.length === 1}
                 onClick={() => {
                   markProfileDirty();
                   setSkills((items) => items.filter((_, i) => i !== index));

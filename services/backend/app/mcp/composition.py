@@ -41,18 +41,26 @@ def build_mcp_adapter() -> JobLensMcpAdapter:
     jobs = SqlAlchemyJobQueryRepository(SessionLocal)
     requirements = SqlAlchemyJobRequirementQueryRepository(SessionLocal)
     reports = SqlAlchemyMatchReportQueryRepository(SessionLocal)
-    ranking = BatchRankMatchReportsUseCase(
-        report_repository=reports,
-        career_context_repository=career_context,
-        job_repository=jobs,
-        requirement_repository=requirements,
-        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
-    )
     requirement_release = GetJobRequirementReleaseReadinessUseCase(
         jobs=jobs,
         requirements=requirements,
         reviews=SqlAlchemyRequirementReviewQueryRepository(SessionLocal),
         traces=SqlAlchemyJobRequirementReleaseQueryRepository(SessionLocal),
+    )
+    ranking_release = GetJobRequirementReleaseReadinessUseCase(
+        jobs=jobs,
+        requirements=requirements,
+        reviews=SqlAlchemyRequirementReviewQueryRepository(SessionLocal),
+        traces=SqlAlchemyJobRequirementReleaseQueryRepository(SessionLocal),
+        allow_frozen_mvp_without_baseline=True,
+    )
+    ranking = BatchRankMatchReportsUseCase(
+        report_repository=reports,
+        career_context_repository=career_context,
+        job_repository=jobs,
+        requirement_repository=requirements,
+        requirement_release=ranking_release,
+        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
     )
     feedback_source = UserFeedbackTargetCohortSourceUseCase(
         feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),

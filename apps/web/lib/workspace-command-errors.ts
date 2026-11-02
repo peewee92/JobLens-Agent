@@ -9,6 +9,8 @@ export function workspaceCommandError(payload: unknown, fallback = "操作未完
     evidence_proposal_action_source_invalid: "行动来源无法核对，不能用于新的职业事实；历史进度仍保留。",
     evidence_proposal_review_required: "请先核对当前职业资料，勾选确认真实事实及技能程度。",
     evidence_proposal_origin_confirmed: "这条原始提案或重新核对提案已经确认，不会再次写入同一条事实。",
+    application_rematch_retired: "旧单岗位重算已停用；请从已保存分析更新，或重新选择岗位创建分析。历史记录不会删除。",
+    application_rematch_use_scoped_update: "该工作区已有保存分析，请从关联分析的更新入口继续；不会另建单岗位结果。",
     application_rematch_provider_required: "此岗位需要语义匹配，当前零模型路径不会调用模型；请先保留事实，等待单独授权的分析更新。",
     evidence_proposal_profile_stale: "职业资料已变化，不能直接确认旧提案。请先核对当前资料和提案来源，不会自动合并或覆盖事实。",
     evidence_proposal_idempotency_conflict: "这个请求标识已保存了不同的事实，请刷新核对原提案，不会覆盖已有内容。",

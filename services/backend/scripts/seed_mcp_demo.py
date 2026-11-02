@@ -45,6 +45,7 @@ from app.domain.career_context import EvidenceType, SkillLevel
 from app.domain.job_requirements import RequirementImportance, RequirementType
 from app.domain.jobs import RemoteConfidence, RemoteStatus
 from app.repositories.sqlalchemy_match_report_repository import _snapshot, _stored
+from app.application.evidence_retrieval.strategy import RETRIEVAL_VERSION
 from app.repositories.sqlalchemy_career_context_repository import SqlAlchemyCareerContextQueryRepository
 from app.repositories.sqlalchemy_job_query_repository import SqlAlchemyJobQueryRepository
 from app.application.search_preferences import evaluate_search_preferences, preference_input_fingerprint
@@ -226,6 +227,7 @@ def _add_reviewed_jobs(session: Session) -> list[str]:
             eligibility=EligibilityDecision.ELIGIBLE,
             recommendation=MatchRecommendation.STRONG,
             summary="Synthetic demo: confirmed Python evidence supports the released requirement.",
+            retrieval_version=RETRIEVAL_VERSION,
             strengths=(
                 MatchReportInsight(
                     requirement_id=requirement_id,
@@ -248,6 +250,7 @@ def _add_reviewed_jobs(session: Session) -> list[str]:
                     evidence_ids=(EVIDENCE_ID,),
                     profile_fact_refs=(f"profile.skill.{SKILL_ID}",),
                     reason="Confirmed synthetic evidence directly supports Python.",
+                    candidate_count=1, assessment_source="deterministic",
                 ),
             ),
             matched_requirement_ids=(requirement_id,),

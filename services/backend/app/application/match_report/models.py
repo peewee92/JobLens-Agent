@@ -34,6 +34,8 @@ class MatchReportRequirementResult:
     evidence_ids: tuple[str, ...]
     profile_fact_refs: tuple[str, ...]
     reason: str
+    candidate_count: int | None = None
+    assessment_source: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +72,7 @@ class MatchReport:
     prompt_version: str
     model: str | None
     trace_run_id: str | None
+    retrieval_version: str | None = None
     policy_version: str = CURRENT_MATCH_POLICY_VERSION
     search_intent_id: str | None = None
     search_intent_version: int | None = None

@@ -18,6 +18,10 @@ class ProfileExtractorUnavailableError(ProfileExtractionExecutionError):
     """No configured extractor can serve the request."""
 
 
+class ProfileModelAuthorizationRequiredError(ProfileExtractorUnavailableError):
+    """Live extraction lacks per-request budget and accounting."""
+
+
 class ProfileExtractorFailedError(ProfileExtractionExecutionError):
     """The configured provider failed before producing usable output."""
 

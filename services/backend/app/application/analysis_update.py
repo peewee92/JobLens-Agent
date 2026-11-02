@@ -88,6 +88,16 @@ class PlanAnalysisUpdateUseCase:
         if scope not in ('targets', 'batch'):
             raise AnalysisUpdatePlanError('analysis_update_scope_invalid')
         facts = self._reader.read(thread_id, scope)
+        return self.plan_facts(facts)
+
+    def execute_legacy_workspace(self, workspace_id: str) -> AnalysisUpdatePlan:
+        return self.plan_facts(self._reader.read_legacy_workspace(workspace_id))
+
+    def execute_initial_scope(self, job_ids: tuple[str, ...]) -> AnalysisUpdatePlan:
+        return self.plan_facts(self._reader.read_initial_scope(job_ids))
+
+    def plan_facts(self, facts: UpdateFacts) -> AnalysisUpdatePlan:
+        thread_id, scope = facts.thread_id, facts.scope
         if not 1 <= len(facts.jobs) <= 50:
             raise AnalysisUpdatePlanError('analysis_update_scope_invalid')
         profile, intent = facts.context.profile, facts.context.search_intent
@@ -99,6 +109,8 @@ class PlanAnalysisUpdateUseCase:
                 extraction=item.extraction, job=item.job) if item.latest_report else ('match_report_missing',)
             if item.job is None:
                 blockers.append('job_missing')
+            elif item.job.user_marked_inactive:
+                blockers.append('job_user_marked_inactive')
             if profile is None:
                 blockers.append('profile_missing')
             if intent is None:

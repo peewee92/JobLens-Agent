@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job-description-observations.schema.json",
+  "title": "JobDescriptionObservations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["jobId", "items", "hasMore"],
+  "properties": {
+    "jobId": {"type": "string"},
+    "hasMore": {"type": "boolean"},
+    "items": {
+      "type": "array", "maxItems": 10,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["importId", "inputIndex", "recordedAt", "description", "truncated"],
+        "properties": {
+          "importId": {"type": "string"},
+          "inputIndex": {"type": "integer", "minimum": 0},
+          "recordedAt": {"type": "string", "format": "date-time"},
+          "description": {"type": ["string", "null"], "maxLength": 50000},
+          "truncated": {"type": "boolean"}
+        }
+      }
+    }
+  }
+}

@@ -78,16 +78,26 @@ def test_next_best_action_prioritizes_pending_evidence_confirmation():
     assert result.next_best_action.code == "confirm_evidence"
 
 
-def test_next_best_action_requests_rematch_after_confirmed_evidence():
+def test_pending_fact_is_not_hidden_behind_unreviewed_resume():
+    result = build(
+        actions=(Item(ExecutionActionStatus.DONE),),
+        proposals=(proposal(EvidenceProposalStatus.PENDING_CONFIRMATION),),
+    )
+    assert result.next_best_action.code == "confirm_evidence"
+    assert result.next_best_action.href == "/applications/app_1#evidence"
+
+
+def test_next_best_action_requests_new_analysis_for_legacy_workspace():
     result = build(
         variants=(Item(ResumeVariantStatus.REVIEWED),),
         actions=(Item(ExecutionActionStatus.DONE),),
         proposals=(proposal(EvidenceProposalStatus.CONFIRMED),),
     )
-    assert result.next_best_action.code == "rematch"
+    assert result.next_best_action.code == "start_new_analysis"
+    assert result.next_best_action.href == "/agent?jobId=job_1"
 
 
-def test_next_best_action_does_not_repeat_rematch_after_timeline_proves_completion():
+def test_legacy_rematch_event_does_not_replace_a_saved_analysis():
     event = ApplicationTimelineEvent(
         event_id="evt", workspace_id="app_1", actor_id="user_1", idempotency_key="e",
         event_type=ApplicationTimelineEventType.REMATCH_COMPLETED, from_status=None, to_status=None, created_at=NOW,
@@ -98,4 +108,10 @@ def test_next_best_action_does_not_repeat_rematch_after_timeline_proves_completi
         proposals=(proposal(EvidenceProposalStatus.CONFIRMED),),
         timeline=(event,),
     )
-    assert result.next_best_action.code == "practice_interview"
+    assert result.next_best_action.code == "start_new_analysis"
+
+
+def test_confirmed_legacy_fact_does_not_point_to_stale_resume_review():
+    result = build(variants=(Item(ResumeVariantStatus.DRAFT),), proposals=(proposal(EvidenceProposalStatus.CONFIRMED),))
+    assert result.next_best_action.code == "start_new_analysis"
+    assert result.next_best_action.href == "/agent?jobId=job_1"

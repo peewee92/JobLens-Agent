@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "JobImportErrorItem": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "index",
+        "stage",
+        "code",
+        "message"
+      ],
+      "title": "JobImportErrorItem",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "importId": {
+      "title": "Importid",
+      "type": "string"
+    },
+    "sourceVersion": {
+      "title": "Sourceversion",
+      "type": "string"
+    },
+    "received": {
+      "title": "Received",
+      "type": "integer"
+    },
+    "created": {
+      "title": "Created",
+      "type": "integer"
+    },
+    "updated": {
+      "title": "Updated",
+      "type": "integer"
+    },
+    "skipped": {
+      "title": "Skipped",
+      "type": "integer"
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/JobImportErrorItem"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "importId",
+    "sourceVersion",
+    "received",
+    "created",
+    "updated",
+    "skipped",
+    "errors",
+    "jobId"
+  ],
+  "title": "ManualJobImportResponse",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

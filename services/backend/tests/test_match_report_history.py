@@ -2,6 +2,7 @@
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock
+from hashlib import sha256
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,10 +39,10 @@ def _setup(tmp_path):
     jobs = Mock()
     jobs.get_job.side_effect = lambda key: job if key == job.id else None
     requirements = Mock()
-    requirements.get_latest.return_value = SimpleNamespace(extraction_id="reqrun_1")
+    requirements.get_latest.return_value = SimpleNamespace(extraction_id="reqrun_1", input_hash=sha256(b"").hexdigest())
     use_case = GetMatchReportHistoryUseCase(
         reports=SqlAlchemyMatchReportQueryRepository(factory), context=context,
-        jobs=jobs, requirements=requirements, persistence_ready=lambda: True,
+        jobs=jobs, requirements=requirements, requirement_release=Mock(execute=Mock(return_value=Mock(release_eligible=True))), persistence_ready=lambda: True,
     )
     return factory, use_case, context, requirements, old, current
 
@@ -87,7 +88,7 @@ def test_currentness_covers_identity_version_and_preference_inputs(change, expec
     job = _job("job_1", "Engineer")
     report = replace(_stored("1", MatchRecommendation.GOOD, intent=intent, job=job).report)
     profile = SimpleNamespace(id="profile_1", version=1)
-    extraction = SimpleNamespace(extraction_id="reqrun_1")
+    extraction = SimpleNamespace(extraction_id="reqrun_1", input_hash=sha256(b"").hexdigest())
     if change == "profile_identity": profile.id = "other_profile"
     if change == "intent_identity": intent = replace(intent, id="other_intent")
     if change == "intent_version": intent = replace(intent, version=2)
@@ -116,3 +117,28 @@ def test_history_http_returns_original_nested_snapshot_and_currentness(tmp_path)
             assert client.get("/api/v1/jobs/other_job/match-reports").status_code == 404
     finally:
         app.dependency_overrides.pop(get_match_report_history_use_case, None)
+
+
+def test_incomplete_job_projection_or_missing_extraction_hash_cannot_prove_currentness():
+    from app.application.job_queries.models import JobListItem
+
+    intent = _intent()
+    detail = _job('job_1', 'Engineer')
+    report = _stored('1', MatchRecommendation.GOOD, intent=intent, job=detail).report
+    profile = SimpleNamespace(id='profile_1', version=1)
+    extraction = SimpleNamespace(extraction_id='reqrun_1', input_hash=sha256(b'').hexdigest())
+    projection = JobListItem(**{name: getattr(detail, name) for name in JobListItem.__dataclass_fields__})
+    assert 'job_description_unavailable' in report_stale_reasons(
+        report, profile=profile, intent=intent, extraction=extraction, job=projection)
+    assert 'job_description_unavailable' in report_stale_reasons(
+        report, profile=profile, intent=intent, extraction=SimpleNamespace(extraction_id='reqrun_1'), job=detail)
+
+
+def test_unavailable_description_reason_is_in_shared_contract():
+    import json
+    from pathlib import Path
+    from jsonschema import Draft202012Validator
+
+    schema = json.loads((Path(__file__).parents[3] / 'packages/contracts/schemas/match-report-history.schema.json').read_text())
+    reasons = schema['properties']['items']['items']['properties']['staleReasons']
+    Draft202012Validator(reasons).validate(['job_description_unavailable'])

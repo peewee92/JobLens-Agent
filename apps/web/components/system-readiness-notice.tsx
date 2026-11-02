@@ -1,3 +1,5 @@
+import Link from "next/link";
+import {publicDemoEnabled} from "@/lib/public-demo";
 import {fetchSystemReadiness} from "@/lib/backend";
 import {readinessMessage} from "@/lib/system-readiness";
 
@@ -20,6 +22,7 @@ export async function systemReadinessNotice(returnHref: string) {
       <div className="actions"><a className="button" href={returnHref}>重新检查</a></div>
     </section>;
   } catch {
+    if (publicDemoEnabled()) return <section className="error-panel" role="alert"><h1>演示暂时不可用，或当前会话已结束</h1><p>免费服务可能正在唤醒。可重新检查；若服务已重启或会话过期，请重新开始。不会自动重跑分析。</p><div className="actions"><a href={returnHref}>重新检查</a><Link href="/demo">重新开始样本体验</Link></div></section>;
     return <section className="error-panel" role="alert">
       <h1>暂时无法确认运行环境</h1>
       <p>请确认后端已启动且版本匹配、网页连接配置正确，再重新检查。暂不继续分析或修改求职记录。</p>

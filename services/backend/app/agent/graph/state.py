@@ -54,6 +54,8 @@ class CareerAgentState:
     legacy_read_only: bool = False
     start_command_digest: str | None = None
     requested_top_n: int = 3
+    update_initial_scope: bool = False
+    update_legacy_workspace_id: str | None = None
     update_source_thread_id: str | None = None
     update_source_result_id: str | None = None
     update_scope: Literal["targets", "batch"] | None = None

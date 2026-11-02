@@ -57,3 +57,28 @@ test("connection outage retains the original command and suggests checking statu
   assert.match(message, /查看请求状态/);
   assert.doesNotMatch(message, /private socket/);
 });
+
+
+test("availability errors explain how to recover without exposing provider details", () => {
+  assert.match(userFacingApiError({error: {code: "job_user_marked_inactive", message: "private"}}, "失败"), /恢复标记/);
+  const changed = userFacingApiError({error: {code: "job_availability_changed", message: "private"}}, "失败");
+  assert.match(changed, /结果未保存/);
+  assert.match(changed, /如已发出模型请求/);
+  assert.doesNotMatch(changed, /private/);
+});
+
+test("description changed during extraction is actionable and does not promise cancellation", () => {
+  const message = userFacingApiError({error: {code: "job_description_changed_during_extraction", message: "private"}}, "失败");
+  assert.match(message, /岗位描述发生变化/);
+  assert.match(message, /结果未保存/);
+  assert.match(message, /如已发出模型请求/);
+  assert.doesNotMatch(message, /private/);
+});
+
+test("superseded extraction directs the user to the saved result", () => {
+  const message = userFacingApiError({error: {code: "requirement_extraction_superseded", message: "private"}}, "失败");
+  assert.match(message, /查看已有结果/);
+  assert.match(message, /本次结果未保存/);
+  assert.match(message, /如已发出模型请求/);
+  assert.doesNotMatch(message, /private/);
+});

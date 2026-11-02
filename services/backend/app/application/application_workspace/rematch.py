@@ -69,6 +69,21 @@ class ApplicationRematchBlockedError(RuntimeError):
     pass
 
 
+class NoProviderRematchMatcher:
+    """No provider capability even if facts change after the initial preflight."""
+
+    @property
+    def model_name(self):
+        raise ApplicationRematchBlockedError("application_rematch_provider_required")
+
+    def match(self, *args, **kwargs):
+        raise ApplicationRematchBlockedError("application_rematch_provider_required")
+
+
+def no_rematch_provider_trace():
+    raise ApplicationRematchBlockedError("application_rematch_provider_required")
+
+
 _RECOMMENDATION_ORDER = {
     MatchRecommendation.BLOCKED: 0,
     MatchRecommendation.LOW: 1,
@@ -118,6 +133,8 @@ class RunApplicationRematchUseCase:
             raise ApplicationRematchBlockedError("evidence_proposal_not_found")
         if workspace.actor_id != actor_id or proposal.actor_id != actor_id:
             raise ApplicationRematchBlockedError("application_rematch_actor_mismatch")
+        if workspace.current_analysis_thread_id:
+            raise ApplicationRematchBlockedError("application_rematch_use_scoped_update")
         if proposal.status is not EvidenceProposalStatus.CONFIRMED or proposal.confirmed_profile_version is None:
             raise ApplicationRematchBlockedError("evidence_proposal_not_confirmed")
 

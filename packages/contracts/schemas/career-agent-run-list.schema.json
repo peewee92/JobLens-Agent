@@ -43,6 +43,13 @@
           "title": "Rankedjobids",
           "type": "array"
         },
+        "rankedReportRefs": {
+          "items": {
+            "$ref": "#/$defs/RankedReportReference"
+          },
+          "title": "Rankedreportrefs",
+          "type": "array"
+        },
         "proposedTargetJobIds": {
           "items": {
             "type": "string"
@@ -218,6 +225,24 @@
       ],
       "title": "CareerAgentStatus",
       "type": "string"
+    },
+    "RankedReportReference": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "reportId": {
+          "title": "Reportid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "reportId"
+      ],
+      "title": "RankedReportReference",
+      "type": "object"
     },
     "UpdateMatchStepResponse": {
       "properties": {

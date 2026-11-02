@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from app.application.saved_career_analysis import BuildSavedCareerAnalysisUseCase
 from app.agent.context import CareerAgentContextBuilder
 from app.agent.graph.checkpoint_port import CareerAgentCheckpointStore, CheckpointConflictError
-from app.agent.graph.command_digest import start_command_digest, update_command_digest
+from app.agent.graph.command_digest import start_command_digest, update_command_digest, _digest
 from app.agent.graph.hitl_decision import HumanDecisionRequest, TargetCohortDecisionHandler
 from app.agent.graph.langgraph_rank_interrupt import LangGraphRankToTargetCohortInterrupt
 from app.agent.graph.resume_stale_guard import ResumeStaleGuard
@@ -36,6 +36,25 @@ class UpdateCareerAgentRunRequest:
     source_thread_id: str
     source_result_id: str
     scope: Literal["targets", "batch"]
+    input_digest: str
+    top_n: int = 3
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyWorkspaceRunRequest:
+    thread_id: str
+    run_id: str
+    request_id: str
+    workspace_id: str
+    input_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class InitialScopeRunRequest:
+    thread_id: str
+    run_id: str
+    request_id: str
+    job_ids: tuple[str, ...]
     input_digest: str
     top_n: int = 3
 
@@ -165,6 +184,85 @@ class CareerAgentHitlService:
             self._checkpoints.transition(None, initial)
         except CheckpointConflictError:
             # Concurrent identical acceptance returns the same durable receipt.
+            existing = self.get_state(thread_id=request.thread_id)
+            if existing is not None and existing.start_command_digest == digest:
+                return existing
+            raise
+        return self.continue_run(thread_id=request.thread_id, update_command=UpdateBatchRequest(
+            action_id=f"initial:{request.request_id}", expected_revision=0))
+
+    def start_initial_scope(self, request: InitialScopeRunRequest) -> CareerAgentState:
+        ids = tuple(dict.fromkeys(request.job_ids))
+        digest = _digest("initial_scope_start", {"thread": request.thread_id, "run": request.run_id,
+            "request": request.request_id, "jobs": ids, "inputs": request.input_digest, "top_n": request.top_n})
+        existing = self.get_state(thread_id=request.thread_id)
+        if existing is not None:
+            if (existing.run_id, existing.request_id, existing.start_command_digest) != (request.run_id, request.request_id, digest):
+                raise CheckpointConflictError("请求标识已用于不同内容，请查看原运行")
+            return existing
+        if self._update_planner is None or self._update_executor is None or not 1 <= request.top_n <= 5:
+            raise CheckpointConflictError("当前服务不支持分析，请重新预检")
+        plan = self._update_planner.execute_initial_scope(ids)
+        if plan.input_digest != request.input_digest:
+            raise CheckpointConflictError("预检后的事实已变化，请重新预检；没有启动分析")
+        if plan.profile_id is None or plan.search_intent_id is None:
+            raise CheckpointConflictError("请先确认职业资料与意向，再重新预检")
+        statuses = {"reuse": "reused", "ready": "pending", "deferred": "pending",
+                    "requires_model": "requires_model", "input_blocked": "input_blocked"}
+        steps = tuple(UpdateMatchStep(i.job_id, i.extraction_id, i.input_fingerprint, i.base_report_id,
+            statuses[i.status], report_id=i.reusable_report_id,
+            error_code=i.blocker_codes[0] if i.blocker_codes else None) for i in plan.items)
+        initial = CareerAgentState(thread_id=request.thread_id, run_id=request.run_id,
+            request_id=request.request_id, status=CareerAgentStatus.CREATED, current_step="analysis_created",
+            goal="analyze_target_cohort_gaps", requested_job_ids=ids, requested_top_n=request.top_n,
+            start_command_digest=digest, profile_id=plan.profile_id, profile_version=plan.profile_version,
+            search_intent_id=plan.search_intent_id, search_intent_version=plan.search_intent_version,
+            update_initial_scope=True, update_input_digest=plan.input_digest,
+            update_report_ids=tuple(i.reusable_report_id for i in plan.items if i.reusable_report_id),
+            update_steps=steps, update_policy_version=CURRENT_MATCH_POLICY_VERSION)
+        try:
+            self._checkpoints.transition(None, initial)
+        except CheckpointConflictError:
+            existing = self.get_state(thread_id=request.thread_id)
+            if existing is not None and (existing.run_id, existing.request_id, existing.start_command_digest) == (request.run_id, request.request_id, digest):
+                return existing
+            raise
+        return self.continue_run(thread_id=request.thread_id, update_command=UpdateBatchRequest(
+            action_id=f"initial:{request.request_id}", expected_revision=0))
+
+    def start_legacy_workspace(self, request: LegacyWorkspaceRunRequest) -> CareerAgentState:
+        digest = _digest("legacy_workspace_start", {
+            "thread": request.thread_id, "run": request.run_id, "request": request.request_id,
+            "workspace": request.workspace_id, "inputs": request.input_digest,
+        })
+        existing = self.get_state(thread_id=request.thread_id)
+        if existing is not None:
+            if (existing.run_id, existing.request_id, existing.start_command_digest) != (request.run_id, request.request_id, digest):
+                raise CheckpointConflictError("请求标识已用于不同内容，请查看原运行")
+            return existing
+        if self._update_planner is None or self._update_executor is None:
+            raise CheckpointConflictError("当前服务不支持分析，请重新预检")
+        plan = self._update_planner.execute_legacy_workspace(request.workspace_id)
+        if plan.input_digest != request.input_digest:
+            raise CheckpointConflictError("预检后的事实已变化，请重新预检；没有启动分析")
+        if plan.profile_id is None or plan.search_intent_id is None:
+            raise CheckpointConflictError("请先确认职业资料与意向，再重新预检")
+        statuses = {"reuse": "reused", "ready": "pending", "deferred": "pending",
+                    "requires_model": "requires_model", "input_blocked": "input_blocked"}
+        steps = tuple(UpdateMatchStep(i.job_id, i.extraction_id, i.input_fingerprint, i.base_report_id,
+            statuses[i.status], report_id=i.reusable_report_id,
+            error_code=i.blocker_codes[0] if i.blocker_codes else None) for i in plan.items)
+        initial = CareerAgentState(thread_id=request.thread_id, run_id=request.run_id,
+            request_id=request.request_id, status=CareerAgentStatus.CREATED, current_step="analysis_created",
+            goal="analyze_target_cohort_gaps", requested_job_ids=tuple(i.job_id for i in plan.items),
+            requested_top_n=1, start_command_digest=digest, profile_id=plan.profile_id,
+            profile_version=plan.profile_version, search_intent_id=plan.search_intent_id,
+            search_intent_version=plan.search_intent_version, update_legacy_workspace_id=request.workspace_id,
+            update_input_digest=plan.input_digest, update_report_ids=tuple(i.reusable_report_id for i in plan.items if i.reusable_report_id),
+            update_steps=steps, update_policy_version=CURRENT_MATCH_POLICY_VERSION)
+        try:
+            self._checkpoints.transition(None, initial)
+        except CheckpointConflictError:
             existing = self.get_state(thread_id=request.thread_id)
             if existing is not None and existing.start_command_digest == digest:
                 return existing

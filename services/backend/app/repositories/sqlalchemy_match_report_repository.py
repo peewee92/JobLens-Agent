@@ -99,6 +99,7 @@ class SqlAlchemyMatchReportQueryRepository(AbstractMatchReportQueryRepository):
 
 def _snapshot(report: MatchReport) -> dict:
     return {
+        "retrievalVersion": report.retrieval_version,
         "policyVersion": report.policy_version,
         "searchIntentId": report.search_intent_id,
         "searchIntentVersion": report.search_intent_version,
@@ -124,6 +125,8 @@ def _snapshot(report: MatchReport) -> dict:
                 "evidenceIds": list(item.evidence_ids),
                 "profileFactRefs": list(item.profile_fact_refs),
                 "reason": item.reason,
+                "candidateCount": item.candidate_count,
+                "assessmentSource": item.assessment_source,
             }
             for item in report.requirement_results
         ],
@@ -178,6 +181,8 @@ def _stored(record: MatchReportORM) -> StoredMatchReport:
                 evidence_ids=tuple(str(value) for value in item["evidenceIds"]),
                 profile_fact_refs=tuple(str(value) for value in item["profileFactRefs"]),
                 reason=str(item["reason"]),
+                candidate_count=item.get("candidateCount"),
+                assessment_source=item.get("assessmentSource"),
             )
             for item in payload["requirementResults"]
         ),
@@ -191,6 +196,7 @@ def _stored(record: MatchReportORM) -> StoredMatchReport:
             )
             for item in payload["evidenceLinks"]
         ),
+        retrieval_version=payload.get("retrievalVersion"),
         policy_version=str(payload.get("policyVersion", LEGACY_MATCH_POLICY_VERSION)),
         search_intent_id=payload.get("searchIntentId"),
         search_intent_version=payload.get("searchIntentVersion"),

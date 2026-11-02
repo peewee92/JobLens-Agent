@@ -1,3 +1,4 @@
+import {publicDemoEnabled} from "@/lib/public-demo";
 import {EvidenceActionProgress} from "@/components/evidence-action-progress";
 import {ProfileEditor} from "@/components/profile-editor";
 import {ServiceError} from "@/components/service-error";
@@ -13,8 +14,21 @@ import {
 } from "@/lib/career-context";
 import type {RequirementType, SearchParams} from "@/lib/contracts";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
+import Link from "next/link";
+import {agentScopeFromProfile, agentScopeHref, jobDetailWithAgentScope} from "@/lib/agent-job-scope";
 
 export const dynamic = "force-dynamic";
+
+function AgentScopeReturn({scope}: {scope: {jobId: string; ids: string[]} | null}) {
+  if (!scope) return null;
+  return <section className="card stack-sm" aria-label="返回原分析范围">
+    <p>你从岗位核对进入这里。保存资料或偏好后，原匹配报告可能不再适用；请返回岗位核对，再重新检查所选岗位。</p>
+    <div className="button-row">
+      <Link className="button-secondary" href={jobDetailWithAgentScope(scope.jobId, scope.ids)}>返回刚才的岗位</Link>
+      <Link className="button-secondary" href={agentScopeHref(scope.ids)}>返回所选岗位分析</Link>
+    </div>
+  </section>;
+}
 
 function buildRecommendationReturnHref({
   focusJob,
@@ -62,7 +76,16 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  if (publicDemoEnabled()) {
+    try {
+      const profile = await fetchCurrentProfile();
+      return <section className="detail-card"><h1>合成样本背景</h1><p>这是两年工作经验、掌握 Python 的合成资料，不是真实职业经历。公开演示不接收私人简历或资料修改。</p>
+        <ul>{profile?.evidence.map(item => <li key={item.id}>{item.summary}</li>)}</ul>
+        <Link className="button" href="/agent">比较三个样本岗位</Link></section>;
+    } catch {return <section className="error-panel"><h1>演示会话暂时不可用</h1><Link href="/demo">重新开始样本体验</Link></section>;}
+  }
   const params = await searchParams;
+  const agentScope = agentScopeFromProfile(params.scopeFocusJobId, params.scopeJobId);
   const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
   const requestedFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
   const requestedRequirementFocus = Array.isArray(params.focusRequirement)
@@ -176,6 +199,7 @@ export default async function ProfilePage({
           <p className="eyebrow">我的背景</p>
           <h1>我的背景和求职偏好</h1>
         </section>
+        <AgentScopeReturn scope={agentScope} />
         <ServiceError message={message} />
       </>
     );
@@ -192,6 +216,17 @@ export default async function ProfilePage({
         : "暂时无法检查你的信息是否完整，请稍后重试。";
   }
 
+  const nextStep = !releaseReadiness ? null
+    : releaseReadiness.blockers.some(item => item.code.startsWith("profile_"))
+      ? {href: "#profile-background", label: "填写并确认职业资料"}
+      : releaseReadiness.blockers.some(item => item.code.startsWith("search_intent_"))
+        ? {href: "#search-intent", label: "填写并保存求职偏好"}
+        : releaseReadiness.releaseEligible
+          ? agentScope
+            ? {href: jobDetailWithAgentScope(agentScope.jobId, agentScope.ids), label: "继续分析刚才的岗位"}
+            : {href: "/import", label: "添加一个目标岗位"}
+          : null;
+
   return (
     <>
       <section className="page-heading">
@@ -201,6 +236,8 @@ export default async function ProfilePage({
           告诉 JobLens 你真实做过什么、会什么，以及你想找什么样的工作。AI 可以帮你从简历生成草稿，但只有你确认保存的信息才会用于岗位匹配。
         </p>
       </section>
+
+      <AgentScopeReturn scope={agentScope} />
 
       <section className="detail-card">
         <div className="section-heading-row">
@@ -296,6 +333,11 @@ export default async function ProfilePage({
         focusCapability={focusCapability}
         focusRequirementText={focusRequirementText}
       />
+      {nextStep ? <section className="detail-card" aria-label="资料确认后的下一步">
+        <h2>下一步</h2>
+        <p>只有已确认保存的资料和偏好会用于分析；未保存的编辑不会被使用。</p>
+        <Link className="button" href={nextStep.href}>{nextStep.label}</Link>
+      </section> : null}
     </>
   );
 }

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
+from pydantic import Field
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.api.v1.schemas.preference_check import PreferenceCheckResponse
@@ -27,6 +29,8 @@ class MatchReportRequirementResponse(CamelCaseModel):
     evidence_ids: list[str]
     profile_fact_refs: list[str]
     reason: str
+    candidate_count: int | None = Field(default=None, ge=0)
+    assessment_source: Literal["deterministic", "provider"] | None = None
 
 
 class MatchEvidenceLinkResponse(CamelCaseModel):
@@ -52,6 +56,7 @@ class JobMatchReportResponse(CamelCaseModel):
     partial_requirement_ids: list[str]
     missing_requirement_ids: list[str]
     evidence_links: list[MatchEvidenceLinkResponse]
+    retrieval_version: str | None = None
     policy_version: str
     matcher_version: str
     prompt_version: str
@@ -64,6 +69,7 @@ class JobMatchReportResponse(CamelCaseModel):
     @classmethod
     def from_detail(cls, detail: MatchReport) -> "JobMatchReportResponse":
         return cls(
+            retrieval_version=detail.retrieval_version,
             job_id=detail.job_id,
             profile_id=detail.profile_id,
             profile_version=detail.profile_version,
@@ -105,6 +111,8 @@ class JobMatchReportResponse(CamelCaseModel):
                     evidence_ids=list(item.evidence_ids),
                     profile_fact_refs=list(item.profile_fact_refs),
                     reason=item.reason,
+                    candidate_count=item.candidate_count,
+                    assessment_source=item.assessment_source,
                 )
                 for item in detail.requirement_results
             ],

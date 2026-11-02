@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import {JobRequirementExtractButton} from "@/components/job-requirement-extract-button";
 import {RequirementReviewBatchForm} from "@/components/requirement-review-batch-form";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -41,7 +40,7 @@ export default async function RequirementManualReviewPage() {
         <p className="eyebrow">Requirement Manual Quality Evidence</p>
         <h1>真实岗位人工验收批次</h1>
         <p className="lede">
-          选择同一 Provider、Model、Extractor 和 Prompt 的具体 Extraction 版本，逐岗位对照完整 JD、Requirements 与 Trace。系统不会替你生成人工判断。
+          选择同一 Provider、Model、Extractor、Prompt 和语义策略的具体 Extraction 版本，逐岗位对照完整 JD、Requirements 与 Trace。系统不会替你生成人工判断。
         </p>
         <div className="actions">
           <Link className="button" href="/evals/requirements/canary">
@@ -58,32 +57,32 @@ export default async function RequirementManualReviewPage() {
           <div>
             <h2>正式验收准备状态</h2>
             <p className="muted">
-              正式 Match baseline 必须由同一 Provider、Model、Extractor 和 Prompt 的 20 个 current Extraction 组成；候选总数达到 20 并不代表已经能创建正式批次。
+              正式 Match baseline 必须由同一 Provider、Model、Extractor、Prompt 和语义策略的 20 个 current Extraction 组成；以下统计仅基于本页加载的候选。
             </p>
           </div>
           <span className={`status-chip ${formalReadiness.formalReady ? "status-pass" : "status-fixture"}`}>
-            {formalReadiness.formalReady ? "20/20 可正式验收" : `${formalReadiness.targetCandidates.length}/20 同一版本`}
+            {formalReadiness.formalReady ? `${formalReadiness.targetCandidates.length} 条同版本候选` : `${formalReadiness.targetCandidates.length}/20 同一版本`}
           </span>
         </div>
 
         <div className="summary-grid eval-summary-grid">
           <div className="summary-card"><span>Current 候选</span><strong>{candidates.total}</strong></div>
-          <div className="summary-card"><span>最大一致 Cohort</span><strong>{formalReadiness.targetCandidates.length}/20</strong></div>
+          <div className="summary-card"><span>最大一致 Cohort</span><strong>{formalReadiness.targetCandidates.length} 条</strong></div>
           <div className="summary-card"><span>版本 Cohort</span><strong>{formalReadiness.cohortCount}</strong></div>
-          <div className="summary-card"><span>需要统一</span><strong>{formalReadiness.outlierCandidates.length}</strong></div>
+          <div className="summary-card"><span>其他版本</span><strong>{formalReadiness.outlierCandidates.length}</strong></div>
         </div>
 
         {formalReadiness.formalReady ? (
           <div className="review-result review-accepted">
-            <strong>正式 20-case Requirement Review 已准备好</strong>
-            <p>下面可以一键选择这 20 个完全一致的 current Extraction，创建正式人工验收批次。创建批次不会调用 Provider，也不会替你做人工 Accept / Reject。</p>
+            <strong>已可选取 20 条同版本候选</strong>
+            <p>下面可以从同一版本的候选中一键选择 20 个，创建人工验收批次。创建批次不会调用 Provider，也不会替你做人工判断；正式资格仍由服务端检查。</p>
           </div>
         ) : (
           <div className="review-result review-pending">
             <strong>当前还不能创建正式 20-case baseline</strong>
             <p>
-              当前 {candidates.total} 个 current Extraction 被拆成 {formalReadiness.cohortCount} 个模型版本组；最大一致组只有 {formalReadiness.targetCandidates.length}/20。
-              先把下面 {formalReadiness.outlierCandidates.length} 个岗位重新分析到同一当前版本，再回来创建正式批次。不要用 {formalReadiness.targetCandidates.length} 条练习批次代替正式质量证据。
+              本页加载的 {candidates.items.length} 个候选被拆成 {formalReadiness.cohortCount} 个模型版本组；最大一致组有 {formalReadiness.targetCandidates.length}/20。
+              请检查候选岗位和分析版本，确定如何补足同一版本的审核样本。当前离线分析不能保证生成目标版本；重新分析也可能使已有审核样本失效。不要用 {formalReadiness.targetCandidates.length} 条练习批次代替正式质量证据。
             </p>
             {targetCandidate ? (
               <p className="code">目标一致版本：{formalReadiness.targetCohortKey}</p>
@@ -94,14 +93,7 @@ export default async function RequirementManualReviewPage() {
                   <article className="eval-run-card" key={candidate.extractionId}>
                     <strong>{candidate.title} · {candidate.company}</strong>
                     <p className="muted">当前模型：{candidate.model}</p>
-                    <p className="muted">重新分析会使用当前统一 Provider / Model；每个岗位都需要你单独确认一次真实 Provider 成本。</p>
-                    <JobRequirementExtractButton
-                      actionLabel="确认成本并重新分析到目标版本"
-                      disabled={false}
-                      hasExisting
-                      jobId={candidate.jobId}
-                      returnTo="/evals/requirements/manual"
-                    />
+                    <p className="muted">请先核对该岗位及其分析版本；不要为凑齐样本而覆盖已有结果。</p>
                     <div className="actions">
                       <Link className="button-ghost" href={`/jobs/${candidate.jobId}`}>
                         先查看岗位详情 →
@@ -120,13 +112,13 @@ export default async function RequirementManualReviewPage() {
           <div>
             <h2>创建版本冻结的审查批次</h2>
             <p className="muted">
-              当前有 {candidates.total} 个带最新 Requirement Extraction 的岗位。1～19 条仍可作为练习批次；只有上方状态达到 20/20 才能形成正式人工质量证据。
+              共找到 {candidates.total} 个候选，本页加载 {candidates.items.length} 个。1～19 条可作为练习批次；20 条只是正式证据的必要条件之一。
             </p>
           </div>
         </div>
         <RequirementReviewBatchForm
           candidates={candidates.items}
-          formalCandidateIds={formalReadiness.formalReady ? formalReadiness.targetCandidates.map((item) => item.extractionId) : []}
+            formalCandidateIds={formalReadiness.formalReady ? formalReadiness.targetCandidates.slice(0, 20).map((item) => item.extractionId) : []}
         />
       </section>
 

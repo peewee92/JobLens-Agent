@@ -2,7 +2,14 @@
 
 JobLens Agent 的 Python Backend，采用 **模块化单体（Modular Monolith）**。
 
+当前主路径是：确认资料与意向 → 导入真实岗位 → 核对要求与匹配依据 → 排序和人工确认目标 → 保存准备材料 → 工作区行动 → 确认新事实后更新原范围。运行状态、分析快照与业务事实使用同一个主数据库；旧库先验证独立副本，不在服务启动时自动迁移。真实模型默认禁用，新的付费调用必须单独授权。最新验收边界见[主 README](../../README.md#当前验证到哪里)与[路线图](../../docs/roadmap/ROADMAP.md)。
+
+<details>
+<summary>早期阶段记录（历史证据，不代表今天的数据库或验收状态）</summary>
+
 当前已完成：P0-1 Job Data Foundation + 最小 Web E2E、Phase 2A 版本化 Profile / Evidence / SearchIntent、Phase 2B Profile Proposal/Eval/Review、Phase 3A 版本化 JobRequirement 事实底座、Phase 3B-1 Requirement Eval Run/Case 持久化、Phase 3B-2 不可变人工 Review / Accepted Baseline，以及 Phase 4 的 Eligibility Gate、Evidence Retrieval v1、guarded Semantic Match v1、transient MatchReport / Recommendation Policy 与 Match Eval v1。Semantic Match prompt 已迭代到 v3：v2 的首轮 blind holdout 为 9/10，v3 进一步约束“表面流程相似 ≠ shared core mechanism”，随后在一套全新的 10-case blind holdout v2 上达到 10/10，workflow/Trace coverage 均为 100%。该结果仍只是质量证据，不是自动 release approval。Requirement 的真实 Provider 20 岗位人工验收仍未完成，因此真实 Match 执行继续由 Match Input Readiness fail-closed；MatchReport 持久化 runtime 已实现但真实数据库 schema 尚未迁移。Phase 5 已具备纯只读 Batch Ranking application use case：组合每岗最新 MatchReport snapshot、当前 SearchIntent.softPreferences 与 Job title/area 元数据，复用确定性 Ranking Policy 返回稳定排序；它不生成新 Match、不调用 Provider/Trace，也不写数据库。
+
+</details>
 
 ## Prerequisites
 
@@ -20,13 +27,16 @@ uv sync
 
 ## Run
 
+先在本目录的 `.env` 或进程环境中确认 `DATABASE_URL`；不要覆盖已有 `.env`。全新空库才执行 `uv run alembic upgrade head`；已有库按下方“先检查就绪，再验证副本”操作，不直接升级唯一原库。模型保持默认 `disabled` 也能查看数据和执行已有规则路径；缺少模型输入会明确阻断。
+
 ```bash
-uv run fastapi dev
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 启动后访问：
 
-- Health：`http://127.0.0.1:8000/api/v1/health`
+- 存活：`http://127.0.0.1:8000/api/v1/health`
+- 数据库就绪：`http://127.0.0.1:8000/api/v1/readiness`（未迁移时应返回 503，不代表服务进程未启动）
 - 交互式文档：`http://127.0.0.1:8000/docs`
 - OpenAPI：`http://127.0.0.1:8000/openapi.json`
 
@@ -346,6 +356,14 @@ cd services/backend
 ```
 
 脚本以只读方式备份来源，仅对新副本执行迁移，并比较所有原有业务表、原有列的逐行摘要及行数，检查完整性、外键和就绪。拒绝覆盖任何已有输出。失败副本保留用于检查；**不会切换配置或升级来源数据库**。验证成功不等于已授权升级真实库；升级前仍需备份并确认目标连接。
+
+副本迁移成功后，可继续检查历史数据是否能被当前主流程读取：
+
+```bash
+.venv/bin/python -m scripts.verify_main_flow_reads --database /absolute/path/to/new-copy.db
+```
+
+该命令使用 SQLite 只读连接，禁用模型并拦截网络连接，只读取工作台、资料、意向、运行列表及最多 50 个岗位的详情、要求、资格、历史报告和分析预检。仅输出数量、状态和原因码，不打印职业资料、岗位名称或标识。缺库不创建，缺迁移不升级；接口异常返回非零退出码。`apiReadable=true` 仅表示所检查的数据可读取，不表示可以推荐：应同时检查 `rankableJobs`、`rankingOmissions` 和 `staleReasons`。历史报告过期是正常阻断，不自动改写或重新匹配；`modelQualityVerified` 始终为 false。此命令是本地排障工具，不是新增发布门禁或完整用户闭环验收。
 
 Alembic 已指向 `Base.metadata`：
 

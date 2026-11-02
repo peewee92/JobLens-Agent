@@ -410,12 +410,12 @@ def test_final_decision_api_and_accepted_baseline_lifecycle(
         f"/api/v1/requirement-review-batches/{batch_id}"
     ).json()
     assert stale["summary"]["staleCaseCount"] == 1
-    assert stale["summary"]["matchReleaseEligible"] is False
+    assert stale["summary"]["matchReleaseEligible"] is True
     assert stale["finalDecision"]["id"] == decision["id"]
     missing_after_stale = client.get(
         "/api/v1/requirement-review-batches/accepted-baseline"
     )
-    assert missing_after_stale.status_code == 404
+    assert missing_after_stale.status_code == 200
 
 
 def test_incomplete_final_decision_returns_422_without_db_write(

@@ -1,17 +1,27 @@
+import type {CareerContextReleaseReadiness} from "@/lib/contracts";
+import {careerContextReleaseBlockerCopy} from "@/lib/career-context";
+import {JobReportComparison} from "@/components/job-report-comparison";
+import {JobDescriptionObservationsView} from "@/components/job-description-observations";
+import {JobAvailabilityControl} from "@/components/job-availability-control";
+import {validImportMatchInputs} from "@/lib/import-match-readiness";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
+import {agentScopeHref, jobDetailWithAgentScope, parseAgentScope, profileWithAgentScope} from "@/lib/agent-job-scope";
+import {runHref, validThreadReference} from "@/lib/career-agent-commands";
 import {notFound} from "next/navigation";
 
 import {JobMatchReportPanel} from "@/components/job-match-report-panel";
 import {JobRequirementExtractButton} from "@/components/job-requirement-extract-button";
+import {JobRequirementConfirmation} from "@/components/job-requirement-confirmation";
 import {RemoteStatusPill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
   fetchJobDetail,
+  fetchJobDescriptionObservations,
   fetchMatchReportHistory,
   fetchJobEligibility,
-  fetchJobRequirementReleaseReadiness,
+  fetchJobMatchInputReadiness,
   fetchLatestJobRequirements,
 } from "@/lib/backend";
 import {
@@ -24,6 +34,8 @@ import {formatDateTime, formatSalary} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
+  hasEnoughJobDescription,
+  jobDescriptionIssue,
   requirementReleaseBlockerCopy,
   requirementReleaseLabel,
   requirementTypeLabel,
@@ -37,10 +49,17 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string; reportId?: string}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; scopeJobId?: string | string[]; returnThreadId?: string | string[]}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError, reportId} = await searchParams;
+  const {requirementExtractionError, reportId, scopeJobId, returnThreadId} = await searchParams;
+  const agentScope = parseAgentScope(scopeJobId);
+  const retainedScope = agentScope?.includes(id) ? agentScope : null;
+  const detailPath = retainedScope ? jobDetailWithAgentScope(id, retainedScope) : `/jobs/${encodeURIComponent(id)}`;
+  const detailHref = validThreadReference(returnThreadId) ? `${detailPath}${detailPath.includes("?") ? "&" : "?"}${new URLSearchParams({returnThreadId})}` : detailPath;
+  function reportHref(report: string) {
+    return `${detailHref}${detailHref.includes("?") ? "&" : "?"}${new URLSearchParams({reportId: report})}`;
+  }
   let job;
   try {
     job = await fetchJobDetail(id);
@@ -55,6 +74,11 @@ export default async function JobDetailPage({
     return <ServiceError message={message} />;
   }
 
+  let descriptions = null;
+  try {
+    const result = await fetchJobDescriptionObservations(id);
+    if (result.jobId === id && Array.isArray(result.items)) descriptions = result;
+  } catch { /* A failed history read must not hide the current job. */ }
   let history = null;
   let historyError = "";
   try {
@@ -68,6 +92,7 @@ export default async function JobDetailPage({
   const selectedReportMissing = Boolean(reportId && history && !savedResult);
   let extraction = null;
   let releaseReadiness = null;
+  let careerReadiness: CareerContextReleaseReadiness | null = null;
   let eligibility = null;
   let requirementError = "";
   let releaseReadinessError = "";
@@ -81,7 +106,12 @@ export default async function JobDetailPage({
         : "暂时无法读取岗位要求分析结果，请稍后重试。";
   }
   try {
-    releaseReadiness = await fetchJobRequirementReleaseReadiness(id);
+    const inputReadiness = await fetchJobMatchInputReadiness(id);
+    if (!validImportMatchInputs(id, inputReadiness)) {
+      throw new Error("invalid match input readiness");
+    }
+    releaseReadiness = inputReadiness.jobRequirements;
+    careerReadiness = inputReadiness.careerContext;
   } catch (caught) {
     releaseReadinessError =
       caught instanceof BackendApiError
@@ -107,19 +137,34 @@ export default async function JobDetailPage({
   const requirementExtractionMissing = requirementBlockerCodes.has(
     "requirement_extraction_missing",
   );
+  const hasEnoughDescription = hasEnoughJobDescription(job.description);
+  const descriptionIssue = jobDescriptionIssue(job.description);
   const acceptedBaselineMissing = requirementBlockerCodes.has(
     "accepted_baseline_missing",
   );
-  const matchDisabledReason = requirementExtractionMissing
-    ? "先点击下方“分析岗位要求”。当前职业背景已经确认，真正缺少的是这份岗位的结构化要求。"
-    : acceptedBaselineMissing
-      ? "这份岗位可以先完成要求分析，但项目级 Requirement AI 质量验收尚未形成 accepted baseline，所以正式匹配暂时锁定。"
+  const canConfirmRequirements = !!(extraction?.factsDigest && releaseReadiness
+    && extraction.extractionId === releaseReadiness.extractionId
+    && extraction.factsDigest === releaseReadiness.requirementFactsDigest
+    && !job.userMarkedInactive
+    && releaseReadiness.blockers.every(blocker => ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)));
+  const matchDisabledReason = job.userMarkedInactive
+    ? "你已标记此岗位失效；如需再次分析，请先恢复为待核实。"
+    : job.userMarkedInactive !== false
+      ? "暂时无法确认岗位标记，请刷新页面或检查服务版本。"
+    : requirementExtractionMissing
+      ? descriptionIssue ?? "请先完成下方的岗位要求分析，再检查匹配准备情况。"
+      : canConfirmRequirements && !releaseReadiness?.userConfirmationId
+        ? "请先对照原文核对下方全部岗位要求，再确认这一版用于匹配。"
+      : acceptedBaselineMissing
+        ? "岗位要求尚未核对或未满足输入检查，请先处理下方具体准备项。"
       : "当前职业背景或岗位要求仍未通过匹配输入检查，请先处理下方准备项。";
 
   return (
     <>
       <div className="actions" style={{marginBottom: 18}}>
         <Link className="button-ghost" href="/jobs">← 返回我的岗位</Link>
+        {retainedScope && <Link className="button-ghost" href={agentScopeHref(retainedScope)}>← 返回所选岗位分析</Link>}
+        {validThreadReference(returnThreadId) && <Link className="button-ghost" href={runHref(returnThreadId)}>← 返回本次分析</Link>}
         <Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>
           查看投递与面试准备
         </Link>
@@ -144,6 +189,7 @@ export default async function JobDetailPage({
           <section className="detail-section">
             <h2>岗位描述</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
+            <JobDescriptionObservationsView history={descriptions} />
           </section>
 
           <section className="detail-section">
@@ -167,13 +213,13 @@ export default async function JobDetailPage({
             </div>
 
             {historyError ? <p className="inline-error">{historyError}</p> : null}
-            {selectedReportMissing ? <p className="inline-error">找不到指定结果，或它不属于此岗位。未自动替换为其他结果。<Link href={`/jobs/${encodeURIComponent(id)}`}>查看此岗位最新保存结果</Link></p> : null}
+            {selectedReportMissing ? <p className="inline-error">找不到指定结果，或它不属于此岗位。未自动替换为其他结果。<Link href={detailHref}>查看此岗位最新保存结果</Link></p> : null}
             {history && history.items.length > 0 ? (
               <details>
                 <summary>查看保存的匹配历史（{history.count} 份）</summary>
                 <ul>{history.items.map((item) => (
                   <li key={item.reportId}>
-                    <Link href={`/jobs/${encodeURIComponent(id)}?reportId=${encodeURIComponent(item.reportId)}`}>
+                    <Link href={reportHref(item.reportId)}>
                       {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
                       {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
                     </Link>
@@ -181,12 +227,27 @@ export default async function JobDetailPage({
                 ))}</ul>
               </details>
             ) : null}
+            {savedResult && history && (() => {
+              const index = history.items.findIndex(item => item.reportId === savedResult.reportId);
+              const previous = index >= 0 ? history.items[index + 1] : undefined;
+              return previous ? <JobReportComparison previous={previous} current={savedResult} /> : null;
+            })()}
+            {careerReadiness && !careerReadiness.releaseEligible ? <section className="notice" aria-label="个人匹配输入准备">
+              <h3>下一步：确认职业资料和求职偏好</h3>
+              <p>仍可查看岗位。个性化结论只使用你确认保存的事实，不需要先完成模型整体质量评审。</p>
+              <ul>{careerReadiness.blockers.map(blocker => <li key={blocker.code}>
+                {careerContextReleaseBlockerCopy(blocker.code)?.title ?? "请核对职业资料和偏好"}
+              </li>)}</ul>
+              <Link className="button" href={profileWithAgentScope(id, retainedScope ?? [id])}>确认资料和偏好，返回这个岗位</Link>
+            </section> : null}
             <JobMatchReportPanel
               key={savedResult?.reportId ?? "no-saved-result"}
               savedResult={savedResult}
               disabledReason={matchDisabledReason}
-              enabled={eligibility !== null}
+              enabled={eligibility !== null && job.userMarkedInactive === false}
               jobId={job.id}
+              returnHref={detailHref}
+              profileHref={profileWithAgentScope(id, retainedScope ?? [id])}
             />
 
             {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
@@ -209,7 +270,7 @@ export default async function JobDetailPage({
                 <PreferenceCheckList checks={eligibility.preferenceChecks ?? []} version={eligibility.searchIntentVersion} />
                 <p className="notice">
                   缺少技能、学历或专项年限证据只表示待核实，不代表你不具备这些条件，也不代表已经满足。
-                  <Link href="/profile">补充或确认职业资料</Link>
+                <Link href={profileWithAgentScope(id, retainedScope ?? [id])}>补充或确认职业资料</Link>
                 </p>
                 <div className="eligibility-groups">
                   {(["missing", "conditional", "matched"] as const).map((status) => {
@@ -264,11 +325,12 @@ export default async function JobDetailPage({
               <div>
                 <h2>岗位要求分析</h2>
                 <p className="lede requirement-lede">
-                  系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。只有完成质量检查的结果，才会用于后续岗位匹配。
+                  系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。符合当前匹配规则的结果才会用于后续匹配。
                 </p>
               </div>
               <JobRequirementExtractButton
-                disabled={!job.description || job.description.trim().length < 40}
+                disabled={job.userMarkedInactive || !hasEnoughDescription}
+                disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionIssue ?? undefined}
                 hasExisting={extraction !== null}
                 jobId={job.id}
               />
@@ -283,15 +345,15 @@ export default async function JobDetailPage({
                 )}
               </p>
             ) : null}
-            {!extraction && !requirementError ? (
+            {!extraction && !requirementError && hasEnoughDescription ? (
               <p className="notice">
-                <strong>你现在可以做第 1 步：</strong> 点击右上角蓝色“分析岗位要求”。这一步只生成当前岗位的结构化 Requirement；项目级 AI 质量验收是另一层门禁，不会阻止你先完成当前岗位分析。
+                <strong>你现在可以做第 1 步：</strong> 在上方检查分析方式与调用范围，然后提取当前岗位要求。提取完成后，对照原文核对这一版要求，即可继续个人匹配。
               </p>
             ) : null}
             {acceptedBaselineMissing ? (
-              <p className="muted-copy">
-                项目级质量验收入口：<Link href="/evals/requirements/canary/readiness">查看 Requirement Acceptance Readiness →</Link>
-              </p>
+              <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
+                <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
+              </p><p>模型整体评审与单岗位核对不同；下方提供单岗位确认时，你可以先核对本岗位，不需要替维护者完成整批评审。</p></details>
             ) : null}
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
@@ -301,7 +363,7 @@ export default async function JobDetailPage({
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
                   <p>
-                    这份岗位已经完成要求分析，并且当前分析方式已通过质量检查，可以作为后续岗位匹配的数据依据。
+                    这份岗位要求符合当前匹配规则，可以用于后续匹配；这不代表已完成正式模型质量验收。
                   </p>
                 ) : (
                   <>
@@ -310,7 +372,9 @@ export default async function JobDetailPage({
                     </p>
                     <div className="readiness-blocker-list">
                       {releaseReadiness.blockers.map((blocker, index) => {
-                        const copy = requirementReleaseBlockerCopy(blocker.code);
+                        const copy = (canConfirmRequirements || !extraction) && ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)
+                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "提取后对照原文检查全部要求，再确认这一版用于当前岗位匹配；不需要先替维护者完成整批模型质量评审。"}
+                          : requirementReleaseBlockerCopy(blocker.code, job.description);
                         return (
                           <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
                             <strong>{copy.title}</strong>
@@ -330,7 +394,7 @@ export default async function JobDetailPage({
                 </div>
                 {extraction.provider === "fixture" ? (
                   <p className="notice">
-                    当前是演示分析结果，仅用于验证功能，不会作为正式岗位匹配依据。
+                    当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
                   </p>
                 ) : null}
                 <div className="requirement-list">
@@ -354,9 +418,14 @@ export default async function JobDetailPage({
               </>
             ) : (
               <p className="notice">
-                这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会把长篇岗位描述整理成更容易核对的学历、经验、技能和职责。
+                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionIssue}
               </p>
             )}
+            {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
+                <JobRequirementConfirmation key={extraction.factsDigest}
+                  jobId={job.id} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
+                  factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
+              ) : null}
           </section>
         </article>
 
@@ -365,13 +434,16 @@ export default async function JobDetailPage({
           <div className="meta-list">
             <div><span className="meta-label">经验</span><strong>{job.experience || "未说明"}</strong></div>
             <div><span className="meta-label">学历</span><strong>{job.education || "未说明"}</strong></div>
-            <div><span className="meta-label">来源</span><strong>{job.source}</strong></div>
-            <div><span className="meta-label">采集时间</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
+            <div><span className="meta-label">来源</span><strong>{job.source === "manual" ? "手动粘贴" : job.source}</strong></div>
+            <div><span className="meta-label">{job.source === "manual" ? "保存时间" : "采集时间"}</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
+            {job.source !== "manual" ? <div><span className="meta-label">该来源记录时间</span><strong>{formatDateTime(job.lastSeenAt ?? null)}</strong></div> : null}
           </div>
+          <p className="muted-copy">{job.source === "manual" ? "此内容由用户手动粘贴，保存时间不代表岗位发布时间或仍在招聘，请自行核实岗位有效性。" : "该时间来自来源记录，缺失时可能使用报告时间或系统记录时间；不代表岗位仍在招聘，请打开原始岗位核实。"}</p>
+          <JobAvailabilityControl jobId={job.id} inactive={job.userMarkedInactive} revision={job.availabilityRevision} />
           <div className="actions" style={{marginTop: 24}}>
-            <a className="button" href={job.sourceUrl} target="_blank" rel="noreferrer">
+            {job.sourceUrl ? <a className="button" href={job.sourceUrl} target="_blank" rel="noreferrer">
               打开原始岗位 ↗
-            </a>
+            </a> : <p className="muted-copy">未提供原始岗位链接。</p>}
           </div>
         </aside>
       </section>

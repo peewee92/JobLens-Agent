@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/legacy-workspace-analysis-start.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "threadId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Threadid",
+      "type": "string"
+    },
+    "runId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+    },
+    "requestId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Requestid",
+      "type": "string"
+    },
+    "inputDigest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Inputdigest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "runId",
+    "requestId",
+    "inputDigest"
+  ],
+  "title": "LegacyWorkspaceAnalysisStartRequest",
+  "type": "object"
+}

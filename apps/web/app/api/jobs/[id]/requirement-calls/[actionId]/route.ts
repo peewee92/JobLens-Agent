@@ -1,0 +1,5 @@
+import {backendResponse} from "@/lib/backend";
+export async function GET(_request: Request, {params}: {params: Promise<{id: string; actionId: string}>}) {
+  const {id, actionId} = await params;
+  return backendResponse(`/api/v1/jobs/${encodeURIComponent(id)}/requirement-calls/${encodeURIComponent(actionId)}`);
+}

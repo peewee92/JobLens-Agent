@@ -48,3 +48,15 @@ docs/dev-journal/
 # IDE
 .idea/
 .vscode/
+
+# Isolated local product demo cache
+.next-demo-*/
+
+.tsconfig-demo-*.json
+
+# Database backups and journals can contain private career data.
+*.db.bak*
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm

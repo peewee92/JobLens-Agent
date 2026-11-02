@@ -1,6 +1,7 @@
 """Build a traceable transient MatchReport from Semantic Match facts."""
 from __future__ import annotations
 
+from app.application.evidence_retrieval.strategy import RETRIEVAL_VERSION
 from app.application.eligibility import RequirementFitStatus
 from app.application.match_report.models import (
     MatchEvidenceLink,
@@ -38,6 +39,8 @@ def build_match_report(result: JobSemanticMatchResult) -> MatchReport:
             evidence_ids=item.evidence_ids,
             profile_fact_refs=item.profile_fact_refs,
             reason=item.reason,
+            candidate_count=item.candidate_count,
+            assessment_source=item.source.value,
         )
         for item in result.assessments
     )
@@ -98,6 +101,7 @@ def build_match_report(result: JobSemanticMatchResult) -> MatchReport:
         )
     )
     return MatchReport(
+        retrieval_version=RETRIEVAL_VERSION,
         job_id=result.job_id,
         profile_id=result.profile_id,
         profile_version=result.profile_version,
@@ -112,7 +116,10 @@ def build_match_report(result: JobSemanticMatchResult) -> MatchReport:
             "已确认求职偏好与岗位条件冲突：" + "；".join(
                 item.reason for item in result.preference_checks if item.status.value == "missing"
             ) if any(item.status.value == "missing" for item in result.preference_checks)
-            else _SUMMARIES[recommendation]
+            else (f"已提取 {len(result.assessments)} 条要求，但未找到可比较的经历证据，本次未进行语义判断。请核对已有资料与证据关联；不能据此断言你不具备能力。"
+                if result.assessments and all(item.candidate_count == 0 and item.source.value == "deterministic"
+                    and item.eligibility_status is RequirementFitStatus.CONDITIONAL for item in result.assessments)
+                else _SUMMARIES[recommendation])
         ),
         strengths=strengths,
         risks=risks,

@@ -44,3 +44,12 @@ export async function sendAnalysisExecution(storage: StoragePort, command: Pendi
     method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(command.body),
   });
 }
+
+/** Only an identified, authoritative stale rejection makes the original request terminal.
+ * Network errors, unknown responses and retryable failures must retain its journal. */
+export function isTerminalStaleExecution(status: number, body: unknown, command: PendingAnalysisExecution): boolean {
+  if (status !== 409 || !body || typeof body !== "object") return false;
+  const error = (body as {error?: {code?: unknown; retryable?: unknown; correlationId?: unknown}}).error;
+  return error?.code === "analysis_execution_facts_stale" && error.retryable === false
+    && error.correlationId === command.body.commandId;
+}

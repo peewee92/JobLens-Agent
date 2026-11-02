@@ -20,6 +20,7 @@ from app.db.models.job_requirement import (
     JobRequirementORM,
 )
 from app.db.models.job_source import JobSourceORM
+from app.db.models.job_requirement_confirmation import JobRequirementConfirmationORM
 from app.db.models.match_report import MatchReportORM
 from app.db.models.profile_eval import (
     ProfileEvalCaseResultORM,
@@ -51,6 +52,7 @@ from app.db.models.user_feedback import UserFeedbackORM
 from app.db.models.career_agent_run import CareerAgentRunORM, CareerAgentRunEventORM
 
 __all__ = [
+    "JobRequirementConfirmationORM",
     "CareerAgentRunORM",
     "CareerAgentRunEventORM",
     "ApplicationTimelineEventORM",
@@ -90,3 +92,6 @@ __all__ = [
 ]
 
 from app.db.models.application_workspace import AnalysisExecutionReceiptORM
+from app.db.models.requirement_call import RequirementCallORM
+
+from app.db.models.semantic_call import SemanticCallORM

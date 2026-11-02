@@ -130,6 +130,8 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
                     JobORM.experience,
                     JobORM.education,
                     JobORM.description,
+                    JobORM.user_marked_inactive,
+                    JobORM.availability_revision,
                     JobORM.skills,
                     JobORM.remote_status,
                     JobORM.remote_confidence,
@@ -138,6 +140,7 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
                     primary_source.source_version,
                     primary_source.source_raw,
                     primary_source.collected_at,
+                    primary_source.last_seen_at,
                 )
                 .join(primary_source, primary_source.id == self._primary_source_id())
                 .where(JobORM.id == job_id)
@@ -169,6 +172,9 @@ class SqlAlchemyJobQueryRepository(AbstractJobQueryRepository):
             requirement_review_eligible=requirement_review_eligible,
             requirement_review_ineligibility_reasons=ineligibility_reasons,
             collected_at=_as_utc(row.collected_at),
+            last_seen_at=_as_utc(row.last_seen_at),
+            user_marked_inactive=row.user_marked_inactive,
+            availability_revision=row.availability_revision,
         )
 
     @staticmethod

@@ -58,3 +58,9 @@ class WorkbenchResponse(CamelCaseModel):
     @classmethod
     def from_result(cls, result):
         return cls.model_validate(asdict(result))
+
+
+class WorkbenchWorkspacePageResponse(CamelCaseModel):
+    items: list[WorkbenchWorkspaceResponse] = Field(max_length=20)
+    offset: int
+    has_more: bool

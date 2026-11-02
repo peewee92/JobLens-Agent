@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: joblens-demo-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./services/backend/Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: JOBLENS_DEMO_PROXY_SECRET
+        generateValue: true
+      - key: JOBLENS_DEMO_FRONTEND_ORIGIN
+        sync: false

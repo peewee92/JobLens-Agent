@@ -116,3 +116,11 @@ test("existing or manually edited Profile drafts are never auto-overwritten", ()
     false,
   );
 });
+
+test("a fresh manual profile needs no empty required skill row", () => {
+  const draft = {headline: "", years: "",
+    evidence: [{key: "", type: "project" as const, summary: "", source: "confirmed by user"}], skills: []};
+  assert.equal(isBlankProfileDraft(draft), true);
+  assert.equal(isBlankProfileDraft({...draft, headline: "已手动填写定位"}), false);
+  assert.equal(isBlankProfileDraft({...draft, evidence: [{...draft.evidence[0], summary: "真实经历"}]}), false);
+});

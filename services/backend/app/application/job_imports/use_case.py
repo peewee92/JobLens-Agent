@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, TYPE_CHECKING
 
 from app.application.job_imports.adapter import adapt_collector_report
 from app.application.job_imports.errors import ImportIdentityConflictError
-from app.application.job_imports.models import ImportIssue, NormalizedJobInput
+from app.application.job_imports.models import ImportIssue, NormalizedJobInput, NormalizedCollectorReport
 from app.application.job_imports.normalizer import normalize_adapted_report
 from app.application.ports import (
     AbstractUnitOfWork,
@@ -19,6 +19,9 @@ from app.application.ports import (
 from app.domain.jobs import ImportOutcome
 
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
+
+if TYPE_CHECKING:
+    from app.application.job_imports.manual import ManualJobInput
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +45,7 @@ class ImportJobsResult:
     updated: int
     skipped: int
     errors: tuple[ImportErrorDetail, ...]
+    job_ids: tuple[str, ...] = ()
 
 
 class ImportJobsUseCase:
@@ -59,18 +63,30 @@ class ImportJobsUseCase:
         """
 
         normalized_report = normalize_adapted_report(adapt_collector_report(payload))
+        return self._persist_report(normalized_report, collector_version=normalized_report.source_version)
+
+    def execute_manual(self, job: ManualJobInput) -> ImportJobsResult:
+        """Use the same audited transaction for a user-pasted posting."""
+        from app.application.job_imports.manual import normalize_manual_job
+
+        return self._persist_report(normalize_manual_job(job), collector_version=None)
+
+    def _persist_report(
+        self, normalized_report: NormalizedCollectorReport, *, collector_version: str | None,
+    ) -> ImportJobsResult:
         error_details = tuple(self._error_detail(issue) for issue in normalized_report.issues)
         error_records = tuple(self._error_record(issue) for issue in normalized_report.issues)
 
         created = 0
         updated = 0
         skipped = len(normalized_report.issues)
+        job_ids: list[str] = []
 
         with self._uow_factory() as uow:
             import_id = uow.jobs.add_import(
                 JobImportWrite(
                     source_version=normalized_report.source_version,
-                    collector_version=normalized_report.source_version,
+                    collector_version=collector_version,
                     received=normalized_report.received,
                     errors=error_records,
                     search_intent_snapshot=deepcopy(normalized_report.config),
@@ -98,6 +114,7 @@ class ImportJobsUseCase:
                         outcome=ImportOutcome.ERROR,
                         error_code=issue.code,
                         error_message=issue.message,
+                        source_raw_snapshot=deepcopy(issue.raw),
                     )
                 )
 
@@ -106,6 +123,7 @@ class ImportJobsUseCase:
                 key=lambda item: item.input_index,
             ):
                 outcome, job_id, source_id = self._persist_job(uow, job)
+                job_ids.append(job_id)
                 if outcome is ImportOutcome.CREATED:
                     created += 1
                 else:
@@ -118,6 +136,7 @@ class ImportJobsUseCase:
                         outcome=outcome,
                         job_id=job_id,
                         job_source_id=source_id,
+                        source_raw_snapshot=deepcopy(job.source_raw),
                     )
                 )
 
@@ -141,6 +160,7 @@ class ImportJobsUseCase:
             updated=updated,
             skipped=skipped,
             errors=error_details,
+            job_ids=tuple(job_ids),
         )
 
     def _persist_job(
@@ -190,7 +210,7 @@ class ImportJobsUseCase:
         source_by_url = uow.jobs.find_source_by_normalized_url(
             job.source,
             job.normalized_source_url,
-        )
+        ) if job.normalized_source_url else None
 
         if (
             source_by_external_id is not None

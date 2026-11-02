@@ -31,3 +31,10 @@ test("changed facts show the same historical materials, never a silently refresh
   assert.match(html, /profile_changed/); // Reason code is in the explicit technical disclosure.
   assert.doesNotMatch(html, /事实版本仍适用于当前资料/);
 });
+
+test("saved gap guidance translates known internal codes and folds evidence identifiers", () => {
+  const html = renderToStaticMarkup(React.createElement(SavedCareerAnalysisView, {result, backHref: "/agent"}));
+  assert.doesNotMatch(html, />capability_missing</);
+  assert.doesNotMatch(html, />confirmed_profile_skill_exists</);
+  assert.match(html, /查看来源证据/);
+});

@@ -1,9 +1,12 @@
 import "server-only";
+import {cookies} from "next/headers";
+import {DEMO_COOKIE, demoBackendHeaders, publicDemoEnabled} from "@/lib/public-demo";
 import {isSystemReadiness, type SystemReadiness} from "@/lib/system-readiness";
 
 import type {
   ApiErrorBody,
   ApplicationExecutionAction,
+  AnalysisExecutionResult,
   ApplicationEvidenceProposal,
   ApplicationTimelineEvent,
   ApplicationResumeVariant,
@@ -17,6 +20,7 @@ import type {
   MatchReviewReadiness,
   RecommendationCoverage,
   JobDetail,
+  JobDescriptionObservations,
   MatchReportHistory,
   JobEligibilityResult,
   JobImportDetail,
@@ -24,6 +28,7 @@ import type {
   AcceptedProfileEvalBaseline,
   JobPage,
   JobRequirementExtraction,
+  JobMatchInputReadiness,
   JobRequirementReleaseReadiness,
   ProfileEvalRunDetail,
   ProfileEvalRunPage,
@@ -63,8 +68,10 @@ export function backendBaseUrl(): string {
 
 async function publicError(response: Response): Promise<BackendApiError> {
   try {
-    const body = (await response.json()) as Partial<ApiErrorBody>;
-    const code = body.error?.code ?? "backend_request_failed";
+    const body = (await response.json()) as Partial<ApiErrorBody> & {detail?: unknown};
+    // Recognize this actionable legacy detail without exposing arbitrary server text.
+    const staleDetail = body.detail === "application_workspace_facts_stale" ? body.detail : undefined;
+    const code = body.error?.code ?? staleDetail ?? "backend_request_failed";
     const message = body.error?.message ?? `Backend request failed (${response.status}).`;
     return new BackendApiError(response.status, code, message);
   } catch {
@@ -81,19 +88,21 @@ export async function backendResponse(
   init?: RequestInit,
 ): Promise<Response> {
   try {
+    const demoHeaders = publicDemoEnabled() ? demoBackendHeaders((await cookies()).get(DEMO_COOKIE)?.value) : {};
     return await fetch(`${backendBaseUrl()}${path}`, {
       ...init,
       cache: "no-store",
       headers: {
         Accept: "application/json",
         ...init?.headers,
+        ...demoHeaders,
       },
     });
   } catch {
     throw new BackendApiError(
       503,
       "backend_unavailable",
-      "JobLens Backend 暂时不可用，请确认 FastAPI 已启动。",
+      publicDemoEnabled() ? "演示服务可能正在唤醒，请稍后重新检查；不会自动重跑分析。" : "JobLens Backend 暂时不可用，请确认 FastAPI 已启动。",
     );
   }
 }
@@ -141,6 +150,10 @@ export function fetchJobDetail(jobId: string): Promise<JobDetail> {
   return backendJson<JobDetail>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
 }
 
+export function fetchJobDescriptionObservations(jobId: string): Promise<JobDescriptionObservations> {
+  return backendJson<JobDescriptionObservations>(`/api/v1/jobs/${encodeURIComponent(jobId)}/description-observations`);
+}
+
 export function fetchMatchRanking(
   jobIds: readonly string[],
   options: {includeBlocked?: boolean; topN?: number} = {},
@@ -176,6 +189,11 @@ export function fetchMatchImprovement(
   return backendJson<MatchImprovement>(`/api/v1/match-improvement?${query.toString()}`);
 }
 
+/** Read only the existing job-specific readiness contract, never the review sample. */
+export function fetchJobMatchInputReadiness(jobId: string): Promise<JobMatchInputReadiness> {
+  return backendJson(`/api/v1/jobs/${encodeURIComponent(jobId)}/match-input-readiness`);
+}
+
 export function fetchMatchReviewReadiness(): Promise<MatchReviewReadiness> {
   return backendJson<MatchReviewReadiness>("/api/v1/match-review/readiness");
 }
@@ -199,6 +217,10 @@ export function fetchLatestUserFeedback(matchReportIds: string[]): Promise<UserF
 export function fetchUserFeedbackHistory(matchReportId: string): Promise<UserFeedbackHistory> {
   const query = new URLSearchParams({matchReportId});
   return backendJson<UserFeedbackHistory>(`/api/v1/user-feedback?${query.toString()}`);
+}
+
+export function fetchAnalysisExecution(threadId: string): Promise<{execution: AnalysisExecutionResult | null}> {
+  return backendJson(`/api/v1/career-agent/runs/${encodeURIComponent(threadId)}/execution`);
 }
 
 export function fetchApplicationWorkspaceOverview(workspaceId: string): Promise<ApplicationWorkspaceOverview> {
@@ -433,4 +455,12 @@ export async function fetchWorkbench(): Promise<import("@/lib/workbench").Workbe
 
 export function fetchApplicationEvidenceContext(workspaceId: string): Promise<import("@/lib/contracts").ApplicationEvidenceContext> {
   return backendJson(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/evidence-context`);
+}
+
+export function fetchLegacyWorkspaceAnalysisPlan(workspaceId: string): Promise<import('./contracts').LegacyWorkspaceAnalysisPlan> {
+  return backendJson(`/api/v1/application-workspaces/${encodeURIComponent(workspaceId)}/analysis-plan`);
+}
+
+export function fetchWorkbenchWorkspacePage(offset: number): Promise<{items: import("@/lib/workbench").Workbench["snapshot"]["workspaces"]; offset: number; hasMore: boolean}> {
+  return backendJson(`/api/v1/workbench/workspaces?offset=${offset}`);
 }

@@ -3,16 +3,16 @@
 import Link from "next/link";
 import React, {FormEvent, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
+import {factAnalysisRelation} from "@/lib/workspace-analysis-display";
 import {workspaceCommandError} from "@/lib/workspace-command-errors";
 import {readWorkspaceFactCommand, clearWorkspaceFactCommand, sendWorkspaceFactCommand, type WorkspaceFactCommand} from "@/lib/workspace-fact-command";
-import type {ApplicationEvidenceContext, ApplicationEvidenceProposal, ApplicationExecutionAction, ApplicationRematchResult} from "@/lib/contracts";
+import type {ApplicationEvidenceContext, ApplicationEvidenceProposal, ApplicationExecutionAction} from "@/lib/contracts";
 
-export function ApplicationEvidenceControls({workspaceId, actorId, actions, proposals, context, analysisThreadId}: {
-  workspaceId: string; actorId: string; actions: ApplicationExecutionAction[];
-  proposals: ApplicationEvidenceProposal[]; context: ApplicationEvidenceContext; analysisThreadId?: string | null;
+export function ApplicationEvidenceControls({workspaceId, jobId, actorId, actions, proposals, context, analysisThreadId, analysisProfileVersion}: {
+  workspaceId: string; jobId: string; actorId: string; actions: ApplicationExecutionAction[];
+  proposals: ApplicationEvidenceProposal[]; context: ApplicationEvidenceContext; analysisThreadId?: string | null; analysisProfileVersion?: number | null;
 }) {
   const router = useRouter();
-  const [rematchResult, setRematchResult] = useState<ApplicationRematchResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [original, setOriginal] = useState<WorkspaceFactCommand | null>(null);
@@ -39,20 +39,6 @@ export function ApplicationEvidenceControls({workspaceId, actorId, actions, prop
       try { setOriginal(readWorkspaceFactCommand(window.localStorage, workspaceId)); } catch { setStorageError(true); }
       setBusy(false);
     }
-  }
-
-  async function rematch(proposal: ApplicationEvidenceProposal) {
-    setBusy(true); setError(null);
-    try {
-      const response = await fetch(`/api/application-workspaces/${encodeURIComponent(workspaceId)}/evidence-proposals/${encodeURIComponent(proposal.proposalId)}/rematch`, {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({actorId, idempotencyKey: `web-rematch-${proposal.proposalId}`}),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(workspaceCommandError(payload));
-      setRematchResult(payload); router.refresh();
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "重新匹配未完成，请核对输入。"); }
-    finally { setBusy(false); }
   }
 
   function submitProposal(event: FormEvent<HTMLFormElement>, action: ApplicationExecutionAction) {
@@ -116,11 +102,13 @@ export function ApplicationEvidenceControls({workspaceId, actorId, actions, prop
           </form> : <button disabled={disabled} onClick={() => void post(`/api/application-workspaces/${encodeURIComponent(workspaceId)}/evidence-proposals/${encodeURIComponent(proposal.proposalId)}/confirm`, {actorId})}>确认这是真实职业事实</button>}
         </>}
         {replaced && <p>已有重新核对提案，请查看较新的记录；这条原文继续保留。</p>}
-        {proposal.status === "confirmed" && <p>已新增事实，当前分析需要更新。<Link href={(analysisThreadId ?? proposal.sourceAnalysisThreadId) ? `/agent/results/${encodeURIComponent((analysisThreadId ?? proposal.sourceAnalysisThreadId)!)}/update` : "/agent"}>查看原分析和更新准备</Link>。不承诺排名提高。
-          {!(analysisThreadId ?? proposal.sourceAnalysisThreadId) && <button disabled={disabled} onClick={() => void rematch(proposal)}>仅重新匹配此岗位（旧入口，不调用模型）</button>}</p>}
+        {proposal.status === "confirmed" && <p>{analysisThreadId && factAnalysisRelation(proposal.confirmedProfileVersion, analysisProfileVersion) === "at_or_before"
+          ? <>此事实在资料 v{proposal.confirmedProfileVersion} 确认；当前分析使用资料 v{analysisProfileVersion}。若之后编辑过资料，请核对事实是否仍保留。<Link href={`/agent/results/${encodeURIComponent(analysisThreadId)}`}>查看当前分析</Link>。</>
+          : <>已确认事实。{(analysisThreadId ?? proposal.sourceAnalysisThreadId)
+          ? <><Link href={`/agent/results/${encodeURIComponent((analysisThreadId ?? proposal.sourceAnalysisThreadId)!)}/update`}>查看原分析和更新准备</Link>；不承诺排名提高。</>
+          : <>此历史工作区没有保存分析。<Link href={`/agent?jobId=${encodeURIComponent(jobId)}`}>核对该岗位并准备新分析</Link>；历史事实与行动保留，不会自动重算或比较历史结果。</>}</>}</p>}
       </article>;
     })}
-    {rematchResult && <p className="notice">此岗位重新匹配结果：{rematchResult.previousRecommendation} → {rematchResult.currentRecommendation}；不表示匹配概率。</p>}
     {error && <p role="alert" className="error-copy">{error}</p>}
   </div>;
 }

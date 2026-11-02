@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  saveRunCommand, loadRunCommand, clearRunCommand, parseSavedRunCommand,
-  sendRunCommand, commandResolution, runHref, type SavedRunCommand,
+  saveRunCommand, loadRunCommand, clearRunCommand, parseSavedRunCommand, hasRunCommandRecord,
+  sendRunCommand, commandResolution, rankedReportHref, runHref, type SavedRunCommand,
 } from "../lib/career-agent-commands";
 import type {CareerAgentRunState} from "../lib/contracts";
 
@@ -18,6 +18,22 @@ const start: SavedRunCommand = {version: 1, kind: "start", threadId: "thread", b
 const decision: SavedRunCommand = {version: 1, kind: "decision", threadId: "thread", body: {
   interruptId: "interrupt", actionId: "action", decision: "approve", selectedJobIds: [],
 }};
+
+test("report review link retains exact report and safe local run return", () => {
+  const url = new URL(rankedReportHref("job/1", "report 2", "thread/3"), "https://example.test");
+  assert.equal(url.pathname, "/jobs/job%2F1");
+  assert.equal(url.searchParams.get("reportId"), "report 2");
+  assert.equal(url.searchParams.get("returnThreadId"), "thread/3");
+  assert.equal(new URL(runHref(url.searchParams.get("returnThreadId")!), url).pathname, "/agent");
+});
+
+test("raw malformed journal is not confused with absence when choosing recovery", () => {
+  const saved = storage();
+  assert.equal(hasRunCommandRecord(saved, "thread"), false);
+  saved.setItem("joblens.careerAgent.command.thread", "bad json");
+  assert.equal(hasRunCommandRecord(saved, "thread"), true);
+  assert.equal(loadRunCommand(saved, "thread"), null);
+});
 
 test("start is durably recorded before send and network retry keeps the exact request body", async () => {
   const saved = storage();

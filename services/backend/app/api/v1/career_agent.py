@@ -162,7 +162,30 @@ def get_analysis_execution(thread_id: str, query=Depends(get_analysis_execution_
 from typing import Literal
 from app.api.deps import get_analysis_update_plan_use_case
 from app.api.v1.schemas.analysis_update import AnalysisUpdatePlanResponse
+from app.api.v1.schemas.analysis_update import InitialScopePlanRequest, InitialScopePlanResponse, InitialScopeStartRequest
 from app.application.analysis_update import AnalysisUpdatePlanError
+
+
+@router.post('/initial-scope-plan', response_model=InitialScopePlanResponse)
+def initial_scope_plan(payload: InitialScopePlanRequest, use_case=Depends(get_analysis_update_plan_use_case)):
+    try:
+        return InitialScopePlanResponse.from_result(use_case.execute_initial_scope(tuple(payload.job_ids)))
+    except AnalysisUpdatePlanError:
+        raise HTTPException(status_code=422, detail='无法预检该岗位范围')
+
+
+@router.post('/initial-scope-runs', response_model=CareerAgentRunStateResponse)
+def start_initial_scope(payload: InitialScopeStartRequest, service=Depends(get_career_agent_hitl_service)):
+    try:
+        return CareerAgentRunStateResponse.from_state(service.start_initial_scope(payload.to_command()))
+    except (AnalysisUpdatePlanError, CheckpointConflictError) as exc:
+        return JSONResponse(status_code=409, content={"error": {"code": "initial_scope_conflict",
+            "message": "请求冲突或预检后的事实已变化，请查看原运行或重新预检。",
+            "retryable": False, "repairAction": "review_run_or_preflight", "correlationId": payload.request_id}})
+    except (SQLAlchemyError, CheckpointPersistenceError):
+        return JSONResponse(status_code=503, content={"error": {"code": "initial_scope_save_uncertain",
+            "message": "分析未能返回完整状态。请查看运行或用同一个原请求重试，不要创建新请求。",
+            "retryable": True, "repairAction": "check_then_retry_original", "correlationId": payload.request_id}})
 
 
 @router.get('/runs/{thread_id}/update-plan', response_model=AnalysisUpdatePlanResponse)

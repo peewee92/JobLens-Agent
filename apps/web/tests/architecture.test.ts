@@ -121,15 +121,14 @@ test("the Job Requirement Route Handler delegates to Backend and safely redirect
   assert.doesNotMatch(source, /OpenAI|FixtureJobRequirementExtractor|evidenceSpan/);
 });
 
-test("the Requirement Manual Review page can remediate outlier models without leaving the review workflow", async () => {
+test("the Requirement Manual Review page does not claim offline extraction repairs a version mismatch", async () => {
   const page = await readFile(
     join(webRoot, "app/evals/requirements/manual/page.tsx"),
     "utf8",
   );
-  assert.match(page, /JobRequirementExtractButton/);
-  assert.match(page, /actionLabel="确认成本并重新分析到目标版本"/);
-  assert.match(page, /returnTo="\/evals\/requirements\/manual"/);
-  assert.match(page, /每个岗位都需要你单独确认一次真实 Provider 成本/);
+  assert.doesNotMatch(page, /JobRequirementExtractButton/);
+  assert.match(page, /当前离线分析不能保证生成目标版本/);
+  assert.match(page, /重新分析也可能使已有审核样本失效/);
 });
 
 test("the Match Report Client runs only after explicit user action through same-origin proxy", async () => {
@@ -178,7 +177,7 @@ test("Batch Match refresh stays explicit and proxies the bounded Backend command
 
   assert.match(client, /fetch\("\/api\/match-batch"/);
   assert.match(client, /method:\s*"POST"/);
-  assert.match(client, /maxReadyJobs:\s*10/);
+  assert.match(client, /maxReadyJobs:\s*5/);
   assert.match(route, /backendResponse/);
   assert.match(route, /\/api\/v1\/match-batch/);
   assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
@@ -367,7 +366,7 @@ test("Job detail consumes Backend Requirement release facts without reimplementi
     join(webRoot, "app/jobs/[id]/page.tsx"),
     "utf8",
   );
-  assert.match(source, /fetchJobRequirementReleaseReadiness/);
+  assert.match(source, /fetchJobMatchInputReadiness/);
   assert.match(source, /releaseReadiness\.releaseEligible/);
   assert.match(source, /releaseReadinessError/);
   assert.doesNotMatch(source, /Promise\.all/);

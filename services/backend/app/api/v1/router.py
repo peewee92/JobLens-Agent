@@ -59,3 +59,6 @@ api_router.include_router(
     tags=["requirement-acceptance-runs"],
 )
 api_router.include_router(requirement_reviews_router, tags=["requirement-reviews"])
+
+from app.api.v1.semantic_calls import router as semantic_calls_router
+api_router.include_router(semantic_calls_router, tags=["semantic-calls"])
