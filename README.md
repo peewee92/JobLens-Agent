@@ -7,7 +7,7 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 [![CI](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**[在线体验：三个岗位，先准备哪个？](https://joblens-public-demo.vercel.app/demo)** · [操作录屏与预发布版本](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)
+**[在线体验：三个岗位，先准备哪个？](https://joblens-agent.vercel.app/demo)** · [操作录屏与预发布版本](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)
 
 ![线上合成演示：开始行动并刷新后仍保留进度](docs/assets/public-demo-live-workspace.png)
 
