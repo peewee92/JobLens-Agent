@@ -242,7 +242,7 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
 
     assert proposal.trace_run_id.startswith("run_")
     assert proposal.extractor_version == "requirement-extractor-v42.96"
-    assert proposal.prompt_version == "requirement-extraction-v8"
+    assert proposal.prompt_version == "requirement-extraction-v9"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
         "FastAPI",

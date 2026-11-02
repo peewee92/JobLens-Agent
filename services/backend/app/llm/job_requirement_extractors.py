@@ -16,6 +16,7 @@ from app.application.job_requirements import (
     ProposedJobRequirement,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementModelAuthorizationRequiredError,
 )
 from app.application.ports.job_requirement_extractor import (
     AbstractJobRequirementExtractor,
@@ -81,6 +82,13 @@ class DisabledJobRequirementExtractor(AbstractJobRequirementExtractor):
     def extract(self, description: str) -> JobRequirementExtractorResult:
         raise RequirementExtractorUnavailableError(
             "Requirement extractor is disabled. Configure REQUIREMENT_EXTRACTOR_PROVIDER."
+        )
+
+
+class AuthorizationRequiredRequirementExtractor(DisabledJobRequirementExtractor):
+    def extract(self, description: str) -> JobRequirementExtractorResult:
+        raise RequirementModelAuthorizationRequiredError(
+            "Live requirement extraction requires per-request authorization and cost tracking."
         )
 
 
@@ -265,6 +273,8 @@ class OpenAIJobRequirementExtractor(AbstractJobRequirementExtractor):
                     }
                 },
             }
+            if self._max_completion_tokens is not None:
+                request_body["max_output_tokens"] = self._max_completion_tokens
             output_text = _response_output_text
             input_tokens_key = "input_tokens"
             output_tokens_key = "output_tokens"
@@ -862,7 +872,9 @@ Rules:
 - A waiver or exception such as 可放宽/可豁免/waived/exception weakens only the threshold or condition it modifies. Do not emit the strict threshold as an independent must_have and do not emit the waiver itself as a separate preferred requirement. When the waiver-bearing wording is contiguous, preserve that affected condition as one non-blocking preferred requirement unless another clause remains explicitly unconditional. For example, a years-of-experience threshold followed by an exceptional-candidate waiver is not an unconditional hard gate.
 - Do not emit more than one Requirement with the same sourceCandidateId and the same exact originalText. One contiguous source fact must not be copied into multiple rows only to attach different types or normalized capabilities.
 - If one contiguous clause mentions multiple capabilities but those capabilities cannot each be copied as distinct verbatim originalText substrings, emit one compound constraint instead of duplicating the full clause for each capability.
-- For alternative or cardinality groups such as "at least N of the following", "one of", "any one", or "任意一种", preserve the mandatory group constraint and must not make every child independently must_have. Emit child capabilities only when each child can be anchored to its own distinct verbatim originalText/source candidate; never duplicate the same full originalText for the parent and its children.
+- For alternative or cardinality groups such as "at least N of the following", "at least one of", "one of", "any one", 任意一种, 任意一项, 任一, 其中之一, 满足其一, 至少满足一项, 以下至少一项, or 择一, preserve the mandatory group constraint and must not make every child independently must_have. Emit child capabilities only when each child can be anchored to its own distinct verbatim originalText/source candidate; never duplicate the same full originalText for the parent and its children. When the alternatives form one contiguous block and cannot each be anchored separately, emit exactly one `constraint` Requirement whose originalText covers the whole block, so the group stays a single gate instead of becoming several independent bonuses.
+- A relaxation or waiver of a condition such as 不限/均可/无要求/学历不限/语言不限/not required is never a capability the candidate must hold. When the wording still carries a gate, emit it as one `constraint` Requirement with normalizedCapability null and must_have importance, and never split "语言不限(Java/Go/Python 均可)" into one skill Requirement per listed option. When the wording carries no gate at all, omit it.
+- A requirement that bundles several abilities in one sentence must keep every ability the candidate is expected to have: do not downgrade a concrete engineering ability (for example TypeScript, a framework, server-side or deployment ability) to `constraint` merely because the sentence also contains scope words such as 不限 or 任一. Type it as `skill`/`experience` and give it a normalizedCapability.
 - Concrete examples such as 如/例如/such as/e.g. illustrate an umbrella requirement rather than adding separate hard constraints. Example children must not become independent must_have requirements unless the Job description explicitly requires those children outside the example wording; prefer the umbrella requirement with its verbatim span and omit redundant example-child requirements.
 - Use bonus only for explicitly optional, plus, preferred, or bonus requirements. Use preferred only for explicitly desirable-but-not-mandatory requirements or alternative child capabilities governed by a separate mandatory group constraint.
 - Normalize capability aliases when supported by the text, for example React.js/ReactJS → React.
