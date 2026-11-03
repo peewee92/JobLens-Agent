@@ -1,3 +1,5 @@
+import {publicSession} from "@/lib/model-session";
+import {redirect} from "next/navigation";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import {EvidenceActionProgress} from "@/components/evidence-action-progress";
 import {ProfileEditor} from "@/components/profile-editor";
@@ -76,6 +78,7 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  if ((await publicSession())?.mode === "byok") redirect("/my-analysis");
   if (publicDemoEnabled()) {
     try {
       const profile = await fetchCurrentProfile();

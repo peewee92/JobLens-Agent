@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actionId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "title": "Actionid",
+      "type": "string"
+    },
+    "planDigest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "acknowledgedPriorRequestId": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acknowledgedpriorrequestid"
+    },
+    "confirmed": {
+      "default": false,
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "maxProviderCalls": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Maxprovidercalls",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "actionId",
+    "planDigest"
+  ],
+  "title": "CallInput",
+  "type": "object"
+}

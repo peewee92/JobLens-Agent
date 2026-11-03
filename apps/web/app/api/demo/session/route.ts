@@ -12,9 +12,10 @@ export async function POST(request: Request) {
     // Vercel overwrites x-forwarded-for. Only the first trusted edge address is used;
     // the backend never accepts this identity without the service credential.
     const client = (request.headers.get("x-forwarded-for") ?? "local").split(",")[0].trim();
+    const body = await request.text();
     const response = await fetch(`${backendBaseUrl()}/api/v1/demo/session`, {
       method: token ? "DELETE" : "POST", cache: "no-store", signal: AbortSignal.timeout(75000),
-      headers: {...demoBackendHeaders(token), "X-Demo-Client": client},
+      headers: {...demoBackendHeaders(token), "X-Demo-Client": client, "Content-Type": "application/json"}, body,
     });
     const data = await response.json();
     if (!response.ok) {

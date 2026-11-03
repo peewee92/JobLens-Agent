@@ -8,7 +8,7 @@ export function proxy(request: NextRequest) {
       !demoOriginAllowed(request.headers.get("origin"), process.env.JOBLENS_DEMO_FRONTEND_ORIGIN)) {
     return NextResponse.json({error: {code: "demo_origin_rejected", message: "请求来源无效。"}}, {status: 403});
   }
-  if (path === "/demo" || path === "/api/demo/session") return NextResponse.next();
+  if (path === "/connect" || path === "/demo" || path === "/api/demo/session") return NextResponse.next();
   if (!request.cookies.get(DEMO_COOKIE)?.value) {
     if (path.startsWith("/api/")) return NextResponse.json({error: {code: "demo_session_expired", message: "演示已结束，请重新开始样本体验。"}}, {status: 410});
     return NextResponse.redirect(new URL("/demo", request.url));

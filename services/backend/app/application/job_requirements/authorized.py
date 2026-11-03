@@ -23,7 +23,7 @@ class AuthorizedRequirementExtraction:
         if job is None:
             raise JobNotFoundError(f"Job {job_id!r} was not found")
         description = (job.description or "").strip()
-        snapshot = dict(jobId=job_id, inputHash=sha256(description.encode()).hexdigest(),
+        snapshot = dict(connectionVersion=getattr(self.settings, "byok_connection_version", ""), jobId=job_id, inputHash=sha256(description.encode()).hexdigest(),
             availabilityRevision=job.availability_revision,
             previousExtractionId=self.requirements.get_latest_id(job_id),
             extractionPolicy=[EXTRACTOR_VERSION, PROMPT_VERSION, SEMANTIC_POLICY_VERSION],

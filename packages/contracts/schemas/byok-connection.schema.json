@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "default": "我的模型",
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "baseUrl": {
+      "maxLength": 1024,
+      "minLength": 8,
+      "title": "Baseurl",
+      "type": "string"
+    },
+    "apiKey": {
+      "format": "password",
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Apikey",
+      "type": "string",
+      "writeOnly": true
+    },
+    "model": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^\\S(?:[^\\r\\n]*\\S)?$",
+      "title": "Model",
+      "type": "string"
+    },
+    "enableThinking": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Enablethinking"
+    },
+    "apiStyle": {
+      "default": "chat_completions",
+      "pattern": "^(chat_completions|responses)$",
+      "title": "Apistyle",
+      "type": "string"
+    },
+    "profileModel": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Profilemodel"
+    },
+    "requirementModel": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requirementmodel"
+    },
+    "semanticModel": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Semanticmodel"
+    }
+  },
+  "required": [
+    "baseUrl",
+    "apiKey",
+    "model"
+  ],
+  "title": "ConnectionInput",
+  "type": "object"
+}

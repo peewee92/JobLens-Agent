@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, codex/public-demo-v0.1]
+    branches: [main, codex/public-demo-v0.1, codex/byok-core]
   pull_request:
     branches: [main]
 

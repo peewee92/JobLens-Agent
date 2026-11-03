@@ -1,3 +1,4 @@
+import {publicSession} from "@/lib/model-session";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
   description: "基于真实经历和真实岗位，帮助你判断哪些机会更值得优先投入。",
 };
 
-export default function RootLayout({children}: {children: ReactNode}) {
+export default async function RootLayout({children}: {children: ReactNode}) {
+  const session = await publicSession();
   return (
     <html lang="zh-CN">
       <body>
@@ -32,11 +34,13 @@ export default function RootLayout({children}: {children: ReactNode}) {
               <NavLink href="/profile">我的背景</NavLink>
               <NavLink href="/jobs">我的岗位</NavLink>
               <NavLink href="/applications">我的准备</NavLink>
+              {publicDemoEnabled() && <NavLink href="/connect">模型设置</NavLink>}
             </nav>
           </div>
         </header>
         <main id="main" className="shell page-shell">
-          {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && <aside className="notice" role="note" aria-label="隔离合成演示">
+          {session?.mode === "byok" && <aside className="notice"><strong>自带模型真实分析</strong>：资料来源为{session.synthetic ? "合成样本" : "用户填写"}，模型费用由你的账户承担。进度临时保存，闲置 30 分钟、最长两小时或服务重启后失效。<Link href="/my-analysis">继续分析</Link> · <Link href="/connect">设置与导出</Link></aside>}
+          {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && session?.mode !== "byok" && <aside className="notice" role="note" aria-label="隔离合成演示">
             <strong>离线合成演示</strong>：这里的资料、公司和岗位均为合成样本，不是真实求职结论。已禁用在线模型；数据保存在独立演示库，不会修改你的真实记录。{publicDemoEnabled() && <>临时进度可能随服务休眠或重启丢失。<Link href="/demo">重新开始样本体验</Link></>}
           </aside>}
           {children}

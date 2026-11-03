@@ -3,17 +3,19 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 from pathlib import Path
 import secrets
 import shutil
+import sqlite3
 from threading import RLock
 import time
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from app.db.context import DatabaseContext
+from app.byok.context import ModelSession
 
 
 class DemoError(Exception):
@@ -26,16 +28,18 @@ class Entry:
     context: DatabaseContext
     created: float
     touched: float
+    model: ModelSession = field(default_factory=ModelSession)
     active: int = 0
     write_count: int = 0
     requests: list[float] | None = None
 
 
 class DemoSessions:
-    def __init__(self, root: Path, template: Path, *, clock=time.monotonic, capacity=20, idle=1800, lifetime=7200):
+    def __init__(self, root: Path, template: Path, *, clock=time.monotonic, capacity=20, idle=1800, lifetime=7200, empty_template=None):
         if not template.is_file() or template.is_symlink():
             raise RuntimeError('缺少合成演示模板')
         self.root, self.template, self.clock = root, template, clock
+        self.empty_template = empty_template
         self.capacity, self.idle, self.lifetime = capacity, idle, lifetime
         root.mkdir(parents=True, exist_ok=True)
         self.entries: dict[str, Entry] = {}
@@ -47,6 +51,9 @@ class DemoSessions:
 
     def _delete(self, token):
         entry = self.entries.pop(token)
+        entry.model.connection = None
+        entry.model.plans.clear()
+        entry.model.calls.clear()
         entry.context.engine.dispose()
         shutil.rmtree(entry.context.directory)
 
@@ -61,7 +68,18 @@ class DemoSessions:
             else:
                 del self.creations[key]
 
-    def create(self, client: str, *, replace: str | None = None):
+    def collect(self):
+        with self.lock:
+            self._collect(self.clock())
+
+    def state(self, token):
+        return self.entries[token].model
+
+    def create(self, client: str, *, replace: str | None = None, mode="sample", seed="sample"):
+        if mode not in ("sample", "byok") or seed not in ("sample", "blank") or (mode == "sample" and seed != "sample"):
+            raise DemoError("session_mode_invalid", 422, "会话模式无效。")
+        if seed == "blank" and self.empty_template is None:
+            raise DemoError("blank_template_unavailable", 503, "空白资料尚未就绪。")
         with self.lock:
             now = self.clock()
             self._collect(now)
@@ -79,7 +97,18 @@ class DemoSessions:
             directory.mkdir()
             engine = None
             try:
-                shutil.copyfile(self.template, directory / 'demo.db')
+                shutil.copyfile(self.empty_template if seed == 'blank' else self.template, directory / 'demo.db')
+                if mode == 'byok' and seed == 'sample':
+                    # Carry only synthetic inputs, never precomputed fixture recommendations.
+                    keep = {'alembic_version', 'jobs', 'job_sources', 'user_profiles', 'profile_evidence',
+                            'profile_skills', 'profile_skill_evidence', 'search_intents'}
+                    with sqlite3.connect(directory / 'demo.db') as connection:
+                        names = [r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+                        for name in names:
+                            if name not in keep and not name.startswith('sqlite_'):
+                                connection.execute('DELETE FROM "' + name.replace('"', '""') + '"')
+                        if list(connection.execute('PRAGMA foreign_key_check')):
+                            raise RuntimeError('样本输入存在未保留的依赖')
                 engine = create_engine(f'sqlite:///{directory / "demo.db"}', connect_args={'check_same_thread': False}, pool_pre_ping=True)
                 @event.listens_for(engine, 'connect')
                 def foreign_keys(connection, _):
@@ -87,7 +116,7 @@ class DemoSessions:
                 context = DatabaseContext(engine, sessionmaker(bind=engine, autoflush=False, expire_on_commit=False), directory)
                 if old:
                     self._delete(replace)
-                self.entries[token] = Entry(context, now, now)
+                self.entries[token] = Entry(context, now, now, model=ModelSession(mode=mode, seed=seed))
                 # Bound even the creation-rate bookkeeping under hostile traffic.
                 if key not in self.creations and len(self.creations) >= 1024:
                     self.creations.popitem(last=False)

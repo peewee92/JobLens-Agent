@@ -1,4 +1,6 @@
 """Dedicated deployment entrypoint. Never use this module for private/local mode."""
+import asyncio
+import shutil
 import json
 import os
 from pathlib import Path
@@ -28,9 +30,12 @@ def initialize():
     marker.write_text(json.dumps({'kind': 'joblens-synthetic-demo', 'version': 1, 'status': 'initializing', 'empty': False}))
     # Failure is fatal. Do not serve a partially seeded template.
     subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'], check=True, timeout=120)
+    empty = ROOT / 'empty.db'
+    shutil.copyfile(TEMPLATE / 'demo.db', empty)
+    empty.chmod(0o400)
     subprocess.run([sys.executable, '-m', 'scripts.seed_product_demo'], check=True, timeout=120)
     (TEMPLATE / 'demo.db').chmod(0o400)
-    return DemoSessions(ROOT / 'sessions', TEMPLATE / 'demo.db')
+    return DemoSessions(ROOT / 'sessions', TEMPLATE / 'demo.db', empty_template=empty)
 
 
 class LazySessions:
@@ -42,16 +47,27 @@ class LazySessions:
 
 manager = None
 app = create_public_app(LazySessions(), secret=os.environ.get('JOBLENS_DEMO_PROXY_SECRET', ''),
-                        origin=os.environ.get('JOBLENS_DEMO_FRONTEND_ORIGIN', ''))
+                        origin=os.environ.get('JOBLENS_DEMO_FRONTEND_ORIGIN', ''),
+                        byok_enabled=os.environ.get('JOBLENS_BYOK_ENABLED') == '1')
 
 
 @asynccontextmanager
 async def lifespan(_app):
     global manager
     manager = initialize()
+    async def collect():
+        while True:
+            await asyncio.sleep(30)
+            manager.collect()
+    collector = asyncio.create_task(collect())
     try:
         yield
     finally:
+        collector.cancel()
+        try:
+            await collector
+        except asyncio.CancelledError:
+            pass
         manager.close()
 
 

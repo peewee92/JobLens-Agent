@@ -292,7 +292,8 @@ def get_semantic_matcher() -> AbstractSemanticMatcher:
     # The legacy HTTP paths have no per-request authorization or cost journal.
     # Never let a pre-existing live provider configuration bypass the zero-budget
     # main-flow boundary. Fixture and disabled adapters remain available offline.
-    configured = get_settings()
+    from app.byok.context import model_settings
+    configured = model_settings(get_settings())
     if configured.semantic_match_provider.strip().casefold() == "openai":
         from app.llm.semantic_matchers import AuthorizationRequiredSemanticMatcher
         return AuthorizationRequiredSemanticMatcher()
@@ -1356,12 +1357,14 @@ def get_authorized_requirement_extraction():
     from app.application.job_requirements.authorized import AuthorizedRequirementExtraction
     from app.llm.authorized_requirement_factory import authorized_extractor_factory
     from app.repositories.sqlalchemy_requirement_call import SqlAlchemyRequirementCalls, AuthorizedRequirementUnitOfWork
-    configured = get_settings()
+    from app.byok.context import model_settings
+    from app.byok.calls import transport_factory
+    configured = model_settings(get_settings())
     journal = SqlAlchemyRequirementCalls(session_factory())
     return AuthorizedRequirementExtraction(settings=configured,
         jobs=get_job_query_repository(), requirements=get_job_requirement_query_repository(),
         journal=journal, uow_factory=lambda action_id: AuthorizedRequirementUnitOfWork(session_factory(), action_id),
-        traces=get_trace_uow_factory(), extractor_factory=authorized_extractor_factory(configured, journal))
+        traces=get_trace_uow_factory(), extractor_factory=authorized_extractor_factory(configured, journal, **({"transport_factory": transport_factory()} if transport_factory() else {})))
 
 
 def get_authorized_semantic_match(
@@ -1372,9 +1375,11 @@ def get_authorized_semantic_match(
     from app.application.semantic_match.authorized import AuthorizedSemanticMatch
     from app.llm.authorized_semantic_factory import authorized_semantic_factory
     from app.repositories.sqlalchemy_semantic_call import SqlAlchemySemanticCalls, AuthorizedSemanticUnitOfWork
-    configured = get_settings()
+    from app.byok.context import model_settings
+    from app.byok.calls import transport_factory
+    configured = model_settings(get_settings())
     journal = SqlAlchemySemanticCalls(session_factory())
     return AuthorizedSemanticMatch(settings=configured, eligibility=eligibility, evidence=evidence,
         jobs=jobs, journal=journal,
         uow_factory=lambda action: AuthorizedSemanticUnitOfWork(session_factory(), action),
-        traces=get_trace_uow_factory(), matcher_factory=authorized_semantic_factory(configured, journal))
+        traces=get_trace_uow_factory(), matcher_factory=authorized_semantic_factory(configured, journal, **({"transport_factory": transport_factory()} if transport_factory() else {})))

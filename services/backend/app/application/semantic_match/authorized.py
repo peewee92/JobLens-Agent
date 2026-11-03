@@ -36,7 +36,7 @@ class AuthorizedSemanticMatch:
                     preview.append(dict(requirementId=item.requirement_id, requirementText=item.original_text,
                         candidates=[dict(evidenceId=c.evidence_id, summary=c.summary) for c in selected]))
         s = self.settings
-        snapshot = dict(jobId=job_id, inputHash=sha256((job.description or "").strip().encode()).hexdigest(),
+        snapshot = dict(connectionVersion=getattr(self.settings, "byok_connection_version", ""), jobId=job_id, inputHash=sha256((job.description or "").strip().encode()).hexdigest(),
             availabilityRevision=job.availability_revision, previousExtractionId=eligibility.extraction_id,
             profileId=eligibility.profile_id, profileVersion=eligibility.profile_version,
             searchIntentId=eligibility.search_intent_id, searchIntentVersion=eligibility.search_intent_version,

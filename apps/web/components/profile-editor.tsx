@@ -137,6 +137,7 @@ function initialSkills(profile: UserProfile | null): SkillDraft[] {
 export function ProfileEditor({
   initialProfile,
   initialIntent,
+  byok = false,
   afterProfileSaveHref = null,
   focusEvidenceType = null,
   focusRequirementType = null,
@@ -144,6 +145,7 @@ export function ProfileEditor({
   focusCapability = null,
   focusRequirementText = null,
 }: {
+  byok?: boolean;
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
   afterProfileSaveHref?: string | null;
@@ -690,8 +692,9 @@ export function ProfileEditor({
     <div className="profile-layout">
       <details className="detail-card">
         <summary>可选：从简历整理草稿</summary>
-        <p>不需要先整理简历才能开始。当前此入口仅支持离线替身，不会调用真实模型；你可以直接在下方手动填写并确认。</p>
+        <p>不需要先整理简历才能开始。{byok ? "本次使用你连接的模型，需先查看计划并确认费用；你也可以直接手动填写。" : "当前此入口仅支持离线替身，不会调用真实模型；你可以直接在下方手动填写并确认。"}</p>
         <ResumeProposalPanel
+          byok={byok}
           onProposalReady={handleProposalReady}
           onApply={(proposal) => applyProposal(proposal, "replace")}
           onReviewDraft={focusProfileDraft}
