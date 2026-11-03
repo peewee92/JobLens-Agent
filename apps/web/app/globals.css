@@ -3147,3 +3147,14 @@ h3 {
 .analysis-comparison .panel { min-width: 0; overflow-wrap: anywhere; }
 .analysis-comparison details + details { margin-top: 16px; }
 .analysis-comparison summary { cursor: pointer; }
+
+/* Session-owned model settings and explicit analysis steps. */
+.byok-shell.stack,
+.byok-shell .stack { display: grid; gap: 24px; }
+.byok-shell .stack-sm { display: grid; gap: 14px; }
+.byok-shell .field { display: grid; gap: 8px; color: var(--ink-soft); font-weight: 650; }
+.byok-shell .field:has(input[type="checkbox"]) { display: flex; align-items: flex-start; font-weight: 400; }
+.byok-shell input[type="checkbox"] { width: 18px; min-height: 18px; flex: 0 0 18px; }
+.byok-shell button { justify-self: start; }
+.byok-shell details > .field { margin-top: 14px; }
+.byok-shell textarea { resize: vertical; }

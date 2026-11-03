@@ -20,7 +20,7 @@ function JobCall({job, task}: {job: Job; task: 'requirement' | 'semantic'}) {
       if (!d.available) setMessage(`当前无需或不能调用：${d.blockerCode}。如已满足规则或明确存在硬冲突，无需额外语义调用。`);
     } catch {setMessage('计划读取失败，尚未调用模型。');} finally {setBusy(false);}
   }
-  return <section className="stack-sm"><button disabled={busy} onClick={preview}>查看{task === 'requirement' ? '岗位提取' : '语义匹配'}计划</button>
+  return <section className="stack-sm"><button className="button-secondary" disabled={busy} onClick={preview}>查看{task === 'requirement' ? '岗位提取' : '语义匹配'}计划</button>
     {plan?.available && <AuthorizedModelCall key={plan.planDigest} jobId={job.id} plan={plan} disabled={busy} kind={task}/>}
     {message && <p role="status">{message}</p>}</section>;
 }
@@ -37,14 +37,14 @@ export function ByokJobs({jobs}: {jobs: Job[]}) {
       else {form.reset(); setMessage('已保存岗位原文，尚未调用模型。'); router.refresh();}
     } catch {setMessage('网络中断，请先刷新岗位列表检查，不要重复添加。');} finally {setBusy(false);}
   }
-  return <section className="stack"><h2>第二步：添加并分析岗位</h2>
+  return <section className="byok-shell stack"><h2>第二步：添加并分析岗位</h2>
     <p>先保存并确认背景和求职偏好，再逐个提取岗位要求、核对原文依据并匹配。最多保存 5 个岗位，每次明确授权仅允许一次模型请求。</p>
     <form className="panel stack-sm" onSubmit={add}>
-      <label>岗位名称<input required name="title" maxLength={255}/></label><label>公司<input required name="company" maxLength={255}/></label>
-      <label>岗位正文<textarea required name="description" minLength={40} maxLength={12000} rows={8}/></label>
-      <button disabled={busy || jobs.length >= 5}>保存岗位（不调用模型）</button>
+      <label className="field">岗位名称<input required name="title" maxLength={255}/></label><label className="field">公司<input required name="company" maxLength={255}/></label>
+      <label className="field">岗位正文<textarea required name="description" minLength={40} maxLength={12000} rows={8}/></label>
+      <button className="button-secondary" disabled={busy || jobs.length >= 5}>保存岗位（不调用模型）</button>
     </form>{message && <p role="status">{message}</p>}
-    {jobs.map(job => <article className="card stack-sm" key={job.id}><h3>{job.title} · {job.company}</h3>
+    {jobs.map(job => <article className="detail-card stack-sm" key={job.id}><h3>{job.title} · {job.company}</h3>
       <JobCall job={job} task="requirement"/><Link href={`/jobs/${encodeURIComponent(job.id)}`}>查看岗位原文、提取依据与匹配报告</Link>
       <JobCall job={job} task="semantic"/>
     </article>)}
