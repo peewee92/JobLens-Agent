@@ -80,7 +80,7 @@ def plan(kind, text=''):
                    maxProviderCalls=1, maxOutputTokens=4096 if kind == 'profile' else 256, timeoutSeconds=60)
     digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     with s.lock:
-        if len(s.plans) >= 100:
+        if len(s.plans) >= 20:
             s.plans.pop(next(iter(s.plans)))
         s.plans[digest] = (payload, text)
     return dict(payload, planDigest=digest, cost='unknown', inputCharacters=len(text))
@@ -131,7 +131,7 @@ def execute(kind, command):
         stored = s.plans.get(command.planDigest)
         if not stored or stored[0]['version'] != s.version or stored[0]['kind'] != kind:
             raise DemoError('model_plan_stale', 409, '配置或输入已变化，请重新查看调用计划。')
-        if len(s.calls) >= 100:
+        if len(s.calls) >= 20:
             raise DemoError('call_limit', 429, '会话调用记录已达上限，请导出资料后重新开始。')
         p, text = stored
         record = dict(kind=kind, actionId=command.actionId, status='running', model=p['model'], connectionVersion=s.version,

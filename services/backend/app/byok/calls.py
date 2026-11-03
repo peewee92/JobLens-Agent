@@ -11,6 +11,8 @@ slots = BoundedSemaphore(2)
 @contextmanager
 def execution(state):
     with state.lock:
+        if state.sends >= 20:
+            raise DemoError('model_session_call_limit', 429, '当前临时会话已达二十次请求上限，请导出资料。')
         if state.busy:
             raise DemoError('model_busy', 409, '当前模型操作尚未结束。')
         if not state.connection:
@@ -35,6 +37,8 @@ class OnceTransport(httpx.BaseTransport):
         if self.sent or not self.state.busy:
             raise httpx.TransportError('模型请求未获授权或已发送，禁止自动重试')
         self.sent = True
+        with self.state.lock:
+            self.state.sends += 1
         response = self.inner.handle_request(request)
         # Even an untrusted compatible service must not echo its received credential into a trace.
         response.read()

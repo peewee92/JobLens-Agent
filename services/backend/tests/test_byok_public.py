@@ -263,3 +263,11 @@ def test_block_redirect_and_echoed_key(setup_byok):
     from pathlib import Path
     contract=json.loads((Path(__file__).parents[3]/'packages/contracts/schemas/byok-connection.schema.json').read_text())
     assert contract['properties']==ConnectionInput.model_json_schema()['properties']
+
+def test_session_dispatch_cap_blocks_before_send(setup_byok):
+    c,m,_,sent,_=setup_byok;a=start(c);connect(c,a);p=command(c,a)
+    m.state(a).sends=20
+    r=c.post('/api/v1/model-connection/test',headers=headers(a),json=p)
+    assert r.status_code==429 and not sent
+    assert c.get('/api/v1/model-connection',headers=headers(a)).status_code==200
+    assert c.get('/api/v1/session-export',headers=headers(a)).status_code==200

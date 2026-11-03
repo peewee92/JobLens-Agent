@@ -14,6 +14,7 @@ import time
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from app.db.context import DatabaseContext
 from app.byok.context import ModelSession
 
@@ -109,7 +110,7 @@ class DemoSessions:
                                 connection.execute('DELETE FROM "' + name.replace('"', '""') + '"')
                         if list(connection.execute('PRAGMA foreign_key_check')):
                             raise RuntimeError('样本输入存在未保留的依赖')
-                engine = create_engine(f'sqlite:///{directory / "demo.db"}', connect_args={'check_same_thread': False}, pool_pre_ping=True)
+                engine = create_engine(f'sqlite:///{directory / "demo.db"}', connect_args={'check_same_thread': False}, pool_pre_ping=True, poolclass=NullPool)
                 @event.listens_for(engine, 'connect')
                 def foreign_keys(connection, _):
                     connection.execute('PRAGMA foreign_keys=ON')

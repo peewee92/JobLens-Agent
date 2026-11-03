@@ -54,13 +54,17 @@ class PublicTransport(httpx.HTTPTransport):
     def handle_request(self, request):
         if request.url.scheme != 'https' or request.url.port not in (None, 443):
             raise httpx.ConnectError('模型目标被拒绝')
+        request.headers['Accept-Encoding'] = 'identity'
         response = super().handle_request(request)
+        if response.headers.get('content-encoding', 'identity').lower() != 'identity':
+            response.close()
+            raise httpx.ReadError('模型服务必须返回未压缩 JSON')
         # Bound untrusted provider output, including error bodies.
         data = bytearray()
         try:
             for chunk in response.iter_bytes():
                 data.extend(chunk)
-                if len(data) > 2_000_000:
+                if len(data) > 262144:
                     raise httpx.ReadError('模型响应超过上限')
         finally:
             response.close()

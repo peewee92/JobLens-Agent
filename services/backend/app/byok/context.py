@@ -1,7 +1,7 @@
 """Request-local model configuration; credentials never enter persistent state."""
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from threading import Lock
+from threading import RLock
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from app.core.config import get_settings
 
@@ -25,7 +25,8 @@ class ModelSession:
     version: int = 0
     busy: bool = False
     importing: bool = False
-    lock: Lock = field(default_factory=Lock, repr=False)
+    sends: int = 0
+    lock: RLock = field(default_factory=RLock, repr=False)
     # Short-lived plans and results. No provider response body/exception text is recorded.
     plans: dict = field(default_factory=dict, repr=False)
     calls: dict = field(default_factory=dict, repr=False)
@@ -37,16 +38,17 @@ def model_settings(base=None):
     state = current_model.get()
     if state is None or state.mode != 'byok':
         return base
-    c = state.connection
-    values = dict(openai_api_key=c.apiKey.get_secret_value() if c else '',
-                  openai_base_url=c.baseUrl if c else 'https://unconfigured.invalid/v1',
-                  byok_connection_version=str(state.version),
-                  requirement_extractor_fallback_provider='disabled', career_intent_provider='disabled')
-    for task, model in [('profile_extractor', c.profileModel if c else None),
-                        ('requirement_extractor', c.requirementModel if c else None),
-                        ('semantic_match', c.semanticModel if c else None)]:
-        values.update({f'{task}_provider': 'openai', f'{task}_model': model or (c.model if c else ''),
-                       f'{task}_api_style': c.apiStyle if c else 'chat_completions',
-                       f'{task}_enable_thinking': c.enableThinking if c else None, f'{task}_max_completion_tokens': 4096,
-                       f'{task}_timeout_seconds': 60.})
-    return base.model_copy(update=values)
+    with state.lock:
+        c = state.connection
+        values = dict(openai_api_key=c.apiKey.get_secret_value() if c else '',
+                      openai_base_url=c.baseUrl if c else 'https://unconfigured.invalid/v1',
+                      byok_connection_version=str(state.version),
+                      requirement_extractor_fallback_provider='disabled', career_intent_provider='disabled')
+        for task, model in [('profile_extractor', c.profileModel if c else None),
+                            ('requirement_extractor', c.requirementModel if c else None),
+                            ('semantic_match', c.semanticModel if c else None)]:
+            values.update({f'{task}_provider': 'openai', f'{task}_model': model or (c.model if c else ''),
+                           f'{task}_api_style': c.apiStyle if c else 'chat_completions',
+                           f'{task}_enable_thinking': c.enableThinking if c else None, f'{task}_max_completion_tokens': 4096,
+                           f'{task}_timeout_seconds': 60.})
+        return base.model_copy(update=values)
