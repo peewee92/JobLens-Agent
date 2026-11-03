@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "resumeText": {
+      "maxLength": 12000,
+      "minLength": 50,
+      "title": "Resumetext",
+      "type": "string"
+    }
+  },
+  "required": [
+    "resumeText"
+  ],
+  "title": "ProfilePlanInput",
+  "type": "object"
+}

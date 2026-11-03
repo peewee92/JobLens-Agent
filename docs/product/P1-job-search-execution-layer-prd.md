@@ -1,8 +1,8 @@
 # P1 Job Search Execution Layer 产品需求文档
 
-- 状态：Planned / vNext 1.2
+- 状态：Active Engineering / vNext 1.2
 - 对应缺口：**4. 真正的“求职执行层”**
-- 前置条件：vNext 1.0 Agent Runtime 完成；vNext 1.1 Natural Language + Bounded Tool Loop 基本稳定
+- 前置条件：vNext 1.0 Agent Runtime 已完成；vNext 1.1 Core Engineering 已完成。v1.1 真实 Provider 模型质量门仍属于独立 Release Promotion HUMAN_GATE，但不阻塞本阶段可离线验证、无外部副作用的工程开发
 - 核心目标：把 JobLens 从“分析和建议系统”推进为“可执行的求职准备工作台”，让 Ranking / Gap / Preparation 的结果能落到 Resume、面试、学习、Evidence 和 Application 状态上
 - 明确边界：第一阶段**不自动投递、不自动联系招聘者**；所有影响用户职业事实或外部世界的动作必须经过人工确认
 - 关联 Runtime PRD：`docs/product/P1-career-agent-langgraph-vnext.md`
@@ -111,6 +111,8 @@ profile_id + version
 
 # 5. Application Workspace
 
+> 工程状态（2026-09-27）：A1 第一纵向切片已落地。Backend 提供 `POST /api/v1/application-workspaces` 与 `GET /api/v1/application-workspaces/{workspace_id}`；创建前只读取已经 released 的 Requirement、current Profile/SearchIntent 与 current MatchReport，任一事实不 ready 或 Match 身份 stale 都 fail-closed，不触发 Provider。创建请求显式携带 actor 与 idempotency key，并冻结 source snapshot + current fact fingerprint；同一 actor/idempotency key 重放返回原 Workspace，冲突 Job 拒绝。持久化采用 additive `application_workspaces` migration，尚未自动迁移用户真实数据库。
+
 ## 5.1 目标
 
 为一个岗位建立单一执行上下文。
@@ -171,6 +173,8 @@ Application Status
 ---
 
 # 6. Resume Variant
+
+> 工程状态（2026-09-27）：A3 provenance + human review lifecycle 已落地。Workspace 可通过只读 Preparation / Resume Delta 生成 grounded Resume Variant Proposal；只有同时带 `Requirement ID + confirmed Evidence ID` 的 highlight 才能进入可保存内容，missing / unevidenced gap 仅作为 unresolved requirement 返回，禁止伪装成用户经历。Proposal 会与 Workspace 冻结的 Profile version / Requirement Extraction 做 stale 校验；用户显式保存时携带 actor + idempotency key，先形成 `draft` Variant，系统不得自我批准；只有同一 actor 再显式调用 `POST /api/v1/application-workspaces/{workspace_id}/resume-variants/{variant_id}/review` 才转为 `reviewed`，重复 review 幂等、跨 actor review fail-closed。Engineering Complete 审计进一步关闭了 draft → review 的 stale 漏洞：首次人工审核前必须重新读取 current Preparation facts，并再次核对 Profile identity/version 与 Requirement Extraction；事实已变化时在状态写入前 fail-closed，旧 draft 不能静默升级为 reviewed。全程 Provider calls=0，不自动写回 Profile。当前完成的是 provenance-safe 结构化内容与审核状态闭环；自由文案编辑仍不得绕过 Evidence provenance。
 
 ## 6.1 目标
 
@@ -236,6 +240,8 @@ Job Requirement ID(s)
 
 # 7. Interview / Mock
 
+> 工程状态（2026-09-27）：A4 第一纵向切片已落地。Application Workspace 可直接复用 released Requirement + current Interview Facts 生成确定性练习问题集，不重新读取 raw JD、不调用 Provider；每道题只暴露该 Requirement 已确认的 Evidence ID。用户提交回答时显式附带自己实际使用的 Evidence ID，Review 只接受属于该 Requirement 的 confirmed Evidence，跨 Requirement / 不存在的 Evidence 会标记为 ungrounded 并要求 Retry。当前 Review 有意不对自由文本做“语义打分”，因此不会伪造 STAR 完整度、事实一致性或录用概率；后续若引入模型反馈，必须继续受 Provider/Human Gate 与 provenance 约束。
+
 ## 7.1 目标
 
 把当前 Interview Facts 从“准备项列表”升级为可执行练习。
@@ -297,6 +303,8 @@ Evidence 覆盖
 
 # 8. Study / Evidence Action
 
+> 工程状态（2026-09-27）：A5 第一纵向切片已落地。Application Workspace 可把当前 Job Preparation 的 Study Checklist 物化为可持久化 Execution Action，保留 Requirement ID、capability 与 completion criteria；用户可显式推进 `todo → in_progress → done / skipped`，并通过 expected status 防止 stale 覆盖。`done` 只记录行动完成，不自动创建 Profile Evidence、不改变 Match / Ranking，也不触发 Provider；新的真实职业事实必须进入 A6 Evidence Proposal → Human Confirm 边界。
+
 ## 8.1 目标
 
 把 Skill Gap / Study Checklist 转成可跟踪 Action Item。
@@ -340,6 +348,8 @@ ExecutionActionItem
 
 > 用户完成了行动。
 
+> 工程状态（2026-09-27）：A6 Human Confirm + zero-provider explicit Re-match 已落地。只有 `done` 且带真实 Requirement + capability 来源的 Action 才允许创建 Evidence Proposal；Proposal 中的 Evidence 类型、摘要、来源和 Skill Level 必须由用户显式提供，系统不从“行动完成”推断职业事实。Proposal 初始状态固定为 `pending_confirmation`，冻结 source Profile identity/version，并支持 actor + idempotency。用户随后必须以同一 actor 显式 Confirm；确认前重新校验 current Profile identity/version，stale 时 fail-closed。确认成功才通过既有 `SaveProfileUseCase` 生成新的 immutable Profile version，并在 Proposal 上记录 confirmed Profile identity/version/time；重复确认幂等。Engineering Complete 审计进一步补齐 Timeline 审计链：确认成功或确认请求重放都会确保唯一 `evidence_confirmed` Event 存在，不会因为重试重复记账。确认后可由用户显式触发 Workspace Re-match：执行前先复用 Eligibility + Evidence Retrieval 判断现有 Semantic Match 是否需要 Provider；若存在需要语义判断的候选证据，自动路径在任何 Match 写入前以 `application_rematch_provider_required` fail-closed。只有整次 Match 可证明 Provider calls=0 时才生成新的 immutable MatchReport，并复用 Match Improvement 输出前后 Recommendation、resolved Requirement、此次 Evidence 目标 Requirement 是否真正解除，以及 `improved / unchanged / weakened` Ranking signal；同时写入 `rematch_completed` Timeline Event，Recommendation 发生真实变化时再幂等补充 `ranking_changed` Event。自动任务不会把“可能改善”伪造成 Match 结果，也不会继承任何 live-cost 授权。
+
 不等于：
 
 > Profile 已确认该能力。
@@ -357,6 +367,8 @@ Action Complete
 ---
 
 # 9. Application Status / Timeline
+
+> 工程状态（2026-09-27）：A2 第一纵向切片已落地。用户可通过显式 actor + idempotency key + expected status 更新 Workspace 状态，stale expected status 会以 conflict fail-closed；每次成功变更生成不可变 `status_changed` Timeline Event，可按 Workspace 读取。第一阶段仍不允许 Agent 根据聊天自动写状态，也未接入任何外部招聘网站事件。
 
 ## 9.1 目标
 
@@ -588,6 +600,8 @@ Tabs / Sections
 
 # 16. Eval
 
+> 工程状态（2026-09-28）：vNext 1.2 固定上限确定性 Release Gate 已落地并实跑 `80/80`：Resume Grounding `30`、Interview `30`、Execution State `20`。Gate 直接驱动真实 Application Workspace Use Case，不调用 Provider、不扩展模型质量 Dataset；覆盖 provenance、unevidenced Requirement 隔离、stale Profile fail-closed、跨岗位/虚构 Evidence 拒绝、用户显式状态写入、actor 边界、幂等、stale expected status 与 idempotency conflict。Backend 全量回归 `1387 passed`，compileall 与 diff-check 通过。
+
 ### 16.1 Resume Grounding Eval
 
 至少 30 Case：
@@ -619,6 +633,8 @@ Tabs / Sections
 ---
 
 # 17. Release Gate
+
+> 工程状态（2026-09-27）：`proposal → confirm → write` 已具备独立只读审计重建能力。`GET /api/v1/application-workspaces/{workspace_id}/evidence-proposals/{proposal_id}/audit` 只读取持久化 Evidence Proposal 与不可变 Timeline，不触发 Provider 或业务写入；只有 Proposal 已记录 confirmed Profile identity/version/time，且存在唯一 `evidence_confirmed` Human Confirmation Event 时才报告完整链路。confirmed Proposal 缺确认事件、重复冲突事件等不一致状态 fail-closed，不能把“Action done”或单一状态字段伪装成完整 Trace。
 
 vNext 1.2 第一阶段发布门槛：
 
@@ -683,15 +699,15 @@ vNext 1.2 第一阶段发布门槛：
 
 # 20. DoD
 
-- [ ] Application Workspace；
-- [ ] Resume Variant + provenance；
-- [ ] Interview / Mock；
-- [ ] Execution ActionItem；
-- [ ] Application Status / Timeline；
-- [ ] Human Gate for writes；
-- [ ] stale source protection；
-- [ ] Growth Loop 回流；
-- [ ] Resume / Interview / State Eval；
-- [ ] Web 工作台；
-- [ ] Trace；
-- [ ] 不自动投递、不自动联系招聘者。
+- [x] Application Workspace；
+- [x] Resume Variant + provenance；
+- [x] Interview / Mock；
+- [x] Execution ActionItem；
+- [x] Application Status / Timeline；
+- [x] Human Gate for writes；
+- [x] stale source protection；
+- [x] Growth Loop 回流；
+- [x] Resume / Interview / State Eval（固定上限：30 / 30 / 20；确定性 Gate 80/80 通过，Provider calls=0）；
+- [x] Web 工作台；
+- [x] Trace（Evidence Proposal → Human Confirm → Profile Write 可只读重建且不一致状态 fail-closed）；
+- [x] 不自动投递、不自动联系招聘者。

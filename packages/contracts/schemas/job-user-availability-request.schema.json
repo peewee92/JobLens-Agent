@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/job-user-availability-request.schema.json",
+  "title": "Set job user availability",
+  "type": "object",
+  "required": ["userMarkedInactive", "expectedRevision"],
+  "properties": {
+    "userMarkedInactive": {"type": "boolean"},
+    "expectedRevision": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

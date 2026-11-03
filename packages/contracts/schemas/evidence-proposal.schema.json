@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/evidence-proposal.schema.json",
+  "properties": {
+    "proposalId": {
+      "title": "Proposalid",
+      "type": "string"
+    },
+    "workspaceId": {
+      "title": "Workspaceid",
+      "type": "string"
+    },
+    "actionId": {
+      "title": "Actionid",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "sourceRequirementIds": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sourcerequirementids",
+      "type": "array"
+    },
+    "capability": {
+      "title": "Capability",
+      "type": "string"
+    },
+    "evidenceType": {
+      "title": "Evidencetype",
+      "type": "string"
+    },
+    "evidenceSummary": {
+      "title": "Evidencesummary",
+      "type": "string"
+    },
+    "evidenceSource": {
+      "title": "Evidencesource",
+      "type": "string"
+    },
+    "skillLevel": {
+      "title": "Skilllevel",
+      "type": "string"
+    },
+    "sourceProfileId": {
+      "title": "Sourceprofileid",
+      "type": "string"
+    },
+    "sourceProfileVersion": {
+      "title": "Sourceprofileversion",
+      "type": "integer"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "confirmedProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmedprofileid"
+    },
+    "confirmedProfileVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmedprofileversion"
+    },
+    "confirmedAt": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmedat"
+    },
+    "sourceAnalysisThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourceanalysisthreadid"
+    },
+    "sourceAnalysisResultId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourceanalysisresultid"
+    },
+    "sourceRequirementExtractionId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourcerequirementextractionid"
+    },
+    "confirmationBaseProfileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmationbaseprofileid"
+    },
+    "confirmationBaseProfileVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confirmationbaseprofileversion"
+    },
+    "originProposalId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Originproposalid"
+    }
+  },
+  "required": [
+    "proposalId",
+    "workspaceId",
+    "actionId",
+    "status",
+    "sourceRequirementIds",
+    "capability",
+    "evidenceType",
+    "evidenceSummary",
+    "evidenceSource",
+    "skillLevel",
+    "sourceProfileId",
+    "sourceProfileVersion",
+    "createdAt"
+  ],
+  "title": "EvidenceProposalResponse",
+  "type": "object"
+}

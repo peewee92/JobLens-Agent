@@ -8,6 +8,10 @@ class SemanticMatcherUnavailableError(RuntimeError):
         self.run_id = run_id
 
 
+class SemanticModelAuthorizationRequiredError(SemanticMatcherUnavailableError):
+    """This HTTP operation has no authorized live-model budget."""
+
+
 class SemanticMatcherFailedError(RuntimeError):
     def __init__(self, message: str, *, run_id: str | None = None) -> None:
         super().__init__(message)

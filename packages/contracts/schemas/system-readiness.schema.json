@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/system-readiness.schema.json",
+  "title": "SystemReadiness",
+  "description": "Read-only GET /api/v1/readiness. HTTP 200 when ready, otherwise 503; no migrations or model calls.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ready", "code", "checks", "currentRevisions", "requiredRevisions", "missingTables"],
+  "properties": {
+    "ready": {"type": "boolean"},
+    "code": {"enum": ["ready", "database_unavailable", "migration_required", "schema_incomplete", "migration_metadata_unavailable"]},
+    "checks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["database", "migrations", "tables"],
+      "properties": {
+        "database": {"$ref": "#/$defs/check"},
+        "migrations": {"$ref": "#/$defs/check"},
+        "tables": {"$ref": "#/$defs/check"}
+      }
+    },
+    "currentRevisions": {"type": "array", "items": {"type": "string"}},
+    "requiredRevisions": {"type": "array", "items": {"type": "string"}},
+    "missingTables": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {"check": {"enum": ["passed", "failed", "unknown"]}},
+  "allOf": [{
+    "if": {"properties": {"ready": {"const": true}}},
+    "then": {"properties": {"code": {"const": "ready"}, "checks": {"properties": {"database": {"const": "passed"}, "migrations": {"const": "passed"}, "tables": {"const": "passed"}}}, "missingTables": {"maxItems": 0}}},
+    "else": {"properties": {"code": {"not": {"const": "ready"}}}}
+  }]
+}

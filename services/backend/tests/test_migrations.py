@@ -64,17 +64,24 @@ REQUIREMENT_ACCEPTANCE_TABLES = (
 )
 MATCH_REPORT_TABLES = {"match_reports"}
 USER_FEEDBACK_TABLES = {"user_feedback"}
+APPLICATION_WORKSPACE_TABLES = {"application_workspaces", "application_timeline_events", "resume_variants", "execution_action_items", "evidence_proposals", "analysis_execution_receipts"}
+RESUME_VARIANT_TABLES = {"resume_variants"}
+CAREER_AGENT_RUNTIME_TABLES = {"career_agent_runs", "career_agent_run_events"}
 EXPECTED_TABLES = (
     JOB_TABLES
     | CAREER_CONTEXT_TABLES
     | TRACE_TABLES
     | PROFILE_EVAL_TABLES
     | JOB_REQUIREMENT_TABLES
+    | {"job_requirement_confirmations", "requirement_calls", "semantic_calls"}
     | REQUIREMENT_EVAL_TABLES
     | REQUIREMENT_REVIEW_TABLES
     | REQUIREMENT_ACCEPTANCE_TABLES
     | MATCH_REPORT_TABLES
     | USER_FEEDBACK_TABLES
+    | APPLICATION_WORKSPACE_TABLES
+    | RESUME_VARIANT_TABLES
+    | CAREER_AGENT_RUNTIME_TABLES
 )
 
 
@@ -91,6 +98,37 @@ def _run_alembic(database_url: str, *args: str) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_manual_source_migration_keeps_existing_jobs_and_foreign_keys(tmp_path: Path):
+    import json
+    from sqlalchemy import text
+    from sqlalchemy.orm import sessionmaker
+    from app.application.job_imports import ImportJobsUseCase
+    from app.application.job_imports.manual import ManualJobInput
+    from app.repositories import SqlAlchemyUnitOfWork
+
+    database_url = f"sqlite:///{tmp_path / 'manual-paste.db'}"
+    _run_alembic(database_url, "upgrade", "20261029_0030")
+    engine = create_engine(database_url)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    use_case = ImportJobsUseCase(lambda: SqlAlchemyUnitOfWork(factory))
+    sample = Path(__file__).resolve().parents[3] / "data/samples/collector-report-minimal.json"
+    imported = use_case.execute(json.loads(sample.read_text()))
+    with engine.connect() as connection:
+        original = connection.execute(text("SELECT id, source_url, normalized_source_url FROM job_sources")).all()
+    _run_alembic(database_url, "upgrade", "head")
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT id, source_url, normalized_source_url FROM job_sources")).all() == original
+        assert connection.execute(text("SELECT COUNT(*) FROM job_import_items WHERE import_id=:id"), {"id": imported.import_id}).scalar_one() == 1
+        assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
+    for company in ("公司甲", "公司乙"):
+        result = use_case.execute_manual(ManualJobInput(title="工程师", company=company, description="真实岗位要求"))
+        assert result.created == 1
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT COUNT(*) FROM job_sources WHERE normalized_source_url IS NULL")).scalar_one() == 2
+        assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
+    engine.dispose()
 
 
 def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
@@ -404,6 +442,10 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - {"job_requirement_confirmations", "requirement_calls", "semantic_calls"}
+        - CAREER_AGENT_RUNTIME_TABLES
+        - APPLICATION_WORKSPACE_TABLES
+        - RESUME_VARIANT_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_REVIEW_FINAL_DECISION_TABLES
@@ -422,6 +464,9 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     inspector = inspect(engine)
     assert set(inspector.get_table_names()) == (
         EXPECTED_TABLES
+        - {"job_requirement_confirmations", "requirement_calls", "semantic_calls"}
+        - CAREER_AGENT_RUNTIME_TABLES
+        - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
@@ -444,6 +489,9 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     assert "description_snapshot" not in downgraded_columns
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - {"job_requirement_confirmations", "requirement_calls", "semantic_calls"}
+        - CAREER_AGENT_RUNTIME_TABLES
+        - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
@@ -466,6 +514,9 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
     engine = create_engine(database_url)
     assert set(inspect(engine).get_table_names()) == (
         EXPECTED_TABLES
+        - {"job_requirement_confirmations", "requirement_calls", "semantic_calls"}
+        - CAREER_AGENT_RUNTIME_TABLES
+        - APPLICATION_WORKSPACE_TABLES
         - USER_FEEDBACK_TABLES
         - MATCH_REPORT_TABLES
         - REQUIREMENT_ACCEPTANCE_LEASE_TABLES
@@ -567,4 +618,70 @@ def test_first_business_migration_up_and_down(tmp_path: Path) -> None:
 
     engine = create_engine(database_url)
     assert inspect(engine).get_table_names() == ["alembic_version"]
+    engine.dispose()
+
+
+def test_import_observation_snapshot_migration_keeps_old_rows_unknown(tmp_path: Path) -> None:
+    from sqlalchemy import text
+
+    database_url = f"sqlite:///{tmp_path / 'import-snapshot.db'}"
+    _run_alembic(database_url, 'upgrade', '20261025_0027')
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("""INSERT INTO job_imports
+            (id, source_version, received, created, updated, skipped, errors, search_intent_snapshot, source_snapshot, created_at)
+            VALUES ('old_import', '1.3.1', 1, 1, 0, 0, '[]', '{}', '{}', '2026-01-01')"""))
+        connection.execute(text("""INSERT INTO job_import_items
+            (id, import_id, input_index, outcome, created_at)
+            VALUES ('old_item', 'old_import', 0, 'created', '2026-01-01')"""))
+    _run_alembic(database_url, 'upgrade', 'head')
+    with engine.connect() as connection:
+        row = connection.execute(text("SELECT id, source_raw_snapshot FROM job_import_items WHERE id='old_item'")).one()
+        assert tuple(row) == ('old_item', None)
+    _run_alembic(database_url, 'downgrade', '20261025_0027')
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM job_import_items WHERE id='old_item'")).scalar_one() == 1
+    assert 'source_raw_snapshot' not in {c['name'] for c in inspect(engine).get_columns('job_import_items')}
+    engine.dispose()
+
+
+def test_user_availability_migration_preserves_existing_job(tmp_path: Path) -> None:
+    from sqlalchemy import text
+    database_url = f"sqlite:///{tmp_path / 'job-availability.db'}"
+    _run_alembic(database_url, 'upgrade', '20261028_0028')
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("""INSERT INTO jobs (id, canonical_key, canonical_key_version, title, company, skills,
+            remote_status, remote_confidence, created_at, updated_at)
+            VALUES ('old_job', 'v1:old', 'v1', 'Old', 'Example', '[]', 'unknown', 'low', '2026-01-01', '2026-01-01')"""))
+    _run_alembic(database_url, 'upgrade', 'head')
+    with engine.connect() as connection:
+        assert tuple(connection.execute(text("SELECT title, user_marked_inactive, availability_revision FROM jobs WHERE id='old_job'")).one()) == ('Old', 0, 0)
+    _run_alembic(database_url, 'downgrade', '20261028_0028')
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT title FROM jobs WHERE id='old_job'")).scalar_one() == 'Old'
+    engine.dispose()
+
+
+def test_requirement_review_evidence_migration_preserves_legacy_decision(tmp_path: Path) -> None:
+    from sqlalchemy import text
+    database_url = f"sqlite:///{tmp_path / 'review-evidence.db'}"
+    _run_alembic(database_url, 'upgrade', '20261029_0029')
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(text("""INSERT INTO requirement_review_batches
+            (id, title, reviewer, provider, model, extractor_version, prompt_version, sample_size, created_at)
+            VALUES ('old_batch', 'Old batch', 'reviewer', 'openai', 'model', 'v1', 'p1', 1, '2026-01-01')"""))
+        connection.execute(text("""INSERT INTO requirement_review_batch_final_decisions
+            (id, batch_id, decision, reviewer, notes, sample_size, reviewed_count, accepted_count, rejected_count,
+             stale_case_count, issue_code_counts, evidence_fingerprint, decided_at)
+            VALUES ('old_decision', 'old_batch', 'accept_for_match', 'reviewer', 'old decision', 1, 1, 1, 0,
+             0, '{}', :fingerprint, '2026-01-01')"""), {'fingerprint': 'a' * 64})
+    _run_alembic(database_url, 'upgrade', 'head')
+    with engine.connect() as connection:
+        row = connection.execute(text('SELECT notes, evidence_fingerprint, evidence_snapshot, evidence_snapshot_sha256 FROM requirement_review_batch_final_decisions WHERE id=:id'), {'id': 'old_decision'}).one()
+        assert tuple(row) == ('old decision', 'a' * 64, None, None)
+    _run_alembic(database_url, 'downgrade', '20261029_0029')
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT notes FROM requirement_review_batch_final_decisions WHERE id='old_decision'")).scalar_one() == 'old decision'
     engine.dispose()

@@ -33,7 +33,7 @@ def test_batch_execute_runs_only_ready_jobs_and_preserves_plan_blockers() -> Non
     runner = Mock()
     runner.execute.return_value = SimpleNamespace(db_writes=1, provider_calls=1, trace_runs_created=1)
 
-    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a", "job_b", "job_c"), max_ready_jobs=10)
+    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a", "job_b", "job_c"), max_ready_jobs=5)
 
     runner.execute.assert_called_once_with("job_a")
     assert tuple(item.status for item in result.items) == (
@@ -56,13 +56,13 @@ def test_batch_execute_hard_limits_ready_work_and_marks_remainder_deferred() -> 
     runner = Mock()
     runner.execute.return_value = SimpleNamespace(db_writes=1, provider_calls=1, trace_runs_created=1)
 
-    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(tuple(f"job_{index}" for index in range(12)), max_ready_jobs=10)
+    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(tuple(f"job_{index}" for index in range(12)), max_ready_jobs=5)
 
-    assert runner.execute.call_count == 10
-    assert result.succeeded_count == 10
-    assert result.deferred_count == 2
-    assert result.provider_calls == 10
-    assert all(item.status is BatchMatchExecutionStatus.DEFERRED_LIMIT for item in result.items[-2:])
+    assert runner.execute.call_count == 5
+    assert result.succeeded_count == 5
+    assert result.deferred_count == 7
+    assert result.provider_calls == 5
+    assert all(item.status is BatchMatchExecutionStatus.DEFERRED_LIMIT for item in result.items[-7:])
 
 
 def test_batch_execute_isolates_one_job_failure_and_continues_within_bound() -> None:
@@ -74,7 +74,7 @@ def test_batch_execute_isolates_one_job_failure_and_continues_within_bound() -> 
     runner = Mock()
     runner.execute.side_effect = [RuntimeError("provider failed"), SimpleNamespace(db_writes=1, provider_calls=0, trace_runs_created=0)]
 
-    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a", "job_b"), max_ready_jobs=10)
+    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a", "job_b"), max_ready_jobs=5)
 
     assert result.items[0].status is BatchMatchExecutionStatus.FAILED
     assert result.items[0].error_code == "match_execution_failed"
@@ -94,13 +94,13 @@ def test_batch_execute_exposes_exact_resume_set_for_fifty_job_batch() -> None:
 
     result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(
         tuple(f"job_{index}" for index in range(50)),
-        max_ready_jobs=10,
+        max_ready_jobs=5,
     )
 
-    assert runner.execute.call_count == 10
+    assert runner.execute.call_count == 5
     assert result.total == 50
     assert result.execution_complete is False
-    assert result.resume_job_ids == tuple(f"job_{index}" for index in range(10, 50))
+    assert result.resume_job_ids == tuple(f"job_{index}" for index in range(5, 50))
 
 
 def test_batch_execute_can_finish_fifty_jobs_over_explicit_safe_resume_rounds() -> None:
@@ -119,11 +119,11 @@ def test_batch_execute_can_finish_fifty_jobs_over_explicit_safe_resume_rounds() 
     pending = tuple(f"job_{index}" for index in range(50))
     rounds = 0
     while pending:
-        result = use_case.execute(pending, max_ready_jobs=10)
+        result = use_case.execute(pending, max_ready_jobs=5)
         rounds += 1
         pending = result.resume_job_ids
 
-    assert rounds == 5
+    assert rounds == 10
     assert runner.execute.call_count == 50
     assert result.execution_complete is True
     assert result.resume_job_ids == ()
@@ -136,7 +136,7 @@ def test_batch_execute_rejects_more_than_fifty_jobs_before_planning() -> None:
     try:
         ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(
             tuple(f"job_{index}" for index in range(51)),
-            max_ready_jobs=10,
+            max_ready_jobs=5,
         )
     except ValueError as error:
         assert "at most 50" in str(error)
@@ -147,16 +147,34 @@ def test_batch_execute_rejects_more_than_fifty_jobs_before_planning() -> None:
     runner.execute.assert_not_called()
 
 
-def test_batch_execute_rejects_bounds_above_ten_before_planning() -> None:
+def test_batch_execute_rejects_bounds_above_five_before_planning() -> None:
     planner = Mock()
     runner = Mock()
 
     try:
-        ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a",), max_ready_jobs=11)
+        ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a",), max_ready_jobs=6)
     except ValueError as error:
-        assert "between 1 and 10" in str(error)
+        assert "between 1 and 5" in str(error)
     else:
         raise AssertionError("expected ValueError")
 
     planner.execute.assert_not_called()
     runner.execute.assert_not_called()
+
+
+def test_authorization_block_is_explained_and_preserves_other_successes():
+    from app.application.semantic_match.errors import SemanticModelAuthorizationRequiredError
+    planner = Mock()
+    planner.execute.return_value = _plan(
+        BatchMatchPlanItem("job_a", BatchMatchPlanStatus.READY, ()),
+        BatchMatchPlanItem("job_b", BatchMatchPlanStatus.READY, ()),
+    )
+    runner = Mock()
+    runner.execute.side_effect = [SemanticModelAuthorizationRequiredError("not authorized", run_id="trace"),
+                                  SimpleNamespace(db_writes=1, provider_calls=0, trace_runs_created=0)]
+    result = ExecuteBatchMatchUseCase(planner=planner, report_runner=runner).execute(("job_a", "job_b"))
+    assert result.items[0].error_code == "semantic_model_authorization_required"
+    assert result.items[1].status is BatchMatchExecutionStatus.SUCCEEDED
+    assert result.provider_calls == 0
+    assert result.trace_runs_created == 1
+    assert result.side_effect_counts_complete is True

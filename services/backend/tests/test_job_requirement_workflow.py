@@ -242,7 +242,7 @@ def test_fixture_workflow_returns_grounded_requirements_and_trace(
 
     assert proposal.trace_run_id.startswith("run_")
     assert proposal.extractor_version == "requirement-extractor-v42.96"
-    assert proposal.prompt_version == "requirement-extraction-v8"
+    assert proposal.prompt_version == "requirement-extraction-v9"
     assert {item.normalized_capability for item in proposal.requirements} >= {
         "Python",
         "FastAPI",
@@ -11644,3 +11644,25 @@ def test_short_description_is_rejected_before_provider_and_trace(
 
     with session_factory() as session:
         assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+
+
+@pytest.mark.parametrize("description", ["😀" * 39, "字" * 50_001])
+def test_description_bounds_reject_before_any_provider_or_trace(
+    session_factory: sessionmaker[Session], description: str
+) -> None:
+    with pytest.raises(JobDescriptionNotExtractableError):
+        _workflow(session_factory, DisabledJobRequirementExtractor()).execute(
+            job_id="job_bounds", description=description
+        )
+    with session_factory() as session:
+        assert int(session.scalar(select(func.count()).select_from(TraceSpanORM)) or 0) == 0
+
+
+@pytest.mark.parametrize("description", ["😀" * 40, "字" * 50_000])
+def test_description_bounds_allow_provider_boundary(
+    session_factory: sessionmaker[Session], description: str
+) -> None:
+    with pytest.raises(RequirementExtractorUnavailableError):
+        _workflow(session_factory, DisabledJobRequirementExtractor()).execute(
+            job_id="job_bounds", description=description
+        )

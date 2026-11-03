@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from app.api.v1.schemas.common import CamelCaseModel
+from app.api.v1.schemas.preference_check import PreferenceCheckResponse
 from app.application.match_report import StoredMatchReport
+from app.application.match_ranking import is_target_candidate
 
 
 class RankedMatchReportItemResponse(CamelCaseModel):
@@ -14,8 +17,12 @@ class RankedMatchReportItemResponse(CamelCaseModel):
     profile_id: str
     profile_version: int
     extraction_id: str
+    search_intent_id: str | None
+    search_intent_version: int | None
+    preference_checks: list[PreferenceCheckResponse]
     eligibility: str
     recommendation: str
+    target_candidate: bool
     summary: str
     matched_requirement_ids: list[str]
     partial_requirement_ids: list[str]
@@ -32,8 +39,12 @@ class RankedMatchReportItemResponse(CamelCaseModel):
             profile_id=report.profile_id,
             profile_version=report.profile_version,
             extraction_id=report.extraction_id,
+            search_intent_id=report.search_intent_id,
+            search_intent_version=report.search_intent_version,
+            preference_checks=[PreferenceCheckResponse.from_detail(item) for item in report.preference_checks],
             eligibility=report.eligibility.value,
             recommendation=report.recommendation.value,
+            target_candidate=is_target_candidate(report.recommendation),
             summary=report.summary,
             matched_requirement_ids=list(report.matched_requirement_ids),
             partial_requirement_ids=list(report.partial_requirement_ids),
@@ -64,3 +75,14 @@ class BatchMatchRankingResponse(CamelCaseModel):
             items=[RankedMatchReportItemResponse.from_detail(item) for item in details],
             count=len(details),
         )
+
+
+class RankingOmissionResponse(CamelCaseModel):
+    job_id: str
+    reason: Literal["report_missing", "report_stale", "hard_conflict"]
+    stale_reasons: list[str]
+
+
+class RankingPreflightResponse(CamelCaseModel):
+    items: list[RankedMatchReportItemResponse]
+    omissions: list[RankingOmissionResponse]

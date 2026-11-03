@@ -42,6 +42,10 @@ class JobImportResponse(CamelCaseModel):
         )
 
 
+class ManualJobImportResponse(JobImportResponse):
+    job_id: str
+
+
 class ApiError(CamelCaseModel):
     code: str
     message: str

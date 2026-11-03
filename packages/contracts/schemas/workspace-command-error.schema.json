@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/workspace-command-error.schema.json",
+  "$defs": {
+    "WorkspaceCommandError": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "repairAction": {
+          "title": "Repairaction",
+          "type": "string"
+        },
+        "correlationId": {
+          "title": "Correlationid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "repairAction",
+        "correlationId"
+      ],
+      "title": "WorkspaceCommandError",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "error": {
+      "$ref": "#/$defs/WorkspaceCommandError"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "title": "WorkspaceCommandErrorResponse",
+  "type": "object"
+}

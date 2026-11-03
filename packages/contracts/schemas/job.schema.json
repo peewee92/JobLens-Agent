@@ -44,6 +44,9 @@
       "type": "array",
       "items": {"type": "string"}
     },
-    "collectedAt": {"type": ["string", "null"]}
+    "collectedAt": {"type": ["string", "null"]},
+    "lastSeenAt": {"type": ["string", "null"], "format": "date-time", "description": "选中来源当前保存的 lastSeenAt；来源未提供时可能使用报告或系统记录时间，不表示岗位仍开放或为所有历史观察的最大时间。"},
+    "userMarkedInactive": {"type": "boolean", "description": "用户主动标记不再考虑；不代表招聘网站的客观状态。"},
+    "availabilityRevision": {"type": "integer", "minimum": 0}
   }
 }

@@ -126,7 +126,7 @@ def seed_jobs(factory: sessionmaker[Session]) -> None:
                     source_raw={"source": "career-site"},
                     first_seen_at=dt(2),
                     last_seen_at=dt(4),
-                    collected_at=dt(4),
+                    collected_at=dt(2),
                 ),
                 JobSourceORM(
                     id="src_b",
@@ -279,6 +279,8 @@ def test_detail_uses_latest_source_and_does_not_expose_storage_models(
     assert detail.description == "负责 Python Agent 平台"
     assert detail.source == "career-site"
     assert detail.source_url == "https://career.example/a"
+    assert detail.last_seen_at == dt(4)
+    assert detail.collected_at == dt(2)
 
 
 def test_list_is_two_queries_and_detail_is_one_query(

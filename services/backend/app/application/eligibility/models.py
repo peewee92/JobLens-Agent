@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.application.search_preferences import PreferenceCheck
+
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 
@@ -44,6 +46,10 @@ class JobEligibilityResult:
     matched_count: int
     conditional_count: int
     missing_count: int
+    search_intent_id: str | None = None
+    search_intent_version: int | None = None
+    preference_checks: tuple[PreferenceCheck, ...] = ()
+    preference_fingerprint: str | None = None
     db_writes: int = 0
     provider_calls: int = 0
     trace_runs_created: int = 0

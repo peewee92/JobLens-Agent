@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.api.v1.schemas.common import CamelCaseModel
+from app.api.v1.schemas.preference_check import PreferenceCheckResponse
 from app.application.semantic_match.models import JobSemanticMatchResult
 
 
@@ -25,6 +26,9 @@ class JobSemanticMatchResponse(CamelCaseModel):
     profile_id: str
     profile_version: int
     extraction_id: str
+    search_intent_id: str | None
+    search_intent_version: int | None
+    preference_checks: list[PreferenceCheckResponse]
     eligibility: str
     assessments: list[SemanticRequirementAssessmentResponse]
     matched_count: int
@@ -45,6 +49,9 @@ class JobSemanticMatchResponse(CamelCaseModel):
             profile_id=detail.profile_id,
             profile_version=detail.profile_version,
             extraction_id=detail.extraction_id,
+            search_intent_id=detail.search_intent_id,
+            search_intent_version=detail.search_intent_version,
+            preference_checks=[PreferenceCheckResponse.from_detail(item) for item in detail.preference_checks],
             eligibility=detail.eligibility.value,
             assessments=[
                 SemanticRequirementAssessmentResponse(

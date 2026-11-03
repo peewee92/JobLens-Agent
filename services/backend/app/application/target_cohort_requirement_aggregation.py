@@ -115,6 +115,15 @@ class AggregateTargetCohortRequirementsUseCase:
         if identity_blockers:
             return self._blocked(cohort, tuple(identity_blockers))
 
+        return self.from_extractions(cohort, tuple(loaded))
+
+    @staticmethod
+    def from_extractions(
+        cohort: TargetCohortSnapshot, loaded: tuple[JobRequirementExtractionDetail, ...],
+    ) -> TargetCohortRequirementAggregationResult:
+        """Project exact extractions after the caller has checked their release gate."""
+        if tuple(item.job_id for item in loaded) != cohort.job_ids:
+            raise ValueError("cohort extraction identity mismatch")
         sources = tuple(
             TargetCohortRequirementSource(
                 job_id=extraction.job_id,

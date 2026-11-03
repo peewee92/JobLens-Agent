@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.dev/schemas/legacy-workspace-analysis-plan.schema.json",
+  "$defs": {
+    "AnalysisUpdateItemResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "reuse",
+            "ready",
+            "deferred",
+            "requires_model",
+            "input_blocked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "extractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Extractionid"
+        },
+        "reusableReportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reusablereportid"
+        },
+        "staleReasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Stalereasons",
+          "type": "array"
+        },
+        "blockerCodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blockercodes",
+          "type": "array"
+        },
+        "requiredOperations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requiredoperations",
+          "type": "array"
+        },
+        "inputFingerprint": {
+          "title": "Inputfingerprint",
+          "type": "string"
+        },
+        "baseReportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Basereportid"
+        },
+        "repairHref": {
+          "title": "Repairhref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "title",
+        "status",
+        "extractionId",
+        "reusableReportId",
+        "staleReasons",
+        "blockerCodes",
+        "requiredOperations",
+        "inputFingerprint",
+        "baseReportId",
+        "repairHref"
+      ],
+      "title": "AnalysisUpdateItemResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "workspaceId": {
+      "title": "Workspaceid",
+      "type": "string"
+    },
+    "profileId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profileid"
+    },
+    "profileVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profileversion"
+    },
+    "searchIntentId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Searchintentid"
+    },
+    "searchIntentVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Searchintentversion"
+    },
+    "item": {
+      "$ref": "#/$defs/AnalysisUpdateItemResponse"
+    },
+    "inputDigest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Inputdigest",
+      "type": "string"
+    },
+    "advisoryOnly": {
+      "const": true,
+      "title": "Advisoryonly",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "workspaceId",
+    "profileId",
+    "profileVersion",
+    "searchIntentId",
+    "searchIntentVersion",
+    "item",
+    "inputDigest",
+    "advisoryOnly"
+  ],
+  "title": "LegacyWorkspaceAnalysisPlanResponse",
+  "type": "object"
+}

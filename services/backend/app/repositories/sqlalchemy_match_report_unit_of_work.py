@@ -5,6 +5,8 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
+from app.repositories.sqlalchemy_job_availability_guard import lock_and_check_job_availability
+
 from app.application.ports.match_report_unit_of_work import AbstractMatchReportUnitOfWork
 from app.repositories.sqlalchemy_match_report_repository import SqlAlchemyMatchReportRepository
 
@@ -34,6 +36,9 @@ class SqlAlchemyMatchReportUnitOfWork(AbstractMatchReportUnitOfWork):
         finally:
             self._session.close()
             self._session = None
+
+    def ensure_job_availability(self, job_id: str, revision: int) -> None:
+        lock_and_check_job_availability(self._active_session(), job_id, revision)
 
     def commit(self) -> None:
         self._active_session().commit()

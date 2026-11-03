@@ -23,7 +23,7 @@ from app.core.config import Settings
 
 #: Bump whenever the intent prompt or the structured output schema changes, so a
 #: measured accuracy number can always be traced back to the exact input it saw.
-CAREER_INTENT_PROMPT_VERSION = "career-intent-prompt-v1"
+CAREER_INTENT_PROMPT_VERSION = "career-intent-prompt-v2"
 CAREER_INTENT_SCHEMA_VERSION = "career-intent-schema-v1"
 
 #: Used when the provider rate-limits a request without telling us how long to wait.
@@ -124,6 +124,7 @@ class OpenAICareerIntentModel:
         timeout_seconds: float = 60.0,
         max_http_attempts: int = 2,
         max_rate_limit_retries: int = 4,
+        max_provider_attempts: int | None = None,
         min_request_interval_seconds: float = 0.0,
         temperature: float | None = None,
         client: httpx.Client | None = None,
@@ -154,6 +155,9 @@ class OpenAICareerIntentModel:
         self._timeout_seconds = timeout_seconds
         self._max_http_attempts = max(1, max_http_attempts)
         self._max_rate_limit_retries = max(0, max_rate_limit_retries)
+        self._max_provider_attempts = (
+            max(0, max_provider_attempts) if max_provider_attempts is not None else None
+        )
         self._min_request_interval_seconds = max(0.0, min_request_interval_seconds)
         self._temperature = temperature
         self._client = client
@@ -164,6 +168,9 @@ class OpenAICareerIntentModel:
         self._attempts = 0
         self._completed = 0
         self._rate_limited = 0
+        self._input_tokens = 0
+        self._output_tokens = 0
+        self._total_tokens = 0
 
     @property
     def rate_limited(self) -> int:
@@ -194,6 +201,18 @@ class OpenAICareerIntentModel:
     @property
     def completed(self) -> int:
         return self._completed
+
+    @property
+    def input_tokens(self) -> int:
+        return self._input_tokens
+
+    @property
+    def output_tokens(self) -> int:
+        return self._output_tokens
+
+    @property
+    def total_tokens(self) -> int:
+        return self._total_tokens
 
     @property
     def last_trace_id(self) -> str | None:
@@ -295,6 +314,14 @@ class OpenAICareerIntentModel:
         transport_attempts = 0
         rate_limit_retries = 0
         while True:
+            if (
+                self._max_provider_attempts is not None
+                and self._attempts >= self._max_provider_attempts
+            ):
+                raise CareerIntentModelBlockedError(
+                    "provider call budget exhausted before another billed request: "
+                    f"maxProviderAttempts={self._max_provider_attempts}"
+                )
             self._pace()
             self._attempts += 1
             try:
@@ -302,6 +329,7 @@ class OpenAICareerIntentModel:
                     request_url=request_url, headers=headers, request_body=request_body
                 )
                 payload = response.json()
+                self._record_usage(payload)
             except (httpx.HTTPStatusError, httpx.HTTPError, json.JSONDecodeError) as error:
                 if isinstance(error, httpx.HTTPStatusError):
                     self._last_trace_id = _trace_id_of(error.response) or self._last_trace_id
@@ -346,6 +374,21 @@ class OpenAICareerIntentModel:
             f"intent provider call failed after {self._attempts} attempt(s): "
             f"{_describe_transport_error(last_error)}"
         ) from last_error
+
+    def _record_usage(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            return
+        usage = payload.get("usage")
+        if not isinstance(usage, dict):
+            return
+        input_tokens = _usage_int(usage, "prompt_tokens", "input_tokens")
+        output_tokens = _usage_int(usage, "completion_tokens", "output_tokens")
+        total_tokens = _usage_int(usage, "total_tokens")
+        if total_tokens == 0:
+            total_tokens = input_tokens + output_tokens
+        self._input_tokens += input_tokens
+        self._output_tokens += output_tokens
+        self._total_tokens += total_tokens
 
     def _post(
         self,
@@ -487,6 +530,14 @@ def _describe_transport_error(error: Exception | None) -> str:
     return f"{type(error).__name__}"
 
 
+def _usage_int(usage: dict[str, object], *keys: str) -> int:
+    for key in keys:
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    return 0
+
+
 def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str | None]:
     trace_id = _trace_id_of(response)
     try:
@@ -500,7 +551,9 @@ def _provider_error_identity(response: httpx.Response) -> tuple[str | None, str 
     return code, trace_id
 
 
-def build_career_intent_model(settings: Settings) -> Any:
+def build_career_intent_model(
+    settings: Settings, *, max_provider_attempts: int | None = None
+) -> Any:
     """Runtime factory for the configured career intent adapter.
 
     Defaults to ``disabled`` so a missing configuration can never silently issue
@@ -518,6 +571,7 @@ def build_career_intent_model(settings: Settings) -> Any:
             max_completion_tokens=settings.career_intent_max_completion_tokens,
             timeout_seconds=settings.career_intent_timeout_seconds,
             max_rate_limit_retries=settings.career_intent_max_rate_limit_retries,
+            max_provider_attempts=max_provider_attempts,
             min_request_interval_seconds=(
                 settings.career_intent_min_request_interval_seconds
             ),
@@ -531,10 +585,15 @@ You only classify and extract. You do not execute anything and you do not see an
 job database, so never invent an identifier you were not given.
 
 Goals (use only these exact values):
-- rank_jobs: compare, sort, prioritise or choose among several jobs.
-- review_gaps: identify missing skills, gaps, or what the user lacks.
+- rank_jobs: compare, sort, prioritise, choose, or decide whether a job is worth
+  pursuing/applying to. Use rank_jobs for fit/value judgements such as "is this
+  one still worth applying to?"; do not treat those as application review.
+- review_gaps: identify missing skills, gaps, recurring requirements, or what the
+  user lacks for one or more jobs.
 - prepare_job: build interview preparation, focus areas, or readiness steps.
-- review_application: inspect application evidence or application readiness.
+- review_application: inspect explicit application/application-evidence readiness.
+  Use this only when the user actually refers to an application, application
+  evidence, or application readiness/status.
 - unknown: the request maps to no supported goal.
 
 Ordering:
@@ -548,28 +607,71 @@ referenced_job_ids:
 - Copy identifiers that appear literally in the user message, in the form
   job-<digits>. Copy them exactly, in the order they appear, and deduplicate.
 - Never guess, never complete, never translate a job title into an identifier.
+- Phrases such as "this batch", "these jobs", "these roles", "current job set",
+  "current ranking", "selected cohort", or "target jobs" refer to a governed run
+  scope supplied by the caller after classification. Do not ask the user to list
+  IDs merely because such a phrase has no literal job-<digits>; keep
+  referenced_job_ids empty and classify the requested goal normally.
 
 current_job_required:
-- true when the user points at one job by pronoun or demonstrative instead of
-  naming it, for example "this job", "this role", "this one", "this opening",
-  "this position", "this application".
-- Leave referenced_job_ids empty in that case; the caller supplies the identity.
+- true only when the user points at one job by a deictic pronoun/demonstrative
+  instead of identifying it, for example "this job", "this role", "this one",
+  "this opening", "this position", "this application", "that role", or "it".
+- A descriptive title/company phrase such as "the frontend engineer opening" or
+  "the role at Acme" is NOT a current-job pronoun. If it cannot be grounded to a
+  literal job-<digits>, keep current_job_required=false and ask which job.
+- Leave referenced_job_ids empty for a true current-job pronoun; the caller
+  supplies the identity.
 - false otherwise.
 
 needs_clarification:
-- true when the request cannot be safely executed as stated: it is too vague to
-  map to any goal, it could refer to several different jobs, or it relies on a
-  set of jobs that is not defined by the conversation.
+- true when the request cannot be safely classified as stated: the user's intended
+  goal is unclear, a named/title-only job cannot be grounded to an identifier, or
+  a later step depends on an unspecified result (for example "prepare the best
+  one" without naming which job).
+- For rank_jobs or review_gaps, do NOT ask for IDs/scope merely because the user
+  message contains no literal job-<digits>. Classify the clear goal and leave
+  referenced_job_ids empty; the governed Resolver will use the caller's frozen
+  run scope or turn the intent into clarification if no scope exists.
+- In particular, phrases such as "this batch", "these jobs", "current set",
+  "selected cohort", "target jobs", "current ranking", or a clear generic gaps
+  request should be classified normally rather than asking the model to discover
+  runtime scope it cannot see.
+- When the goal itself is unclear (for example "What do you think?" or "Make this
+  better"), set goals to ["unknown"] and ask a compact question containing both
+  "job" and "goal", for example "Which job or goal do you want help with?".
+- When a title/company description cannot be grounded (for example "the frontend
+  engineer opening" or "the role at Acme"), set goals to [] only if the intended
+  operation is otherwise clear; if the operation is also unclear, use
+  goals=["unknown"]. In either case ask "Which job ...?" explicitly.
+- When the goal is clear but the required entity/scope is genuinely unresolved,
+  set goals to []. A multi-step request whose later preparation target is only
+  "it", "the best one", or another unresolved result must clarify before any
+  executable goal is returned.
 - When true, write clarification_question as one short question that names what
-  is missing, and put no executable goal in goals.
+  is missing. Use "which job" for an ambiguous job entity and "scope" when a gaps
+  request has no defined target scope. Never include an executable goal while
+  clarification is required.
 - Prefer clarification over guessing. Asking is always safer than a wrong action.
 
 unsupported_request:
-- Set to a short explanation when the user asks for something outside career
-  analysis, for example salary negotiation guarantees, legal advice, or anything
-  that would need data or actions this assistant does not have.
-- When set, goals must be empty or contain only unknown.
+- Set to a short explanation/code when the user asks for a forbidden or unsupported
+  action, including automated job application, recruiter messaging, bypassing a
+  human/evidence/review gate, unauthorized profile writes, fabricated career
+  evidence, hidden tools, guarantees, legal advice, or another unavailable
+  business action.
+- When set, fail closed with goals=[], referenced_job_ids=[],
+  current_job_required=false, needs_clarification=false, and
+  clarification_question=null. Do not preserve job IDs from an unsupported
+  request and do not emit unknown as a goal.
+
+confidence: return a JSON number from 0.0 to 1.0, or null only when confidence
+cannot be assessed safely.
 
 reasoning_summary: one sentence, at most 500 characters, stating why you chose
 these goals. Never include personal data beyond what the user wrote.
+
+Return exactly one JSON object matching the schema. Include every schema field on
+every response; use null only where the schema permits null. Do not use Markdown fences
+and do not add any fields not present in the schema.
 """

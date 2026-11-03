@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RequirementCallRecord": {
+      "properties": {
+        "actionId": {
+          "title": "Actionid",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "completed",
+            "failed",
+            "uncertain"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "attempts": {
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "responseStatus": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Responsestatus"
+        },
+        "inputTokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Inputtokens"
+        },
+        "outputTokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outputtokens"
+        },
+        "extractionId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Extractionid"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Errorcode"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "maxOutputTokens": {
+          "title": "Maxoutputtokens",
+          "type": "integer"
+        },
+        "timeoutSeconds": {
+          "title": "Timeoutseconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "actionId",
+        "jobId",
+        "status",
+        "attempts",
+        "responseStatus",
+        "inputTokens",
+        "outputTokens",
+        "extractionId",
+        "errorCode",
+        "model",
+        "maxOutputTokens",
+        "timeoutSeconds"
+      ],
+      "title": "RequirementCallRecord",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "planDigest": {
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "inputHash": {
+      "title": "Inputhash",
+      "type": "string"
+    },
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    },
+    "blockerCode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Blockercode"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "maxProviderCalls": {
+      "const": 1,
+      "title": "Maxprovidercalls",
+      "type": "integer"
+    },
+    "maxOutputTokens": {
+      "title": "Maxoutputtokens",
+      "type": "integer"
+    },
+    "timeoutSeconds": {
+      "title": "Timeoutseconds",
+      "type": "number"
+    },
+    "descriptionCharacters": {
+      "title": "Descriptioncharacters",
+      "type": "integer"
+    },
+    "latestRequest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RequirementCallRecord"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "jobId",
+    "planDigest",
+    "inputHash",
+    "available",
+    "blockerCode",
+    "model",
+    "maxProviderCalls",
+    "maxOutputTokens",
+    "timeoutSeconds",
+    "descriptionCharacters",
+    "latestRequest"
+  ],
+  "title": "RequirementCallPlan",
+  "type": "object"
+}

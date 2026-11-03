@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/analysis-execution-result.schema.json",
+  "$defs": {
+    "AnalysisExecutionWorkspaceResponse": {
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "workspaceId": {
+          "title": "Workspaceid",
+          "type": "string"
+        },
+        "resumeVariantId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Resumevariantid"
+        },
+        "actionIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Actionids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "jobId",
+        "workspaceId",
+        "resumeVariantId",
+        "actionIds"
+      ],
+      "title": "AnalysisExecutionWorkspaceResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "threadId": {
+      "title": "Threadid",
+      "type": "string"
+    },
+    "resultId": {
+      "title": "Resultid",
+      "type": "string"
+    },
+    "commandId": {
+      "title": "Commandid",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/AnalysisExecutionWorkspaceResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    }
+  },
+  "required": [
+    "threadId",
+    "resultId",
+    "commandId",
+    "items"
+  ],
+  "title": "AnalysisExecutionResponse",
+  "type": "object"
+}

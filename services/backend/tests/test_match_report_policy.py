@@ -192,12 +192,12 @@ def test_blocked_match_report_skips_semantic_provider_work() -> None:
                     requirement_index=1,
                     type=RequirementType.EXPERIENCE,
                     importance=RequirementImportance.MUST_HAVE,
-                    original_text="5 年后端经验",
+                    original_text="5 年以上工作经验",
                     normalized_capability="Backend Development",
                     status=RequirementFitStatus.MISSING,
                     evidence_ids=(),
-                    profile_fact_refs=(),
-                    reason="当前没有足够专项年限证据。",
+                    profile_fact_refs=("yearsOfExperience",),
+                    reason="已确认总工作年限为 3 年，低于要求的 5 年。",
                 ),
                 RequirementEligibilityResult(
                     requirement_id="req_conditional",
@@ -491,3 +491,36 @@ def test_match_report_evidence_links_only_reference_semantic_assessment_evidence
     assert report.db_writes == 0
     assert report.provider_calls == 1
     assert report.trace_runs_created == 1
+
+
+
+def test_unknown_without_core_support_is_not_a_positive_challenge_recommendation() -> None:
+    from app.application.match_report import MatchRecommendation, build_match_report
+    for verdict in (SemanticMatchVerdict.NOT_MATCHED, SemanticMatchVerdict.PARTIAL):
+        report = build_match_report(_semantic(
+            eligibility=EligibilityDecision.CONDITIONAL,
+            assessments=(
+                _assessment("unknown", 0, importance=RequirementImportance.MUST_HAVE,
+                            verdict=verdict, eligibility_status=RequirementFitStatus.CONDITIONAL,
+                            evidence_ids=()),
+                _assessment("bonus", 1, importance=RequirementImportance.BONUS,
+                            verdict=SemanticMatchVerdict.MATCHED),
+            ),
+        ))
+        assert report.recommendation is MatchRecommendation.LOW
+        assert report.policy_version == "match-policy-v3"
+        assert report.missing_requirement_ids == ()
+
+
+def test_confirmed_profile_fact_can_support_challenge_without_evidence_id() -> None:
+    from dataclasses import replace
+    from app.application.match_report import MatchRecommendation, build_match_report
+    assessment = replace(
+        _assessment("years", 0, importance=RequirementImportance.MUST_HAVE,
+                    verdict=SemanticMatchVerdict.MATCHED, evidence_ids=()),
+        profile_fact_refs=("yearsOfExperience",),
+    )
+    report = build_match_report(_semantic(
+        eligibility=EligibilityDecision.CONDITIONAL, assessments=(assessment,),
+    ))
+    assert report.recommendation is MatchRecommendation.STRETCH

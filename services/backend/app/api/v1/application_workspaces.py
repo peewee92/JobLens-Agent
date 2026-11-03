@@ -1,0 +1,477 @@
+"""vNext 1.2 Application Workspace endpoints."""
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
+from app.agent.graph.checkpoint_port import CheckpointNotReadyError, CheckpointConflictError, CheckpointPersistenceError
+from app.application.analysis_update import AnalysisUpdatePlanError
+from app.api.v1.schemas.analysis_update import LegacyWorkspaceAnalysisPlanResponse, LegacyWorkspaceAnalysisStartRequest
+from app.api.v1.schemas.career_agent import CareerAgentRunStateResponse
+from app.agent.graph.hitl_service import LegacyWorkspaceRunRequest
+from fastapi.responses import JSONResponse
+
+from app.api.deps import (
+    get_analysis_update_plan_use_case,
+    get_career_agent_hitl_service,
+    get_application_timeline_repository,
+    get_application_workspace_overview_use_case,
+    get_application_workspace_repository,
+    get_create_application_workspace_use_case,
+    get_create_study_execution_actions_use_case,
+    get_execution_action_repository,
+    get_evidence_proposal_repository,
+    get_evidence_confirmation_audit_use_case,
+    get_create_evidence_proposal_use_case,
+    get_confirm_evidence_proposal_use_case,
+    get_interview_mock_question_set_use_case,
+    get_review_interview_mock_answer_use_case,
+    get_resume_variant_proposal_use_case,
+    get_resume_variant_repository,
+    get_review_resume_variant_use_case,
+    get_save_resume_variant_use_case,
+    get_update_application_status_use_case,
+    get_update_execution_action_status_use_case,
+)
+from app.api.v1.schemas.application_workspace import (
+    ApplicationRematchRequest,
+    ApplicationRematchResponse,
+    ApplicationTimelineEventResponse,
+    ApplicationWorkspaceOverviewResponse,
+    ApplicationWorkspaceResponse,
+    CreateApplicationWorkspaceRequest,
+    CreateExecutionActionsRequest,
+    ExecutionActionResponse,
+    CreateEvidenceProposalRequest,
+    ConfirmEvidenceProposalRequest,
+    EvidenceProposalResponse,
+    EvidenceConfirmationAuditResponse,
+    InterviewAnswerReviewResponse,
+    InterviewMockQuestionSetResponse,
+    ReviewInterviewMockAnswerRequest,
+    UpdateApplicationStatusRequest,
+    UpdateExecutionActionStatusRequest,
+    ResumeVariantProposalResponse,
+    ResumeVariantResponse,
+    ReviewResumeVariantRequest,
+    SaveResumeVariantRequest,
+)
+from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase, EvidenceProposalBlockedError
+from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase, EvidenceConfirmationAuditBlockedError
+from app.application.application_workspace.execution_action import (
+    CreateStudyExecutionActionsUseCase,
+    ExecutionActionBlockedError,
+    UpdateExecutionActionStatusUseCase,
+)
+from app.application.application_workspace.interview_mock import (
+    BuildInterviewMockQuestionSetUseCase,
+    InterviewMockBlockedError,
+    ReviewInterviewMockAnswerUseCase,
+)
+from app.application.application_workspace.resume_variant import (
+    BuildResumeVariantProposalUseCase,
+    ResumeVariantBlockedError,
+    ReviewResumeVariantUseCase,
+    SaveResumeVariantUseCase,
+)
+from app.application.application_workspace.status_use_case import (
+    ApplicationStatusBlockedError,
+    UpdateApplicationStatusUseCase,
+)
+from app.application.application_workspace.use_case import (
+    ApplicationWorkspaceBlockedError,
+    CreateApplicationWorkspaceUseCase,
+)
+from app.repositories.sqlalchemy_application_workspace_repository import (
+    SqlAlchemyApplicationTimelineRepository,
+    SqlAlchemyApplicationWorkspaceRepository,
+    SqlAlchemyExecutionActionRepository,
+    SqlAlchemyEvidenceProposalRepository,
+)
+
+router = APIRouter(prefix="/application-workspaces")
+
+
+@router.post("", response_model=ApplicationWorkspaceResponse, status_code=status.HTTP_201_CREATED)
+def create_application_workspace(
+    request: CreateApplicationWorkspaceRequest,
+    use_case: Annotated[
+        CreateApplicationWorkspaceUseCase,
+        Depends(get_create_application_workspace_use_case),
+    ],
+) -> ApplicationWorkspaceResponse:
+    try:
+        workspace = use_case.execute(request.to_command())
+    except ApplicationWorkspaceBlockedError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    return ApplicationWorkspaceResponse.from_model(workspace)
+
+
+@router.post("/{workspace_id}/status", response_model=ApplicationWorkspaceResponse)
+def update_application_status(
+    workspace_id: str,
+    request: UpdateApplicationStatusRequest,
+    use_case: Annotated[
+        UpdateApplicationStatusUseCase,
+        Depends(get_update_application_status_use_case),
+    ],
+) -> ApplicationWorkspaceResponse:
+    try:
+        result = use_case.execute(request.to_command(workspace_id))
+    except ApplicationStatusBlockedError as error:
+        detail = str(error)
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if detail == "application_workspace_not_found"
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=status_code, detail=detail) from error
+    return ApplicationWorkspaceResponse.from_model(result.workspace)
+
+
+@router.get("/{workspace_id}/overview", response_model=ApplicationWorkspaceOverviewResponse)
+def get_application_workspace_overview(
+    workspace_id: str,
+    use_case=Depends(get_application_workspace_overview_use_case),
+) -> ApplicationWorkspaceOverviewResponse:
+    from app.application.application_workspace.overview import ApplicationWorkspaceOverviewBlockedError
+    try:
+        return ApplicationWorkspaceOverviewResponse.from_model(use_case.execute(workspace_id))
+    except ApplicationWorkspaceOverviewBlockedError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+
+@router.get("/{workspace_id}/interview/questions", response_model=InterviewMockQuestionSetResponse)
+def get_interview_mock_questions(
+    workspace_id: str,
+    use_case: Annotated[
+        BuildInterviewMockQuestionSetUseCase,
+        Depends(get_interview_mock_question_set_use_case),
+    ],
+) -> InterviewMockQuestionSetResponse:
+    try:
+        return InterviewMockQuestionSetResponse.from_model(use_case.execute(workspace_id))
+    except InterviewMockBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+
+
+@router.post(
+    "/{workspace_id}/interview/questions/{question_id}/review",
+    response_model=InterviewAnswerReviewResponse,
+)
+def review_interview_mock_answer(
+    workspace_id: str,
+    question_id: str,
+    request: ReviewInterviewMockAnswerRequest,
+    use_case: Annotated[
+        ReviewInterviewMockAnswerUseCase,
+        Depends(get_review_interview_mock_answer_use_case),
+    ],
+) -> InterviewAnswerReviewResponse:
+    try:
+        review = use_case.execute(
+            workspace_id=workspace_id,
+            question_id=question_id,
+            answer_text=request.answer_text,
+            evidence_ids=tuple(request.evidence_ids),
+            actor_id=request.actor_id,
+            idempotency_key=request.idempotency_key,
+        )
+    except InterviewMockBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail in {"application_workspace_not_found", "interview_question_not_found"} else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return InterviewAnswerReviewResponse.from_model(review)
+
+
+@router.get("/{workspace_id}/resume-variant/proposal", response_model=ResumeVariantProposalResponse)
+def get_resume_variant_proposal(
+    workspace_id: str,
+    use_case: Annotated[BuildResumeVariantProposalUseCase, Depends(get_resume_variant_proposal_use_case)],
+) -> ResumeVariantProposalResponse:
+    try:
+        return ResumeVariantProposalResponse.from_model(use_case.execute(workspace_id))
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+
+
+@router.get("/{workspace_id}/resume-variants", response_model=list[ResumeVariantResponse])
+def list_resume_variants(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    variants=Depends(get_resume_variant_repository),
+) -> list[ResumeVariantResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [ResumeVariantResponse.from_model(variant) for variant in variants.list_for_workspace(workspace_id)]
+
+
+@router.post("/{workspace_id}/resume-variants", response_model=ResumeVariantResponse, status_code=status.HTTP_201_CREATED)
+def save_resume_variant(
+    workspace_id: str,
+    request: SaveResumeVariantRequest,
+    use_case: Annotated[SaveResumeVariantUseCase, Depends(get_save_resume_variant_use_case)],
+) -> ResumeVariantResponse:
+    try:
+        variant = use_case.execute(workspace_id=workspace_id, actor_id=request.actor_id, idempotency_key=request.idempotency_key)
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ResumeVariantResponse.from_model(variant)
+
+
+@router.post("/{workspace_id}/resume-variants/{variant_id}/review", response_model=ResumeVariantResponse)
+def review_resume_variant(
+    workspace_id: str,
+    variant_id: str,
+    request: ReviewResumeVariantRequest,
+    use_case: Annotated[ReviewResumeVariantUseCase, Depends(get_review_resume_variant_use_case)],
+) -> ResumeVariantResponse:
+    try:
+        variant = use_case.execute(
+            workspace_id=workspace_id,
+            variant_id=variant_id,
+            actor_id=request.actor_id,
+            expected_status=request.expected_status,
+        )
+    except ResumeVariantBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "resume_variant_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ResumeVariantResponse.from_model(variant)
+
+
+@router.post("/{workspace_id}/actions", response_model=list[ExecutionActionResponse], status_code=status.HTTP_201_CREATED)
+def create_execution_actions(
+    workspace_id: str,
+    request: CreateExecutionActionsRequest,
+    use_case: Annotated[CreateStudyExecutionActionsUseCase, Depends(get_create_study_execution_actions_use_case)],
+) -> list[ExecutionActionResponse]:
+    try:
+        actions = use_case.execute(workspace_id=workspace_id, actor_id=request.actor_id, idempotency_key=request.idempotency_key)
+    except ExecutionActionBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return [ExecutionActionResponse.from_model(action) for action in actions]
+
+
+@router.get("/{workspace_id}/actions", response_model=list[ExecutionActionResponse])
+def list_execution_actions(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    actions: Annotated[SqlAlchemyExecutionActionRepository, Depends(get_execution_action_repository)],
+) -> list[ExecutionActionResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [ExecutionActionResponse.from_model(action) for action in actions.list_for_workspace(workspace_id)]
+
+
+@router.post("/{workspace_id}/actions/{action_id}/status", response_model=ExecutionActionResponse)
+def update_execution_action_status(
+    workspace_id: str,
+    action_id: str,
+    request: UpdateExecutionActionStatusRequest,
+    use_case: Annotated[UpdateExecutionActionStatusUseCase, Depends(get_update_execution_action_status_use_case)],
+) -> ExecutionActionResponse:
+    try:
+        action = use_case.execute(workspace_id=workspace_id, action_id=action_id, actor_id=request.actor_id, expected_status=request.expected_status, new_status=request.new_status)
+    except ExecutionActionBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "execution_action_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return ExecutionActionResponse.from_model(action)
+
+
+@router.post("/{workspace_id}/actions/{action_id}/evidence-proposals", response_model=EvidenceProposalResponse, status_code=status.HTTP_201_CREATED)
+def create_evidence_proposal(
+    workspace_id: str,
+    action_id: str,
+    request: CreateEvidenceProposalRequest,
+    use_case: Annotated[CreateEvidenceProposalUseCase, Depends(get_create_evidence_proposal_use_case)],
+) -> EvidenceProposalResponse:
+    try:
+        proposal = use_case.execute(
+            workspace_id=workspace_id, action_id=action_id, actor_id=request.actor_id,
+            idempotency_key=request.idempotency_key, evidence_type=request.evidence_type,
+            evidence_summary=request.evidence_summary, evidence_source=request.evidence_source,
+            skill_level=request.skill_level, requirement_id=request.requirement_id,
+            expected_profile_id=request.expected_profile_id, expected_profile_version=request.expected_profile_version,
+            reviewed_current_profile=request.reviewed_current_profile,
+        )
+    except EvidenceProposalBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "execution_action_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return EvidenceProposalResponse.from_model(proposal)
+
+
+@router.get("/{workspace_id}/evidence-proposals", response_model=list[EvidenceProposalResponse])
+def list_evidence_proposals(
+    workspace_id: str,
+    workspaces: Annotated[SqlAlchemyApplicationWorkspaceRepository, Depends(get_application_workspace_repository)],
+    proposals: Annotated[SqlAlchemyEvidenceProposalRepository, Depends(get_evidence_proposal_repository)],
+) -> list[EvidenceProposalResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [EvidenceProposalResponse.from_model(proposal) for proposal in proposals.list_for_workspace(workspace_id)]
+
+
+@router.get("/{workspace_id}/evidence-proposals/{proposal_id}/audit", response_model=EvidenceConfirmationAuditResponse)
+def get_evidence_confirmation_audit(
+    workspace_id: str,
+    proposal_id: str,
+    use_case: Annotated[BuildEvidenceConfirmationAuditUseCase, Depends(get_evidence_confirmation_audit_use_case)],
+) -> EvidenceConfirmationAuditResponse:
+    try:
+        audit = use_case.execute(workspace_id=workspace_id, proposal_id=proposal_id)
+    except EvidenceConfirmationAuditBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return EvidenceConfirmationAuditResponse.from_model(audit)
+
+
+@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/confirm", response_model=EvidenceProposalResponse)
+def confirm_evidence_proposal(
+    workspace_id: str,
+    proposal_id: str,
+    request: ConfirmEvidenceProposalRequest,
+    use_case: Annotated[ConfirmEvidenceProposalUseCase, Depends(get_confirm_evidence_proposal_use_case)],
+) -> EvidenceProposalResponse:
+    try:
+        proposal = use_case.execute(
+            workspace_id=workspace_id,
+            proposal_id=proposal_id,
+            actor_id=request.actor_id,
+        )
+    except EvidenceProposalBlockedError as error:
+        detail = str(error)
+        code = status.HTTP_404_NOT_FOUND if detail == "evidence_proposal_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail) from error
+    return EvidenceProposalResponse.from_model(proposal)
+
+
+@router.get("/{workspace_id}/analysis-plan", response_model=LegacyWorkspaceAnalysisPlanResponse)
+def get_legacy_workspace_analysis_plan(workspace_id: str, use_case=Depends(get_analysis_update_plan_use_case)):
+    try:
+        return LegacyWorkspaceAnalysisPlanResponse.from_result(
+            workspace_id, use_case.execute_legacy_workspace(workspace_id))
+    except AnalysisUpdatePlanError as exc:
+        code = status.HTTP_404_NOT_FOUND if str(exc) == "application_workspace_not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        raise CheckpointNotReadyError("分析预检无法读取数据库，请检查就绪状态；没有启动分析。") from exc
+
+
+@router.post("/{workspace_id}/analysis-runs", response_model=CareerAgentRunStateResponse)
+def start_legacy_workspace_analysis(workspace_id: str, payload: LegacyWorkspaceAnalysisStartRequest,
+                                    service=Depends(get_career_agent_hitl_service)):
+    try:
+        request = LegacyWorkspaceRunRequest(workspace_id=workspace_id, **payload.model_dump(by_alias=False))
+        return CareerAgentRunStateResponse.from_state(service.start_legacy_workspace(request))
+    except AnalysisUpdatePlanError:
+        return JSONResponse(status_code=409, content={"error": {"code": "analysis_update_source_unavailable",
+            "message": "工作区已关联分析或不可读取，请重新查看工作区。", "retryable": False,
+            "repairAction": "review_original", "correlationId": payload.request_id}})
+    except CheckpointConflictError as exc:
+        return JSONResponse(status_code=409, content={"error": {"code": "analysis_update_conflict", "message": str(exc),
+            "retryable": False, "repairAction": "review_run_or_preflight", "correlationId": payload.request_id}})
+    except (SQLAlchemyError, CheckpointPersistenceError):
+        return JSONResponse(status_code=503, content={"error": {"code": "analysis_update_save_uncertain",
+            "message": "分析状态未确认，请查看原运行或重试原请求，不要创建新请求。", "retryable": True,
+            "repairAction": "check_then_retry_original", "correlationId": payload.request_id}})
+
+
+@router.post(
+    "/{workspace_id}/evidence-proposals/{proposal_id}/rematch",
+    response_model=ApplicationRematchResponse,
+    responses={410: {"description": "Legacy single-job writes have been retired."}},
+)
+def run_application_rematch(
+    workspace_id: str,
+    proposal_id: str,
+    request: ApplicationRematchRequest,
+) -> ApplicationRematchResponse:
+    # Never inspect mutable workspace state before this decision: the legacy
+    # report and timeline were not atomic and could race analysis linkage.
+    raise HTTPException(status_code=status.HTTP_410_GONE, detail="application_rematch_retired")
+
+
+@router.get("/{workspace_id}/timeline", response_model=list[ApplicationTimelineEventResponse])
+def list_application_timeline(
+    workspace_id: str,
+    workspaces: Annotated[
+        SqlAlchemyApplicationWorkspaceRepository,
+        Depends(get_application_workspace_repository),
+    ],
+    timeline: Annotated[
+        SqlAlchemyApplicationTimelineRepository,
+        Depends(get_application_timeline_repository),
+    ],
+) -> list[ApplicationTimelineEventResponse]:
+    if workspaces.get(workspace_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return [ApplicationTimelineEventResponse.from_model(event) for event in timeline.list_for_workspace(workspace_id)]
+
+
+@router.get("/{workspace_id}", response_model=ApplicationWorkspaceResponse)
+def get_application_workspace(
+    workspace_id: str,
+    repository: Annotated[
+        SqlAlchemyApplicationWorkspaceRepository,
+        Depends(get_application_workspace_repository),
+    ],
+) -> ApplicationWorkspaceResponse:
+    workspace = repository.get(workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="application_workspace_not_found")
+    return ApplicationWorkspaceResponse.from_model(workspace)
+
+
+from app.api.deps import get_workspace_saved_preparation
+from app.api.v1.schemas.analysis_execution import WorkspaceSavedPreparationResponse
+
+
+@router.get("/{workspace_id}/preparation", response_model=WorkspaceSavedPreparationResponse)
+def get_saved_workspace_preparation(workspace_id: str,
+                                    workspaces=Depends(get_application_workspace_repository),
+                                    reader=Depends(get_workspace_saved_preparation)):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="application_workspace_not_found")
+    if workspace.current_analysis_thread_id is None:
+        raise HTTPException(status_code=404, detail="此旧工作区没有保存分析引用，不会用实时生成冒充历史材料")
+    try:
+        return WorkspaceSavedPreparationResponse.from_result(reader.read(workspace))
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+from dataclasses import asdict
+from app.api.deps import get_evidence_context_query, get_reconsider_evidence_proposal_use_case
+from app.api.v1.schemas.application_workspace import EvidenceContextResponse, ReconsiderEvidenceProposalRequest
+
+
+@router.get("/{workspace_id}/evidence-context", response_model=EvidenceContextResponse)
+def get_evidence_context(workspace_id: str, query=Depends(get_evidence_context_query)):
+    try:
+        return EvidenceContextResponse.model_validate(asdict(query.read(workspace_id)))
+    except EvidenceProposalBlockedError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/{workspace_id}/evidence-proposals/{proposal_id}/reconsider", response_model=EvidenceProposalResponse)
+def reconsider_evidence_proposal(workspace_id: str, proposal_id: str,
+        request: ReconsiderEvidenceProposalRequest, use_case=Depends(get_reconsider_evidence_proposal_use_case)):
+    try:
+        result = use_case.execute(workspace_id=workspace_id, proposal_id=proposal_id, **request.model_dump(by_alias=False))
+        return EvidenceProposalResponse.from_model(result)
+    except EvidenceProposalBlockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

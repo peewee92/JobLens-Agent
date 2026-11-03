@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pydantic import ConfigDict, Field, StrictBool
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.application.job_requirements import (
@@ -13,6 +14,24 @@ from app.application.job_requirements.release import (
     JobRequirementReleaseReadiness,
 )
 from app.domain.job_requirements import RequirementImportance, RequirementType
+
+
+class JobRequirementConfirmationRequest(CamelCaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action_id: str = Field(min_length=1, max_length=100, pattern=r"\S")
+    extraction_id: str = Field(min_length=1, max_length=90)
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    facts_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    confirmed: StrictBool
+
+
+class JobRequirementConfirmationResponse(CamelCaseModel):
+    action_id: str
+    job_id: str
+    extraction_id: str
+    input_hash: str
+    facts_digest: str
+    confirmed_at: datetime
 
 
 class JobRequirementExtractionRequest(CamelCaseModel):
@@ -77,6 +96,8 @@ class JobRequirementReleaseReadinessResponse(CamelCaseModel):
     accepted_baseline_decision_id: str | None
     accepted_baseline_evidence_fingerprint: str | None
     blockers: list[JobRequirementReleaseBlockerResponse]
+    user_confirmation_id: str | None = None
+    requirement_facts_digest: str | None = None
 
     @classmethod
     def from_detail(
@@ -95,6 +116,8 @@ class JobRequirementReleaseReadinessResponse(CamelCaseModel):
             prompt_version=detail.prompt_version,
             trace_run_id=detail.trace_run_id,
             requirement_count=detail.requirement_count,
+            user_confirmation_id=detail.user_confirmation_id,
+            requirement_facts_digest=detail.requirement_facts_digest,
             accepted_baseline_batch_id=detail.accepted_baseline_batch_id,
             accepted_baseline_decision_id=detail.accepted_baseline_decision_id,
             accepted_baseline_evidence_fingerprint=(
@@ -119,12 +142,14 @@ class JobRequirementExtractionResponse(CamelCaseModel):
     requirement_count: int
     created_at: datetime
     requirements: list[JobRequirementResponse]
+    facts_digest: str
 
     @classmethod
     def from_detail(
         cls,
         detail: JobRequirementExtractionDetail,
     ) -> "JobRequirementExtractionResponse":
+        from app.application.job_requirements.confirmation import requirement_facts_digest
         return cls(
             extraction_id=detail.extraction_id,
             job_id=detail.job_id,
@@ -135,6 +160,7 @@ class JobRequirementExtractionResponse(CamelCaseModel):
             prompt_version=detail.prompt_version,
             trace_run_id=detail.trace_run_id,
             requirement_count=detail.requirement_count,
+            facts_digest=requirement_facts_digest(detail),
             created_at=detail.created_at,
             requirements=[
                 JobRequirementResponse.from_detail(item)

@@ -123,7 +123,7 @@ function initialEvidence(profile: UserProfile | null): EvidenceDraft[] {
 }
 
 function initialSkills(profile: UserProfile | null): SkillDraft[] {
-  if (!profile) return [{...EMPTY_SKILL}];
+  if (!profile) return [];
   const keyById = new Map(profile.evidence.map((item) => [item.id, item.key]));
   return profile.skills.map((item) => ({
     name: item.name,
@@ -137,6 +137,7 @@ function initialSkills(profile: UserProfile | null): SkillDraft[] {
 export function ProfileEditor({
   initialProfile,
   initialIntent,
+  byok = false,
   afterProfileSaveHref = null,
   focusEvidenceType = null,
   focusRequirementType = null,
@@ -144,6 +145,7 @@ export function ProfileEditor({
   focusCapability = null,
   focusRequirementText = null,
 }: {
+  byok?: boolean;
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
   afterProfileSaveHref?: string | null;
@@ -174,7 +176,7 @@ export function ProfileEditor({
   const [profileDirty, setProfileDirty] = useState(false);
   const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
-    Boolean(focusEvidenceType || focusRequirementType),
+    Boolean(!initialProfile || focusEvidenceType || focusRequirementType),
   );
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
@@ -688,11 +690,16 @@ export function ProfileEditor({
 
   return (
     <div className="profile-layout">
-      <ResumeProposalPanel
-        onProposalReady={handleProposalReady}
-        onApply={(proposal) => applyProposal(proposal, "replace")}
-        onReviewDraft={focusProfileDraft}
-      />
+      <details className="detail-card">
+        <summary>可选：从简历整理草稿</summary>
+        <p>不需要先整理简历才能开始。{byok ? "本次使用你连接的模型，需先查看计划并确认费用；你也可以直接手动填写。" : "当前此入口仅支持离线替身，不会调用真实模型；你可以直接在下方手动填写并确认。"}</p>
+        <ResumeProposalPanel
+          byok={byok}
+          onProposalReady={handleProposalReady}
+          onApply={(proposal) => applyProposal(proposal, "replace")}
+          onReviewDraft={focusProfileDraft}
+        />
+      </details>
       <form
         id="profile-background"
         ref={profileFormRef}
@@ -701,10 +708,10 @@ export function ProfileEditor({
       >
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">AI 对我的理解</p>
+            <p className="eyebrow">我确认的职业事实</p>
             <h2>我的职业背景</h2>
             <p className="section-support-copy">
-              先快速确认 JobLens 对你的理解是否准确；只有发现问题时，才需要展开详细编辑。
+              先填写职业定位和一段真实经历，再核对并确认保存。技能和教育信息可暂不填写；没有证据不等于你不具备。
             </p>
           </div>
           <span className={`version-badge${profileDirty ? " profile-status-dirty" : ""}`}>
@@ -861,7 +868,7 @@ export function ProfileEditor({
             <div>
               <h3>还没有可确认的职业背景</h3>
               <p>
-                推荐先用上方“AI 简历整理”自动生成草稿；如果暂时没有简历，也可以手动填写。
+                直接在下方填写真实经历即可开始，不需要调用模型。填写后先返回卡片核对，再确认保存。
               </p>
             </div>
             <button
@@ -1332,7 +1339,7 @@ export function ProfileEditor({
         <div className="subsection-heading">
           <div>
             <h3>我的技能</h3>
-            <p>每项技能至少选择一段能证明它的真实经历，避免把“想学”误当成“已经会”。</p>
+            <p>技能可以暂不填写；已填写的技能需要关联真实经历，避免把“想学”误当成“已经会”。</p>
           </div>
           <button
             className="button-secondary"
@@ -1396,7 +1403,6 @@ export function ProfileEditor({
               <button
                 className="danger-link"
                 type="button"
-                disabled={skills.length === 1}
                 onClick={() => {
                   markProfileDirty();
                   setSkills((items) => items.filter((_, i) => i !== index));
@@ -1430,7 +1436,7 @@ export function ProfileEditor({
         ) : null}
       </form>
 
-      <form className="panel profile-form" onSubmit={saveIntent}>
+      <form className="panel profile-form" id="search-intent" onSubmit={saveIntent}>
         <div className="section-title-row">
           <div>
             <p className="eyebrow">我想找什么</p>
@@ -1472,6 +1478,7 @@ export function ProfileEditor({
           </div>
           <div className="field">
             <label htmlFor="remoteAccepted">接受远程</label>
+            <p className="muted-copy">选择接受，表示目标城市的线下岗位或远程岗位均可，并不是只接受远程。</p>
             <select
               id="remoteAccepted"
               value={remoteAccepted}
@@ -1519,6 +1526,7 @@ export function ProfileEditor({
           </div>
           <div className="field profile-span-2">
             <label htmlFor="hardConstraints">不能接受的条件</label>
+            <p className="muted-copy">自由文本限制会显示为待确认，不会被自动解释为已满足。</p>
             <textarea
               id="hardConstraints"
               value={hardConstraints}

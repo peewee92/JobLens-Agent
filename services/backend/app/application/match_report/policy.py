@@ -1,4 +1,4 @@
-"""Deterministic recommendation policy for transient MatchReport v1."""
+"""Deterministic recommendation policy for evidence-grounded MatchReport."""
 from __future__ import annotations
 
 from app.application.eligibility import EligibilityDecision
@@ -10,15 +10,12 @@ from app.domain.job_requirements import RequirementImportance
 def recommend_match(result: JobSemanticMatchResult) -> MatchRecommendation:
     """Map trusted Eligibility + semantic assessments to a user recommendation.
 
-    The policy is intentionally threshold-free in v1: no percentage score and no
+    The policy is intentionally threshold-free: no percentage score and no
     provider-owned recommendation. Deterministic Eligibility always has precedence.
     """
 
     if result.eligibility is EligibilityDecision.BLOCKED:
         return MatchRecommendation.BLOCKED
-    if result.eligibility is EligibilityDecision.CONDITIONAL:
-        return MatchRecommendation.STRETCH
-
     core = tuple(
         item
         for item in result.assessments
@@ -27,6 +24,16 @@ def recommend_match(result: JobSemanticMatchResult) -> MatchRecommendation:
             RequirementImportance.PREFERRED,
         }
     )
+    if result.eligibility is EligibilityDecision.CONDITIONAL:
+        # Passing the gate is not a positive recommendation: unknowns alone
+        # cannot manufacture a challenge candidate without supported core facts.
+        supported_core = any(
+            item.verdict in {SemanticMatchVerdict.MATCHED, SemanticMatchVerdict.PARTIAL}
+            and bool(item.evidence_ids or item.profile_fact_refs)
+            for item in core
+        )
+        return MatchRecommendation.STRETCH if supported_core else MatchRecommendation.LOW
+
     if not core:
         return (
             MatchRecommendation.GOOD

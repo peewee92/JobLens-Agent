@@ -8,11 +8,13 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.application.semantic_match.call_boundary import semantic_input_payload
 from app.application.evidence_retrieval.models import EvidenceRelevanceTier
 from app.application.ports.semantic_matcher import AbstractSemanticMatcher
 from app.application.semantic_match.errors import (
     SemanticMatcherFailedError,
     SemanticMatcherUnavailableError,
+    SemanticModelAuthorizationRequiredError,
 )
 from app.application.semantic_match.models import (
     SemanticMatchAssessmentOutput,
@@ -49,6 +51,15 @@ class DisabledSemanticMatcher(AbstractSemanticMatcher):
     ) -> SemanticMatcherResult:
         raise SemanticMatcherUnavailableError(
             "Semantic Match provider is disabled. Configure an approved provider before execution."
+        )
+
+
+class AuthorizationRequiredSemanticMatcher(DisabledSemanticMatcher):
+    """Fail closed on legacy HTTP routes lacking per-request authorization."""
+
+    def match(self, requirements: tuple[SemanticRequirementInput, ...]) -> SemanticMatcherResult:
+        raise SemanticModelAuthorizationRequiredError(
+            "Live semantic matching is unavailable: per-request model authorization and cost tracking are not yet supported on this route."
         )
 
 
@@ -174,6 +185,8 @@ class OpenAISemanticMatcher(AbstractSemanticMatcher):
                     }
                 },
             }
+            if self._max_completion_tokens is not None:
+                request_body["max_output_tokens"] = self._max_completion_tokens
             output_text = _response_output_text
             input_tokens_key = "input_tokens"
             output_tokens_key = "output_tokens"
@@ -269,28 +282,7 @@ class OpenAISemanticMatcher(AbstractSemanticMatcher):
 def _semantic_input_payload(
     requirements: tuple[SemanticRequirementInput, ...],
 ) -> dict[str, object]:
-    return {
-        "requirements": [
-            {
-                "requirementId": item.requirement_id,
-                "type": item.type.value,
-                "importance": item.importance.value,
-                "originalText": item.original_text,
-                "normalizedCapability": item.normalized_capability,
-                "candidates": [
-                    {
-                        "evidenceId": candidate.evidence_id,
-                        "evidenceType": candidate.evidence_type.value,
-                        "summary": candidate.summary,
-                        "relevanceTier": candidate.relevance_tier.value,
-                        "retrievalBasis": candidate.retrieval_basis.value,
-                    }
-                    for candidate in item.candidates
-                ],
-            }
-            for item in requirements
-        ]
-    }
+    return semantic_input_payload(requirements)
 
 
 def _response_output_text(payload: Any) -> str:

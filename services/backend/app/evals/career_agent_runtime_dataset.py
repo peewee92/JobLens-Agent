@@ -1,4 +1,4 @@
-"""Frozen LG-3 trajectory cohort for the durable Career Agent release gate.
+"""Synthetic LG-3 trajectory cohort for deterministic path-check tests.
 
 Each case is materialized through the same SQLite checkpoint history used by the
 runtime, then read back through ``build_persisted_trajectory_snapshot``.  The
@@ -121,7 +121,10 @@ def build_frozen_runtime_trajectory_cases(*, database_path: str | Path) -> tuple
             )
             store.save(state)
 
-        snapshot = build_persisted_trajectory_snapshot(checkpoints=store, thread_id=state.thread_id)
+        snapshot = replace(
+            build_persisted_trajectory_snapshot(checkpoints=store, thread_id=state.thread_id),
+            source="synthetic",
+        )
         cases.append(
             CareerAgentTrajectoryCase(
                 case_id=scenario.case_id,

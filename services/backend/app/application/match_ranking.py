@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from typing import Literal
 
 from app.application.job_queries.models import JobDetail, JobListItem
+from app.application.job_requirements.release import GetJobRequirementReleaseReadinessUseCase
+from app.application.match_policy_version import CURRENT_MATCH_POLICY_VERSION
+from app.application.match_report_history import report_stale_reasons
 from app.application.match_report import (
     MatchRecommendation,
     MatchReportPersistenceNotReadyError,
@@ -13,6 +18,35 @@ from app.application.ports.career_context_repository import AbstractCareerContex
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.ports.job_requirement_repository import AbstractJobRequirementQueryRepository
 from app.application.ports.match_report_repository import AbstractMatchReportQueryRepository
+
+
+DEFAULT_TARGET_SUGGESTIONS = 3
+MAX_CONFIRMED_TARGETS = 5
+MAX_ANALYSIS_JOBS = 50
+
+
+@dataclass(frozen=True, slots=True)
+class RankingOmission:
+    job_id: str
+    reason: Literal["report_missing", "report_stale", "hard_conflict"]
+    stale_reasons: tuple[str, ...] = ()
+
+
+def is_target_candidate(recommendation: object) -> bool:
+    """A readable ranked report is not necessarily an affirmative suggestion."""
+    return recommendation in (
+        MatchRecommendation.STRONG, MatchRecommendation.GOOD, MatchRecommendation.STRETCH,
+    )
+
+
+def target_suggestion_mode(
+    reports: Iterable[StoredMatchReport], job_ids: tuple[str, ...],
+) -> Literal["supported", "challenge_only"] | None:
+    selected = tuple(item.report.recommendation for item in reports if item.report.job_id in job_ids)
+    if not selected:
+        return None
+    return "challenge_only" if all(item == MatchRecommendation.STRETCH for item in selected) else "supported"
+
 
 def _contains_term(text: str, term: str) -> bool:
     start = text.find(term)
@@ -43,6 +77,10 @@ def rank_match_reports(
     jobs_by_id: Mapping[str, JobListItem | JobDetail] | None = None,
 ) -> tuple[StoredMatchReport, ...]:
     """Return a stable deterministic ranking without mutating source reports."""
+    reports = tuple(
+        item for item in reports
+        if item.report.policy_version == CURRENT_MATCH_POLICY_VERSION
+    )
     visible = (
         tuple(reports)
         if include_blocked
@@ -77,6 +115,7 @@ def rank_match_reports(
                 _RECOMMENDATION_PRIORITY[item.report.recommendation],
                 -preference_matches(item),
                 blocked_hard_gap_count(item),
+                item.report.job_id,
             ),
         )
     )
@@ -92,12 +131,14 @@ class BatchRankMatchReportsUseCase:
         career_context_repository: AbstractCareerContextQueryRepository,
         job_repository: AbstractJobQueryRepository,
         requirement_repository: AbstractJobRequirementQueryRepository,
+        requirement_release: GetJobRequirementReleaseReadinessUseCase,
         persistence_ready: Callable[[], bool],
     ) -> None:
         self._report_repository = report_repository
         self._career_context_repository = career_context_repository
         self._job_repository = job_repository
         self._requirement_repository = requirement_repository
+        self._requirement_release = requirement_release
         self._persistence_ready = persistence_ready
 
     def execute(
@@ -107,8 +148,15 @@ class BatchRankMatchReportsUseCase:
         include_blocked: bool = False,
         top_n: int | None = None,
     ) -> tuple[StoredMatchReport, ...]:
+        ranked, _ = self._evaluate(job_ids, include_blocked=include_blocked)
+        return ranked if top_n is None else ranked[:top_n]
+
+    def preflight(self, job_ids: tuple[str, ...]) -> tuple[tuple[StoredMatchReport, ...], tuple[RankingOmission, ...]]:
+        return self._evaluate(job_ids, include_blocked=False)
+
+    def _evaluate(self, job_ids: tuple[str, ...], *, include_blocked: bool) -> tuple[tuple[StoredMatchReport, ...], tuple[RankingOmission, ...]]:
         if not job_ids:
-            return ()
+            return (), ()
         if not self._persistence_ready():
             raise MatchReportPersistenceNotReadyError(
                 "MatchReport persistence schema is not ready"
@@ -116,37 +164,37 @@ class BatchRankMatchReportsUseCase:
 
         reports = self._report_repository.list_latest_for_jobs(job_ids)
         if not reports:
-            return ()
+            return (), tuple(RankingOmission(job_id, "report_missing") for job_id in dict.fromkeys(job_ids))
 
         current_profile = self._career_context_repository.get_current_profile()
-        if current_profile is None:
-            return ()
-        reports = tuple(
-            item
-            for item in reports
-            if item.report.profile_id == current_profile.id
-            and item.report.profile_version == current_profile.version
-            and (
-                latest_extraction := self._requirement_repository.get_latest(
-                    item.report.job_id
-                )
-            ) is not None
-            and item.report.extraction_id == latest_extraction.extraction_id
-        )
-        if not reports:
-            return ()
-
         search_intent = self._career_context_repository.get_current_search_intent()
         report_job_ids = tuple(dict.fromkeys(item.report.job_id for item in reports))
         jobs_by_id = {
-            job_id: job
-            for job_id in report_job_ids
+            job_id: job for job_id in report_job_ids
             if (job := self._job_repository.get_job(job_id)) is not None
         }
+        by_id = {item.report.job_id: item for item in reports}
+        valid: list[StoredMatchReport] = []
+        omissions: list[RankingOmission] = []
+        for job_id in dict.fromkeys(job_ids):
+            item = by_id.get(job_id)
+            if item is None:
+                omissions.append(RankingOmission(job_id, "report_missing"))
+                continue
+            reasons = report_stale_reasons(item.report, profile=current_profile, intent=search_intent,
+                extraction=self._requirement_repository.get_latest(job_id), job=jobs_by_id.get(job_id))
+            if not reasons and not self._requirement_release.execute(job_id).release_eligible:
+                reasons = ("requirements_not_released",)
+            if reasons:
+                omissions.append(RankingOmission(job_id, "report_stale", reasons))
+            elif item.report.recommendation is MatchRecommendation.BLOCKED and not include_blocked:
+                omissions.append(RankingOmission(job_id, "hard_conflict"))
+            else:
+                valid.append(item)
         ranked = rank_match_reports(
-            reports,
+            valid,
             include_blocked=include_blocked,
             soft_preferences=(search_intent.soft_preferences if search_intent is not None else ()),
             jobs_by_id=jobs_by_id,
         )
-        return ranked if top_n is None else ranked[:top_n]
+        return ranked, tuple(omissions)

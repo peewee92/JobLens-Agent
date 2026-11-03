@@ -1,0 +1,5 @@
+{
+  "sessionToken": "synthetic_example_token_not_a_secret_123456",
+  "idleSeconds": 1800,
+  "maxAgeSeconds": 7200
+}

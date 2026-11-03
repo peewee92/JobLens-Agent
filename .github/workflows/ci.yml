@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/public-demo-v0.1, codex/byok-core]
   pull_request:
     branches: [main]
 
@@ -55,7 +55,7 @@ jobs:
           run_install: false
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Run web tests
         run: pnpm test

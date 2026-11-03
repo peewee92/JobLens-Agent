@@ -626,6 +626,11 @@ def test_newer_extraction_revokes_match_eligibility_but_keeps_final_history(
         ),
     )
 
+    # Existing decisions without snapshots retain the legacy currentness rule.
+    with session_factory.begin() as session:
+        row = session.get(RequirementReviewBatchFinalDecisionORM, decision.id)
+        row.evidence_snapshot = None
+        row.evidence_snapshot_sha256 = None
     _seed_extraction(
         session_factory,
         index=580,
@@ -712,3 +717,131 @@ def test_failed_review_commit_leaves_no_partial_review(
             )
             or 0
         ) == 0
+
+
+def test_final_decision_freezes_complete_evidence_in_same_write_transaction(session_factory):
+    import json
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+    batch = _complete_formal_batch(session_factory, start_index=700)
+    first_job = batch.cases[0].job_id
+    original_description = batch.cases[0].description
+    class CheckConcurrentWriter(SqlAlchemyRequirementReviewUnitOfWork):
+        def load_batch_for_final_decision(self, batch_id):
+            detail = super().load_batch_for_final_decision(batch_id)
+            with session_factory() as other:
+                other.execute(text('PRAGMA busy_timeout=0'))
+                with pytest.raises(OperationalError, match='locked'):
+                    other.execute(text('UPDATE jobs SET description = :d WHERE id = :id'),
+                                  {'d': 'concurrent change', 'id': first_job})
+                other.rollback()
+            return detail
+    decision = FinalizeRequirementReviewBatchUseCase(
+        SqlAlchemyRequirementReviewQueryRepository(session_factory),
+        lambda: CheckConcurrentWriter(session_factory)).execute(
+            batch_id=batch.summary.id,
+            decision=RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH,
+            reviewer='will', notes='This formal evidence is reviewed and frozen in one transaction.')
+    with session_factory() as session:
+        row = session.get(RequirementReviewBatchFinalDecisionORM, decision.id)
+        snapshot = row.evidence_snapshot
+        assert snapshot['schemaVersion'] == 2
+        assert len(snapshot['batch']['cases']) == 20
+        assert len(snapshot['traces']) == 20
+        assert snapshot['batch']['cases'][0]['description'] == original_description
+        assert snapshot['batch']['cases'][0]['requirements']
+        assert snapshot['batch']['cases'][0]['review']['notes']
+        digest = sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        assert digest == row.evidence_snapshot_sha256
+    with session_factory.begin() as session:
+        session.get(JobORM, first_job).description = 'A different description after the decision.'
+    with session_factory() as session:
+        row = session.get(RequirementReviewBatchFinalDecisionORM, decision.id)
+        assert row.evidence_snapshot == snapshot
+    assert SqlAlchemyRequirementReviewQueryRepository(session_factory).get_accepted_baseline() is not None
+
+
+def test_final_decision_rechecks_stale_sample_inside_transaction(session_factory):
+    batch = _complete_formal_batch(session_factory, start_index=740)
+    with session_factory.begin() as session:
+        job = session.get(JobORM, batch.cases[0].job_id)
+        job.description = (job.description or '') + ' Updated after review.'
+    with pytest.raises(InvalidRequirementReviewBatchFinalDecisionError, match='exactly 20 reviewed'):
+        _finalize_use_case(session_factory).execute(
+            batch_id=batch.summary.id, decision=RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH,
+            reviewer='will', notes='Previously reviewed samples must still be current at decision time.')
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(RequirementReviewBatchFinalDecisionORM)) == 0
+
+
+@pytest.mark.parametrize('corruption', ['missing_digest', 'missing_snapshot', 'wrong_digest', 'future_version', 'cohort_tamper', 'review_tamper'])
+def test_frozen_baseline_rejects_damaged_or_inconsistent_snapshot(session_factory, corruption):
+    import copy
+    import json
+    batch = _complete_formal_batch(session_factory, start_index=800)
+    decision = _finalize_use_case(session_factory).execute(
+        batch_id=batch.summary.id, decision=RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH,
+        reviewer='will', notes='These twenty reviewed samples authorize a frozen cohort baseline.')
+    repository = SqlAlchemyRequirementReviewQueryRepository(session_factory)
+    assert repository.get_accepted_baseline() is not None
+    with session_factory.begin() as session:
+        row = session.get(RequirementReviewBatchFinalDecisionORM, decision.id)
+        snapshot = copy.deepcopy(row.evidence_snapshot)
+        if corruption == 'missing_digest':
+            row.evidence_snapshot_sha256 = None
+        elif corruption == 'missing_snapshot':
+            row.evidence_snapshot = None
+        elif corruption == 'wrong_digest':
+            row.evidence_snapshot_sha256 = '0' * 64
+        else:
+            if corruption == 'future_version': snapshot['schemaVersion'] = 999
+            elif corruption == 'cohort_tamper': snapshot['batch']['summary']['model'] = 'different-model'
+            else: snapshot['batch']['cases'][0]['review']['notes'] = 'tampered review'
+            row.evidence_snapshot = snapshot
+            row.evidence_snapshot_sha256 = sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    assert repository.get_accepted_baseline() is None
+    assert repository.get_batch(batch.summary.id).summary.match_release_eligible is False
+
+
+def test_v1_snapshot_retains_old_currentness_policy(session_factory):
+    import copy
+    import json
+    batch = _complete_formal_batch(session_factory, start_index=850)
+    decision = _finalize_use_case(session_factory).execute(
+        batch_id=batch.summary.id, decision=RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH,
+        reviewer='will', notes='This is a synthetic older version of accepted evidence.')
+    with session_factory.begin() as session:
+        row = session.get(RequirementReviewBatchFinalDecisionORM, decision.id)
+        snapshot = copy.deepcopy(row.evidence_snapshot)
+        snapshot['schemaVersion'] = 1
+        snapshot.pop('baselinePolicy')
+        row.evidence_snapshot = snapshot
+        row.evidence_snapshot_sha256 = sha256(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    repository = SqlAlchemyRequirementReviewQueryRepository(session_factory)
+    assert repository.get_accepted_baseline() is not None
+    with session_factory.begin() as session:
+        session.get(JobORM, batch.cases[0].job_id).description = 'Updated after the decision'
+    assert repository.get_accepted_baseline() is None
+
+
+def test_frozen_cohort_does_not_bypass_current_job_release_checks(session_factory):
+    from .test_job_requirement_release import FakeJobs, FakeRequirements, FakeTraces, _job, _extraction, _trace
+    from app.application.job_requirements.release import GetJobRequirementReleaseReadinessUseCase, JobRequirementReleaseBlockerCode
+    batch = _complete_formal_batch(session_factory, start_index=900)
+    _finalize_use_case(session_factory).execute(batch_id=batch.summary.id,
+        decision=RequirementReviewBatchFinalDecision.ACCEPT_FOR_MATCH, reviewer='will',
+        notes='The reviewed model cohort is accepted as a frozen baseline.')
+    with session_factory.begin() as session:
+        session.get(JobORM, batch.cases[0].job_id).description = 'One sample has subsequently changed'
+    reviews = SqlAlchemyRequirementReviewQueryRepository(session_factory)
+    assert reviews.get_accepted_baseline() is not None
+    def check(job, extraction, trace):
+        return GetJobRequirementReleaseReadinessUseCase(jobs=FakeJobs(job),
+            requirements=FakeRequirements(extraction), reviews=reviews, traces=FakeTraces(trace)).execute('job_release_1')
+    assert check(_job(), _extraction(), _trace()).release_eligible
+    stale = check(_job(description='Changed independent job description'), _extraction(), _trace())
+    assert JobRequirementReleaseBlockerCode.EXTRACTION_INPUT_STALE in {b.code for b in stale.blockers}
+    mismatch = check(_job(), _extraction(model='other'), _trace(model='other'))
+    assert JobRequirementReleaseBlockerCode.EXTRACTION_COHORT_MISMATCH in {b.code for b in mismatch.blockers}
+    bad_trace = check(_job(), _extraction(), _trace(error='synthetic failure'))
+    assert JobRequirementReleaseBlockerCode.TRACE_FAILED in {b.code for b in bad_trace.blockers}

@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from app.application.job_availability_guard import JobUnavailableForMatchingError
+from app.application.job_requirements.errors import JobDescriptionChangedDuringExtractionError, RequirementExtractionSupersededError
 from app.application.job_requirements import (
     InvalidRequirementExtractorOutputError,
     JobDescriptionNotExtractableError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementModelAuthorizationRequiredError,
 )
 from app.application.recommendation_coverage import BuildRecommendationCoverageUseCase
 
@@ -124,6 +127,27 @@ class ExecuteRequirementBatchUseCase:
             ready_executed += 1
             try:
                 extraction = self._extraction_runner.execute(job_id)
+            except RequirementExtractionSupersededError:
+                side_effect_counts_complete = False
+                items.append(RequirementBatchExecutionItem(
+                    job_id=job_id, status=RequirementBatchExecutionStatus.FAILED,
+                    error_code="requirement_extraction_superseded",
+                ))
+            except JobDescriptionChangedDuringExtractionError:
+                side_effect_counts_complete = False
+                items.append(RequirementBatchExecutionItem(
+                    job_id=job_id, status=RequirementBatchExecutionStatus.FAILED,
+                    error_code="job_description_changed_during_extraction",
+                ))
+            except JobUnavailableForMatchingError as error:
+                # The check can fail after the provider has returned; counts are
+                # unknown on that path, and other selected jobs can proceed.
+                if error.code == "job_availability_changed":
+                    side_effect_counts_complete = False
+                items.append(RequirementBatchExecutionItem(
+                    job_id=job_id, status=RequirementBatchExecutionStatus.FAILED,
+                    error_code=error.code,
+                ))
             except RequirementExtractorUnavailableError as error:
                 call_count = int(getattr(error, "provider_calls", 0))
                 trace_count = int(bool(getattr(error, "run_id", None)))
@@ -134,7 +158,7 @@ class ExecuteRequirementBatchUseCase:
                     RequirementBatchExecutionItem(
                         job_id=job_id,
                         status=RequirementBatchExecutionStatus.PROVIDER_UNAVAILABLE,
-                        error_code="requirement_provider_unavailable",
+                        error_code=("requirement_model_authorization_required" if isinstance(error, RequirementModelAuthorizationRequiredError) else "requirement_provider_unavailable"),
                         provider_calls=call_count,
                         trace_runs_created=trace_count,
                     )

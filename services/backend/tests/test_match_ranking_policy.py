@@ -179,3 +179,21 @@ def test_rank_match_reports_is_stable_for_equal_recommendations_and_does_not_mut
         "good-second",
     )
     assert reports == original
+
+
+
+def test_ranking_excludes_old_and_unknown_policy_without_reinterpreting_results() -> None:
+    from dataclasses import replace
+    current = _stored("current", MatchRecommendation.LOW)
+    old = _stored("old", MatchRecommendation.STRONG)
+    old = replace(old, report=replace(old.report, policy_version="match-policy-v1"))
+    future = replace(old, report=replace(old.report, policy_version="unknown-policy"))
+    previous_policy = replace(old, report=replace(old.report, policy_version="match-policy-v2"))
+    assert rank_match_reports((old, previous_policy, future, current)) == (current,)
+    assert old.report.recommendation is MatchRecommendation.STRONG
+
+
+def test_equal_reports_use_stable_job_identity_not_input_order():
+    a = _stored("a", MatchRecommendation.GOOD)
+    b = _stored("b", MatchRecommendation.GOOD)
+    assert rank_match_reports((b, a)) == rank_match_reports((a, b)) == (a, b)

@@ -1,0 +1,261 @@
+{
+  "$defs": {
+    "CandidatePreview": {
+      "properties": {
+        "evidenceId": {
+          "title": "Evidenceid",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidenceId",
+        "summary"
+      ],
+      "title": "CandidatePreview",
+      "type": "object"
+    },
+    "RequirementPreview": {
+      "properties": {
+        "requirementId": {
+          "title": "Requirementid",
+          "type": "string"
+        },
+        "requirementText": {
+          "title": "Requirementtext",
+          "type": "string"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/CandidatePreview"
+          },
+          "title": "Candidates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requirementId",
+        "requirementText",
+        "candidates"
+      ],
+      "title": "RequirementPreview",
+      "type": "object"
+    },
+    "SemanticCallRecord": {
+      "properties": {
+        "actionId": {
+          "title": "Actionid",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "completed",
+            "failed",
+            "uncertain"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "attempts": {
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "responseStatus": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Responsestatus"
+        },
+        "inputTokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Inputtokens"
+        },
+        "outputTokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outputtokens"
+        },
+        "reportId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reportid"
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Errorcode"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "maxOutputTokens": {
+          "title": "Maxoutputtokens",
+          "type": "integer"
+        },
+        "timeoutSeconds": {
+          "title": "Timeoutseconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "actionId",
+        "jobId",
+        "status",
+        "attempts",
+        "responseStatus",
+        "inputTokens",
+        "outputTokens",
+        "reportId",
+        "errorCode",
+        "model",
+        "maxOutputTokens",
+        "timeoutSeconds"
+      ],
+      "title": "SemanticCallRecord",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "executionMode": {
+      "enum": [
+        "offline",
+        "authorized"
+      ],
+      "title": "Executionmode",
+      "type": "string"
+    },
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "planDigest": {
+      "title": "Plandigest",
+      "type": "string"
+    },
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    },
+    "blockerCode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Blockercode"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "maxProviderCalls": {
+      "const": 1,
+      "title": "Maxprovidercalls",
+      "type": "integer"
+    },
+    "maxOutputTokens": {
+      "title": "Maxoutputtokens",
+      "type": "integer"
+    },
+    "timeoutSeconds": {
+      "title": "Timeoutseconds",
+      "type": "number"
+    },
+    "profileVersion": {
+      "title": "Profileversion",
+      "type": "integer"
+    },
+    "searchIntentVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Searchintentversion"
+    },
+    "extractionId": {
+      "title": "Extractionid",
+      "type": "string"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/RequirementPreview"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "latestRequest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SemanticCallRecord"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "executionMode",
+    "jobId",
+    "planDigest",
+    "available",
+    "blockerCode",
+    "model",
+    "maxProviderCalls",
+    "maxOutputTokens",
+    "timeoutSeconds",
+    "profileVersion",
+    "searchIntentVersion",
+    "extractionId",
+    "requirements",
+    "latestRequest"
+  ],
+  "title": "SemanticCallPlan",
+  "type": "object"
+}

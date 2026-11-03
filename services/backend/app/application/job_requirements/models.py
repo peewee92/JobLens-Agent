@@ -99,3 +99,4 @@ class JobRequirementExtractionDetail:
     requirements: tuple[JobRequirementDetail, ...]
     semantic_policy_version: str | None = None
     provider_calls: int = 0
+    user_confirmation_id: str | None = None

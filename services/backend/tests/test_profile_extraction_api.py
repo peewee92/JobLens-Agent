@@ -217,3 +217,20 @@ def test_openapi_contains_profile_proposal_operation(
     assert operation["responses"]["200"]
     assert operation["responses"]["502"]
     assert operation["responses"]["503"]
+
+
+def test_live_profile_guard_reaches_http_without_creating_profile(api_environment, monkeypatch):
+    from app.api import deps
+    from app.core.config import Settings
+
+    client, factory = api_environment
+    monkeypatch.setattr(deps, "get_settings", lambda: Settings(_env_file=None, profile_extractor_provider="openai"))
+    calls = []
+    monkeypatch.setattr(deps, "build_profile_extractor", lambda settings: calls.append(settings))
+    app.dependency_overrides[get_profile_extraction_workflow] = lambda: ProposeProfileFromResumeWorkflow(
+        deps.get_profile_extractor(), lambda: SqlAlchemyTraceUnitOfWork(factory))
+    response = client.post("/api/v1/profile-proposals", json={"resumeText": resume_text()})
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "profile_model_authorization_required"
+    assert calls == []
+    assert count_rows(factory, UserProfileORM) == 0

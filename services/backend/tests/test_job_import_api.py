@@ -66,6 +66,87 @@ def count_rows(session: Session, model: type) -> int:
     return int(session.scalar(select(func.count()).select_from(model)) or 0)
 
 
+def test_pasted_jobs_without_links_preserve_text_and_reuse_exact_content(api_environment):
+    from app.repositories.sqlalchemy_job_query_repository import SqlAlchemyJobQueryRepository
+    client, factory = api_environment
+    payload = {"title": "AI 应用工程师", "company": "示例公司", "description": "岗位要求：\n熟悉 Python 和 FastAPI。\n能够解释项目经历。"}
+    first = client.post("/api/v1/job-imports/manual", json=payload)
+    assert first.status_code == 201
+    assert first.json()["jobId"].startswith("job_")
+    assert first.json()["created"] == 1
+    replay = client.post("/api/v1/job-imports/manual", json=payload)
+    assert replay.status_code == 201 and replay.json()["updated"] == 1
+    assert replay.json()["jobId"] == first.json()["jobId"]
+    other = client.post("/api/v1/job-imports/manual", json={**payload, "description": "另一份岗位描述"})
+    assert other.status_code == 201 and other.json()["created"] == 1
+    with factory() as session:
+        assert count_rows(session, JobORM) == 2
+        assert count_rows(session, JobSourceORM) == 2
+        original = session.scalar(select(JobORM).where(JobORM.description == payload["description"]))
+        source = session.scalar(select(JobSourceORM).where(JobSourceORM.job_id == original.id))
+        assert source.source == "manual" and source.source_url == "" and source.normalized_source_url is None
+        assert source.source_raw["description"] == payload["description"]
+        assert source.source_raw["provenanceKind"] == "user_paste"
+        assert source.source_raw["sourceUrl"] is None
+        assert original.remote_status.value == "unknown"
+        assert original.education is None and original.skills == []
+        batch = session.get(JobImportORM, first.json()["importId"])
+        assert batch.collector_version is None and batch.source_version == "manual-paste-v1"
+        item = session.scalar(select(JobImportItemORM).where(JobImportItemORM.import_id == batch.id))
+        assert item.source_raw_snapshot["description"] == payload["description"]
+        job_id = original.id
+    detail = SqlAlchemyJobQueryRepository(factory).get_job(job_id)
+    assert detail.description == payload["description"] and detail.source_url == ""
+
+
+def test_pasted_url_is_not_fetched_and_reimport_keeps_job_identity(api_environment):
+    client, factory = api_environment
+    payload = {"title": "开发工程师", "company": "示例", "description": "旧岗位原文", "sourceUrl": "https://example.org/jobs/123?tracking=1"}
+    assert client.post("/api/v1/job-imports/manual", json=payload).json()["created"] == 1
+    payload.update(description="新岗位原文", sourceUrl="https://example.org/jobs/123?tracking=2")
+    result = client.post("/api/v1/job-imports/manual", json=payload)
+    assert result.status_code == 201 and result.json()["updated"] == 1
+    with factory() as session:
+        assert count_rows(session, JobORM) == 1
+        assert session.scalar(select(JobORM.description)) == "新岗位原文"
+        assert count_rows(session, JobImportItemORM) == 2
+
+
+@pytest.mark.parametrize("updates", [
+    {"title": "  "}, {"company": ""}, {"description": "\n "}, {"description": "x" * 50001},
+    {"sourceUrl": "javascript:alert(1)"}, {"sourceUrl": "https://user:secret@example.org/a"},
+    {"remoteStatus": "confirmed"},
+])
+def test_paste_validation_does_not_write(api_environment, updates):
+    client, factory = api_environment
+    response = client.post("/api/v1/job-imports/manual", json={
+        "title": "岗位", "company": "公司", "description": "真实描述", **updates,
+    })
+    assert response.status_code == 422
+    with factory() as session:
+        assert count_rows(session, JobImportORM) == 0
+
+
+def test_manual_contracts_match_python_models():
+    from app.application.job_imports.manual import ManualJobInput
+    from app.api.v1.schemas.job_imports import ManualJobImportResponse
+    schemas = Path(__file__).resolve().parents[3] / "packages/contracts/schemas"
+    for name, model in (("manual-job-input", ManualJobInput), ("manual-job-import-response", ManualJobImportResponse)):
+        schema = json.loads((schemas / f"{name}.schema.json").read_text())
+        schema.pop("$schema")
+        assert schema == model.model_json_schema(by_alias=True)
+
+
+def test_paste_preserves_original_whitespace(api_environment):
+    client, factory = api_environment
+    original = "\n  任职要求：Python\r\n有真实项目经历。\n"
+    response = client.post("/api/v1/job-imports/manual", json={"title": "岗位", "company": "公司", "description": original})
+    assert response.status_code == 201
+    with factory() as session:
+        assert session.scalar(select(JobORM.description)) == original
+        assert session.scalar(select(JobImportItemORM.source_raw_snapshot))["description"] == original
+
+
 def test_post_job_imports_returns_201_and_persists_complete_batch(
     api_environment: tuple[TestClient, sessionmaker[Session]],
 ) -> None:

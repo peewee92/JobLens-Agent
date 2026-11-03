@@ -14,6 +14,7 @@ from app.application.job_import_queries.models import (
     JobImportDetail,
     JobImportErrorDetail,
     JobImportItemDetail,
+    JobDescriptionObservation,
 )
 from app.application.ports.job_import_query_repository import (
     AbstractJobImportQueryRepository,
@@ -58,6 +59,29 @@ class SqlAlchemyJobImportQueryRepository(AbstractJobImportQueryRepository):
 
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
+
+    def get_job_description_observations(self, job_id: str, limit: int) -> tuple[JobDescriptionObservation, ...]:
+        # Only explicit description is projected; source_raw_snapshot itself is private.
+        with self._session_factory() as session:
+            rows = session.execute(select(
+                JobImportItemORM.import_id, JobImportItemORM.input_index,
+                JobImportItemORM.created_at, JobImportItemORM.source_raw_snapshot,
+            ).where(JobImportItemORM.job_id == job_id).order_by(
+                JobImportItemORM.created_at.desc(), JobImportItemORM.input_index.desc(),
+                JobImportItemORM.id.desc(),
+            ).limit(limit)).all()
+        observations = []
+        for row in rows:
+            raw = row.source_raw_snapshot
+            value = raw.get("description") if isinstance(raw, dict) else None
+            description = value if isinstance(value, str) else None
+            observations.append(JobDescriptionObservation(
+                import_id=row.import_id, input_index=row.input_index,
+                recorded_at=_require_utc(row.created_at),
+                description=description[:50000] if description is not None else None,
+                truncated=description is not None and len(description) > 50000,
+            ))
+        return tuple(observations)
 
     def get_import(self, import_id: str) -> JobImportDetail | None:
         with self._session_factory() as session:

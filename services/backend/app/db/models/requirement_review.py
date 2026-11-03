@@ -173,6 +173,8 @@ class RequirementReviewBatchFinalDecisionORM(Base):
     stale_case_count: Mapped[int] = mapped_column(nullable=False)
     issue_code_counts: Mapped[dict[str, int]] = mapped_column(JSON, nullable=False)
     evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    evidence_snapshot_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     decided_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
 
     batch: Mapped[RequirementReviewBatchORM] = relationship(

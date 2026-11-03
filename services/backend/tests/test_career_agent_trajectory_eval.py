@@ -85,7 +85,8 @@ def test_persisted_checkpoint_trace_builds_runtime_snapshot_without_duplicate_ev
         "skill_gap_ready",
         "skill_gap_completed",
     )
-    assert snapshot.business_state_writes == 0
+    assert snapshot.business_state_writes is None
+    assert snapshot.observed_provider_calls is None
 
 
 def test_trajectory_eval_requires_twenty_cases() -> None:
@@ -104,7 +105,7 @@ def test_trajectory_eval_requires_twenty_cases() -> None:
         evaluate_career_agent_trajectories(cases=(case,))
 
 
-def test_frozen_twenty_case_release_gate_passes_and_reports_guardrail_failures(tmp_path) -> None:
+def test_synthetic_paths_cannot_prove_release_gate_and_report_guardrail_failures(tmp_path) -> None:
     cases = build_frozen_runtime_trajectory_cases(database_path=tmp_path / "trajectory_dataset.sqlite3")
 
     assert len(cases) == 20
@@ -122,18 +123,29 @@ def test_frozen_twenty_case_release_gate_passes_and_reports_guardrail_failures(t
     report = evaluate_career_agent_trajectories(cases=cases)
 
     assert report.total_cases == 20
-    assert report.passed_cases == 20
-    assert report.gate_passed is True
+    assert report.control_path_passed_cases == 20
+    assert report.passed_cases == 0
+    assert report.gate_passed is False
+    assert all("synthetic trajectory" in " ".join(result.failure_reasons) for result in report.case_results)
+    assert all("not independently observed" in " ".join(result.failure_reasons) for result in report.case_results)
+
+    # Explicit observations here are test inputs, not measurements of the synthetic cohort.
+    observed_cases = tuple(
+        replace(case, snapshot=replace(case.snapshot, source="checkpoint", observed_provider_calls=0, business_state_writes=0))
+        for case in cases
+    )
+    assert evaluate_career_agent_trajectories(cases=observed_cases).gate_passed is True
 
     unsafe = replace(
-        cases[-1],
+        observed_cases[-1],
         snapshot=CareerAgentTrajectorySnapshot(
             state=replace(cases[-1].snapshot.state, provider_call_count=1),
             visited_nodes=cases[-1].snapshot.visited_nodes + ("provider",),
             business_state_writes=1,
+            observed_provider_calls=1,
         ),
     )
-    failed = evaluate_career_agent_trajectories(cases=cases[:-1] + (unsafe,))
+    failed = evaluate_career_agent_trajectories(cases=observed_cases[:-1] + (unsafe,))
 
     assert failed.gate_passed is False
     assert failed.failed_cases == 1
@@ -141,3 +153,24 @@ def test_frozen_twenty_case_release_gate_passes_and_reports_guardrail_failures(t
     assert any("forbidden node" in reason for reason in reasons)
     assert any("provider call" in reason for reason in reasons)
     assert any("business state write" in reason for reason in reasons)
+
+
+def test_independent_provider_observation_cannot_be_overridden_by_runtime_counter(tmp_path) -> None:
+    cases = build_frozen_runtime_trajectory_cases(database_path=tmp_path / "observations.sqlite3")
+    observed_cases = tuple(
+        replace(case, snapshot=replace(case.snapshot, source="checkpoint", observed_provider_calls=0, business_state_writes=0))
+        for case in cases
+    )
+    observed_call = replace(
+        observed_cases[-1],
+        snapshot=replace(observed_cases[-1].snapshot, observed_provider_calls=1),
+    )
+    assert observed_call.snapshot.state.provider_call_count == 0
+    result = evaluate_career_agent_trajectories(cases=observed_cases[:-1] + (observed_call,))
+    assert result.gate_passed is False
+    assert any("observed provider call" in reason for reason in result.case_results[-1].failure_reasons)
+
+    invalid = replace(observed_call, snapshot=replace(observed_call.snapshot, observed_provider_calls=-1))
+    result = evaluate_career_agent_trajectories(cases=observed_cases[:-1] + (invalid,))
+    assert result.gate_passed is False
+    assert "observed provider call count is invalid: -1" in result.case_results[-1].failure_reasons

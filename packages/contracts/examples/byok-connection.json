@@ -1,0 +1,7 @@
+{
+  "baseUrl": "https://provider.example/v1",
+  "apiKey": "EXAMPLE_NOT_A_REAL_KEY",
+  "model": "example-model",
+  "apiStyle": "chat_completions",
+  "enableThinking": null
+}

@@ -19,6 +19,14 @@ class AbstractRequirementReviewUnitOfWork(ABC):
     def __exit__(self, exc_type, exc, traceback) -> None:
         raise NotImplementedError
 
+    def load_batch_for_final_decision(self, batch_id: str):
+        """Lock writes and load the batch in the final decision transaction."""
+        raise NotImplementedError
+
+    def load_evidence_traces(self, trace_ids: tuple[str, ...]) -> dict:
+        """Capture trace evidence within the final decision transaction."""
+        raise NotImplementedError
+
     @abstractmethod
     def commit(self) -> None:
         raise NotImplementedError

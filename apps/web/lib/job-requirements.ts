@@ -31,11 +31,26 @@ export type RequirementReleaseBlockerCopy = {
   description: string;
 };
 
+export const shortJobDescriptionGuidance = "岗位描述不足，请重新采集包含完整职责和任职要求的岗位，再进行要求分析。";
+export const longJobDescriptionGuidance = "岗位描述超过分析长度上限，请检查采集内容，重新采集不超过 50000 字符的完整岗位描述后再分析。";
+
+export function jobDescriptionIssue(description: string | null | undefined): string | null {
+  // Python's len() counts Unicode code points rather than UTF-16 code units.
+  const length = Array.from((description ?? "").trim()).length;
+  if (length < 40) return shortJobDescriptionGuidance;
+  if (length > 50_000) return longJobDescriptionGuidance;
+  return null;
+}
+
+export function hasEnoughJobDescription(description: string | null | undefined): boolean {
+  return jobDescriptionIssue(description) === null;
+}
+
 const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerCopy> = {
   accepted_baseline_missing: {
-    title: "项目级 AI 质量验收还未完成",
+    title: "当前没有有效的岗位要求审核基线",
     description:
-      "这不是当前岗位漏做了某一步。系统还没有形成经过人工接受的 Requirement 分析基线；你仍然可以先分析这个岗位，但正式匹配会继续保持锁定。",
+      "可能尚未建立审核基线，也可能原有基线已失效。仅重新分析当前岗位不能保证恢复匹配；请查看人工审核状态，或联系维护人员处理。",
   },
   requirement_extraction_missing: {
     title: "这个岗位还没有完成要求分析",
@@ -47,8 +62,8 @@ const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerC
     description: "当前分析基于旧版岗位描述。为避免用过期信息匹配，请重新分析岗位要求。",
   },
   extraction_cohort_mismatch: {
-    title: "岗位要求分析版本已更新",
-    description: "当前结果来自旧的分析版本，需要重新分析后才能用于匹配。",
+    title: "岗位分析版本与审核基线不一致",
+    description: "请检查当前分析版本和人工审核基线。重新分析不一定使用相同版本，也不保证解除阻断。",
   },
   requirements_empty: {
     title: "没有识别到可用的岗位要求",
@@ -84,9 +99,20 @@ const requirementReleaseBlockerCopies: Record<string, RequirementReleaseBlockerC
   },
 };
 
+const blockersRequiringExtraction = new Set([
+  "requirement_extraction_missing", "extraction_input_stale", "extraction_cohort_mismatch",
+  "requirements_empty", "trace_missing", "trace_failed", "trace_cohort_mismatch",
+  "trace_input_mismatch",
+]);
+
 export function requirementReleaseBlockerCopy(
   code: string,
+  description?: string | null,
 ): RequirementReleaseBlockerCopy {
+  const issue = description === undefined ? null : jobDescriptionIssue(description);
+  if (blockersRequiringExtraction.has(code) && issue) {
+    return {title: issue === shortJobDescriptionGuidance ? "岗位描述不足" : "岗位描述过长", description: issue};
+  }
   return (
     requirementReleaseBlockerCopies[code] ?? {
       title: "岗位要求暂时还不能用于匹配",

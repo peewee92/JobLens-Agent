@@ -5,6 +5,8 @@ import {useState} from "react";
 
 import type {ApiErrorBody, BatchMatchExecutionResponse} from "@/lib/contracts";
 import {userFacingApiError} from "@/lib/user-facing-errors";
+import {collectBatchIssues, type BatchMatchIssue} from "@/lib/batch-match-issues";
+import {BatchMatchIssues} from "@/components/batch-match-issues";
 
 type RefreshState =
   | {kind: "idle"; message: string}
@@ -38,6 +40,9 @@ export function RecommendationRefresh({
 }) {
   const router = useRouter();
   const [pendingJobIds, setPendingJobIds] = useState(jobIds);
+  const [issues, setIssues] = useState<BatchMatchIssue[]>([]);
+  const [previousFailures, setPreviousFailures] = useState(0);
+  const [previousAuthorizationBlock, setPreviousAuthorizationBlock] = useState(false);
   const [state, setState] = useState<RefreshState>({kind: "idle", message: ""});
   const isFocused = Boolean(focusJobId);
 
@@ -72,14 +77,14 @@ export function RecommendationRefresh({
     if (pendingJobIds.length === 0 || state.kind === "running") return;
     setState({
       kind: "running",
-      message: `正在重新计算 ${Math.min(pendingJobIds.length, 10)} 个岗位…`,
+      message: `正在重新计算 ${Math.min(pendingJobIds.length, 5)} 个岗位…`,
     });
 
     try {
       const response = await fetch("/api/match-batch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({jobIds: pendingJobIds, maxReadyJobs: 10}),
+        body: JSON.stringify({jobIds: pendingJobIds, maxReadyJobs: 5}),
       });
       if (!response.ok) {
         setState({kind: "error", message: await responseMessage(response)});
@@ -87,28 +92,34 @@ export function RecommendationRefresh({
       }
 
       const result = (await response.json()) as BatchMatchExecutionResponse;
+      setIssues(previous => collectBatchIssues(previous, result.items));
       const failures = result.failedCount + result.inputBlockedCount + result.persistenceBlockedCount;
+      const authorizationBlocked = result.items.some(item => item.errorCode === "semantic_model_authorization_required");
+      const totalFailures = previousFailures + failures;
+      const anyAuthorizationBlock = previousAuthorizationBlock || authorizationBlocked;
+      setPreviousFailures(totalFailures);
+      setPreviousAuthorizationBlock(anyAuthorizationBlock);
       if (result.resumeJobIds.length > 0) {
         setPendingJobIds(result.resumeJobIds);
         setState({
-          kind: "success",
-          message: `已完成 ${result.succeededCount} 个；还有 ${result.resumeJobIds.length} 个可继续重新计算。`,
+          kind: totalFailures > 0 ? "error" : "success",
+          message: `已完成 ${result.succeededCount} 个${totalFailures ? `，累计 ${totalFailures} 个未完成` : ""}；还有 ${result.resumeJobIds.length} 个可继续重新计算。${anyAuthorizationBlock ? "其中有岗位需要语义判断；本入口尚不支持逐次授权，未调用真实模型；请查看岗位详情。" : ""}`,
         });
-        refreshAndScroll();
+        if (totalFailures === 0) refreshAndScroll();
         return;
       }
 
       setPendingJobIds([]);
       setState({
-        kind: failures > 0 ? "error" : "success",
+        kind: totalFailures > 0 ? "error" : "success",
         message:
-          failures > 0
-            ? `本轮完成 ${result.succeededCount} 个，另有 ${failures} 个未完成。可以查看岗位详情确认阻塞原因。`
+          totalFailures > 0
+            ? `本轮完成 ${result.succeededCount} 个，累计 ${totalFailures} 个未完成。${anyAuthorizationBlock ? "部分岗位需要语义判断；本入口尚不支持逐次授权，未调用真实模型；请查看岗位详情。" : "可以查看岗位详情确认阻塞原因。"}`
             : isFocused
               ? `已优先重算你刚补充证据的岗位，优先级已更新。`
               : `已重新计算 ${result.succeededCount} 个岗位，优先级已更新。`,
       });
-      refreshAndScroll();
+      if (totalFailures === 0) refreshAndScroll();
     } catch {
       setState({kind: "error", message: "重新计算失败，请检查本地服务后重试。"});
     }
@@ -128,8 +139,8 @@ export function RecommendationRefresh({
     : pendingJobIds.length < jobIds.length && pendingJobIds.length > 0
       ? `继续计算剩余 ${pendingJobIds.length} 个`
       : isFocused
-        ? `优先重算这个岗位${pendingJobIds.length > 1 ? `及另外 ${Math.min(pendingJobIds.length - 1, 9)} 个` : ""}`
-        : `重新计算 ${Math.min(pendingJobIds.length, 10)} 个岗位`;
+        ? `优先重算这个岗位${pendingJobIds.length > 1 ? `及另外 ${Math.min(pendingJobIds.length - 1, 4)} 个` : ""}`
+        : `重新计算 ${Math.min(pendingJobIds.length, 5)} 个岗位`;
 
   return (
     <div className="notice">
@@ -137,13 +148,14 @@ export function RecommendationRefresh({
       <p>
         {isFocused
           ? `你刚为${focusJobTitle ? `「${focusJobTitle}」` : "这个岗位"}补充了证据。重新计算会先重算它，再看其余已准备好的岗位；只会使用你确认过的 Profile 和当前可信岗位要求。`
-          : `当前有 ${jobIds.length} 个岗位的输入事实已准备好。重新计算只会使用你确认过的 Profile 和当前可信岗位要求；如果某些条件需要语义判断，才可能调用模型。`}
+          : `当前有 ${jobIds.length} 个岗位的输入事实已准备好。重新计算只会使用你确认过的 Profile 和当前可信岗位要求；需要在线语义判断的岗位会等待逐次授权能力，不会调用真实模型。`}
       </p>
       <div className="actions">
         <button className="button" type="button" onClick={run} disabled={state.kind === "running" || pendingJobIds.length === 0}>
           {buttonLabel}
         </button>
       </div>
+      <BatchMatchIssues issues={issues} />
       {state.message ? (
         <p className={state.kind === "error" ? "inline-error" : "muted"} role="status" aria-live="polite">
           {state.message}

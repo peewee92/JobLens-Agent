@@ -10,6 +10,8 @@ from app.application.eligibility import (
     JobEligibilityResult,
     RequirementFitStatus,
 )
+from app.application.job_availability_guard import matching_availability_revision
+from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.match_report.builder import build_match_report
 from app.application.match_report.models import MatchReport
 from app.application.ports.match_report_unit_of_work import AbstractMatchReportUnitOfWork
@@ -47,7 +49,9 @@ class BuildJobMatchReportUseCase:
         eligibility: EligibilityRunner | None = None,
         persistence_ready: PersistenceReadyCheck | None = None,
         uow_factory: MatchReportUnitOfWorkFactory | None = None,
+        jobs: AbstractJobQueryRepository | None = None,
     ) -> None:
+        self._jobs = jobs
         self._semantic_match = semantic_match
         self._eligibility = eligibility
         self._persistence_ready = persistence_ready
@@ -59,6 +63,7 @@ class BuildJobMatchReportUseCase:
                 "MatchReport persistence schema is not ready; apply the approved database migration before generating reports."
             )
 
+        availability_revision = matching_availability_revision(self._jobs, job_id) if self._jobs else None
         eligibility = self._eligibility.execute(job_id) if self._eligibility is not None else None
         if eligibility is not None and eligibility.eligibility is EligibilityDecision.BLOCKED:
             report = build_match_report(_blocked_semantic_result(eligibility))
@@ -69,6 +74,8 @@ class BuildJobMatchReportUseCase:
 
         persisted_report = replace(report, db_writes=1)
         with self._uow_factory() as uow:
+            if availability_revision is not None:
+                uow.ensure_job_availability(job_id, availability_revision)
             uow.reports.add(persisted_report)
             uow.commit()
         return persisted_report
@@ -95,7 +102,7 @@ def _blocked_semantic_result(eligibility: JobEligibilityResult) -> JobSemanticMa
                 item.reason
                 if item.status is not RequirementFitStatus.CONDITIONAL
                 else (
-                    "整体 Eligibility 已因明确 must-have 缺口 blocked；"
+                    "整体 Eligibility 已因明确资格或求职偏好冲突 blocked；"
                     "本次 MatchReport 不再执行语义匹配，这条要求仅保留为未确认。"
                 )
             ),
@@ -109,6 +116,10 @@ def _blocked_semantic_result(eligibility: JobEligibilityResult) -> JobSemanticMa
         profile_version=eligibility.profile_version,
         extraction_id=eligibility.extraction_id,
         eligibility=eligibility.eligibility,
+        search_intent_id=eligibility.search_intent_id,
+        search_intent_version=eligibility.search_intent_version,
+        preference_checks=eligibility.preference_checks,
+        preference_fingerprint=eligibility.preference_fingerprint,
         assessments=assessments,
         matched_count=sum(item.verdict is SemanticMatchVerdict.MATCHED for item in assessments),
         partial_count=0,

@@ -41,7 +41,7 @@ class JobSourceORM(Base):
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     source_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_url: Mapped[str] = mapped_column(String(2048), nullable=False)
-    normalized_source_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    normalized_source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     source_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_raw: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 

@@ -89,6 +89,40 @@ def test_job_outside_frozen_run_scope_is_rejected_instead_of_guessed() -> None:
         )
 
 
+def test_rank_without_explicit_or_run_scope_fails_closed_to_clarification() -> None:
+    resolver = CareerIntentResolver()
+
+    intent = resolver.resolve(
+        intent=CareerIntent(
+            goals=(CareerIntentGoal.RANK_JOBS,),
+            reasoning_summary="用户要求排序，但没有任何可治理岗位范围。",
+        ),
+        context=CareerIntentResolutionContext(),
+    )
+
+    assert intent.goals == ()
+    assert intent.referenced_job_ids == ()
+    assert intent.needs_clarification is True
+    assert intent.clarification_question
+
+
+def test_gap_review_without_explicit_or_run_scope_fails_closed_to_clarification() -> None:
+    resolver = CareerIntentResolver()
+
+    intent = resolver.resolve(
+        intent=CareerIntent(
+            goals=(CareerIntentGoal.REVIEW_GAPS,),
+            reasoning_summary="用户要求分析差距，但没有任何可治理岗位范围。",
+        ),
+        context=CareerIntentResolutionContext(),
+    )
+
+    assert intent.goals == ()
+    assert intent.referenced_job_ids == ()
+    assert intent.needs_clarification is True
+    assert intent.clarification_question
+
+
 def test_unsupported_request_cannot_carry_executable_goals() -> None:
     with pytest.raises(CareerIntentValidationError, match="unsupported request cannot carry executable goals"):
         CareerIntent(

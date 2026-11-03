@@ -3,6 +3,7 @@
 Alembic autogenerate only sees tables that have been imported onto Base.metadata.
 Adding a model file without importing it here makes migrations silently miss it.
 """
+from app.db.models.application_workspace import ApplicationTimelineEventORM, ApplicationWorkspaceORM, EvidenceProposalORM, ExecutionActionItemORM, ResumeVariantORM
 from app.db.models.career_context import (
     ProfileEvidenceORM,
     ProfileSkillEvidenceORM,
@@ -19,6 +20,7 @@ from app.db.models.job_requirement import (
     JobRequirementORM,
 )
 from app.db.models.job_source import JobSourceORM
+from app.db.models.job_requirement_confirmation import JobRequirementConfirmationORM
 from app.db.models.match_report import MatchReportORM
 from app.db.models.profile_eval import (
     ProfileEvalCaseResultORM,
@@ -47,7 +49,17 @@ from app.db.models.requirement_review import (
 from app.db.models.trace_span import TraceSpanORM
 from app.db.models.user_feedback import UserFeedbackORM
 
+from app.db.models.career_agent_run import CareerAgentRunORM, CareerAgentRunEventORM
+
 __all__ = [
+    "JobRequirementConfirmationORM",
+    "CareerAgentRunORM",
+    "CareerAgentRunEventORM",
+    "ApplicationTimelineEventORM",
+    "ApplicationWorkspaceORM",
+    "ExecutionActionItemORM",
+    "EvidenceProposalORM",
+    "ResumeVariantORM",
     "JobORM",
     "ProfileEvidenceORM",
     "ProfileSkillEvidenceORM",
@@ -78,3 +90,8 @@ __all__ = [
     "TraceSpanORM",
     "UserFeedbackORM",
 ]
+
+from app.db.models.application_workspace import AnalysisExecutionReceiptORM
+from app.db.models.requirement_call import RequirementCallORM
+
+from app.db.models.semantic_call import SemanticCallORM

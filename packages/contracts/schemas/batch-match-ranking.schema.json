@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/batch-match-ranking.schema.json",
+  "$defs": {
+    "PreferenceCheckResponse": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "intentFields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Intentfields",
+          "type": "array"
+        },
+        "jobFields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Jobfields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "status",
+        "code",
+        "reason",
+        "intentFields",
+        "jobFields"
+      ],
+      "title": "PreferenceCheckResponse",
+      "type": "object"
+    },
+    "RankedMatchReportItemResponse": {
+      "properties": {
+        "reportId": {
+          "title": "Reportid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "profileId": {
+          "title": "Profileid",
+          "type": "string"
+        },
+        "profileVersion": {
+          "title": "Profileversion",
+          "type": "integer"
+        },
+        "extractionId": {
+          "title": "Extractionid",
+          "type": "string"
+        },
+        "searchIntentId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Searchintentid"
+        },
+        "searchIntentVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Searchintentversion"
+        },
+        "preferenceChecks": {
+          "items": {
+            "$ref": "#/$defs/PreferenceCheckResponse"
+          },
+          "title": "Preferencechecks",
+          "type": "array"
+        },
+        "eligibility": {
+          "title": "Eligibility",
+          "type": "string"
+        },
+        "recommendation": {
+          "title": "Recommendation",
+          "type": "string"
+        },
+        "targetCandidate": {
+          "title": "Targetcandidate",
+          "type": "boolean"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "matchedRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Matchedrequirementids",
+          "type": "array"
+        },
+        "partialRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Partialrequirementids",
+          "type": "array"
+        },
+        "missingRequirementIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missingrequirementids",
+          "type": "array"
+        },
+        "evidenceLinks": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Evidencelinks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reportId",
+        "createdAt",
+        "jobId",
+        "profileId",
+        "profileVersion",
+        "extractionId",
+        "searchIntentId",
+        "searchIntentVersion",
+        "preferenceChecks",
+        "eligibility",
+        "recommendation",
+        "targetCandidate",
+        "summary",
+        "matchedRequirementIds",
+        "partialRequirementIds",
+        "missingRequirementIds",
+        "evidenceLinks"
+      ],
+      "title": "RankedMatchReportItemResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/RankedMatchReportItemResponse"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "count": {
+      "title": "Count",
+      "type": "integer"
+    },
+    "dbWrites": {
+      "default": 0,
+      "title": "Dbwrites",
+      "type": "integer"
+    },
+    "providerCalls": {
+      "default": 0,
+      "title": "Providercalls",
+      "type": "integer"
+    },
+    "traceRunsCreated": {
+      "default": 0,
+      "title": "Tracerunscreated",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "items",
+    "count"
+  ],
+  "title": "BatchMatchRankingResponse",
+  "type": "object"
+}

@@ -147,6 +147,10 @@ class CareerIntentRouter:
 class CareerIntentResolver:
     """Ground job references without title guessing or widening run scope."""
 
+    _SCOPE_REQUIRED_GOALS = frozenset(
+        {CareerIntentGoal.RANK_JOBS, CareerIntentGoal.REVIEW_GAPS}
+    )
+
     def resolve(
         self,
         *,
@@ -181,6 +185,27 @@ class CareerIntentResolver:
                     "current job is outside the governed run scope"
                 )
             referenced.append(current_job_id)
+
+        requires_scope = any(
+            goal in self._SCOPE_REQUIRED_GOALS for goal in intent.goals
+        )
+        if (
+            requires_scope
+            and not referenced
+            and not run_scope
+            and not intent.needs_clarification
+            and intent.unsupported_request is None
+        ):
+            return CareerIntent(
+                goals=(),
+                referenced_job_ids=(),
+                current_job_required=intent.current_job_required,
+                needs_clarification=True,
+                clarification_question="Please clarify which job scope should be used.",
+                unsupported_request=None,
+                confidence=intent.confidence,
+                reasoning_summary=intent.reasoning_summary,
+            )
 
         return CareerIntent(
             goals=intent.goals,

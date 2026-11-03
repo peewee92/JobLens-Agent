@@ -29,6 +29,7 @@ function candidate(
     model: "quality-model",
     extractorVersion: "requirement-extractor-v1",
     promptVersion: "requirement-extraction-v1",
+    semanticPolicyVersion: null,
     traceRunId: `run_${extractionId}`,
     requirementCount: 3,
     createdAt: "2026-08-03T00:00:00Z",
@@ -86,10 +87,10 @@ function reviewCase(
   };
 }
 
-test("cohort key includes provider model extractor and prompt", () => {
+test("cohort key includes provider model extractor prompt and semantic policy", () => {
   assert.equal(
     requirementReviewCohortKey(candidate("one")),
-    "openai::quality-model::requirement-extractor-v1::requirement-extraction-v1",
+    JSON.stringify(["openai", "quality-model", "requirement-extractor-v1", "requirement-extraction-v1", null]),
   );
 });
 
@@ -97,9 +98,11 @@ test("selection allows only one cohort and at most twenty", () => {
   const first = candidate("one");
   const same = candidate("two");
   const mixed = candidate("three", {model: "other-model"});
+  const differentPolicy = candidate("four", {semanticPolicyVersion: "policy-v2"});
   assert.equal(canSelectRequirementCandidate(first, []), true);
   assert.equal(canSelectRequirementCandidate(same, [first]), true);
   assert.equal(canSelectRequirementCandidate(mixed, [first]), false);
+  assert.equal(canSelectRequirementCandidate(differentPolicy, [first]), false);
   const twenty = Array.from({length: 20}, (_, index) => candidate(`selected-${index}`));
   assert.equal(canSelectRequirementCandidate(candidate("extra"), twenty), false);
   assert.equal(canSelectRequirementCandidate(twenty[0], twenty), true);
@@ -136,6 +139,15 @@ test("formal review readiness becomes ready only when one exact cohort has twent
   assert.equal(readiness.targetCandidates.length, 20);
   assert.equal(readiness.outlierCandidates.length, 0);
   assert.equal(readiness.cohortCount, 1);
+});
+
+test("more than twenty candidates can form a batch while distinct policies remain separate", () => {
+  const same = Array.from({length: 21}, (_, index) => candidate(`same-${index}`));
+  const other = candidate("other", {semanticPolicyVersion: "policy-v2"});
+  const readiness = buildRequirementReviewFormalReadiness([...same, other]);
+  assert.equal(readiness.formalReady, true);
+  assert.equal(readiness.targetCandidates.length, 21);
+  assert.deepEqual(readiness.outlierCandidates.map(item => item.extractionId), ["other"]);
 });
 
 test("manual review cases keep stable case order after a judgment is saved", () => {
@@ -177,6 +189,9 @@ test("final decision and Match gate labels keep evidence and approval separate",
     ),
     "Match 门禁已放行",
   );
+  assert.equal(requirementReviewMatchGateLabel(summary({
+    finalDecision: "accept_for_match", matchReleaseEligible: true, staleCaseCount: 1,
+  })), "冻结审核基线有效，样本已有更新");
   assert.match(
     requirementReviewMatchGateLabel(
       summary({

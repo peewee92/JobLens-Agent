@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "resultId": "analysis_run_example",
+  "threadId": "thread_example",
+  "runId": "run_example",
+  "createdAt": "2026-10-25T00:00:00Z",
+  "profileId": "prof_1",
+  "profileVersion": 3,
+  "searchIntentId": "intent_example",
+  "searchIntentVersion": 1,
+  "selectedJobIds": [
+    "job_1"
+  ],
+  "bindings": [
+    {
+      "jobId": "job_1",
+      "extractionId": "extract_1",
+      "matchReportId": "report_1",
+      "policyVersion": "match-policy-v3",
+      "title": "合成演示岗位",
+      "company": "合成演示公司"
+    }
+  ],
+  "gaps": {
+    "cohortId": "agent_run_example",
+    "jobIds": [
+      "job_1"
+    ],
+    "factsUsable": true,
+    "profileId": "prof_1",
+    "profileVersion": 3,
+    "items": [
+      {
+        "capability": "Python",
+        "priority": "P1",
+        "whyImportant": {
+          "targetCoverage": 1.0,
+          "mustHaveRatio": 0.0,
+          "gapSeverity": 0.25
+        },
+        "supportingRequirementIds": [
+          "req_python"
+        ],
+        "supportingJobIds": [
+          "job_1"
+        ],
+        "profileSkillIds": [
+          "skill_python"
+        ],
+        "evidenceIds": [],
+        "currentState": "skill_exists_without_confirmed_evidence",
+        "completionCriteria": [
+          "confirmed_evidence_linked_to_skill_exists"
+        ]
+      }
+    ],
+    "blockers": [],
+    "dbWrites": 0,
+    "providerCalls": 0,
+    "traceRunsCreated": 0
+  },
+  "preparations": [
+    {
+      "jobId": "job_1",
+      "factsUsable": true,
+      "profileId": "prof_1",
+      "profileVersion": 3,
+      "extractionId": "extract_1",
+      "resumeDelta": {
+        "highlights": [
+          {
+            "requirementId": "req_react",
+            "capability": "React",
+            "profileSkillIds": [
+              "skill_react"
+            ],
+            "evidenceIds": [
+              "ev_react"
+            ]
+          }
+        ],
+        "evidenceGaps": [
+          {
+            "requirementId": "req_python",
+            "capability": "Python",
+            "status": "unevidenced",
+            "profileSkillIds": [
+              "skill_python"
+            ]
+          }
+        ]
+      },
+      "experiencePriority": {
+        "items": [
+          {
+            "evidenceId": "ev_react",
+            "evidenceType": "project",
+            "supportingRequirementIds": [
+              "req_react"
+            ],
+            "matchedCapabilities": [
+              "React"
+            ],
+            "mustHaveCount": 1,
+            "requirementCount": 1
+          }
+        ]
+      },
+      "storyFacts": {
+        "items": [
+          {
+            "evidenceId": "ev_react",
+            "evidenceType": "project",
+            "evidenceSummary": "Built the confirmed React desktop project.",
+            "supportingRequirementIds": [
+              "req_react"
+            ],
+            "supportingRequirementTexts": [
+              "Strong React experience is required"
+            ],
+            "matchedCapabilities": [
+              "React"
+            ],
+            "mustHaveCount": 1,
+            "requirementCount": 1
+          }
+        ]
+      },
+      "interviewFacts": {
+        "items": [
+          {
+            "requirementId": "req_react",
+            "requirementType": "skill",
+            "requirementText": "Strong React experience is required",
+            "importance": "must_have",
+            "normalizedCapability": "React",
+            "preparationPriority": "high",
+            "evidenceStatus": "supported",
+            "profileSkillIds": [
+              "skill_react"
+            ],
+            "evidenceIds": [
+              "ev_react"
+            ],
+            "evidenceSummaries": [
+              "Built the confirmed React desktop project."
+            ]
+          },
+          {
+            "requirementId": "req_python",
+            "requirementType": "skill",
+            "requirementText": "Python is preferred",
+            "importance": "preferred",
+            "normalizedCapability": "Python",
+            "preparationPriority": "medium",
+            "evidenceStatus": "unevidenced",
+            "profileSkillIds": [
+              "skill_python"
+            ],
+            "evidenceIds": [],
+            "evidenceSummaries": []
+          }
+        ]
+      },
+      "studyChecklist": {
+        "items": [
+          {
+            "requirementId": "req_python",
+            "requirementText": "Python is preferred",
+            "capability": "Python",
+            "importance": "preferred",
+            "evidenceStatus": "unevidenced",
+            "need": "add_evidence",
+            "profileSkillIds": [
+              "skill_python"
+            ],
+            "completionCriteria": [
+              "confirmed_evidence_linked_to_skill_exists"
+            ]
+          }
+        ]
+      },
+      "blockers": [],
+      "dbWrites": 0,
+      "providerCalls": 0,
+      "traceRunsCreated": 0
+    }
+  ],
+  "isCurrent": true,
+  "staleReasons": []
+}

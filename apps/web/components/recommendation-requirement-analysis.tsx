@@ -1,16 +1,20 @@
 "use client";
 
 import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {useState} from "react";
 
 import type {ApiErrorBody, RequirementBatchExecutionResponse} from "@/lib/contracts";
 import {userFacingApiError} from "@/lib/user-facing-errors";
+import {isUncertainMatchResponse} from "@/lib/import-match-batching";
+import {BatchMatchUncertainNotice} from "@/components/batch-match-uncertain-notice";
 
 type State =
   | {kind: "idle"; message: string}
   | {kind: "running"; message: string}
   | {kind: "success"; message: string}
-  | {kind: "error"; message: string};
+  | {kind: "uncertain"; message: string}
+  | {kind: "error"; message: string; availabilityIssues?: {jobId: string; errorCode: string}[]};
 
 const PROVIDER_COOLDOWN_STORAGE_KEY = "joblens:requirement-provider-cooldown-until";
 const PROVIDER_COOLDOWN_MS = 30 * 60 * 1000;
@@ -59,6 +63,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
     if (
       jobIds.length === 0
       || state.kind === "running"
+      || state.kind === "uncertain"
       || providerBlocked
       || !liveCostConfirmed
     ) return;
@@ -75,11 +80,23 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       });
       if (!response.ok) {
         setLiveCostConfirmed(false);
+        if (isUncertainMatchResponse(response.status)) {
+          setState({kind: "uncertain", message: ""});
+          return;
+        }
         setState({kind: "error", message: await responseMessage(response)});
         return;
       }
 
       const result = (await response.json()) as RequirementBatchExecutionResponse;
+      if (result.items.some(item => item.errorCode === "requirement_model_authorization_required")) {
+        clearProviderCooldown();
+        setProviderBlocked(false);
+        setLiveCostConfirmed(false);
+        setState({kind: "error", message: "本入口尚不支持逐次授权和费用记录，未调用真实模型；请使用已有岗位要求或离线数据。"});
+        router.refresh();
+        return;
+      }
       if (result.providerUnavailableCount > 0) {
         startProviderCooldown();
         setProviderBlocked(true);
@@ -95,8 +112,10 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       clearProviderCooldown();
       setLiveCostConfirmed(false);
       const incomplete = result.failedCount + result.notSelectedCount + result.deferredCount;
+      const availabilityIssues = result.items.filter(item => item.errorCode === "job_user_marked_inactive" || item.errorCode === "job_availability_changed" || item.errorCode === "job_description_changed_during_extraction" || item.errorCode === "requirement_extraction_superseded").map(item => ({jobId: item.jobId, errorCode: item.errorCode!}));
       setState({
         kind: incomplete > 0 ? "error" : "success",
+        ...(incomplete > 0 ? {availabilityIssues} : {}),
         message:
           incomplete > 0
             ? `本轮成功 ${result.succeededCount} 个，另有 ${incomplete} 个未完成；页面已按最新 Coverage 重新排序。`
@@ -105,7 +124,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
       router.refresh();
     } catch {
       setLiveCostConfirmed(false);
-      setState({kind: "error", message: "岗位要求分析失败，请检查本地服务后重试。"});
+      setState({kind: "uncertain", message: ""});
     }
   }
 
@@ -113,20 +132,20 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
 
   return (
     <div className="notice">
-      <strong>可以直接分析这一批优先岗位</strong>
+      <strong>{state.kind === "uncertain" ? "请先核对本轮结果" : "可以直接分析这一批优先岗位"}</strong>
       <p>
-        本轮最多分析 {jobIds.length} 个由 Backend Coverage Planner 选出的岗位。该操作可能调用模型；如果 Provider 出现 429/503/504 等不可用情况，Backend 会立即停止后续岗位，并在当前浏览器会话中保持 30 分钟冷却，避免刷新页面后立即重复付费失败。
+        本轮最多分析 {jobIds.length} 个选出的岗位。目前仅离线替身可执行；真实模型入口在逐次授权和费用记录接入前受阻。
       </p>
-      <label className="feedback-reason-option">
+      {state.kind !== "uncertain" && <label className="feedback-reason-option">
         <input
           type="checkbox"
           checked={liveCostConfirmed}
           onChange={(event) => setLiveCostConfirmed(event.target.checked)}
           disabled={state.kind === "running" || providerBlocked}
         />
-        我确认本轮最多分析 {jobIds.length} 个岗位，并允许产生对应的真实 Provider 调用成本；本次确认只对这一轮有效。
-      </label>
-      <div className="actions">
+        我确认本轮最多分析 {jobIds.length} 个岗位，并了解目前只支持离线执行；本次确认只对这一轮有效。
+      </label>}
+      {state.kind !== "uncertain" && <div className="actions">
         <button
           className="button"
           type="button"
@@ -139,7 +158,13 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
               ? "Provider 暂不可用"
               : `分析下一批 ${jobIds.length} 个岗位`}
         </button>
-      </div>
+      </div>}
+      {state.kind === "uncertain" && <BatchMatchUncertainNotice kind="requirements" />}
+      {state.kind === "error" && state.availabilityIssues?.length ? <ul>
+        {state.availabilityIssues.map(item => <li key={item.jobId}>
+          <Link href={`/jobs/${encodeURIComponent(item.jobId)}`}>查看岗位 {item.jobId}</Link>：{userFacingApiError({error: {code: item.errorCode, message: ""}}, "请检查岗位状态") }
+        </li>)}
+      </ul> : null}
       {state.message ? (
         <p className={state.kind === "error" ? "inline-error" : "muted"} role="status" aria-live="polite">
           {state.message}

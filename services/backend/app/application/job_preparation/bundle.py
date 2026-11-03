@@ -4,6 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.application.career_context.models import ProfileDetail
+from app.application.job_requirements.models import JobRequirementExtractionDetail
+
 from app.application.job_preparation.experience_priority import (
     BuildExperiencePriorityUseCase,
     ExperiencePriorityFacts,
@@ -98,6 +101,21 @@ class BuildJobPreparationBundleUseCase:
         )
         if extraction is None:
             return self._blocked(job_id, ("requirement_extraction_not_found",))
+
+        return self.execute_from_facts(readiness=readiness, profile=profile, extraction=extraction)
+
+    def execute_from_facts(
+        self, *, readiness: JobPreparationReadiness, profile: ProfileDetail,
+        extraction: JobRequirementExtractionDetail,
+    ) -> JobPreparationBundle:
+        """Use an explicitly captured released pair; never read latest facts here."""
+        job_id = readiness.job_id
+        if not readiness.preparation_inputs_ready:
+            return self._blocked(job_id, ("preparation_inputs_not_ready",))
+        if (readiness.profile_id, readiness.profile_version, readiness.extraction_id) != (
+            profile.id, profile.version, extraction.extraction_id
+        ) or extraction.job_id != job_id:
+            return self._blocked(job_id, ("preparation_fact_identity_changed",))
 
         resume_delta = self._resume_delta.execute(
             readiness=readiness,

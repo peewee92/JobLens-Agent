@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/career-agent-continue-request.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "actionId": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Actionid",
+      "type": "string"
+    },
+    "expectedRevision": {
+      "minimum": 0,
+      "title": "Expectedrevision",
+      "type": "integer"
+    },
+    "useCompletedOnly": {
+      "default": false,
+      "title": "Usecompletedonly",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "actionId",
+    "expectedRevision"
+  ],
+  "title": "ContinueAnalysisRequest",
+  "type": "object"
+}

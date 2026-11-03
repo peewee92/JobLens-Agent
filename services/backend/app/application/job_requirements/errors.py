@@ -34,6 +34,10 @@ class RequirementExtractorUnavailableError(JobRequirementExtractionExecutionErro
         self.provider_calls = provider_calls
 
 
+class RequirementModelAuthorizationRequiredError(RequirementExtractorUnavailableError):
+    """Live extraction lacks per-request budget and accounting."""
+
+
 class RequirementExtractorFailedError(JobRequirementExtractionExecutionError):
     """The provider failed before producing usable structured output."""
 
@@ -66,3 +70,11 @@ class InvalidRequirementExtractorOutputError(JobRequirementExtractionExecutionEr
 
 class JobRequirementExtractionNotFoundError(LookupError):
     """No latest or requested historical Requirement Extraction exists."""
+
+
+class JobDescriptionChangedDuringExtractionError(RuntimeError):
+    """The job description changed before the extraction could be saved."""
+
+
+class RequirementExtractionSupersededError(RuntimeError):
+    """Another extraction was persisted after this attempt started."""

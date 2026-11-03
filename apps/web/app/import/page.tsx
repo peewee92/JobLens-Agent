@@ -1,5 +1,6 @@
 import {ImportForm} from "@/components/import-form";
 import {ImportGuide} from "@/components/import-guide";
+import {ManualJobForm} from "@/components/manual-job-form";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +9,17 @@ export default function ImportPage() {
     <>
       <section className="hero">
         <p className="eyebrow">添加岗位</p>
-        <h1>把浏览器里收集的岗位加到 JobLens</h1>
+        <h1>添加你正在考虑的岗位</h1>
         <p className="lede">
-          从 JobLens 浏览器插件导出岗位文件后，在这里一次性添加。系统会自动去重，并保留原始岗位链接，方便你之后核对。
+          先粘贴一个真实岗位，或添加浏览器插件导出的岗位文件。保存后继续核对要求，再根据你的真实经历分析。
         </p>
       </section>
-      <ImportForm />
-      <ImportGuide />
+      <ManualJobForm />
+      <details className="detail-card">
+        <summary>批量添加：浏览器插件与岗位文件</summary>
+        <ImportForm />
+        <ImportGuide />
+      </details>
       <div className="notice">
         这里添加的是岗位数据，不是简历。JobLens 不会自动帮你投递岗位。
       </div>

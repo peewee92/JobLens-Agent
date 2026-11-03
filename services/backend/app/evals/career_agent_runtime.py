@@ -1,13 +1,14 @@
-"""Deterministic release gate for durable Career Agent trajectories.
+"""Evaluate durable Career Agent trajectories and their evidence limits.
 
 LG-3 evaluates runtime control behavior rather than final prose. The snapshot is
 intentionally compact: explicit runtime state, visited node names, and the
-number of business-state writes observed by the harness. Provider calls come
-from the runtime state's own bounded counter.
+runtime-reported provider count. Independent provider and business-write
+observations are optional, and missing observations cannot prove a release gate.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
 from app.agent.graph.state import CareerAgentState, CareerAgentStatus
@@ -20,7 +21,9 @@ MIN_RELEASE_GATE_CASES = 20
 class CareerAgentTrajectorySnapshot:
     state: CareerAgentState
     visited_nodes: tuple[str, ...]
-    business_state_writes: int = 0
+    business_state_writes: int | None = None
+    observed_provider_calls: int | None = None
+    source: Literal["checkpoint", "synthetic"] = "checkpoint"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +42,7 @@ class CareerAgentTrajectoryCaseResult:
     case_id: str
     passed: bool
     failure_reasons: tuple[str, ...]
+    control_path_passed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +52,7 @@ class CareerAgentTrajectoryEvalReport:
     failed_cases: int
     gate_passed: bool
     case_results: tuple[CareerAgentTrajectoryCaseResult, ...]
+    control_path_passed_cases: int
 
 
 def build_persisted_trajectory_snapshot(
@@ -61,7 +66,6 @@ def build_persisted_trajectory_snapshot(
     return CareerAgentTrajectorySnapshot(
         state=history[-1],
         visited_nodes=tuple(state.current_step for state in history),
-        business_state_writes=0,
     )
 
 
@@ -86,6 +90,7 @@ def evaluate_career_agent_trajectories(
         failed_cases=len(results) - passed_cases,
         gate_passed=passed_cases == len(results),
         case_results=results,
+        control_path_passed_cases=sum(result.control_path_passed for result in results),
     )
 
 
@@ -111,12 +116,29 @@ def _evaluate_case(case: CareerAgentTrajectoryCase) -> CareerAgentTrajectoryCase
     if forbidden_visited:
         failures.append("forbidden node visited: " + ", ".join(forbidden_visited))
 
+    control_path_passed = not failures
+
     if snapshot.state.provider_call_count > case.max_provider_calls:
         failures.append(
             "provider call budget exceeded: "
             f"{snapshot.state.provider_call_count} > {case.max_provider_calls}"
         )
-    if snapshot.business_state_writes > case.max_business_state_writes:
+    if snapshot.source == "synthetic":
+        failures.append("synthetic trajectory is not evidence of real execution")
+    if snapshot.observed_provider_calls is None:
+        failures.append("provider calls were not independently observed")
+    elif snapshot.observed_provider_calls < 0:
+        failures.append(f"observed provider call count is invalid: {snapshot.observed_provider_calls}")
+    elif snapshot.observed_provider_calls > case.max_provider_calls:
+        failures.append(
+            "observed provider call budget exceeded: "
+            f"{snapshot.observed_provider_calls} > {case.max_provider_calls}"
+        )
+    if snapshot.business_state_writes is None:
+        failures.append("business state writes were not independently observed")
+    elif snapshot.business_state_writes < 0:
+        failures.append(f"business state write count is invalid: {snapshot.business_state_writes}")
+    elif snapshot.business_state_writes > case.max_business_state_writes:
         failures.append(
             "business state write budget exceeded: "
             f"{snapshot.business_state_writes} > {case.max_business_state_writes}"
@@ -126,6 +148,7 @@ def _evaluate_case(case: CareerAgentTrajectoryCase) -> CareerAgentTrajectoryCase
         case_id=case.case_id,
         passed=not failures,
         failure_reasons=tuple(failures),
+        control_path_passed=control_path_passed,
     )
 
 

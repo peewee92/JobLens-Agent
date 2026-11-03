@@ -54,7 +54,7 @@ export function RequirementReviewFinalDecisionForm({
   return (
     <div className="review-form">
       <p className="notice">
-        这里不自动计算通过阈值。请基于 20 条逐 Case 判断、问题分布和 Trace，亲自决定该模型 cohort 是否可作为 Match 的 Requirement 事实基线。提交后不可修改。
+        这里不自动计算通过阈值。请基于 20 条逐岗位判断、问题分布和执行记录，亲自决定该模型版本是否可作为岗位要求基线。接受后会冻结本次审核证据；样本日后更新不会自动撤销基线，每个岗位仍会单独核查。提交后不可修改。
       </p>
       <label>
         批次级人工结论

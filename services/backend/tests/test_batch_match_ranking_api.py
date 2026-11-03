@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +16,7 @@ from app.application.match_report import (
     StoredMatchReport,
 )
 from app.main import app
+from app.api.v1.schemas.match_ranking import BatchMatchRankingResponse, RankedMatchReportItemResponse
 
 
 def _stored(report_id: str, job_id: str, recommendation: MatchRecommendation) -> StoredMatchReport:
@@ -93,6 +96,7 @@ def test_batch_match_ranking_api_returns_ranked_persisted_snapshots() -> None:
     assert [item["reportId"] for item in body["items"]] == ["report_2", "report_1"]
     assert [item["jobId"] for item in body["items"]] == ["job_2", "job_1"]
     assert [item["recommendation"] for item in body["items"]] == ["strong", "good"]
+    assert [item["targetCandidate"] for item in body["items"]] == [True, True]
     assert body["count"] == 2
     assert body["items"][0]["evidenceLinks"] == [
         {"requirementId": "req_job_2", "evidenceIds": ["evidence_job_2"]}
@@ -117,6 +121,7 @@ def test_batch_match_ranking_api_passes_explicit_include_blocked() -> None:
 
     assert response.status_code == 200
     assert response.json()["items"][-1]["recommendation"] == "blocked"
+    assert response.json()["items"][-1]["targetCandidate"] is False
     assert use_case.calls == [(('job_1',), True, None)]
 
 
@@ -168,3 +173,18 @@ def test_openapi_registers_batch_match_ranking_as_read_only_get() -> None:
     assert "200" in operation["responses"]
     parameter_names = {item["name"] for item in operation["parameters"]}
     assert parameter_names == {"jobId", "includeBlocked", "topN"}
+
+
+def test_target_candidate_uses_the_same_policy_as_graph() -> None:
+    expected = {"strong": True, "good": True, "stretch": True, "low": False, "blocked": False}
+    for recommendation in MatchRecommendation:
+        item = RankedMatchReportItemResponse.from_detail(_stored("r", "j", recommendation))
+        assert item.target_candidate is expected[recommendation.value]
+
+
+def test_shared_ranking_contract_matches_python_response_schema() -> None:
+    schema_path = Path(__file__).resolve().parents[3] / "packages/contracts/schemas/batch-match-ranking.schema.json"
+    schema = json.loads(schema_path.read_text())
+    assert schema.pop("$schema") == "https://json-schema.org/draft/2020-12/schema"
+    assert schema.pop("$id") == "https://joblens.local/schemas/batch-match-ranking.schema.json"
+    assert schema == BatchMatchRankingResponse.model_json_schema(by_alias=True)

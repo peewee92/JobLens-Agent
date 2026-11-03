@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/application-workspace.schema.json",
+  "$defs": {
+    "ApplicationWorkspaceSourceSnapshotResponse": {
+      "properties": {
+        "profileId": {
+          "title": "Profileid",
+          "type": "string"
+        },
+        "profileVersion": {
+          "title": "Profileversion",
+          "type": "integer"
+        },
+        "searchIntentId": {
+          "title": "Searchintentid",
+          "type": "string"
+        },
+        "searchIntentVersion": {
+          "title": "Searchintentversion",
+          "type": "integer"
+        },
+        "requirementExtractionId": {
+          "title": "Requirementextractionid",
+          "type": "string"
+        },
+        "matchReportId": {
+          "title": "Matchreportid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profileId",
+        "profileVersion",
+        "searchIntentId",
+        "searchIntentVersion",
+        "requirementExtractionId",
+        "matchReportId"
+      ],
+      "title": "ApplicationWorkspaceSourceSnapshotResponse",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "workspaceId": {
+      "title": "Workspaceid",
+      "type": "string"
+    },
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "actorId": {
+      "title": "Actorid",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "sourceSnapshot": {
+      "$ref": "#/$defs/ApplicationWorkspaceSourceSnapshotResponse"
+    },
+    "currentFactFingerprint": {
+      "title": "Currentfactfingerprint",
+      "type": "string"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "updatedAt": {
+      "format": "date-time",
+      "title": "Updatedat",
+      "type": "string"
+    },
+    "currentAnalysisThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currentanalysisthreadid"
+    },
+    "currentAnalysisResultId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currentanalysisresultid"
+    }
+  },
+  "required": [
+    "workspaceId",
+    "jobId",
+    "actorId",
+    "status",
+    "sourceSnapshot",
+    "currentFactFingerprint",
+    "createdAt",
+    "updatedAt"
+  ],
+  "title": "ApplicationWorkspaceResponse",
+  "type": "object"
+}

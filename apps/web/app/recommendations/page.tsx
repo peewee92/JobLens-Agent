@@ -1,3 +1,4 @@
+import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
 
 import {EvidenceActionProgress} from "@/components/evidence-action-progress";
@@ -35,6 +36,10 @@ import {
   shouldDeferImmediateEvidenceRepeat,
 } from "@/lib/match-improvement-outcome";
 import {
+  groupRecommendationItems,
+  selectDefaultTargetSuggestions,
+  recommendationGroups,
+  recommendationGroupByType,
   matchRecommendationClasses,
   matchRecommendationDescriptions,
   matchRecommendationLabels,
@@ -171,20 +176,13 @@ export default async function RecommendationsPage({
   const availableReports = ranking.items
     .map((report) => ({report, job: jobById.get(report.jobId)}))
     .filter((item) => item.job !== undefined);
-  const rankedCandidates = availableReports.filter(({report}) => report.recommendation !== "blocked");
-  const rankedItems = rankedCandidates
-    .slice(0, 5)
-    .map((item, index) => ({...item, rank: index + 1}));
-  const focusRankedCandidateIndex = focusJobId
-    ? rankedCandidates.findIndex(({report}) => report.jobId === focusJobId)
-    : -1;
-  const focusRankedItem = focusRankedCandidateIndex >= 0
-    ? {...rankedCandidates[focusRankedCandidateIndex], rank: focusRankedCandidateIndex + 1}
-    : null;
-  const rankedDisplayItems = focusRankedItem && !rankedItems.some(({report}) => report.jobId === focusJobId)
-    ? [...rankedItems, focusRankedItem]
-    : rankedItems;
-
+  const reportGroups = groupRecommendationItems(availableReports);
+  const rankedItems = selectDefaultTargetSuggestions(availableReports);
+  // All readable results stay visible, but low never becomes a default target.
+  const rankedDisplayItems = availableReports
+    .filter(({report}) => report.recommendation !== "blocked")
+    .map((item) => ({...item, rank: rankedItems.findIndex(({report}) => report.reportId === item.report.reportId) + 1}));
+  const displayGroups = groupRecommendationItems(rankedDisplayItems);
   const blockedCandidates = availableReports.filter(({report}) => report.recommendation === "blocked");
   const focusBlockedItem = focusJobId
     ? blockedCandidates.find(({report}) => report.jobId === focusJobId) ?? null
@@ -192,7 +190,7 @@ export default async function RecommendationsPage({
   let blockedDisplayItems = selectFeedbackDisplayItems(
     blockedCandidates,
     null,
-    5,
+    blockedCandidates.length,
     focusBlockedItem ? [focusBlockedItem.report.reportId] : [],
   );
   let blockerSummary = null;
@@ -353,7 +351,7 @@ export default async function RecommendationsPage({
   blockedDisplayItems = selectFeedbackDisplayItems(
     blockedCandidates,
     nextFeedbackReportId,
-    5,
+    blockedCandidates.length,
     focusBlockedItem ? [focusBlockedItem.report.reportId] : [],
   );
   const allCurrentReportsRejected = feedbackStateAvailable
@@ -498,8 +496,8 @@ export default async function RecommendationsPage({
           {focusJobReport ? (
             <p className="muted">
               {focusJobNowBlocked
-                ? `重算后它仍有 ${focusJobReport.report.missingRequirementIds.length} 条硬条件缺口，可以继续补下面列出的证据。`
-                : "这次补充的证据已经让它进入优先候选，下面也会按新结果排序。"}
+                ? "重算后仍有明确硬条件或偏好冲突，请检查下面逐项依据；不一定能通过补技能证据解决。"
+                : `当前分组为「${recommendationGroups[recommendationGroupByType[focusJobReport.report.recommendation]].label}」，不因补充证据就自动提高优先级。`}
             </p>
           ) : null}
           {focusRequirementId && focusJobReport ? (
@@ -716,7 +714,8 @@ export default async function RecommendationsPage({
 
       <div className="result-bar">
         <span>岗位池 {jobs.total} 个 · 本轮比较前 {jobs.items.length} 个</span>
-        <span>已有完整匹配 {availableReports.length} 个 · 当前优先候选 {rankedItems.length} 个</span>
+        <span>已有完整匹配 {availableReports.length} 个 · 默认目标建议 {rankedItems.length} 个</span>
+        <span>优先投入 {reportGroups.priority.length} · 挑战／待核实 {reportGroups.challenge.length} · 证据不足 {reportGroups.insufficient.length} · 暂不建议 {reportGroups.blocked.length}</span>
         <span>
           {feedbackCompletedCount === null
             ? "反馈状态暂不可用"
@@ -771,9 +770,24 @@ export default async function RecommendationsPage({
           : undefined}
       />
 
-      {rankedItems.length > 0 ? (
-        <section className="job-list" aria-label="优先投递岗位">
-          {rankedDisplayItems.map(({report, job, rank}) => {
+      {availableReports.length > 0 && reportGroups.priority.length === 0 ? (
+        <section className="notice">
+          <strong>当前没有值得优先投的已分析岗位</strong>
+          <p>{reportGroups.challenge.length > 0
+            ? "本轮能提出的目标只有挑战／待核实岗位，没有优先投入建议。目标建议只来自有相关基础的挑战岗位，请先核实关键未知。"
+            : "当前没有可靠的目标建议。请先查看证据不足或明确硬冲突的原因，核实真实事实和偏好；不会为了填满三个目标而伪造推荐。"}</p>
+          <Link className="button-secondary" href="/profile">核实职业资料与求职意向</Link>
+        </section>
+      ) : null}
+
+      {(["priority", "challenge", "insufficient"] as const).map((group) => displayGroups[group].length > 0 ? (
+        <section key={group} aria-label={recommendationGroups[group].label}>
+          <div className="section-heading">
+            <h2>{recommendationGroups[group].label}（{displayGroups[group].length}）</h2>
+            <p>{recommendationGroups[group].description}</p>
+          </div>
+          <div className="job-list">
+          {displayGroups[group].map(({report, job, rank}) => {
             if (!job) return null;
             return (
               <article
@@ -784,8 +798,8 @@ export default async function RecommendationsPage({
               >
                 <div className="job-card-header">
                   <div>
-                    <p className="eyebrow">第 {rank} 优先</p>
-                    <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
+                    <p className="eyebrow">{rank > 0 ? `目标建议 ${rank} · ` : ""}{recommendationGroups[group].label}</p>
+                    <h2><Link href={`/jobs/${encodeURIComponent(job.id)}?reportId=${encodeURIComponent(report.reportId)}`}>{job.title}</Link></h2>
                     <p className="company">{job.company}</p>
                   </div>
                   <span className="salary">{formatSalary(job.salaryMinK, job.salaryMaxK)}</span>
@@ -806,11 +820,11 @@ export default async function RecommendationsPage({
                 </div>
 
                 <p>{report.summary || matchRecommendationDescriptions[report.recommendation]}</p>
+                <PreferenceCheckList checks={report.preferenceChecks ?? []} version={report.searchIntentVersion} />
                 {job.id === focusJobId ? (
                   <p className="focus-job-note">
-                    {focusJobNowBlocked
-                      ? `你刚为这个岗位补充了证据，重算后仍有 ${report.missingRequirementIds.length} 条硬条件缺口。`
-                      : "你刚为这个岗位补充的证据已生效，它现在进入优先候选。"}
+                    已读取补充事实后的当前结果：{recommendationGroups[recommendationGroupByType[report.recommendation]].label}。
+                    补充证据不保证提高优先级。
                   </p>
                 ) : null}
                 {report.missingRequirementIds.length > 0 ? (
@@ -818,7 +832,7 @@ export default async function RecommendationsPage({
                 ) : null}
 
                 <div className="actions">
-                  <Link className="button-secondary" href={`/jobs/${job.id}`}>查看为什么 →</Link>
+                  <Link className="button-secondary" href={`/jobs/${encodeURIComponent(job.id)}?reportId=${encodeURIComponent(report.reportId)}`}>查看为什么 →</Link>
                 </div>
                 <RecommendationFeedback
                   matchReportId={report.reportId}
@@ -830,13 +844,9 @@ export default async function RecommendationsPage({
               </article>
             );
           })}
+          </div>
         </section>
-      ) : availableReports.length > 0 ? (
-        <section className="notice">
-          <strong>当前没有值得优先投的已分析岗位</strong>
-          <p>现有完整匹配结果都触发了明确硬条件缺口。下面仍会列出这些岗位和原因，避免把“没有优先候选”误解成系统没有结果。</p>
-        </section>
-      ) : null}
+      ) : null)}
 
       {allCurrentReportsRejected && coverage && coverage.requirementAnalysisNeededCount > 0 ? (
         <section className="notice">
@@ -1053,8 +1063,8 @@ export default async function RecommendationsPage({
       {blockedDisplayItems.length > 0 ? (
         <section>
           <div className="section-heading">
-            <p className="eyebrow">暂不优先</p>
-            <h2>这些岗位当前有明确硬条件缺口</h2>
+            <p className="eyebrow">暂不建议（{reportGroups.blocked.length}）</p>
+            <h2>这些岗位当前有明确硬条件或偏好冲突</h2>
             <p className="muted">
               同样属于暂不建议投递时，会先参考你的明确求职偏好，再把硬条件缺口较少的岗位排在前面，方便你先核实或补证据；这不是成功概率。
             </p>
@@ -1082,7 +1092,7 @@ export default async function RecommendationsPage({
                       {matchRecommendationLabels.blocked}
                     </span>
                     {job.area ? <span className="tag">{job.area}</span> : null}
-                    <span className="tag">明显缺失 {report.missingRequirementIds.length} 条</span>
+                    <span className="tag">岗位硬条件冲突 {report.missingRequirementIds.length} 条</span>
                     {feedbackStateAvailable ? (
                       <span className="tag">
                         {feedbackByReportId.get(report.reportId) ? "已反馈" : "待反馈"}
@@ -1090,16 +1100,15 @@ export default async function RecommendationsPage({
                     ) : null}
                   </div>
                   <p>{report.summary || matchRecommendationDescriptions.blocked}</p>
+                  <PreferenceCheckList checks={report.preferenceChecks ?? []} version={report.searchIntentVersion} />
                   {job.id === focusJobId ? (
                     <p className="focus-job-note">
-                      {focusJobNowBlocked
-                        ? `你刚为这个岗位补充了证据，重算后仍有 ${report.missingRequirementIds.length} 条硬条件缺口。`
-                        : "你刚为这个岗位补充的证据已生效，它现在进入优先候选。"}
+                      重算后仍有明确硬条件或偏好冲突，请核实具体原因；不会自动把新证据解释成条件已满足。
                     </p>
                   ) : null}
                   {jobBlocker && jobBlocker.requirements.length > 0 ? (
                     <div className="recommendation-blocker-facts">
-                      <strong>当前缺少足够 Profile 证据的硬条件</strong>
+                      <strong>当前报告列出的明确硬条件冲突</strong>
                       <ul>
                         {jobBlocker.requirements.slice(0, 3).map((requirement) => (
                           <li key={requirement.requirementId}>
@@ -1125,7 +1134,7 @@ export default async function RecommendationsPage({
                     </p>
                   ) : null}
                   <div className="actions">
-                    <Link className="button-secondary" href={`/jobs/${job.id}`}>查看硬条件缺口 →</Link>
+                    <Link className="button-secondary" href={`/jobs/${encodeURIComponent(job.id)}?reportId=${encodeURIComponent(report.reportId)}`}>查看硬条件与偏好依据 →</Link>
                   </div>
                   <RecommendationFeedback
                     matchReportId={report.reportId}

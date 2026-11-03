@@ -7,11 +7,20 @@ from sqlalchemy import inspect
 
 from app.agent.context import CareerAgentContextBuilder
 from app.agent.entrypoint import CareerAgentEntrypoint
-from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.repositories.sqlalchemy_career_agent_checkpoint import SqlAlchemyCareerAgentCheckpointStore
 from app.agent.graph.hitl_service import CareerAgentHitlService
 from app.agent.runtimes import CareerAgentRuntime, WorkflowCareerAgentRuntime
 from app.agent.tool_registry import CareerAgentToolRegistry
 
+from app.application.application_workspace.status_use_case import UpdateApplicationStatusUseCase
+from app.application.application_workspace.execution_action import CreateStudyExecutionActionsUseCase, UpdateExecutionActionStatusUseCase
+from app.application.application_workspace.evidence_proposal import ConfirmEvidenceProposalUseCase, CreateEvidenceProposalUseCase
+from app.application.application_workspace.interview_mock import (
+    BuildInterviewMockQuestionSetUseCase,
+    ReviewInterviewMockAnswerUseCase,
+)
+from app.application.application_workspace.resume_variant import BuildResumeVariantProposalUseCase, ReviewResumeVariantUseCase, SaveResumeVariantUseCase
+from app.application.application_workspace.use_case import CreateApplicationWorkspaceUseCase
 from app.application.career_context.release import (
     GetCareerContextReleaseReadinessUseCase,
 )
@@ -124,12 +133,27 @@ from app.application.ports import (
     AbstractUnitOfWork,
 )
 from app.core.config import get_settings
+from app.db.models.common import (
+    new_application_timeline_event_id,
+    new_application_workspace_id,
+    new_execution_action_id,
+    new_evidence_proposal_id,
+    new_resume_variant_id,
+    utc_now,
+)
 from app.db.session import SessionLocal, engine
 from app.document_parsers import ResumeDocumentParser
 from app.llm import (
     build_job_requirement_extractor,
     build_profile_extractor,
     build_semantic_matcher,
+)
+from app.repositories.sqlalchemy_application_workspace_repository import (
+    SqlAlchemyApplicationTimelineRepository,
+    SqlAlchemyApplicationWorkspaceRepository,
+    SqlAlchemyExecutionActionRepository,
+    SqlAlchemyEvidenceProposalRepository,
+    SqlAlchemyResumeVariantRepository,
 )
 from app.repositories.sqlalchemy_job_requirement_release_repository import (
     SqlAlchemyJobRequirementReleaseQueryRepository,
@@ -171,6 +195,19 @@ from app.workflows import (
 )
 from app.workflows.job_requirement_extraction import EXTRACTOR_VERSION, PROMPT_VERSION
 
+from app.db.context import current_database
+
+
+def session_factory():
+    context = current_database.get()
+    return context.sessions if context is not None else SessionLocal
+
+
+def database_engine():
+    context = current_database.get()
+    return context.engine if context is not None else engine
+
+
 UnitOfWorkFactory = Callable[[], AbstractUnitOfWork]
 CareerContextUnitOfWorkFactory = Callable[[], AbstractCareerContextUnitOfWork]
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
@@ -194,19 +231,23 @@ def get_uow_factory() -> UnitOfWorkFactory:
     commit/rollback boundary through ``with uow_factory() as uow``.
     """
 
-    return lambda: SqlAlchemyUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyUnitOfWork(session_factory())
 
 
 def get_career_context_uow_factory() -> CareerContextUnitOfWorkFactory:
-    return lambda: SqlAlchemyCareerContextUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyCareerContextUnitOfWork(session_factory())
 
 
 def get_trace_uow_factory() -> TraceUnitOfWorkFactory:
-    return lambda: SqlAlchemyTraceUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyTraceUnitOfWork(session_factory())
 
 
 def get_profile_extractor() -> AbstractProfileExtractor:
-    return build_profile_extractor(get_settings())
+    configured = get_settings()
+    if configured.profile_extractor_provider.strip().casefold() == "openai":
+        from app.llm.profile_extractors import AuthorizationRequiredProfileExtractor
+        return AuthorizationRequiredProfileExtractor()
+    return build_profile_extractor(configured)
 
 
 def get_profile_extraction_workflow(
@@ -230,7 +271,12 @@ def get_profile_document_workflow(
 
 
 def get_job_requirement_extractor() -> AbstractJobRequirementExtractor:
-    return build_job_requirement_extractor(get_settings())
+    configured = get_settings()
+    providers = (configured.requirement_extractor_provider, configured.requirement_extractor_fallback_provider)
+    if any(provider.strip().casefold() == "openai" for provider in providers):
+        from app.llm.job_requirement_extractors import AuthorizationRequiredRequirementExtractor
+        return AuthorizationRequiredRequirementExtractor()
+    return build_job_requirement_extractor(configured)
 
 
 def get_job_requirement_workflow(
@@ -243,7 +289,15 @@ def get_job_requirement_workflow(
 
 
 def get_semantic_matcher() -> AbstractSemanticMatcher:
-    return build_semantic_matcher(get_settings())
+    # The legacy HTTP paths have no per-request authorization or cost journal.
+    # Never let a pre-existing live provider configuration bypass the zero-budget
+    # main-flow boundary. Fixture and disabled adapters remain available offline.
+    from app.byok.context import model_settings
+    configured = model_settings(get_settings())
+    if configured.semantic_match_provider.strip().casefold() == "openai":
+        from app.llm.semantic_matchers import AuthorizationRequiredSemanticMatcher
+        return AuthorizationRequiredSemanticMatcher()
+    return build_semantic_matcher(configured)
 
 
 def get_semantic_match_workflow(
@@ -257,19 +311,19 @@ def get_semantic_match_workflow(
 
 
 def get_job_requirement_query_repository() -> AbstractJobRequirementQueryRepository:
-    return SqlAlchemyJobRequirementQueryRepository(SessionLocal)
+    return SqlAlchemyJobRequirementQueryRepository(session_factory())
 
 
 def get_job_requirement_uow_factory() -> JobRequirementUnitOfWorkFactory:
-    return lambda: SqlAlchemyJobRequirementUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyJobRequirementUnitOfWork(session_factory())
 
 
 def get_profile_eval_query_repository() -> AbstractProfileEvalQueryRepository:
-    return SqlAlchemyProfileEvalQueryRepository(SessionLocal)
+    return SqlAlchemyProfileEvalQueryRepository(session_factory())
 
 
 def get_profile_eval_review_uow_factory() -> ProfileEvalReviewUnitOfWorkFactory:
-    return lambda: SqlAlchemyProfileEvalReviewUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyProfileEvalReviewUnitOfWork(session_factory())
 
 
 def get_list_profile_eval_runs_use_case(
@@ -308,11 +362,11 @@ def get_accepted_profile_eval_baseline_use_case(
 
 
 def get_requirement_eval_query_repository() -> AbstractRequirementEvalQueryRepository:
-    return SqlAlchemyRequirementEvalQueryRepository(SessionLocal)
+    return SqlAlchemyRequirementEvalQueryRepository(session_factory())
 
 
 def get_requirement_eval_review_uow_factory() -> RequirementEvalReviewUnitOfWorkFactory:
-    return lambda: SqlAlchemyRequirementEvalReviewUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyRequirementEvalReviewUnitOfWork(session_factory())
 
 
 def get_list_requirement_eval_runs_use_case(
@@ -353,7 +407,7 @@ def get_accepted_requirement_eval_baseline_use_case(
 def get_requirement_acceptance_run_query_repository() -> (
     AbstractRequirementAcceptanceRunQueryRepository
 ):
-    return SqlAlchemyRequirementAcceptanceRunQueryRepository(SessionLocal)
+    return SqlAlchemyRequirementAcceptanceRunQueryRepository(session_factory())
 
 
 def get_requirement_acceptance_readiness_dashboard_use_case(
@@ -402,7 +456,7 @@ def get_requirement_acceptance_run_use_case(
 def get_requirement_acceptance_run_uow_factory() -> (
     RequirementAcceptanceRunUnitOfWorkFactory
 ):
-    return lambda: SqlAlchemyRequirementAcceptanceRunUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyRequirementAcceptanceRunUnitOfWork(session_factory())
 
 
 def get_review_requirement_acceptance_canary_use_case(
@@ -417,11 +471,11 @@ def get_review_requirement_acceptance_canary_use_case(
 
 
 def get_requirement_review_query_repository() -> AbstractRequirementReviewQueryRepository:
-    return SqlAlchemyRequirementReviewQueryRepository(SessionLocal)
+    return SqlAlchemyRequirementReviewQueryRepository(session_factory())
 
 
 def get_requirement_review_uow_factory() -> RequirementReviewUnitOfWorkFactory:
-    return lambda: SqlAlchemyRequirementReviewUnitOfWork(SessionLocal)
+    return lambda: SqlAlchemyRequirementReviewUnitOfWork(session_factory())
 
 
 def get_list_requirement_review_candidates_use_case(
@@ -490,7 +544,7 @@ def get_accepted_requirement_review_baseline_use_case(
 
 
 def get_career_context_query_repository() -> AbstractCareerContextQueryRepository:
-    return SqlAlchemyCareerContextQueryRepository(SessionLocal)
+    return SqlAlchemyCareerContextQueryRepository(session_factory())
 
 
 def get_get_profile_use_case(
@@ -536,7 +590,7 @@ def get_save_search_intent_use_case(
 def get_job_import_query_repository() -> AbstractJobImportQueryRepository:
     """Provide the read-only Job Import audit repository."""
 
-    return SqlAlchemyJobImportQueryRepository(SessionLocal)
+    return SqlAlchemyJobImportQueryRepository(session_factory())
 
 
 def get_job_import_detail_use_case(
@@ -550,7 +604,13 @@ def get_job_import_detail_use_case(
 def get_job_query_repository() -> AbstractJobQueryRepository:
     """Provide the read-only Job Pool repository."""
 
-    return SqlAlchemyJobQueryRepository(SessionLocal)
+    return SqlAlchemyJobQueryRepository(session_factory())
+
+
+def get_set_job_availability_use_case():
+    from app.repositories.sqlalchemy_job_availability import SqlAlchemyJobAvailability
+    from app.application.job_queries.availability import SetJobAvailabilityUseCase
+    return SetJobAvailabilityUseCase(SqlAlchemyJobAvailability(session_factory()))
 
 
 def get_extract_job_requirements_use_case(
@@ -577,7 +637,7 @@ def get_extract_job_requirements_use_case(
 def get_job_requirement_release_query_repository() -> (
     AbstractJobRequirementReleaseQueryRepository
 ):
-    return SqlAlchemyJobRequirementReleaseQueryRepository(SessionLocal)
+    return SqlAlchemyJobRequirementReleaseQueryRepository(session_factory())
 
 
 def get_job_requirement_release_readiness_use_case(
@@ -618,6 +678,7 @@ def get_mvp_job_requirement_release_readiness_use_case(
         reviews=reviews,
         traces=traces,
         allow_frozen_mvp_without_baseline=True,
+        allow_user_confirmation=True,
     )
 
 
@@ -636,6 +697,7 @@ def get_match_input_readiness_use_case(
 
 
 def get_job_eligibility_use_case(
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
     readiness: GetMatchInputReadinessUseCase = Depends(
         get_match_input_readiness_use_case
     ),
@@ -647,6 +709,7 @@ def get_job_eligibility_use_case(
     ),
 ) -> EvaluateJobEligibilityUseCase:
     return EvaluateJobEligibilityUseCase(
+        jobs=jobs,
         readiness=readiness,
         profiles=profiles,
         requirements=requirements,
@@ -693,28 +756,223 @@ def get_semantic_match_use_case(
         get_job_evidence_retrieval_use_case
     ),
     workflow: SemanticMatchWorkflow = Depends(get_semantic_match_workflow),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> RunJobSemanticMatchUseCase:
     return RunJobSemanticMatchUseCase(
         eligibility=eligibility,
         evidence=evidence,
         workflow=workflow,
+        jobs=jobs,
     )
 
 
 def get_match_report_use_case(
     semantic_match: RunJobSemanticMatchUseCase = Depends(get_semantic_match_use_case),
     eligibility: EvaluateJobEligibilityUseCase = Depends(get_job_eligibility_use_case),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> BuildJobMatchReportUseCase:
     return BuildJobMatchReportUseCase(
         semantic_match,
         eligibility=eligibility,
-        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
-        uow_factory=lambda: SqlAlchemyMatchReportUnitOfWork(SessionLocal),
+        jobs=jobs,
+        persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
+        uow_factory=lambda: SqlAlchemyMatchReportUnitOfWork(session_factory()),
     )
 
 
 def get_match_report_query_repository() -> AbstractMatchReportQueryRepository:
-    return SqlAlchemyMatchReportQueryRepository(SessionLocal)
+    return SqlAlchemyMatchReportQueryRepository(session_factory())
+
+
+def get_application_workspace_repository() -> SqlAlchemyApplicationWorkspaceRepository:
+    return SqlAlchemyApplicationWorkspaceRepository(session_factory())
+
+
+def get_application_timeline_repository() -> SqlAlchemyApplicationTimelineRepository:
+    return SqlAlchemyApplicationTimelineRepository(session_factory())
+
+
+def _atomic_workspace_command(build):
+    from app.application.application_workspace.transaction import TransactionalWorkspaceCommand
+    from app.repositories.sqlalchemy_workspace_command import SqlAlchemyWorkspaceCommandUnitOfWork
+    return TransactionalWorkspaceCommand(lambda: SqlAlchemyWorkspaceCommandUnitOfWork(session_factory()), build)
+
+
+def get_update_application_status_use_case():
+    return _atomic_workspace_command(lambda uow: UpdateApplicationStatusUseCase(
+        workspaces=uow.workspaces, timeline=uow.timeline, now=utc_now,
+        new_event_id=new_application_timeline_event_id))
+
+
+def get_resume_variant_repository() -> SqlAlchemyResumeVariantRepository:
+    return SqlAlchemyResumeVariantRepository(session_factory())
+
+
+def get_execution_action_repository() -> SqlAlchemyExecutionActionRepository:
+    return SqlAlchemyExecutionActionRepository(session_factory())
+
+
+def get_career_analysis_facts(
+    match_inputs: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
+):
+    from app.repositories.sqlalchemy_career_analysis_facts import SqlAlchemyCareerAnalysisFacts
+    return SqlAlchemyCareerAnalysisFacts(session_factory(),
+        readiness=GetJobPreparationReadinessUseCase(match_inputs=match_inputs))
+
+
+def get_workspace_saved_preparation(facts=Depends(get_career_analysis_facts)):
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyWorkspacePreparationReader
+    return SqlAlchemyWorkspacePreparationReader(session_factory(), facts=facts)
+
+
+def get_start_analysis_execution_use_case(facts=Depends(get_career_analysis_facts)):
+    from uuid import uuid4
+    from app.application.application_workspace.start_analysis_execution import StartAnalysisExecutionUseCase
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyAnalysisExecutionUnitOfWork
+    return StartAnalysisExecutionUseCase(uow_factory=lambda: SqlAlchemyAnalysisExecutionUnitOfWork(session_factory(), facts=facts),
+        now=utc_now, new_id=lambda: f"exec_{uuid4().hex}")
+
+
+def get_analysis_execution_query():
+    from app.repositories.sqlalchemy_analysis_execution import SqlAlchemyAnalysisExecutionQuery
+    return SqlAlchemyAnalysisExecutionQuery(session_factory())
+
+
+def get_create_study_execution_actions_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    saved_preparation=Depends(get_workspace_saved_preparation),
+) -> CreateStudyExecutionActionsUseCase:
+    return CreateStudyExecutionActionsUseCase(workspaces=workspaces, preparation=preparation, actions=actions, now=utc_now, new_id=new_execution_action_id, saved_preparation=saved_preparation)
+
+
+def get_update_execution_action_status_use_case():
+    return _atomic_workspace_command(lambda uow: UpdateExecutionActionStatusUseCase(
+        workspaces=uow.workspaces, actions=uow.actions, timeline=uow.timeline,
+        now=utc_now, new_event_id=new_application_timeline_event_id))
+
+
+def get_evidence_proposal_repository() -> SqlAlchemyEvidenceProposalRepository:
+    return SqlAlchemyEvidenceProposalRepository(session_factory())
+
+
+def get_application_workspace_overview_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    actions: SqlAlchemyExecutionActionRepository = Depends(get_execution_action_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+):
+    from app.application.application_workspace.overview import BuildApplicationWorkspaceOverviewUseCase
+    return BuildApplicationWorkspaceOverviewUseCase(
+        workspaces=workspaces, variants=variants, actions=actions, proposals=proposals, timeline=timeline,
+        analyses=SqlAlchemyCareerAgentCheckpointStore(session_factory()),
+    )
+
+
+def get_create_evidence_proposal_use_case():
+    return _atomic_workspace_command(lambda uow: CreateEvidenceProposalUseCase(
+        workspaces=uow.workspaces, actions=uow.actions, proposals=uow.proposals,
+        now=utc_now, new_id=new_evidence_proposal_id, sources=uow.evidence_sources, profiles=uow.profiles))
+
+
+def get_evidence_confirmation_audit_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    proposals: SqlAlchemyEvidenceProposalRepository = Depends(get_evidence_proposal_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+):
+    from app.application.application_workspace.evidence_audit import BuildEvidenceConfirmationAuditUseCase
+    return BuildEvidenceConfirmationAuditUseCase(
+        workspaces=workspaces,
+        proposals=proposals,
+        timeline=timeline,
+    )
+
+
+def get_confirm_evidence_proposal_use_case():
+    from app.application.application_workspace.transaction import SaveProfileInTransaction
+    return _atomic_workspace_command(lambda uow: ConfirmEvidenceProposalUseCase(
+        workspaces=uow.workspaces, proposals=uow.proposals, profiles=uow.profiles,
+        save_profile=SaveProfileInTransaction(uow.profile_writer), timeline=uow.timeline,
+        now=utc_now, new_event_id=new_application_timeline_event_id))
+
+
+def get_interview_mock_question_set_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    saved_preparation=Depends(get_workspace_saved_preparation),
+) -> BuildInterviewMockQuestionSetUseCase:
+    return BuildInterviewMockQuestionSetUseCase(workspaces=workspaces, preparation=preparation, saved_preparation=saved_preparation)
+
+
+def get_review_interview_mock_answer_use_case(
+    question_sets: BuildInterviewMockQuestionSetUseCase = Depends(get_interview_mock_question_set_use_case),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+) -> ReviewInterviewMockAnswerUseCase:
+    return ReviewInterviewMockAnswerUseCase(
+        question_sets=question_sets,
+        timeline=timeline,
+        now=utc_now,
+        new_event_id=new_application_timeline_event_id,
+    )
+
+
+def get_resume_variant_proposal_use_case(
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(get_application_workspace_repository),
+    preparation: BuildJobPreparationBundleUseCase = Depends(get_job_preparation_bundle_use_case),
+    saved_preparation=Depends(get_workspace_saved_preparation),
+) -> BuildResumeVariantProposalUseCase:
+    return BuildResumeVariantProposalUseCase(workspaces=workspaces, preparation=preparation, saved_preparation=saved_preparation)
+
+
+def get_save_resume_variant_use_case(
+    proposals: BuildResumeVariantProposalUseCase = Depends(get_resume_variant_proposal_use_case),
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+) -> SaveResumeVariantUseCase:
+    return SaveResumeVariantUseCase(
+        proposals=proposals,
+        variants=variants,
+        timeline=timeline,
+        now=utc_now,
+        new_id=new_resume_variant_id,
+        new_event_id=new_application_timeline_event_id,
+    )
+
+
+def get_review_resume_variant_use_case(
+    variants: SqlAlchemyResumeVariantRepository = Depends(get_resume_variant_repository),
+    proposals: BuildResumeVariantProposalUseCase = Depends(get_resume_variant_proposal_use_case),
+) -> ReviewResumeVariantUseCase:
+    return ReviewResumeVariantUseCase(variants=variants, proposals=proposals)
+
+
+def get_create_application_workspace_use_case(
+    career_context: AbstractCareerContextQueryRepository = Depends(
+        get_career_context_query_repository
+    ),
+    requirement_gate: GetJobRequirementReleaseReadinessUseCase = Depends(
+        get_mvp_job_requirement_release_readiness_use_case
+    ),
+    match_reports: AbstractMatchReportQueryRepository = Depends(
+        get_match_report_query_repository
+    ),
+    workspaces: SqlAlchemyApplicationWorkspaceRepository = Depends(
+        get_application_workspace_repository
+    ),
+    timeline: SqlAlchemyApplicationTimelineRepository = Depends(get_application_timeline_repository),
+) -> CreateApplicationWorkspaceUseCase:
+    return CreateApplicationWorkspaceUseCase(
+        career_context=career_context,
+        requirement_gate=requirement_gate,
+        match_reports=match_reports,
+        workspaces=workspaces,
+        timeline=timeline,
+        now=utc_now,
+        new_id=new_application_workspace_id,
+        new_event_id=new_application_timeline_event_id,
+    )
 
 
 def get_match_improvement_use_case(
@@ -733,15 +991,15 @@ def get_match_improvement_use_case(
 
 def get_list_user_feedback_use_case() -> ListUserFeedbackUseCase:
     return ListUserFeedbackUseCase(
-        repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        repository=SqlAlchemyUserFeedbackQueryRepository(session_factory()),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
     )
 
 
 def get_list_latest_user_feedback_use_case() -> ListLatestUserFeedbackUseCase:
     return ListLatestUserFeedbackUseCase(
-        repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        repository=SqlAlchemyUserFeedbackQueryRepository(session_factory()),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
     )
 
 
@@ -752,8 +1010,8 @@ def get_target_cohort_candidates_use_case(
     ),
 ) -> ListTargetCohortCandidatesUseCase:
     source = UserFeedbackTargetCohortSourceUseCase(
-        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(session_factory()),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
     )
     return ListTargetCohortCandidatesUseCase(
         source=source,
@@ -775,8 +1033,8 @@ def get_target_cohort_gap_query_use_case(
     jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> BuildSelectedFeedbackTargetCohortGapDetailsUseCase:
     source = UserFeedbackTargetCohortSourceUseCase(
-        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(session_factory()),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
     )
     creator = CreateTargetCohortUseCase(
         feedback=CreateFeedbackTargetCohortUseCase(source=source),
@@ -799,19 +1057,21 @@ def get_user_feedback_match_eval_query_use_case(
     ),
 ) -> UserFeedbackMatchEvalQueryUseCase:
     return UserFeedbackMatchEvalQueryUseCase(
-        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(SessionLocal),
+        feedback_repository=SqlAlchemyUserFeedbackQueryRepository(session_factory()),
         report_repository=reports,
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
     )
 
 
 def get_batch_match_execution_use_case(
     readiness: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
     report_runner: BuildJobMatchReportUseCase = Depends(get_match_report_use_case),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
 ) -> ExecuteBatchMatchUseCase:
     planner = PlanBatchMatchUseCase(
         readiness_gate=readiness,
-        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+        jobs=jobs,
+        persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
     )
     return ExecuteBatchMatchUseCase(
         planner=planner,
@@ -830,13 +1090,17 @@ def get_batch_match_ranking_use_case(
     requirements: AbstractJobRequirementQueryRepository = Depends(
         get_job_requirement_query_repository
     ),
+    requirement_release: GetJobRequirementReleaseReadinessUseCase = Depends(
+        get_mvp_job_requirement_release_readiness_use_case
+    ),
 ) -> BatchRankMatchReportsUseCase:
     return BatchRankMatchReportsUseCase(
         report_repository=reports,
         career_context_repository=career_context,
         job_repository=jobs,
         requirement_repository=requirements,
-        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+        requirement_release=requirement_release,
+        persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
     )
 
 
@@ -851,8 +1115,8 @@ def get_create_user_feedback_use_case(
     return CreateUserFeedbackUseCase(
         reports=reports,
         current_reports=current_reports,
-        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(engine),
-        uow_factory=lambda: SqlAlchemyUserFeedbackUnitOfWork(SessionLocal),
+        persistence_readiness=lambda: inspect_user_feedback_persistence_readiness(database_engine()),
+        uow_factory=lambda: SqlAlchemyUserFeedbackUnitOfWork(session_factory()),
     )
 
 
@@ -961,6 +1225,7 @@ def get_career_agent_hitl_service(
     ),
     jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
     ranking: BatchRankMatchReportsUseCase = Depends(get_batch_match_ranking_use_case),
+    match_inputs: GetMatchInputReadinessUseCase = Depends(get_match_input_readiness_use_case),
     target_cohort_gaps: BuildSelectedFeedbackTargetCohortGapDetailsUseCase = Depends(
         get_target_cohort_gap_query_use_case
     ),
@@ -968,6 +1233,12 @@ def get_career_agent_hitl_service(
         get_job_preparation_bundle_use_case
     ),
 ) -> CareerAgentHitlService:
+    from app.application.saved_career_analysis import BuildSavedCareerAnalysisUseCase
+    from app.repositories.sqlalchemy_career_analysis_facts import SqlAlchemyCareerAnalysisFacts
+    analysis = BuildSavedCareerAnalysisUseCase(
+        facts=SqlAlchemyCareerAnalysisFacts(session_factory(),
+            readiness=GetJobPreparationReadinessUseCase(match_inputs=match_inputs)),
+        gaps=target_cohort_gaps, preparation=job_preparation)
     settings = get_settings()
     context_builder = CareerAgentContextBuilder(career_context=career_context, jobs=jobs)
     tools = CareerAgentToolRegistry(
@@ -975,11 +1246,20 @@ def get_career_agent_hitl_service(
         target_cohort_gaps=target_cohort_gaps,
         job_preparation=job_preparation,
     )
-    checkpoints = SQLiteCareerAgentCheckpointStore(settings.career_agent_checkpoint_path)
+    checkpoints = SqlAlchemyCareerAgentCheckpointStore(session_factory(), legacy_path=None if current_database.get() else settings.career_agent_checkpoint_path)
+    from app.agent.graph.update_matching import UpdateMatchingExecutor
+    from app.application.rule_match import BuildPinnedRuleMatch
+    from app.repositories.sqlalchemy_analysis_update import SqlAlchemyAnalysisUpdateReader
+    from app.repositories.sqlalchemy_update_match_facts import SqlAlchemyUpdateMatchFacts
+    update_executor = UpdateMatchingExecutor(facts=SqlAlchemyUpdateMatchFacts(
+        reader=SqlAlchemyAnalysisUpdateReader(session_factory()), readiness=match_inputs), matcher=BuildPinnedRuleMatch())
     return CareerAgentHitlService(
         checkpoints=checkpoints,
         context_builder=context_builder,
         tool_registry=tools,
+        analysis=analysis,
+        update_planner=get_analysis_update_plan_use_case(readiness=match_inputs),
+        update_executor=update_executor,
     )
 
 
@@ -992,7 +1272,7 @@ def get_match_review_readiness_use_case(
     return GetMatchReviewReadinessUseCase(
         jobs=jobs,
         match_inputs=match_inputs,
-        persistence_ready=lambda: inspect(engine).has_table("match_reports"),
+        persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
     )
 
 
@@ -1008,3 +1288,98 @@ def get_import_jobs_use_case(
     """Assemble the HTTP adapter around the stable application use case."""
 
     return ImportJobsUseCase(uow_factory)
+
+
+def get_confirm_job_requirements_use_case():
+    from app.application.job_requirements.confirmation import ConfirmJobRequirementsUseCase
+    from app.repositories.sqlalchemy_requirement_confirmation import SqlAlchemyRequirementConfirmationUnitOfWork
+    return ConfirmJobRequirementsUseCase(lambda: SqlAlchemyRequirementConfirmationUnitOfWork(session_factory()))
+
+
+def get_match_report_history_use_case(
+    reports: AbstractMatchReportQueryRepository = Depends(get_match_report_query_repository),
+    context: AbstractCareerContextQueryRepository = Depends(get_career_context_query_repository),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+    requirements: AbstractJobRequirementQueryRepository = Depends(get_job_requirement_query_repository),
+    requirement_release: GetJobRequirementReleaseReadinessUseCase = Depends(get_mvp_job_requirement_release_readiness_use_case),
+):
+    from app.application.match_report_history import GetMatchReportHistoryUseCase
+
+    return GetMatchReportHistoryUseCase(
+        reports=reports,
+        context=context,
+        jobs=jobs,
+        requirements=requirements,
+        requirement_release=requirement_release,
+        persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
+    )
+
+
+def get_workbench_query(facts=Depends(get_career_analysis_facts)):
+    from app.repositories.sqlalchemy_workbench import SqlAlchemyWorkbenchQuery
+    return SqlAlchemyWorkbenchQuery(session_factory(), facts=facts)
+
+
+def get_workbench_use_case(facts=Depends(get_career_analysis_facts)):
+    from app.application.workbench import GetWorkbenchUseCase
+    from app.repositories.sqlalchemy_workbench import SqlAlchemyWorkbenchQuery
+    return GetWorkbenchUseCase(SqlAlchemyWorkbenchQuery(session_factory(), facts=facts))
+
+
+def get_evidence_context_query():
+    from app.repositories.sqlalchemy_evidence_sources import SqlAlchemyEvidenceContextQuery
+    return SqlAlchemyEvidenceContextQuery(session_factory())
+
+
+def get_reconsider_evidence_proposal_use_case():
+    from app.application.application_workspace.evidence_proposal import ReconsiderEvidenceProposalUseCase
+    def build(uow):
+        creator = CreateEvidenceProposalUseCase(workspaces=uow.workspaces, actions=uow.actions,
+            proposals=uow.proposals, now=utc_now, new_id=new_evidence_proposal_id,
+            sources=uow.evidence_sources, profiles=uow.profiles)
+        return ReconsiderEvidenceProposalUseCase(proposals=uow.proposals, creator=creator)
+    return _atomic_workspace_command(build)
+
+
+def get_analysis_update_plan_use_case(readiness=Depends(get_match_input_readiness_use_case)):
+    from app.application.analysis_update import PlanAnalysisUpdateUseCase
+    from app.repositories.sqlalchemy_analysis_update import SqlAlchemyAnalysisUpdateReader
+    return PlanAnalysisUpdateUseCase(reader=SqlAlchemyAnalysisUpdateReader(session_factory()), readiness=readiness)
+
+
+def get_analysis_comparison_use_case():
+    from app.application.analysis_comparison import CompareSavedAnalysesUseCase
+    from app.repositories.sqlalchemy_analysis_comparison import SqlAlchemyAnalysisComparisonReader
+    return CompareSavedAnalysesUseCase(SqlAlchemyAnalysisComparisonReader(session_factory()))
+
+
+def get_authorized_requirement_extraction():
+    from app.application.job_requirements.authorized import AuthorizedRequirementExtraction
+    from app.llm.authorized_requirement_factory import authorized_extractor_factory
+    from app.repositories.sqlalchemy_requirement_call import SqlAlchemyRequirementCalls, AuthorizedRequirementUnitOfWork
+    from app.byok.context import model_settings
+    from app.byok.calls import transport_factory
+    configured = model_settings(get_settings())
+    journal = SqlAlchemyRequirementCalls(session_factory())
+    return AuthorizedRequirementExtraction(settings=configured,
+        jobs=get_job_query_repository(), requirements=get_job_requirement_query_repository(),
+        journal=journal, uow_factory=lambda action_id: AuthorizedRequirementUnitOfWork(session_factory(), action_id),
+        traces=get_trace_uow_factory(), extractor_factory=authorized_extractor_factory(configured, journal, **({"transport_factory": transport_factory()} if transport_factory() else {})))
+
+
+def get_authorized_semantic_match(
+    eligibility: EvaluateJobEligibilityUseCase = Depends(get_job_eligibility_use_case),
+    evidence: RetrieveJobEvidenceUseCase = Depends(get_job_evidence_retrieval_use_case),
+    jobs: AbstractJobQueryRepository = Depends(get_job_query_repository),
+):
+    from app.application.semantic_match.authorized import AuthorizedSemanticMatch
+    from app.llm.authorized_semantic_factory import authorized_semantic_factory
+    from app.repositories.sqlalchemy_semantic_call import SqlAlchemySemanticCalls, AuthorizedSemanticUnitOfWork
+    from app.byok.context import model_settings
+    from app.byok.calls import transport_factory
+    configured = model_settings(get_settings())
+    journal = SqlAlchemySemanticCalls(session_factory())
+    return AuthorizedSemanticMatch(settings=configured, eligibility=eligibility, evidence=evidence,
+        jobs=jobs, journal=journal,
+        uow_factory=lambda action: AuthorizedSemanticUnitOfWork(session_factory(), action),
+        traces=get_trace_uow_factory(), matcher_factory=authorized_semantic_factory(configured, journal, **({"transport_factory": transport_factory()} if transport_factory() else {})))

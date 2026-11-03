@@ -7,6 +7,8 @@ from enum import StrEnum
 from typing import Protocol
 
 from app.application.match_inputs.readiness import MatchInputReadiness
+from app.application.job_availability_guard import JobUnavailableForMatchingError, matching_availability_revision
+from app.application.ports.job_query_repository import AbstractJobQueryRepository
 
 
 class MatchReadinessGate(Protocol):
@@ -46,7 +48,9 @@ class PlanBatchMatchUseCase:
         *,
         readiness_gate: MatchReadinessGate,
         persistence_ready: Callable[[], bool],
+        jobs: AbstractJobQueryRepository | None = None,
     ) -> None:
+        self._jobs = jobs
         self._readiness_gate = readiness_gate
         self._persistence_ready = persistence_ready
 
@@ -64,6 +68,14 @@ class PlanBatchMatchUseCase:
         persistence_ready = self._persistence_ready()
         items: list[BatchMatchPlanItem] = []
         for job_id in unique_job_ids:
+            try:
+                if self._jobs is not None:
+                    matching_availability_revision(self._jobs, job_id)
+            except JobUnavailableForMatchingError:
+                items.append(BatchMatchPlanItem(job_id=job_id,
+                    status=BatchMatchPlanStatus.INPUT_BLOCKED,
+                    blocker_codes=("job_user_marked_inactive",)))
+                continue
             readiness = self._readiness_gate.execute(job_id)
             if not readiness.inputs_release_eligible:
                 items.append(

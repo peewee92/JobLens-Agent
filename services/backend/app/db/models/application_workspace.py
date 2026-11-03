@@ -1,0 +1,145 @@
+"""Persistent Application Workspace snapshots."""
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import ForeignKey, Index, JSON, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db.base import Base
+from app.db.models.common import utc_now
+
+
+class ApplicationWorkspaceORM(Base):
+    __tablename__ = "application_workspaces"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_application_workspace_actor_idempotency"),
+        Index("ix_application_workspaces_job_updated", "job_id", "updated_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    job_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    profile_version: Mapped[int] = mapped_column(nullable=False)
+    search_intent_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    search_intent_version: Mapped[int] = mapped_column(nullable=False)
+    requirement_extraction_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    match_report_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    current_fact_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    current_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+
+class ResumeVariantORM(Base):
+    __tablename__ = "resume_variants"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_resume_variant_actor_idempotency"),
+        Index("ix_resume_variants_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_profile_version: Mapped[int] = mapped_column(nullable=False)
+    requirement_extraction_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    highlights: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+
+class ExecutionActionItemORM(Base):
+    __tablename__ = "execution_action_items"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_execution_action_actor_idempotency"),
+        Index("ix_execution_actions_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    action_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    source_gap_capability: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    description: Mapped[str] = mapped_column(String(1000), nullable=False)
+    completion_criteria: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    source_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class EvidenceProposalORM(Base):
+    __tablename__ = "evidence_proposals"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_evidence_proposal_actor_idempotency"),
+        Index("ix_evidence_proposals_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False)
+    action_id: Mapped[str] = mapped_column(ForeignKey("execution_action_items.id", ondelete="CASCADE"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_requirement_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    capability: Mapped[str] = mapped_column(String(200), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    evidence_summary: Mapped[str] = mapped_column(String(2000), nullable=False)
+    evidence_source: Mapped[str] = mapped_column(String(1000), nullable=False)
+    skill_level: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_profile_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_profile_version: Mapped[int] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+    confirmed_profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmed_profile_version: Mapped[int | None] = mapped_column(nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    source_analysis_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_analysis_result_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_requirement_extraction_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmation_base_profile_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    confirmation_base_profile_version: Mapped[int | None] = mapped_column(nullable=True)
+    origin_proposal_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    command_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+
+class ApplicationTimelineEventORM(Base):
+    __tablename__ = "application_timeline_events"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_application_timeline_actor_idempotency"),
+        Index("ix_application_timeline_workspace_created", "workspace_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("application_workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)
+
+
+class AnalysisExecutionReceiptORM(Base):
+    """A business command receipt, not another Agent run/progress state."""
+    __tablename__ = "analysis_execution_receipts"
+    __table_args__ = (UniqueConstraint("actor_id", "command_id", name="uq_analysis_execution_actor_command"),)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    command_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    thread_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    command_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    response: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)

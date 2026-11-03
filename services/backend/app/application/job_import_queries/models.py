@@ -35,6 +35,15 @@ class JobImportItemDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class JobDescriptionObservation:
+    import_id: str
+    input_index: int
+    recorded_at: datetime
+    description: str | None
+    truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
 class JobImportDetail:
     import_id: str
     source_version: str

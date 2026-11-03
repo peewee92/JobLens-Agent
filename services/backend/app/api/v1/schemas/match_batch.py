@@ -9,7 +9,7 @@ from app.application.match_batch_execution import BatchMatchExecutionResult
 
 class BatchMatchExecutionRequest(CamelCaseModel):
     job_ids: list[str] = Field(min_length=1, max_length=50)
-    max_ready_jobs: int = Field(default=10, ge=1, le=10)
+    max_ready_jobs: int = Field(default=5, ge=1, le=5)
 
 
 class BatchMatchExecutionItemResponse(CamelCaseModel):

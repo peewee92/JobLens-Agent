@@ -1,0 +1,8 @@
+{
+  "ready": true,
+  "code": "ready",
+  "checks": {"database": "passed", "migrations": "passed", "tables": "passed"},
+  "currentRevisions": ["20260927_0022"],
+  "requiredRevisions": ["20260927_0022"],
+  "missingTables": []
+}

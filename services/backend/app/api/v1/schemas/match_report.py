@@ -1,7 +1,12 @@
-"""HTTP contract for transient Phase 4 MatchReport."""
+"""HTTP contracts for persisted MatchReport snapshots and read-only history."""
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+from pydantic import Field
+
 from app.api.v1.schemas.common import CamelCaseModel
+from app.api.v1.schemas.preference_check import PreferenceCheckResponse
 from app.application.match_report import MatchReport
 
 
@@ -24,6 +29,8 @@ class MatchReportRequirementResponse(CamelCaseModel):
     evidence_ids: list[str]
     profile_fact_refs: list[str]
     reason: str
+    candidate_count: int | None = Field(default=None, ge=0)
+    assessment_source: Literal["deterministic", "provider"] | None = None
 
 
 class MatchEvidenceLinkResponse(CamelCaseModel):
@@ -36,6 +43,9 @@ class JobMatchReportResponse(CamelCaseModel):
     profile_id: str
     profile_version: int
     extraction_id: str
+    search_intent_id: str | None
+    search_intent_version: int | None
+    preference_checks: list[PreferenceCheckResponse]
     eligibility: str
     recommendation: str
     summary: str
@@ -46,6 +56,8 @@ class JobMatchReportResponse(CamelCaseModel):
     partial_requirement_ids: list[str]
     missing_requirement_ids: list[str]
     evidence_links: list[MatchEvidenceLinkResponse]
+    retrieval_version: str | None = None
+    policy_version: str
     matcher_version: str
     prompt_version: str
     model: str | None
@@ -57,10 +69,14 @@ class JobMatchReportResponse(CamelCaseModel):
     @classmethod
     def from_detail(cls, detail: MatchReport) -> "JobMatchReportResponse":
         return cls(
+            retrieval_version=detail.retrieval_version,
             job_id=detail.job_id,
             profile_id=detail.profile_id,
             profile_version=detail.profile_version,
             extraction_id=detail.extraction_id,
+            search_intent_id=detail.search_intent_id,
+            search_intent_version=detail.search_intent_version,
+            preference_checks=[PreferenceCheckResponse.from_detail(item) for item in detail.preference_checks],
             eligibility=detail.eligibility.value,
             recommendation=detail.recommendation.value,
             summary=detail.summary,
@@ -95,6 +111,8 @@ class JobMatchReportResponse(CamelCaseModel):
                     evidence_ids=list(item.evidence_ids),
                     profile_fact_refs=list(item.profile_fact_refs),
                     reason=item.reason,
+                    candidate_count=item.candidate_count,
+                    assessment_source=item.assessment_source,
                 )
                 for item in detail.requirement_results
             ],
@@ -108,6 +126,7 @@ class JobMatchReportResponse(CamelCaseModel):
                 )
                 for item in detail.evidence_links
             ],
+            policy_version=detail.policy_version,
             matcher_version=detail.matcher_version,
             prompt_version=detail.prompt_version,
             model=detail.model,
@@ -116,3 +135,16 @@ class JobMatchReportResponse(CamelCaseModel):
             provider_calls=detail.provider_calls,
             trace_runs_created=detail.trace_runs_created,
         )
+
+
+class MatchReportHistoryItemResponse(CamelCaseModel):
+    report_id: str
+    created_at: datetime
+    is_current: bool
+    stale_reasons: list[str]
+    report: JobMatchReportResponse
+
+
+class MatchReportHistoryResponse(CamelCaseModel):
+    items: list[MatchReportHistoryItemResponse]
+    count: int

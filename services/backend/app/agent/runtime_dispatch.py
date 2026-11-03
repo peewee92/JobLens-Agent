@@ -40,7 +40,7 @@ class CareerAgentDurableRunIdentity:
     thread_id: str
     run_id: str
     request_id: str
-    top_n: int = 5
+    top_n: int = 3
 
     def __post_init__(self) -> None:
         if not self.thread_id or not self.run_id or not self.request_id:
@@ -116,6 +116,23 @@ class CareerAgentRuntimeDispatcher:
         self,
         request: CareerAgentRuntimeDispatchRequest,
     ) -> CareerAgentRuntimeDispatchResult:
+        if (
+            request.intent.goals == self._DURABLE_HITL_GOALS
+            and request.durable_run is not None
+        ):
+            has_governed_scope = bool(
+                request.intent.referenced_job_ids
+                or request.resolution_context.run_job_ids
+                or (
+                    request.intent.current_job_required
+                    and request.resolution_context.current_job_id is not None
+                )
+            )
+            if not has_governed_scope:
+                raise CareerAgentRuntimeDispatchError(
+                    "rank_jobs → review_gaps requires governed job scope"
+                )
+
         intent = self._resolver.resolve(
             intent=request.intent,
             context=request.resolution_context,

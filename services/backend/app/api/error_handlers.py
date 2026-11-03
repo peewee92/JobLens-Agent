@@ -2,18 +2,24 @@
 from __future__ import annotations
 
 import logging
+from sqlalchemy.exc import SQLAlchemyError
+from uuid import uuid4
+from app.application.application_workspace.transaction import WorkspacePersistenceError
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1.schemas import ApiError, ApiErrorResponse
+from app.api.v1.schemas.application_workspace import WorkspaceCommandErrorResponse
+from app.agent.graph.checkpoint_port import CheckpointNotReadyError, CheckpointConflictError, CheckpointPersistenceError
 from app.application.career_context import (
     ContextVersionConflictError,
     InvalidCareerContextError,
     ProfileNotFoundError,
     SearchIntentNotFoundError,
 )
+from app.application.job_availability_guard import JobUnavailableForMatchingError
 from app.application.eligibility import EligibilityInputsNotReadyError
 from app.application.evidence_retrieval import EvidenceRetrievalInputsNotReadyError
 from app.application.create_target_cohort import TargetCohortSelectionError
@@ -28,6 +34,7 @@ from app.application.semantic_match.errors import (
     InvalidSemanticMatcherOutputError,
     SemanticMatcherFailedError,
     SemanticMatcherUnavailableError,
+    SemanticModelAuthorizationRequiredError,
     SemanticMatchInputsNotReadyError,
 )
 from app.application.job_import_queries import JobImportNotFoundError
@@ -37,12 +44,14 @@ from app.application.job_imports.errors import (
     UnsupportedCollectorVersionError,
 )
 from app.application.job_queries import JobNotFoundError
+from app.application.job_requirements.errors import JobDescriptionChangedDuringExtractionError, RequirementExtractionSupersededError
 from app.application.job_requirements import (
     InvalidRequirementExtractorOutputError,
     JobDescriptionNotExtractableError,
     JobRequirementExtractionNotFoundError,
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
+    RequirementModelAuthorizationRequiredError,
     RequirementLiveCostConfirmationRequiredError,
 )
 from app.application.profile_evals import (
@@ -78,6 +87,7 @@ from app.application.profile_extraction import (
     InvalidResumeTextError,
     ProfileExtractorFailedError,
     ProfileExtractorUnavailableError,
+    ProfileModelAuthorizationRequiredError,
 )
 from app.application.resume_documents import (
     InvalidResumeDocumentError,
@@ -99,6 +109,27 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register protocol-level mappings without leaking HTTP into Application."""
+    @app.exception_handler(CheckpointNotReadyError)
+    async def handle_runtime_schema_not_ready(_request: Request, error: CheckpointNotReadyError) -> JSONResponse:
+        return _error_response(503, "career_agent_storage_not_ready", str(error))
+
+    @app.exception_handler(WorkspacePersistenceError)
+    async def handle_workspace_save_failure(_request: Request, error: WorkspacePersistenceError) -> JSONResponse:
+        correlation_id = f"workspace-{uuid4().hex}"
+        logger.warning("workspace transaction result unconfirmed correlation_id=%s", correlation_id)
+        body = WorkspaceCommandErrorResponse(error={
+            "code": "workspace_transaction_save_failed",
+            "message": "本次保存结果尚未确认。请刷新查看原记录后使用原操作重试；不会自动确认新的职业事实。",
+            "retryable": True, "repairAction": "reload_then_retry_original", "correlationId": correlation_id})
+        return JSONResponse(status_code=503, content=body.model_dump(by_alias=True))
+
+    @app.exception_handler(CheckpointPersistenceError)
+    async def handle_runtime_save_failure(_request: Request, error: CheckpointPersistenceError) -> JSONResponse:
+        return _error_response(503, "career_agent_save_failed", str(error))
+
+    @app.exception_handler(CheckpointConflictError)
+    async def handle_runtime_conflict(_request: Request, error: CheckpointConflictError) -> JSONResponse:
+        return _error_response(409, "career_agent_state_conflict", str(error))
 
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation_error(
@@ -110,6 +141,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             "request_validation_error",
             "Request body or parameters are invalid.",
         )
+
+    @app.exception_handler(RequirementExtractionSupersededError)
+    async def handle_superseded_extraction(_request: Request, error: RequirementExtractionSupersededError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "requirement_extraction_superseded", str(error))
+
+    @app.exception_handler(JobDescriptionChangedDuringExtractionError)
+    async def handle_changed_description(_request: Request, error: JobDescriptionChangedDuringExtractionError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "job_description_changed_during_extraction", str(error))
+
+    @app.exception_handler(JobUnavailableForMatchingError)
+    async def handle_unavailable_match(_request: Request, error: JobUnavailableForMatchingError) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, error.code, str(error))
 
     @app.exception_handler(EligibilityInputsNotReadyError)
     async def handle_eligibility_inputs_not_ready(
@@ -209,6 +252,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             "feedback_match_report_stale",
             str(error),
         )
+
+    @app.exception_handler(SemanticModelAuthorizationRequiredError)
+    async def handle_semantic_model_authorization_required(
+        _request: Request, error: SemanticModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "semantic_model_authorization_required", str(error))
 
     @app.exception_handler(SemanticMatcherUnavailableError)
     async def handle_semantic_matcher_unavailable(
@@ -363,6 +412,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             "requirement_live_cost_confirmation_required",
             str(error),
         )
+
+    @app.exception_handler(RequirementModelAuthorizationRequiredError)
+    async def handle_requirement_model_authorization_required(
+        _request: Request, error: RequirementModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "requirement_model_authorization_required", str(error))
 
     @app.exception_handler(RequirementExtractorUnavailableError)
     async def handle_requirement_extractor_unavailable(
@@ -683,6 +738,12 @@ def register_exception_handlers(app: FastAPI) -> None:
             str(error),
         )
 
+    @app.exception_handler(ProfileModelAuthorizationRequiredError)
+    async def handle_profile_model_authorization_required(
+        _request: Request, error: ProfileModelAuthorizationRequiredError,
+    ) -> JSONResponse:
+        return _error_response(status.HTTP_409_CONFLICT, "profile_model_authorization_required", str(error))
+
     @app.exception_handler(ProfileExtractorUnavailableError)
     async def handle_profile_extractor_unavailable(
         _request: Request,
@@ -715,6 +776,15 @@ def register_exception_handlers(app: FastAPI) -> None:
             "invalid_profile_extractor_output",
             str(error),
         )
+
+    @app.exception_handler(SQLAlchemyError)
+    async def handle_database_error(request: Request, error: SQLAlchemyError) -> JSONResponse:
+        # Infrastructure exceptions are mapped here, never imported by feature routers.
+        if request.url.path.endswith("/requirement-confirmations"):
+            return JSONResponse({"error": {"code": "requirement_confirmation_save_uncertain", "message": "暂时无法确认保存结果，请刷新查看；相同请求可以安全重试。"}}, status_code=503)
+        if request.url.path.endswith("/requirement-calls"):
+            return JSONResponse({"error": {"code": "requirement_call_save_uncertain", "message": "暂时无法确认保存结果，请查询原请求状态，不要重新授权调用。", "retryable": True, "repairAction": "get_requirement_call", "correlationId": getattr(request.state, "requirement_action_id", None)}}, status_code=503)
+        return _error_response(503, "persistence_unavailable", "暂时无法读取或保存数据，请稍后核对原请求状态。")
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(

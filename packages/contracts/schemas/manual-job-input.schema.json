@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "company": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Company",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 50000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "sourceUrl": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourceurl"
+    }
+  },
+  "required": [
+    "title",
+    "company",
+    "description"
+  ],
+  "title": "ManualJobInput",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -159,8 +159,14 @@ def test_empty_confirmed_profile_is_not_match_ready() -> None:
         CareerContextReleaseBlockerCode.PROFILE_HEADLINE_MISSING,
         CareerContextReleaseBlockerCode.PROFILE_YEARS_INVALID,
         CareerContextReleaseBlockerCode.PROFILE_EVIDENCE_MISSING,
-        CareerContextReleaseBlockerCode.PROFILE_SKILLS_MISSING,
     }
+
+
+def test_confirmed_evidence_without_skills_is_match_ready() -> None:
+    result = _execute(replace(_profile(), skills=()), _intent())
+    assert result.release_eligible is True
+    assert result.profile_skill_count == 0
+    assert result.blockers == ()
 
 
 def test_corrupted_profile_evidence_and_skill_links_fail_closed() -> None:

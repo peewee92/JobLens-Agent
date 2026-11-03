@@ -197,6 +197,7 @@ class SqlAlchemyJobRepository(AbstractJobRepository):
             outcome=data.outcome,
             error_code=data.error_code,
             error_message=data.error_message,
+            source_raw_snapshot=deepcopy(data.source_raw_snapshot),
         )
         self._session.add(model)
         self._session.flush()

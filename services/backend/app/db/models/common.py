@@ -23,6 +23,26 @@ def new_job_id() -> str:
     return new_prefixed_id("job")
 
 
+def new_application_workspace_id() -> str:
+    return new_prefixed_id("appws")
+
+
+def new_application_timeline_event_id() -> str:
+    return new_prefixed_id("appevent")
+
+
+def new_resume_variant_id() -> str:
+    return new_prefixed_id("resumevar")
+
+
+def new_execution_action_id() -> str:
+    return new_prefixed_id("execaction")
+
+
+def new_evidence_proposal_id() -> str:
+    return new_prefixed_id("evproposal")
+
+
 def new_job_source_id() -> str:
     return new_prefixed_id("src")
 

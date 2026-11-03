@@ -37,7 +37,7 @@ from app.application.tracing import TraceWrite
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "requirement-extractor-v42.96"
-PROMPT_VERSION = "requirement-extraction-v8"
+PROMPT_VERSION = "requirement-extraction-v9"
 MIN_DESCRIPTION_CHARS = 40
 MAX_DESCRIPTION_CHARS = 50_000
 

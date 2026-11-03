@@ -3,13 +3,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from app.db.models import RequirementReviewBatchORM, TraceSpanORM
 
 from app.application.ports.requirement_review_unit_of_work import (
     AbstractRequirementReviewUnitOfWork,
 )
 from app.repositories.sqlalchemy_requirement_review_repository import (
     SqlAlchemyRequirementReviewRepository,
+    _batch_detail,
 )
 
 SessionFactory = Callable[[], Session]
@@ -38,6 +42,19 @@ class SqlAlchemyRequirementReviewUnitOfWork(AbstractRequirementReviewUnitOfWork)
         finally:
             self._session.close()
             self._session = None
+
+    def load_batch_for_final_decision(self, batch_id: str):
+        session = self._active_session()
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        batch = session.get(RequirementReviewBatchORM, batch_id)
+        return _batch_detail(session, batch) if batch is not None else None
+
+    def load_evidence_traces(self, trace_ids: tuple[str, ...]) -> dict:
+        rows = self._active_session().scalars(select(TraceSpanORM).where(TraceSpanORM.id.in_(trace_ids))).all()
+        return {row.id: {"capability": row.capability, "version": row.version,
+            "model": row.model, "promptVersion": row.prompt_version,
+            "inputRefs": row.input_refs, "output": row.output, "error": row.error,
+            "createdAt": row.created_at.isoformat()} for row in rows}
 
     def commit(self) -> None:
         self._active_session().commit()

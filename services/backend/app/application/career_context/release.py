@@ -171,16 +171,6 @@ class GetCareerContextReleaseReadinessUseCase:
                 )
             )
 
-        if not profile.skills:
-            blockers.append(
-                CareerContextReleaseBlocker(
-                    code=CareerContextReleaseBlockerCode.PROFILE_SKILLS_MISSING,
-                    message=(
-                        "Add at least one confirmed Skill with Evidence before "
-                        "Match uses the Profile."
-                    ),
-                )
-            )
         skill_names = [item.name.strip().casefold() for item in profile.skills]
         if len(set(skill_names)) != len(skill_names):
             blockers.append(

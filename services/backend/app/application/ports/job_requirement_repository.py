@@ -20,6 +20,11 @@ class AbstractJobRequirementQueryRepository(ABC):
     def get_latest(self, job_id: str) -> JobRequirementExtractionDetail | None:
         raise NotImplementedError
 
+    def get_latest_id(self, job_id: str) -> str | None:
+        """Read the current version identity without requiring its contents."""
+        latest = self.get_latest(job_id)
+        return latest.extraction_id if latest is not None else None
+
     @abstractmethod
     def get_extraction(
         self,

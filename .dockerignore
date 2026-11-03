@@ -1,0 +1,16 @@
+**
+!services/
+!services/backend/
+!services/backend/pyproject.toml
+!services/backend/uv.lock
+!services/backend/alembic.ini
+!services/backend/alembic/
+!services/backend/alembic/**
+!services/backend/app/
+!services/backend/app/**
+!services/backend/scripts/
+!services/backend/scripts/seed_product_demo.py
+**/__pycache__/**
+**/*.pyc
+**/.env*
+**/*.db*

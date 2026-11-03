@@ -19,6 +19,7 @@ from app.application.career_context.models import (
 )
 from app.application.ports.career_context_repository import (
     AbstractCareerContextQueryRepository,
+    AbstractCareerContextRepository,
 )
 from app.application.ports.career_context_unit_of_work import (
     AbstractCareerContextUnitOfWork,
@@ -56,19 +57,19 @@ class SaveProfileUseCase:
         self._uow_factory = uow_factory
 
     def execute(self, command: SaveProfileCommand) -> ProfileDetail:
-        normalized = self._normalize(command)
         with self._uow_factory() as uow:
-            current = uow.context.current_profile_version()
-            if current != normalized.expected_version:
-                raise ContextVersionConflictError(
-                    "profile", normalized.expected_version, current
-                )
-            result = uow.context.add_profile_version(
-                normalized,
-                version=current + 1,
-            )
+            result = self.execute_in_repository(command, uow.context)
             uow.commit()
             return result
+
+    @classmethod
+    def execute_in_repository(cls, command: SaveProfileCommand, repository: AbstractCareerContextRepository) -> ProfileDetail:
+        """The caller owns the transaction; keep the same fact validation rules."""
+        normalized = cls._normalize(command)
+        current = repository.current_profile_version()
+        if current != normalized.expected_version:
+            raise ContextVersionConflictError("profile", normalized.expected_version, current)
+        return repository.add_profile_version(normalized, version=current + 1)
 
     @staticmethod
     def _normalize(command: SaveProfileCommand) -> SaveProfileCommand:

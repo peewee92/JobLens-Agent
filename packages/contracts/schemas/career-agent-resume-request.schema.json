@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/schemas/career-agent-resume-request.schema.json",
+  "properties": {
+    "interruptId": {
+      "minLength": 1,
+      "title": "Interruptid",
+      "type": "string"
+    },
+    "actionId": {
+      "minLength": 1,
+      "title": "Actionid",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "edit",
+        "reject"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "selectedJobIds": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "title": "Selectedjobids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "interruptId",
+    "actionId",
+    "decision"
+  ],
+  "title": "CareerAgentResumeRequest",
+  "type": "object"
+}

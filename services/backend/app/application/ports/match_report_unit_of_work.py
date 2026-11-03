@@ -17,6 +17,10 @@ class AbstractMatchReportUnitOfWork(ABC):
     def __exit__(self, exc_type, exc, traceback) -> None:
         raise NotImplementedError
 
+    def ensure_job_availability(self, job_id: str, revision: int) -> None:
+        """Check availability in the report transaction before writing."""
+        raise NotImplementedError
+
     @abstractmethod
     def commit(self) -> None:
         raise NotImplementedError

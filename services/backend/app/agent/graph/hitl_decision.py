@@ -10,7 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Literal
 
-from app.agent.graph.checkpoint import SQLiteCareerAgentCheckpointStore
+from app.agent.graph.checkpoint_port import CareerAgentCheckpointStore
+from app.agent.graph.command_digest import decision_command_digest
 from app.agent.graph.state import CareerAgentState, CareerAgentStatus
 
 
@@ -41,7 +42,7 @@ class HumanDecisionConflictError(HumanDecisionError):
 class TargetCohortDecisionHandler:
     """Consume the first durable Target Cohort interrupt idempotently."""
 
-    def __init__(self, *, checkpoints: SQLiteCareerAgentCheckpointStore) -> None:
+    def __init__(self, *, checkpoints: CareerAgentCheckpointStore) -> None:
         self._checkpoints = checkpoints
 
     def submit(self, request: HumanDecisionRequest) -> CareerAgentState:
@@ -51,8 +52,20 @@ class TargetCohortDecisionHandler:
         if state is None:
             raise HumanDecisionValidationError("career agent thread does not exist")
 
+        digest = decision_command_digest(
+            thread_id=request.thread_id, interrupt_id=request.interrupt_id,
+            action_id=request.action_id, decision=request.decision,
+            selected_job_ids=request.selected_job_ids,
+        )
+        if state.legacy_read_only:
+            raise HumanDecisionConflictError("旧运行仅供查看，请新建分析")
+
         if state.decision_action_id is not None:
             if state.decision_action_id == request.action_id:
+                if state.decision_command_digest is None:
+                    raise HumanDecisionConflictError("旧决定没有可验证的命令内容，请查看原状态并新建分析")
+                if state.decision_command_digest != digest:
+                    raise HumanDecisionConflictError("action_id 已用于不同确认内容，请读取原决定")
                 return state
             raise HumanDecisionConflictError("target cohort interrupt was already consumed")
 
@@ -71,23 +84,25 @@ class TargetCohortDecisionHandler:
                 pending_approval=False,
                 human_decision="reject",
                 decision_action_id=request.action_id,
+                decision_command_digest=digest,
                 confirmed_target_job_ids=(),
             )
-            self._checkpoints.save(result)
-            return result
+            return self._checkpoints.transition(state, result)
 
         if request.decision == "approve":
             selected_job_ids = state.proposed_target_job_ids
         elif request.decision == "edit":
             selected_job_ids = tuple(dict.fromkeys(request.selected_job_ids))
-            if not 1 <= len(selected_job_ids) <= 10:
-                raise HumanDecisionValidationError("edit selection must contain 1..10 jobs")
+            if not 1 <= len(selected_job_ids) <= 5:
+                raise HumanDecisionValidationError("edit selection must contain 1..5 jobs")
             requested_scope = set(state.requested_job_ids)
             if any(job_id not in requested_scope for job_id in selected_job_ids):
                 raise HumanDecisionValidationError("edit selection contains a job outside run scope")
         else:
             raise HumanDecisionValidationError("decision must be approve, edit, or reject")
 
+        if len(selected_job_ids) > 5:
+            raise HumanDecisionValidationError("target cohort must contain at most 5 jobs")
         if not selected_job_ids:
             raise HumanDecisionValidationError("target cohort selection cannot be empty")
 
@@ -98,10 +113,10 @@ class TargetCohortDecisionHandler:
             pending_approval=False,
             human_decision=request.decision,
             decision_action_id=request.action_id,
+            decision_command_digest=digest,
             confirmed_target_job_ids=selected_job_ids,
         )
-        self._checkpoints.save(result)
-        return result
+        return self._checkpoints.transition(state, result)
 
 
 __all__ = [
