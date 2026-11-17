@@ -1,7 +1,9 @@
 "use client";
+import Link from "next/link";
+import {LinkFeedback} from "@/components/link-feedback";
 import {matchCoverage} from "@/lib/match-coverage";
 
-import {useState} from "react";
+import {useRef, useState} from "react";
 import {InsufficientEvidenceGuidance} from "@/components/insufficient-evidence-guidance";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import {useRouter, usePathname} from "next/navigation";
@@ -10,6 +12,7 @@ import {SavedMatchReportNotice} from "@/components/saved-match-report-notice";
 
 import type {ApiErrorBody, JobMatchReport, MatchReportHistoryItem, SemanticCallPlan} from "@/lib/contracts";
 import {
+  matchReasonCopy,
   matchRecommendationClasses,
   matchRecommendationDescriptions,
   matchRecommendationLabels,
@@ -23,6 +26,8 @@ export function JobMatchReportPanel({
   savedResult,
   returnHref,
   profileHref,
+  compareHref,
+  compareLabel,
 }: {
   jobId: string;
   enabled: boolean;
@@ -30,7 +35,10 @@ export function JobMatchReportPanel({
   savedResult?: MatchReportHistoryItem | null;
   returnHref?: string;
   profileHref?: string;
+  compareHref?: string;
+  compareLabel?: string;
 }) {
+  const inFlight = useRef(false);
   const [report, setReport] = useState<JobMatchReport | null>(savedResult?.report ?? null);
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -41,6 +49,8 @@ export function JobMatchReportPanel({
   const [semanticPlan, setSemanticPlan] = useState<SemanticCallPlan | null>(null);
 
   async function generateReport() {
+    if (inFlight.current || !enabled) return;
+    inFlight.current = true;
     setStatus("submitting");
     setMessage("");
     try {
@@ -73,8 +83,8 @@ export function JobMatchReportPanel({
       setStatus("idle");
     } catch (caught) {
       setStatus("error");
-      setMessage(caught instanceof Error ? caught.message : "生成完整匹配建议时发生未知错误。");
-    }
+      setMessage(caught instanceof TypeError ? "连接中断，请刷新查看有没有保存匹配建议；页面不会自动重试。" : caught instanceof Error ? caught.message : "暂时不能确认匹配结果，请刷新查看已保存结果。");
+    } finally { inFlight.current = false; }
   }
 
   const busy = status === "submitting";
@@ -110,6 +120,8 @@ export function JobMatchReportPanel({
           先检查当前输入：规则能判断时直接保存结果；需要模型时先展示要求与经历摘要，明确授权后才调用，不会替你投递岗位。
         </p>
       ) : null}
+      {compareHref && report && (generated || savedResult?.isCurrent) &&
+        <p className="actions"><Link className="button-secondary" href={compareHref}>{compareLabel ?? "继续比较"}<LinkFeedback /></Link></p>}
       {semanticPlan ? <AuthorizedModelCall key={semanticPlan.planDigest} jobId={jobId} plan={semanticPlan} disabled={!enabled || busy} kind="semantic" /> : null}
       {status === "error" ? <p className="inline-error">{message}</p> : null}
 
@@ -147,7 +159,7 @@ export function JobMatchReportPanel({
                   {report.strengths.slice(0, 3).map((item) => (
                     <article className="match-insight-card match-insight-positive" key={item.requirementId}>
                       <strong>{item.requirementText}</strong>
-                      <p>{item.reason}</p>
+                      <p>{matchReasonCopy(item.reason)}</p>
                       {item.evidenceIds.length > 0 ? (
                         <small className="muted-copy">有 {item.evidenceIds.length} 条已确认经历作为依据</small>
                       ) : null}
@@ -169,7 +181,7 @@ export function JobMatchReportPanel({
                   {report.risks.slice(0, 3).map((item) => (
                     <article className="match-insight-card match-insight-risk" key={item.requirementId}>
                       <strong>{item.requirementText}</strong>
-                      <p>{item.reason}</p>
+                      <p>{matchReasonCopy(item.reason)}</p>
                     </article>
                   ))}
                 </div>

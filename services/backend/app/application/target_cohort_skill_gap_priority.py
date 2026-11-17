@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.application.target_cohort_profile_comparison import ProfileCapabilityCoverageStatus
-from app.application.target_cohort_skill_gap_metrics import TargetCohortSkillGapMetricsResult
+from app.application.target_cohort_skill_gap_metrics import TargetCohortSkillGapMetric, TargetCohortSkillGapMetricsResult
 
 
 class SkillGapPriority(StrEnum):
@@ -45,7 +45,7 @@ class PrioritizeTargetCohortSkillGapsResult:
 class PrioritizeTargetCohortSkillGapsUseCase:
     """Turn transparent gap metrics into a stable P0/P1 backlog.
 
-    P0 normally means an existing ``gap_severity`` of at least 0.5. For a small
+    P0 normally requires at least one must-have and a ``gap_severity`` of at least 0.5. For a small
     real TargetCohort, fragmented requirements can make that absolute threshold
     unreachable even when one missing must-have capability is the clear repeated
     top gap. If there is no absolute P0, the unique highest-severity missing
@@ -70,10 +70,10 @@ class PrioritizeTargetCohortSkillGapsUseCase:
             if metric.coverage_status is not ProfileCapabilityCoverageStatus.EVIDENCED
             and metric.gap_severity > 0
         ]
-        has_absolute_p0 = any(
-            metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
-            for metric in gap_metrics
-        )
+        def is_absolute_p0(metric: TargetCohortSkillGapMetric) -> bool:
+            return metric.must_have_ratio > 0 and metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
+
+        has_absolute_p0 = any(is_absolute_p0(metric) for metric in gap_metrics)
         relative_p0_capability: str | None = None
         if not has_absolute_p0 and gap_metrics:
             ranked = sorted(
@@ -101,7 +101,7 @@ class PrioritizeTargetCohortSkillGapsUseCase:
             priority = (
                 SkillGapPriority.P0
                 if (
-                    metric.gap_severity >= self.P0_GAP_SEVERITY_THRESHOLD
+                    is_absolute_p0(metric)
                     or metric.capability == relative_p0_capability
                 )
                 else SkillGapPriority.P1
@@ -124,6 +124,7 @@ class PrioritizeTargetCohortSkillGapsUseCase:
 
         items.sort(
             key=lambda item: (
+                item.priority,
                 -item.gap_severity,
                 -item.target_coverage,
                 item.capability.casefold(),

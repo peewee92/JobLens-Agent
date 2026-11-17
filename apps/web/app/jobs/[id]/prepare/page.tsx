@@ -1,3 +1,4 @@
+import {preparationFacts} from "@/lib/preparation-facts";
 import Link from "next/link";
 
 import {ApplicationChecklistProgress} from "@/components/application-checklist-progress";
@@ -136,6 +137,7 @@ export default async function JobPreparationPage({
       ? listNewlySupportedRequirements(evidenceImprovement, focusRequirementId)
       : [];
     const preparationChecklistItems = buildApplicationChecklistItems(preparation);
+    const facts = preparationFacts(preparation);
     const preparationEvidenceGaps = preparation.resumeDelta?.evidenceGaps ?? [];
     const preparationStudyItems = preparation.studyChecklist?.items ?? [];
     const focusedGapStudyItem = preparationStudyItems.find((item) =>
@@ -175,7 +177,7 @@ export default async function JobPreparationPage({
           {currentReport ? (
             <div className="notice">
               <strong>把准备工作放进一个持续工作区</strong>
-              <p className="muted">建立后可统一查看岗位简历、面试、行动、Evidence 回流、投递状态与下一建议动作；重复进入不会创建第二个工作区。</p>
+              <p className="muted">建立后可统一查看岗位简历、面试、行动、经历补充与投递状态；重复进入不会创建第二个工作区。</p>
               <ApplicationWorkspaceEntry jobId={id} />
             </div>
           ) : null}
@@ -286,15 +288,16 @@ export default async function JobPreparationPage({
                 {(preparation.resumeDelta?.highlights ?? []).map((item) => (
                   <article className="eligibility-result-card" key={item.requirementId}>
                     <strong>{item.capability}</strong>
-                    <p>已确认 Evidence：{item.evidenceIds.join("、")}</p>
-                    <small className="muted-copy">Requirement：{item.requirementId}</small>
+                    <p>{facts.requirements.get(item.requirementId)?.text ?? "已关联岗位要求"}</p>
+                    <p>{item.evidenceIds.map(id => facts.evidenceSummaries.get(id)).filter(Boolean).join("；") || "已关联真实经历；此处无摘要。"}</p>
+                    <details><summary>查看事实引用</summary>岗位要求 {item.requirementId} · 经历 {item.evidenceIds.join("、")}</details>
                   </article>
                 ))}
                 {(preparation.resumeDelta?.evidenceGaps ?? []).map((item) => (
                   <article className="eligibility-result-card" key={item.requirementId}>
                     <strong>{item.capability}</strong>
-                    <p>{item.status === "missing" ? "当前 Profile 中缺少该能力事实。" : "已有技能事实，但缺少已确认 Evidence。"}</p>
-                    <small className="muted-copy">Requirement：{item.requirementId}</small>
+                    <p>{item.status === "missing" ? "当前资料中还没有确认这项能力。" : "已记录技能，但还缺可核验的真实经历。"}</p>
+                    {facts.requirements.get(item.requirementId)?.text && <p>岗位依据：{facts.requirements.get(item.requirementId)?.text}</p>}
                   </article>
                 ))}
               </section>
@@ -306,9 +309,9 @@ export default async function JobPreparationPage({
                 </div>
                 {(preparation.experiencePriority?.items ?? []).map((item) => (
                   <article className="eligibility-result-card" key={item.evidenceId}>
-                    <strong>{item.evidenceId}</strong>
+                    <strong>{facts.evidenceSummaries.get(item.evidenceId) ?? "已确认经历（无可用摘要）"}</strong>
                     <p>匹配能力：{item.matchedCapabilities.join("、") || "无"}</p>
-                    <small className="muted-copy">支撑 {item.requirementCount} 条 Requirement，其中 must-have {item.mustHaveCount} 条</small>
+                    <small className="muted-copy">支撑 {item.requirementCount} 条岗位要求，其中必需条件 {item.mustHaveCount} 条</small>
                   </article>
                 ))}
               </section>
@@ -335,7 +338,7 @@ export default async function JobPreparationPage({
                 {(preparation.interviewFacts?.items ?? []).map((item) => (
                   <article className="eligibility-result-card" key={item.requirementId}>
                     <strong>{item.requirementText}</strong>
-                    <p>准备优先级：{item.preparationPriority} · Evidence 状态：{item.evidenceStatus}</p>
+                    <p>{item.importance === "bonus" ? "加分项 · 可选准备" : item.importance === "must_have" ? "必需条件 · 建议先核对" : "岗位偏好 · 按需准备"}</p>
                     {item.evidenceSummaries.length > 0 ? <p>可用事实：{item.evidenceSummaries.join("；")}</p> : null}
                   </article>
                 ))}

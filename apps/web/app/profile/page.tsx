@@ -319,7 +319,7 @@ export default async function ProfilePage({
       <ProfileEditor
         initialProfile={profile}
         initialIntent={intent}
-        readyNextHref={agentScope ? jobDetailWithAgentScope(agentScope.jobId, agentScope.ids) : "/import"}
+        readyNextHref={agentScope ? `${jobDetailWithAgentScope(agentScope.jobId, agentScope.ids)}#job-match` : "/import"}
         readyNextLabel={agentScope ? "继续分析刚才的岗位" : "去添加岗位"}
         afterProfileSaveHref={afterProfileSaveHref}
         focusEvidenceType={focusEvidenceType}

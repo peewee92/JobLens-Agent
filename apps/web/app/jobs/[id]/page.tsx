@@ -245,11 +245,6 @@ export default async function JobDetailPage({
                 )}
               </p>
             ) : null}
-            {!extraction && !requirementError && hasEnoughDescription ? (
-              <p className="notice">
-                <strong>下一步：</strong> 在上方检查分析方式与调用范围，然后提取当前岗位要求。提取完成后，对照原文核对这一版要求，即可继续个人匹配。
-              </p>
-            ) : null}
             {acceptedBaselineMissing ? (
               <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
                 <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
@@ -258,7 +253,8 @@ export default async function JobDetailPage({
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}
-            {releaseReadiness ? (
+            {releaseReadiness && (extraction || releaseReadiness.blockers.some(blocker =>
+              !["requirement_extraction_missing", "accepted_baseline_missing"].includes(blocker.code))) ? (
               <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
@@ -327,7 +323,7 @@ export default async function JobDetailPage({
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
           </section>
-          <section className="detail-section eligibility-section">
+          <section className="detail-section eligibility-section" id="job-match">
             <div className="section-title-row">
               <div>
                 <p className="eyebrow">第 3 步 · 结合我的职业背景</p>
@@ -374,6 +370,8 @@ export default async function JobDetailPage({
               jobId={job.id}
               returnHref={detailHref}
               profileHref={profileWithAgentScope(id, retainedScope ?? [id])}
+              compareHref={agentScopeHref(retainedScope ?? [id])}
+              compareLabel={retainedScope && retainedScope.length > 1 ? "返回比较这批岗位" : "比较岗位并准备"}
             />
 
             {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
@@ -438,7 +436,7 @@ export default async function JobDetailPage({
                   })}
                 </div>
               </div>
-            ) : !eligibilityError ? (
+            ) : !eligibilityError && (!careerReadiness || careerReadiness.releaseEligible) ? (
               <div className="review-result review-pending">
                 <strong>匹配判断还没有开始</strong>
                 <p>{matchDisabledReason}</p>

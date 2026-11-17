@@ -1,5 +1,5 @@
 'use client';
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState, useTransition} from 'react';
 import {useRouter} from 'next/navigation';
 import {workspaceStatusLabels} from '@/lib/workbench';
 import {actionStatusLabels} from '@/lib/application-actions';
@@ -8,6 +8,9 @@ import {readProgressCommand, progressRaw, discardProgressRaw, sendProgressComman
 
 export function useProgressRequest(workspaceId: string, slot: string) {
   const router = useRouter();
+  const inFlight = useRef(false);
+  const [refreshing, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
   const [ready,setReady] = useState(false), [busy,setBusy] = useState(false);
   const [original,setOriginal] = useState<ProgressCommand|null>(null), [error,setError] = useState<string|null>(null);
   const [raw,setRaw] = useState<string|null>(null), [broken,setBroken] = useState(false), [reviewed,setReviewed] = useState(false);
@@ -18,12 +21,15 @@ export function useProgressRequest(workspaceId: string, slot: string) {
   };
   useEffect(() => { load(); window.addEventListener('storage',load); return () => window.removeEventListener('storage',load); },[workspaceId,slot]);
   async function send(body: ProgressCommand['body'], retry?: ProgressCommand) {
-    setBusy(true); setError(null); setReviewed(false);
+    if (inFlight.current || refreshing) return;
+    inFlight.current = true;
+    setBusy(true); setError(null); setReviewed(false); setSaved(false);
     try {
       await sendProgressCommand(window.localStorage,retry ?? {version:1,workspaceId,slot,commandId:crypto.randomUUID(),body});
-      router.refresh();
+      setSaved(true);
+      startTransition(() => router.refresh());
     } catch(e) { setError(e instanceof Error ? e.message : '保存结果未确认，请刷新核对后重试原请求。'); }
-    finally { load(); setBusy(false); }
+    finally { load(); inFlight.current = false; setBusy(false); }
   }
   const recovery = <>
     {(original || broken) && <aside className="notice" aria-label="待确认人工进度请求">
@@ -37,7 +43,8 @@ export function useProgressRequest(workspaceId: string, slot: string) {
         catch(e) { setError(e instanceof Error ? e.message : '原请求未清除，请重新核对。'); load(); }
       }}>已核对，结束本次请求恢复</button>
     </aside>}
+    {saved && <p role="status" className="muted-copy">{refreshing ? "已保存，正在更新进度…" : "进度已保存。"}</p>}
     {error && <p role="alert" className="error-copy">{error}</p>}
   </>;
-  return {send, busy, disabled:!ready || busy || broken || !!original,recovery};
+  return {send, busy: busy || refreshing, disabled:!ready || busy || refreshing || broken || !!original,recovery};
 }

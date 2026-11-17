@@ -163,3 +163,12 @@ def test_unusable_metrics_fail_closed_without_partial_priority_output() -> None:
     assert result.facts_usable is False
     assert result.items == ()
     assert result.blockers == ("requirements_not_released",)
+
+
+def test_preferred_or_bonus_only_gap_never_looks_like_a_required_priority():
+    result = PrioritizeTargetCohortSkillGapsUseCase().execute(
+        _result(_metric("Docker", status=ProfileCapabilityCoverageStatus.MISSING,
+                        target_coverage=1.0, must_have_ratio=0.0, evidence_coverage=0.0,
+                        gap_severity=0.5))
+    )
+    assert result.items[0].priority is SkillGapPriority.P1

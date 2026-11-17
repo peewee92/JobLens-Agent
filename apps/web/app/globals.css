@@ -3218,4 +3218,26 @@ h3 {
 .job-description-editor { margin: 12px 0; }
 .job-description-editor .vertical-form { display: grid; gap: 10px; }
 .job-description-editor textarea { width: 100%; min-width: 0; box-sizing: border-box; }
-#job-description, #job-requirements, #job-match-report { scroll-margin-top: 78px; }
+#job-description, #job-requirements, #job-match, #job-match-report { scroll-margin-top: 78px; }
+[id^="saved-"], #start-preparation, #resume, #actions, #evidence, #interview { scroll-margin-top: 78px; }
+
+.route-loading { width: 100%; min-height: 215px; }
+.route-loading-bar { height: 16px; width: min(100%, 560px); border-radius: 999px; background: #e4eaf3; }
+.route-loading-bar:first-of-type { width: min(70%, 270px); }
+@media (prefers-reduced-motion: no-preference) {
+  .route-loading-bar { animation: route-pulse 1.2s ease-in-out infinite alternate; }
+  @keyframes route-pulse { to { opacity: 0.46; } }
+}
+
+.link-feedback { font-size: 0.85em; }
+.saved-analysis { display: grid; gap: 18px; }
+.saved-analysis > .card, .saved-analysis #start-preparation > .card {
+  padding: 20px; border: 1px solid #dde6f2; border-radius: 14px; background: #fff;
+}
+.saved-analysis h2, .saved-analysis h3 { margin-bottom: 10px; }
+.saved-analysis nav.actions { margin: 16px 0; }
+.interview-practice-form { margin-top: 12px; }
+.interview-practice-form textarea {
+  display: block; box-sizing: border-box; width: 100%; padding: 10px; margin: 6px 0 10px;
+  border: 1px solid #bdcce1; border-radius: 8px; font: inherit; resize: vertical;
+}

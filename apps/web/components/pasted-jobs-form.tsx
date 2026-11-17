@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {LinkFeedback} from "@/components/link-feedback";
 import {useRef, useState} from "react";
 import type {ManualJobInput, ManualJobImportResult} from "@/lib/contracts";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
@@ -85,7 +86,7 @@ export function PastedJobsForm() {
             {working === index ? <p className="notice" role="status">正在保存这条岗位…</p>
             : result ? <div className="success-box" role="status">
               <p>{result.created ? "已添加" : "复用已有岗位，未新增"}{short ? " · 描述待补充，暂不能分析" : ""}</p>
-              <Link href={`${jobDetailWithAgentScope(result.jobId, scope)}#${short ? "job-description" : "job-requirements"}`}>{short ? "查看并补充描述" : "查看这个岗位并分析要求"}</Link>
+              <Link href={`${jobDetailWithAgentScope(result.jobId, scope)}#${short ? "job-description" : "job-requirements"}`}>{short ? "查看并补充描述" : "查看这个岗位并分析要求"}<LinkFeedback /></Link>
             </div> : short ? <p className="notice">描述信息不足。保存后标为待补充，不会直接参与匹配。</p> : null}
             {!result && <details open={validation ? true : undefined}>
               <summary>{locked ? "查看原文" : "查看或修改原文"}</summary>
@@ -108,7 +109,7 @@ export function PastedJobsForm() {
           onClick={() => void save(rows.flatMap((row, i) => row.outcome?.kind !== "saved" && row.outcome?.kind !== "unknown" ? [i] : []))}>
           {working !== null ? "正在保存岗位…" : `保存 ${pending.length} 条岗位`}
         </button>}
-        {scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位</Link>}
+        {scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位<LinkFeedback /></Link>}
       </div>
     </section>}
   </section>;

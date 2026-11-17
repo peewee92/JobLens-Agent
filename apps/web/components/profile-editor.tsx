@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {LinkFeedback} from "@/components/link-feedback";
 import {useRouter} from "next/navigation";
 import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
@@ -1078,8 +1079,8 @@ export function ProfileEditor({
               {intentState.kind === "error" ? `职业背景已保存，但目标岗位还需核对：${intentState.message}` : intentState.message}
             </p>}
             {starterMode && profileVersion > 0 && intentVersion > 0 && !profileDirty && <div className="success-box" role="status">
-              <p>职业背景与目标岗位已确认。可以继续添加岗位了。</p>
-              <Link className="button" href={readyNextHref}>{readyNextLabel}</Link>
+              <p>职业背景与目标岗位已确认。</p>
+              <Link className="button" href={readyNextHref}>{readyNextLabel}<LinkFeedback /></Link>
             </div>}
           </div>
         )}

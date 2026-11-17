@@ -10,6 +10,6 @@ test("ranked target uses recovered title when the job is outside the loaded page
     React.createElement(RankedJobLabel, {jobId: "job-old", label, job}),
   );
   assert.equal(render("历史范围岗位"), "历史范围岗位");
-  assert.equal(render(), "job-old");
+  assert.equal(render(), "岗位名称暂不可读取");
   assert.match(render("其他名称", {id: "job-old", title: "当前岗位", company: "示例公司"} as JobListItem), /当前岗位.*示例公司/);
 });

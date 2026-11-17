@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {LinkFeedback} from "@/components/link-feedback";
 import {type FormEvent, useRef, useState, useSyncExternalStore} from "react";
 import type {ManualJobImportResult, ManualJobInput} from "@/lib/contracts";
 import {submitManualJob} from "@/lib/manual-job-import";
@@ -65,7 +66,7 @@ export function ManualJobForm() {
         : result.created ? "下一步核对原文和岗位要求，再生成匹配。"
         : "如果原文发生变化，旧匹配会保留为历史；请到岗位详情核对当前是否仍适用。"} </p>
       <div className="actions">
-        <Link className="button" href={`/jobs/${encodeURIComponent(result.jobId)}#${pendingDescription ? "job-description" : "job-requirements"}`}>{pendingDescription ? "查看并补充描述" : "查看岗位并继续分析"}</Link>
+        <Link className="button" href={`/jobs/${encodeURIComponent(result.jobId)}#${pendingDescription ? "job-description" : "job-requirements"}`}>{pendingDescription ? "查看并补充描述" : "查看岗位并继续分析"}<LinkFeedback /></Link>
         <button className="button-secondary" type="button" onClick={() => {
           form.current?.reset();
           setResult(null);

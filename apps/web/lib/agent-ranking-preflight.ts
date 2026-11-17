@@ -1,6 +1,6 @@
 const recoveryMessages = {
   job_unavailable: "岗位当前不可用。请核对岗位记录；若标记为失效，可恢复后重新检查。",
-  description_incomplete: "岗位描述信息不足。请核对原文，有完整描述时再添加并分析。",
+  description_incomplete: "岗位描述信息不足。请打开岗位详情，补充完整原文或重新采集后再分析。",
   description_too_long: "岗位描述超过分析长度限制。可使用保留职责和任职要求的版本重新添加。",
   description_not_extractable: "当前岗位来源没有提供可用的完整描述。请从原招聘页面重新采集详情。",
   requirement_analysis_failed: "上次分析这份描述时没有保存岗位要求。请核对原文，确认后重新分析，或先跳过。",
