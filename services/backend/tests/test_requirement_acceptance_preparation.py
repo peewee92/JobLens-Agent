@@ -1098,7 +1098,7 @@ def test_run_progress_is_available_through_read_only_api(
     assert body["cases"][0]["descriptionIsCurrent"] is True
     assert body["cases"][0]["currentDescriptionHash"] == body["cases"][0]["descriptionHash"]
     assert body["cases"][0]["traceCapability"] == "requirement_extraction"
-    assert body["cases"][0]["traceModel"] == "fixture-requirement-extractor"
+    assert body["cases"][0]["traceModel"] == "fixture-requirement-extractor-v2"
     assert body["cases"][0]["traceLatencyMs"] >= 0
     assert body["cases"][0]["traceError"] is None
     assert body["cases"][0]["traceCreatedAt"]

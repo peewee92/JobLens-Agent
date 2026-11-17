@@ -514,6 +514,16 @@ h3 {
   border: 1px solid var(--line);
 }
 
+.ranking-omissions a {
+  color: var(--brand-dark);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.ranking-omissions li + li {
+  margin-top: 0.35rem;
+}
+
 .inline-error,
 .error-panel {
   color: var(--danger);

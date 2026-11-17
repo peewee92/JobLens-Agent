@@ -15,6 +15,7 @@ from app.application.job_requirements import (
     JobRequirementExtractionWrite,
     JobRequirementWrite,
 )
+from app.application.job_requirements.description_readiness import requires_better_capture
 from app.application.ports.job_query_repository import AbstractJobQueryRepository
 from app.application.ports.job_requirement_repository import (
     AbstractJobRequirementQueryRepository,
@@ -60,10 +61,7 @@ class ExtractJobRequirementsUseCase:
                 "岗位已标记为失效，请先在岗位详情中恢复，或从本次分析中移除。"
             )
         availability_revision = job.availability_revision
-        if (
-            (job.source_version or "").startswith("1.4.")
-            and job.requirement_review_eligible is not True
-        ):
+        if requires_better_capture(job):
             reasons = ", ".join(job.requirement_review_ineligibility_reasons) or (
                 "missing_requirement_review_eligibility"
             )

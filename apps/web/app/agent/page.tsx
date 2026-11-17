@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {CareerAgentHitlPanel} from "@/components/career-agent-hitl-panel";
 import {systemReadinessNotice} from "@/components/system-readiness-notice";
 import {BackendApiError, fetchJobPage, fetchJobDetail} from "@/lib/backend";
@@ -45,7 +46,14 @@ export default async function AgentPage({searchParams}: {searchParams: Promise<{
       {error ? (
         <section className="card"><p>{error}</p></section>
       ) : jobs.length === 0 ? (
-        <section className="card"><p>当前没有可分析岗位，请先添加岗位并完成 Match。</p></section>
+        <section className="card stack-sm">
+          <h2>还没有岗位可以比较</h2>
+          <p>先确认简历里的经历，再添加岗位并生成匹配报告。完成后，回到这里比较岗位。</p>
+          <div className="actions">
+            <Link href="/profile">导入简历或确认职业资料</Link>
+            <Link href="/import">添加岗位</Link>
+          </div>
+        </section>
       ) : null}
       {initialJobId && !error && <section className="card"><p>已保留原工作区的岗位范围。此处只读取已有匹配报告；资料变化后，旧报告可能不再适用，不会自动重算或调用模型。</p><a href={`/jobs/${encodeURIComponent(initialJobId)}`}>核对该岗位及已保存的匹配报告</a></section>}
       {scope && !error && <section className="card"><p>已带回原来选择的 {scope.length} 个岗位。岗位或资料可能已变化，请重新检查后再分析。</p></section>}

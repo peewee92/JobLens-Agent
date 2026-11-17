@@ -14,6 +14,11 @@ from app.application.job_requirements import (
     RequirementExtractorFailedError,
     RequirementExtractorUnavailableError,
 )
+from app.application.job_requirements.description_readiness import (
+    MAX_DESCRIPTION_CHARS,
+    MIN_DESCRIPTION_CHARS,
+    description_length_blocker,
+)
 from app.application.job_requirements.validation import (
     COVERAGE_POLICY_VERSION,
     GROUNDING_POLICY_VERSION,
@@ -38,8 +43,6 @@ TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "requirement-extractor-v42.96"
 PROMPT_VERSION = "requirement-extraction-v9"
-MIN_DESCRIPTION_CHARS = 40
-MAX_DESCRIPTION_CHARS = 50_000
 
 
 class ExtractJobRequirementsWorkflow:
@@ -59,11 +62,12 @@ class ExtractJobRequirementsWorkflow:
 
     def execute(self, *, job_id: str, description: str) -> JobRequirementExtractionProposal:
         normalized = description.strip()
-        if len(normalized) < MIN_DESCRIPTION_CHARS:
+        blocker = description_length_blocker(normalized)
+        if blocker == "description_incomplete":
             raise JobDescriptionNotExtractableError(
                 f"Job description must contain at least {MIN_DESCRIPTION_CHARS} characters"
             )
-        if len(normalized) > MAX_DESCRIPTION_CHARS:
+        if blocker == "description_too_long":
             raise JobDescriptionNotExtractableError(
                 f"Job description must contain at most {MAX_DESCRIPTION_CHARS} characters"
             )

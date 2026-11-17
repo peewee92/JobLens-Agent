@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import {type FormEvent, useState} from "react";
+import {type FormEvent, useState, useSyncExternalStore} from "react";
 import type {ApiErrorBody, ManualJobImportResult, ManualJobInput} from "@/lib/contracts";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 
+// Keep the native form from submitting until React can intercept it.
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
 export function ManualJobForm() {
+  const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [uncertain, setUncertain] = useState(false);
@@ -13,7 +19,7 @@ export function ManualJobForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || uncertain || result) return;
+    if (!ready || busy || uncertain || result) return;
     const data = new FormData(event.currentTarget);
     setBusy(true);
     setMessage("");
@@ -45,7 +51,7 @@ export function ManualJobForm() {
     }
   }
 
-  return <form className="import-card" onSubmit={submit}>
+  return <form className="import-card" method="post" onSubmit={submit}>
     <h2>粘贴一个目标岗位</h2>
     <p>复制真实岗位的完整描述即可，不需要先安装浏览器插件。这里仅保存岗位，不调用模型，也不会自动投递。</p>
     <label className="file-field"><span>岗位名称</span><input name="title" required maxLength={255} disabled={busy || !!result} /></label>
@@ -53,7 +59,7 @@ export function ManualJobForm() {
     <label className="file-field"><span>完整岗位描述</span><textarea name="description" required maxLength={50000} rows={12} disabled={busy || !!result} /></label>
     <label className="file-field"><span>原始岗位链接（可选）</span><input name="sourceUrl" type="url" maxLength={2048} placeholder="https://…" disabled={busy || !!result} /></label>
     <p className="muted-copy">系统会注明“手动粘贴”，不会把保存时间当成岗位仍在招聘的证明。未提供链接时，相同内容可复用；内容不同会作为另一个岗位保存。</p>
-    <button className="button" disabled={busy || uncertain || !!result} type="submit">{busy ? "正在保存岗位…" : result ? "岗位已保存" : "保存岗位，继续分析"}</button>
+    <button className="button" disabled={!ready || busy || uncertain || !!result} type="submit">{!ready ? "正在准备表单…" : busy ? "正在保存岗位…" : result ? "岗位已保存" : "保存岗位，继续分析"}</button>
     {message ? <div className="inline-error" role="alert">{message}</div> : null}
     {uncertain ? <Link className="button-secondary" href="/jobs">先核对我的岗位</Link> : null}
     {result ? <section className="success-box" aria-live="polite">

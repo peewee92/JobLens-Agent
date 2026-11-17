@@ -23,7 +23,13 @@ def get_ranking_preflight(
     ranked, omissions = use_case.preflight(tuple(job_ids))
     return RankingPreflightResponse(
         items=[RankedMatchReportItemResponse.from_detail(item) for item in ranked],
-        omissions=[RankingOmissionResponse(job_id=item.job_id, reason=item.reason, stale_reasons=list(item.stale_reasons)) for item in omissions],
+        omissions=[
+            RankingOmissionResponse(
+                job_id=item.job_id, reason=item.reason,
+                stale_reasons=list(item.stale_reasons), recovery_code=item.recovery_code,
+            )
+            for item in omissions
+        ],
     )
 
 

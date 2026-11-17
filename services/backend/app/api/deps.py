@@ -1,5 +1,5 @@
 """FastAPI dependency providers (Dependency Injection)."""
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from fastapi import Depends
@@ -178,6 +178,7 @@ from app.repositories import (
     SqlAlchemyTraceUnitOfWork,
     SqlAlchemyUnitOfWork,
 )
+from app.repositories.sqlalchemy_trace_repository import SqlAlchemyTraceRepository
 from app.repositories.sqlalchemy_user_feedback_repository import (
     SqlAlchemyUserFeedbackQueryRepository,
 )
@@ -1079,6 +1080,13 @@ def get_batch_match_execution_use_case(
     )
 
 
+def _failed_offline_requirement_jobs(descriptions: Mapping[str, str]) -> set[str]:
+    with session_factory()() as session:
+        if not inspect(session.get_bind()).has_table("trace_spans"):
+            return set()
+        return SqlAlchemyTraceRepository(session).failed_offline_requirement_jobs(descriptions)
+
+
 def get_batch_match_ranking_use_case(
     reports: AbstractMatchReportQueryRepository = Depends(
         get_match_report_query_repository
@@ -1101,6 +1109,7 @@ def get_batch_match_ranking_use_case(
         requirement_repository=requirements,
         requirement_release=requirement_release,
         persistence_ready=lambda: inspect(database_engine()).has_table("match_reports"),
+        failed_requirement_jobs=_failed_offline_requirement_jobs,
     )
 
 

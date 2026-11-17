@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from hashlib import sha256
 from typing import Literal
 
 from app.application.job_queries.models import JobDetail, JobListItem
+from app.application.job_requirements.description_readiness import (
+    description_length_blocker,
+    requires_better_capture,
+)
 from app.application.job_requirements.release import GetJobRequirementReleaseReadinessUseCase
 from app.application.match_policy_version import CURRENT_MATCH_POLICY_VERSION
 from app.application.match_report_history import report_stale_reasons
@@ -25,11 +30,23 @@ MAX_CONFIRMED_TARGETS = 5
 MAX_ANALYSIS_JOBS = 50
 
 
+RankingRecoveryCode = Literal[
+    "job_unavailable",
+    "description_incomplete",
+    "description_too_long",
+    "description_not_extractable",
+    "requirement_analysis_failed",
+    "requirements_not_analyzed",
+    "requirements_need_review",
+]
+
+
 @dataclass(frozen=True, slots=True)
 class RankingOmission:
     job_id: str
     reason: Literal["report_missing", "report_stale", "hard_conflict"]
     stale_reasons: tuple[str, ...] = ()
+    recovery_code: RankingRecoveryCode | None = None
 
 
 def is_target_candidate(recommendation: object) -> bool:
@@ -133,6 +150,7 @@ class BatchRankMatchReportsUseCase:
         requirement_repository: AbstractJobRequirementQueryRepository,
         requirement_release: GetJobRequirementReleaseReadinessUseCase,
         persistence_ready: Callable[[], bool],
+        failed_requirement_jobs: Callable[[Mapping[str, str]], set[str]] | None = None,
     ) -> None:
         self._report_repository = report_repository
         self._career_context_repository = career_context_repository
@@ -140,6 +158,7 @@ class BatchRankMatchReportsUseCase:
         self._requirement_repository = requirement_repository
         self._requirement_release = requirement_release
         self._persistence_ready = persistence_ready
+        self._failed_requirement_jobs = failed_requirement_jobs
 
     def execute(
         self,
@@ -152,7 +171,34 @@ class BatchRankMatchReportsUseCase:
         return ranked if top_n is None else ranked[:top_n]
 
     def preflight(self, job_ids: tuple[str, ...]) -> tuple[tuple[StoredMatchReport, ...], tuple[RankingOmission, ...]]:
-        return self._evaluate(job_ids, include_blocked=False)
+        ranked, omissions = self._evaluate(job_ids, include_blocked=False)
+        recovery: dict[str, RankingRecoveryCode] = {}
+        unanalyzed: dict[str, str] = {}
+        for item in omissions:
+            if item.reason != "report_missing":
+                continue
+            job = self._job_repository.get_job(item.job_id)
+            if job is None or job.user_marked_inactive:
+                recovery[item.job_id] = "job_unavailable"
+                continue
+            description = (job.description or "").strip()
+            if blocker := description_length_blocker(description):
+                recovery[item.job_id] = blocker
+                continue
+            if requires_better_capture(job):
+                recovery[item.job_id] = "description_not_extractable"
+                continue
+            description_hash = sha256(description.encode("utf-8")).hexdigest()
+            extraction = self._requirement_repository.get_latest(item.job_id)
+            if extraction is None or extraction.input_hash != description_hash:
+                unanalyzed[item.job_id] = description_hash
+            elif not self._requirement_release.execute(item.job_id).release_eligible:
+                recovery[item.job_id] = "requirements_need_review"
+
+        failed = self._failed_requirement_jobs(unanalyzed) if unanalyzed and self._failed_requirement_jobs else set()
+        for job_id in unanalyzed:
+            recovery[job_id] = "requirement_analysis_failed" if job_id in failed else "requirements_not_analyzed"
+        return ranked, tuple(replace(item, recovery_code=recovery.get(item.job_id)) for item in omissions)
 
     def _evaluate(self, job_ids: tuple[str, ...], *, include_blocked: bool) -> tuple[tuple[StoredMatchReport, ...], tuple[RankingOmission, ...]]:
         if not job_ids:

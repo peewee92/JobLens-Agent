@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {rankingPreflight, rankingScope} from "../lib/agent-ranking-preflight";
+import {rankingOmissionMessage, rankingPreflight, rankingScope} from "../lib/agent-ranking-preflight";
 
 test("partial and empty rankings keep the requested scope visible", () => {
   const missing = {jobId: "a", reason: "report_missing", staleReasons: []};
@@ -24,4 +24,23 @@ test("malformed or unexpected ranking results do not enable a run", () => {
   }
   assert.throws(() => rankingPreflight([], {items: []}));
   assert.throws(() => rankingPreflight(["a", "a"], {items: []}));
+});
+
+test("omissions explain different steps; new or absent recovery codes remain optional", () => {
+  for (const [code, guidance] of [
+    ["description_incomplete", /描述信息不足/],
+    ["requirement_analysis_failed", /没有保存岗位要求/],
+    ["requirements_not_analyzed", /先在岗位详情分析要求/],
+    ["requirements_need_review", /不能用于匹配/],
+    [null, /尚无匹配报告/],
+    ["future_code", /尚无匹配报告/],
+    ["constructor", /尚无匹配报告/],
+  ] as const) {
+    const result = rankingPreflight(["a"], {items: [], omissions: [
+      {jobId: "a", reason: "report_missing", staleReasons: [], recoveryCode: code},
+    ]});
+    assert.match(rankingOmissionMessage(result.omissions[0]), guidance);
+  }
+  assert.match(rankingOmissionMessage({jobId: "a", reason: "report_stale", staleReasons: ["profile_changed"]}), /已过期.*职业资料已更新/);
+  assert.match(rankingOmissionMessage({jobId: "a", reason: "hard_conflict", staleReasons: []}), /硬性条件冲突/);
 });
