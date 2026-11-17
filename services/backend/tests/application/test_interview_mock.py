@@ -146,6 +146,8 @@ def test_answer_review_accepts_only_evidence_grounded_for_that_requirement():
     assert event.event_type.value == "mock_interview_completed"
     assert review.accepted_evidence_ids == ("ev1",)
     assert review.rejected_evidence_ids == ()
+    assert "已确认经历" in review.feedback[0]
+    assert "Evidence" not in review.feedback[0]
     assert review.retry_recommended is False
     assert review.provider_calls == 0
     assert review.db_writes == 0
@@ -164,4 +166,6 @@ def test_answer_review_rejects_cross_requirement_or_invented_evidence_and_recomm
     assert review.grounding_status is InterviewAnswerGroundingStatus.UNGROUNDED
     assert review.accepted_evidence_ids == ()
     assert review.rejected_evidence_ids == ("ev_other",)
+    assert "本题允许引用的经历" in review.feedback[0]
+    assert "已确认经历" in review.feedback[1]
     assert review.retry_recommended is True

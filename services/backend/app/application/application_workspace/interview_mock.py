@@ -169,11 +169,11 @@ class ReviewInterviewMockAnswerUseCase:
         rejected = tuple(dict.fromkeys(evidence_id for evidence_id in evidence_ids if evidence_id not in allowed))
         feedback: list[str] = []
         if rejected:
-            feedback.append("回答引用了不属于该岗位要求的已确认 Evidence，请删除或改用允许的 Evidence。")
+            feedback.append("回答引用了不适用于这项岗位要求的经历，请移除这条引用，或改用本题允许引用的经历。")
         if not accepted:
-            feedback.append("当前回答没有引用该岗位要求下的已确认 Evidence；请补充真实经历，或明确说明暂无相关经历。")
+            feedback.append("当前回答没有引用与这项岗位要求相关的已确认经历。请补充真实经历，或明确说明暂无相关经历。")
         if accepted and not rejected:
-            feedback.append("回答已关联到该岗位要求下的已确认 Evidence；可继续优化表达结构，但不要新增未经确认的事实或指标。")
+            feedback.append("回答已关联到与这项岗位要求相关的已确认经历。可以继续优化表达，但不要新增未经确认的事实或指标。")
 
         if accepted and not rejected:
             grounding_status = InterviewAnswerGroundingStatus.GROUNDED

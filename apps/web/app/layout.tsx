@@ -22,13 +22,13 @@ export default async function RootLayout({children}: {children: ReactNode}) {
         </a>
         <header className="site-header">
           <div className="shell header-inner">
-            <Link className="brand" href="/" aria-label="JobLens 首页">
+            <a className="brand" href="/" aria-label="JobLens 首页">
               <span className="brand-mark">JL</span>
               <span>
                 <strong>JobLens</strong>
                 <small>看懂岗位 · 做更稳的求职选择</small>
               </span>
-            </Link>
+            </a>
             <nav className="site-nav" aria-label="主导航">
               <NavLink href="/">首页</NavLink>
               <NavLink href="/profile">我的背景</NavLink>

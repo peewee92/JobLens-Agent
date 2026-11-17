@@ -17,7 +17,7 @@ export default async function ApplicationsPage({searchParams}: {searchParams: Pr
       </li>)}</ul> : <p>本页没有工作区。</p>}
       <div className="actions">{offset > 0 && <Link href={`/applications?offset=${Math.max(0, offset - 20)}`}>上一页</Link>}
         {page.hasMore && <Link href={`/applications?offset=${offset + 20}`}>下一页</Link>}
-        <Link href="/">返回求职工作台</Link></div>
+        <a href="/">返回求职工作台</a></div>
     </section>;
   } catch (error) {
     return <section className="card"><h1>暂时无法读取工作区</h1><p>{error instanceof BackendApiError ? "请检查本地服务和数据库后重试，已有记录不会因此丢失。" : "请稍后重试。"}</p><Link href={`/applications?offset=${offset}`}>重试</Link></section>;
