@@ -1,12 +1,13 @@
 "use client";
 
-import {useState} from "react";
+import {useRef, useState} from "react";
 import {useRouter} from "next/navigation";
 
 export function JobRequirementConfirmation({jobId, extractionId, inputHash, factsDigest, confirmed}: {
   jobId: string; extractionId: string; inputHash: string; factsDigest: string; confirmed: boolean;
 }) {
   const router = useRouter();
+  const inFlight = useRef(false);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -18,7 +19,8 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
   </div>;
 
   async function confirm() {
-    if (busy || !checked) return;
+    if (inFlight.current || !checked) return;
+    inFlight.current = true;
     setBusy(true);
     setMessage("");
     try {
@@ -42,7 +44,7 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
       router.refresh();
     } catch {
       setMessage("连接或浏览器存储不可用。请先刷新查看是否已确认；页面不会自动重发，重试仍使用原请求。");
-    } finally { setBusy(false); }
+    } finally { inFlight.current = false; setBusy(false); }
   }
 
   return <section className="detail-card">

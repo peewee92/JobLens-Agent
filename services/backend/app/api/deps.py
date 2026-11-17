@@ -608,6 +608,12 @@ def get_job_query_repository() -> AbstractJobQueryRepository:
     return SqlAlchemyJobQueryRepository(session_factory())
 
 
+def get_revise_manual_job_description():
+    from app.application.job_queries.manual_description import ReviseManualJobDescription
+    from app.repositories.sqlalchemy_manual_job_description import SqlAlchemyManualJobDescription
+    return ReviseManualJobDescription(SqlAlchemyManualJobDescription(session_factory()))
+
+
 def get_set_job_availability_use_case():
     from app.repositories.sqlalchemy_job_availability import SqlAlchemyJobAvailability
     from app.application.job_queries.availability import SetJobAvailabilityUseCase

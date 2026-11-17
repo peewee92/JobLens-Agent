@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "jobId": {
+      "title": "Jobid",
+      "type": "string"
+    },
+    "descriptionSha256": {
+      "title": "Descriptionsha256",
+      "type": "string"
+    },
+    "changed": {
+      "title": "Changed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "jobId",
+    "descriptionSha256",
+    "changed"
+  ],
+  "title": "ManualJobDescriptionResponse",
+  "type": "object"
+}

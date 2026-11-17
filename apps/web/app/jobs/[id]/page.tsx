@@ -1,3 +1,6 @@
+import {createHash} from "node:crypto";
+import {JobDescriptionEditor} from "@/components/job-description-editor";
+import {publicDemoEnabled} from "@/lib/public-demo";
 import type {CareerContextReleaseReadiness} from "@/lib/contracts";
 import {careerContextReleaseBlockerCopy} from "@/lib/career-context";
 import {JobReportComparison} from "@/components/job-report-comparison";
@@ -74,15 +77,24 @@ export default async function JobDetailPage({
     return <ServiceError message={message} />;
   }
 
+  // Start independent reads together; any failed read still blocks only its dependent action.
+  const fetched = await Promise.allSettled([
+    fetchJobDescriptionObservations(id), fetchMatchReportHistory(id), fetchLatestJobRequirements(id),
+    fetchJobMatchInputReadiness(id), fetchJobEligibility(id),
+  ] as const);
+  function read<T>(result: PromiseSettledResult<T>) {
+    if (result.status === "rejected") throw result.reason;
+    return result.value;
+  }
   let descriptions = null;
   try {
-    const result = await fetchJobDescriptionObservations(id);
+    const result = read(fetched[0]);
     if (result.jobId === id && Array.isArray(result.items)) descriptions = result;
   } catch { /* A failed history read must not hide the current job. */ }
   let history = null;
   let historyError = "";
   try {
-    history = await fetchMatchReportHistory(id);
+    history = read(fetched[1]);
   } catch {
     historyError = "暂时无法读取保存的匹配结果，请刷新重试；这不表示历史结果已丢失。";
   }
@@ -98,7 +110,7 @@ export default async function JobDetailPage({
   let releaseReadinessError = "";
   let eligibilityError = "";
   try {
-    extraction = await fetchLatestJobRequirements(id);
+    extraction = read(fetched[2]);
   } catch (caught) {
     requirementError =
       caught instanceof BackendApiError
@@ -106,7 +118,7 @@ export default async function JobDetailPage({
         : "暂时无法读取岗位要求分析结果，请稍后重试。";
   }
   try {
-    const inputReadiness = await fetchJobMatchInputReadiness(id);
+    const inputReadiness = read(fetched[3]);
     if (!validImportMatchInputs(id, inputReadiness)) {
       throw new Error("invalid match input readiness");
     }
@@ -119,7 +131,7 @@ export default async function JobDetailPage({
         : "暂时无法检查岗位匹配准备状态，请稍后重试。";
   }
   try {
-    eligibility = await fetchJobEligibility(id);
+    eligibility = read(fetched[4]);
   } catch (caught) {
     if (!(caught instanceof BackendApiError && caught.code === "eligibility_inputs_not_ready")) {
       eligibilityError =
@@ -139,6 +151,9 @@ export default async function JobDetailPage({
   );
   const hasEnoughDescription = hasEnoughJobDescription(job.description);
   const descriptionIssue = jobDescriptionIssue(job.description);
+  const canEditDescription = job.source === "manual" && !publicDemoEnabled();
+  const descriptionHelp = descriptionIssue && canEditDescription
+    ? "请先用上方「补充或更正岗位描述」粘贴完整原文。" : descriptionIssue;
   const acceptedBaselineMissing = requirementBlockerCodes.has(
     "accepted_baseline_missing",
   );
@@ -152,12 +167,12 @@ export default async function JobDetailPage({
     : job.userMarkedInactive !== false
       ? "暂时无法确认岗位标记，请刷新页面或检查服务版本。"
     : requirementExtractionMissing
-      ? descriptionIssue ?? "请先完成下方的岗位要求分析，再检查匹配准备情况。"
+      ? descriptionHelp ?? "请先完成上方的岗位要求分析，再检查匹配准备情况。"
       : canConfirmRequirements && !releaseReadiness?.userConfirmationId
-        ? "请先对照原文核对下方全部岗位要求，再确认这一版用于匹配。"
+        ? "请先对照原文核对上方全部岗位要求，再确认这一版用于匹配。"
       : acceptedBaselineMissing
-        ? "岗位要求尚未核对或未满足输入检查，请先处理下方具体准备项。"
-      : "当前职业背景或岗位要求仍未通过匹配输入检查，请先处理下方准备项。";
+        ? "岗位要求尚未核对或未满足输入检查，请先处理上方的岗位准备项。"
+      : "当前职业背景或岗位要求仍未通过匹配输入检查，请先核对资料或处理上方岗位准备项。";
 
   return (
     <>
@@ -186,25 +201,136 @@ export default async function JobDetailPage({
             {job.remoteConfidence === "high" ? <span className="tag">远程信息较明确</span> : null}
           </div>
 
-          <section className="detail-section">
+          <section className="detail-section" id="job-description">
+            <p className="eyebrow">第 1 步</p>
             <h2>岗位描述</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
+            {canEditDescription && <JobDescriptionEditor jobId={job.id}
+              description={job.description ?? ""} revision={createHash("sha256").update(job.description ?? "").digest("hex")} />}
             <JobDescriptionObservationsView history={descriptions} />
           </section>
 
-          <section className="detail-section">
+          {job.skills.length > 0 && <section className="detail-section">
             <h2>技能标签</h2>
             <div className="tags">
               {job.skills.length > 0
                 ? job.skills.map((skill) => <span className="tag" key={skill}>{skill}</span>)
                 : <span className="tag">尚未提取技能</span>}
             </div>
-          </section>
+          </section>}
 
+          <section className="detail-section requirement-section" id="job-requirements">
+            <div className="section-title-row">
+              <div>
+                <p className="eyebrow">第 2 步</p>
+                <h2>分析并核对岗位要求</h2>
+                <p className="lede requirement-lede">
+                  系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。符合当前匹配规则的结果才会用于后续匹配。
+                </p>
+              </div>
+              <JobRequirementExtractButton
+                disabled={job.userMarkedInactive || !hasEnoughDescription}
+                disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionHelp ?? undefined}
+                hasExisting={extraction !== null}
+                jobId={job.id}
+              />
+            </div>
+
+            {requirementError ? <p className="inline-error">{requirementError}</p> : null}
+            {requirementExtractionError ? (
+              <p className="inline-error">
+                {userFacingErrorCode(
+                  requirementExtractionError,
+                  "岗位要求分析失败，请稍后重试。",
+                )}
+              </p>
+            ) : null}
+            {!extraction && !requirementError && hasEnoughDescription ? (
+              <p className="notice">
+                <strong>下一步：</strong> 在上方检查分析方式与调用范围，然后提取当前岗位要求。提取完成后，对照原文核对这一版要求，即可继续个人匹配。
+              </p>
+            ) : null}
+            {acceptedBaselineMissing ? (
+              <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
+                <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
+              </p><p>模型整体评审与单岗位核对不同；下方提供单岗位确认时，你可以先核对本岗位，不需要替维护者完成整批评审。</p></details>
+            ) : null}
+            {releaseReadinessError ? (
+              <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
+            ) : null}
+            {releaseReadiness ? (
+              <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
+                <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
+                {releaseReadiness.releaseEligible ? (
+                  <p>
+                    这份岗位要求符合当前匹配规则，可以用于后续匹配；这不代表已完成正式模型质量验收。
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      还有 {releaseReadiness.blockers.length} 项准备工作未完成。完成后，系统才会把这份岗位要求用于匹配，避免因为未校验的数据给出误导性的推荐。
+                    </p>
+                    <div className="readiness-blocker-list">
+                      {releaseReadiness.blockers.map((blocker, index) => {
+                        const copy = (canConfirmRequirements || !extraction) && ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)
+                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "提取后对照原文检查全部要求，再确认这一版用于当前岗位匹配；不需要先替维护者完成整批模型质量评审。"}
+                          : requirementReleaseBlockerCopy(blocker.code, job.description);
+                        return (
+                          <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
+                            <strong>{copy.title}</strong>
+                            <p>{copy.description}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
+            {extraction ? (
+              <>
+                <div className="requirement-run-meta">
+                  <span>分析时间：{formatDateTime(extraction.createdAt)}</span>
+                </div>
+                {extraction.provider === "fixture" ? (
+                  <p className="notice">
+                    当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
+                  </p>
+                ) : null}
+                <div className="requirement-list">
+                  {sortJobRequirements(extraction.requirements).map((requirement) => (
+                    <article className="requirement-card" key={requirement.requirementIndex}>
+                      <div className="tags">
+                        <span className={`tag importance-${requirement.importance}`}>
+                          {requirementImportanceLabel(requirement.importance)}
+                        </span>
+                        <span className="tag">{requirementTypeLabel(requirement.type)}</span>
+                        {requirement.normalizedCapability ? (
+                          <span className="tag">{requirement.normalizedCapability}</span>
+                        ) : null}
+                      </div>
+                      <p>{requirement.originalText}</p>
+                      <small className="muted-copy">岗位原文依据</small>
+                      <blockquote>{requirement.evidenceSpan}</blockquote>
+                    </article>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="notice">
+                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionHelp}
+              </p>
+            )}
+            {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
+                <JobRequirementConfirmation key={extraction.factsDigest}
+                  jobId={job.id} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
+                  factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
+              ) : null}
+          </section>
           <section className="detail-section eligibility-section">
             <div className="section-title-row">
               <div>
-                <p className="eyebrow">结合我的职业背景</p>
+                <p className="eyebrow">第 3 步 · 结合我的职业背景</p>
                 <h2>这个岗位适合我吗？</h2>
                 <p className="lede requirement-lede">
                   这里只判断当前已确认资料能不能支撑岗位硬条件，不使用模糊的百分制匹配分数。
@@ -241,7 +367,7 @@ export default async function JobDetailPage({
               <Link className="button" href={profileWithAgentScope(id, retainedScope ?? [id])}>确认资料和偏好，返回这个岗位</Link>
             </section> : null}
             <JobMatchReportPanel
-              key={savedResult?.reportId ?? "no-saved-result"}
+              key={savedResult ? `${savedResult.reportId}:${savedResult.isCurrent}` : "no-saved-result"}
               savedResult={savedResult}
               disabledReason={matchDisabledReason}
               enabled={eligibility !== null && job.userMarkedInactive === false}
@@ -320,113 +446,6 @@ export default async function JobDetailPage({
             ) : null}
           </section>
 
-          <section className="detail-section requirement-section">
-            <div className="section-title-row">
-              <div>
-                <h2>岗位要求分析</h2>
-                <p className="lede requirement-lede">
-                  系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。符合当前匹配规则的结果才会用于后续匹配。
-                </p>
-              </div>
-              <JobRequirementExtractButton
-                disabled={job.userMarkedInactive || !hasEnoughDescription}
-                disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionIssue ?? undefined}
-                hasExisting={extraction !== null}
-                jobId={job.id}
-              />
-            </div>
-
-            {requirementError ? <p className="inline-error">{requirementError}</p> : null}
-            {requirementExtractionError ? (
-              <p className="inline-error">
-                {userFacingErrorCode(
-                  requirementExtractionError,
-                  "岗位要求分析失败，请稍后重试。",
-                )}
-              </p>
-            ) : null}
-            {!extraction && !requirementError && hasEnoughDescription ? (
-              <p className="notice">
-                <strong>你现在可以做第 1 步：</strong> 在上方检查分析方式与调用范围，然后提取当前岗位要求。提取完成后，对照原文核对这一版要求，即可继续个人匹配。
-              </p>
-            ) : null}
-            {acceptedBaselineMissing ? (
-              <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
-                <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
-              </p><p>模型整体评审与单岗位核对不同；下方提供单岗位确认时，你可以先核对本岗位，不需要替维护者完成整批评审。</p></details>
-            ) : null}
-            {releaseReadinessError ? (
-              <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
-            ) : null}
-            {releaseReadiness ? (
-              <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
-                <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
-                {releaseReadiness.releaseEligible ? (
-                  <p>
-                    这份岗位要求符合当前匹配规则，可以用于后续匹配；这不代表已完成正式模型质量验收。
-                  </p>
-                ) : (
-                  <>
-                    <p>
-                      还有 {releaseReadiness.blockers.length} 项准备工作未完成。完成后，系统才会把这份岗位要求用于匹配，避免因为未校验的数据给出误导性的推荐。
-                    </p>
-                    <div className="readiness-blocker-list">
-                      {releaseReadiness.blockers.map((blocker, index) => {
-                        const copy = (canConfirmRequirements || !extraction) && ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)
-                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "提取后对照原文检查全部要求，再确认这一版用于当前岗位匹配；不需要先替维护者完成整批模型质量评审。"}
-                          : requirementReleaseBlockerCopy(blocker.code, job.description);
-                        return (
-                          <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
-                            <strong>{copy.title}</strong>
-                            <p>{copy.description}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
-            {extraction ? (
-              <>
-                <div className="requirement-run-meta">
-                  <span>分析时间：{formatDateTime(extraction.createdAt)}</span>
-                </div>
-                {extraction.provider === "fixture" ? (
-                  <p className="notice">
-                    当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
-                  </p>
-                ) : null}
-                <div className="requirement-list">
-                  {sortJobRequirements(extraction.requirements).map((requirement) => (
-                    <article className="requirement-card" key={requirement.requirementIndex}>
-                      <div className="tags">
-                        <span className={`tag importance-${requirement.importance}`}>
-                          {requirementImportanceLabel(requirement.importance)}
-                        </span>
-                        <span className="tag">{requirementTypeLabel(requirement.type)}</span>
-                        {requirement.normalizedCapability ? (
-                          <span className="tag">{requirement.normalizedCapability}</span>
-                        ) : null}
-                      </div>
-                      <p>{requirement.originalText}</p>
-                      <small className="muted-copy">岗位原文依据</small>
-                      <blockquote>{requirement.evidenceSpan}</blockquote>
-                    </article>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <p className="notice">
-                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionIssue}
-              </p>
-            )}
-            {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
-                <JobRequirementConfirmation key={extraction.factsDigest}
-                  jobId={job.id} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
-                  factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
-              ) : null}
-          </section>
         </article>
 
         <aside className="detail-card">

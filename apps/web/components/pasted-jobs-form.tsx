@@ -85,7 +85,7 @@ export function PastedJobsForm() {
             {working === index ? <p className="notice" role="status">正在保存这条岗位…</p>
             : result ? <div className="success-box" role="status">
               <p>{result.created ? "已添加" : "复用已有岗位，未新增"}{short ? " · 描述待补充，暂不能分析" : ""}</p>
-              <Link href={jobDetailWithAgentScope(result.jobId, scope)}>{short ? "查看待补描述" : "查看这个岗位并分析要求"}</Link>
+              <Link href={`${jobDetailWithAgentScope(result.jobId, scope)}#${short ? "job-description" : "job-requirements"}`}>{short ? "查看并补充描述" : "查看这个岗位并分析要求"}</Link>
             </div> : short ? <p className="notice">描述信息不足。保存后标为待补充，不会直接参与匹配。</p> : null}
             {!result && <details open={validation ? true : undefined}>
               <summary>{locked ? "查看原文" : "查看或修改原文"}</summary>

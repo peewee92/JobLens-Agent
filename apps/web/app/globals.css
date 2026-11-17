@@ -3214,3 +3214,8 @@ h3 {
 .paste-job-row a:not(.button-secondary) { color: var(--brand-dark); text-decoration: underline; }
 [aria-pressed="true"].button-secondary { background: var(--brand-soft); border-color: var(--brand); }
 @media (max-width: 620px) { .manual-job-form { grid-template-columns: 1fr; } }
+
+.job-description-editor { margin: 12px 0; }
+.job-description-editor .vertical-form { display: grid; gap: 10px; }
+.job-description-editor textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+#job-description, #job-requirements, #job-match-report { scroll-margin-top: 78px; }

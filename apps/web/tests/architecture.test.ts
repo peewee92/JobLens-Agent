@@ -369,7 +369,9 @@ test("Job detail consumes Backend Requirement release facts without reimplementi
   assert.match(source, /fetchJobMatchInputReadiness/);
   assert.match(source, /releaseReadiness\.releaseEligible/);
   assert.match(source, /releaseReadinessError/);
-  assert.doesNotMatch(source, /Promise\.all/);
+  // Isolate independent optional read failures; do not let one rejection hide the entire detail.
+  assert.match(source, /Promise\.allSettled/);
+  assert.doesNotMatch(source, /Promise\.all\(/);
   assert.doesNotMatch(source, /fetch\(/);
   assert.doesNotMatch(source, /acceptedCount\s*\/|rejectedCount\s*\/|0\.9/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);

@@ -83,3 +83,26 @@ def test_no_reliable_targets_does_not_fill_top_three(first_user):
     with factory() as session:
         assert session.execute(text('SELECT count(*) FROM application_workspaces')).scalar_one() == 0
         assert session.execute(text('SELECT count(*) FROM match_reports')).scalar_one() == 3
+
+
+def test_manual_correction_makes_existing_match_historical_and_requires_new_review(first_user):
+    from app.application.job_queries.manual_description import description_digest
+    c, _ = first_user
+    save_inputs(c, supported=True)
+    original = "任职要求：熟练掌握 Python，能够说明真实的服务开发与维护经验，并能讲清排查问题的过程。"
+    job_id, _ = prepare(c, "Python 应用研发", original)
+    root = f"/api/v1/jobs/{job_id}"
+    fixed = original + "\n加分项：熟悉 Docker，并能够说明容器部署经验。"
+    result = c.put(root + "/manual-description", json={
+        "description": fixed, "expectedSha256": description_digest(original)})
+    assert result.status_code == 200, result.text
+    assert c.get(root).json()["description"] == fixed
+    history = c.get(root + "/match-reports").json()["items"]
+    assert len(history) == 1 and not history[0]["isCurrent"]
+    assert "job_description_changed" in history[0]["staleReasons"]
+    assert c.post(root + "/match-report").status_code == 409
+    preflight = c.get("/api/v1/match-ranking/preflight", params={"jobId": job_id}).json()
+    assert preflight["items"] == []
+    assert "job_description_changed" in preflight["omissions"][0]["staleReasons"]
+    texts = [item["description"] for item in c.get(root + "/description-observations").json()["items"]]
+    assert texts == [fixed, original]

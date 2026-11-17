@@ -171,6 +171,15 @@ class ImportJobsUseCase:
         existing_job_id = uow.jobs.find_job_id_by_canonical_key(job.canonical_key)
         existing_source = self._find_existing_source(uow, job)
 
+        if job.source == "manual" and existing_source is not None and (
+            job.source_job_id is not None
+            or uow.jobs.has_manual_description_observation(existing_source.id, job.description)
+        ):
+            # An exact paste is an audit observation, not permission to roll back newer text.
+            if existing_job_id is not None and existing_job_id != existing_source.job_id:
+                raise ImportIdentityConflictError("canonical job and source identity point to different jobs")
+            return ImportOutcome.UPDATED, existing_source.job_id, existing_source.id
+
         if existing_job_id is None and existing_source is not None:
             raise ImportIdentityConflictError(
                 "source identity already exists but canonical job identity does not"

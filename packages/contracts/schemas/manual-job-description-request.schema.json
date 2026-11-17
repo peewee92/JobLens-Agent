@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "maxLength": 50000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "expectedSha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Expectedsha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "description",
+    "expectedSha256"
+  ],
+  "title": "ManualJobDescriptionRequest",
+  "type": "object"
+}

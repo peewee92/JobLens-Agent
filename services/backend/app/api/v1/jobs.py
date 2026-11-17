@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import ConfigDict, Field, StrictBool
 from app.api.v1.schemas.common import CamelCaseModel
-from app.api.deps import get_set_job_availability_use_case
+from app.api.deps import get_revise_manual_job_description, get_set_job_availability_use_case
+from app.application.job_queries.manual_description import ManualDescriptionSaved, ReviseManualJobDescription
 from app.application.job_queries.errors import JobAvailabilityPersistenceError
 
 from app.api.deps import get_get_job_use_case, get_list_jobs_use_case, get_job_import_query_repository
@@ -36,6 +37,33 @@ class JobAvailabilityResponse(CamelCaseModel):
     job_id: str
     user_marked_inactive: bool
     availability_revision: int = Field(ge=0)
+
+
+class ManualJobDescriptionRequest(CamelCaseModel):
+    model_config = ConfigDict(extra="forbid")
+    description: str = Field(min_length=1, max_length=50000)
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ManualJobDescriptionResponse(CamelCaseModel):
+    job_id: str
+    description_sha256: str
+    changed: bool
+
+
+@router.put("/{job_id}/manual-description", response_model=ManualJobDescriptionResponse)
+def revise_manual_job_description(
+    job_id: str,
+    request: ManualJobDescriptionRequest,
+    use_case: Annotated[ReviseManualJobDescription, Depends(get_revise_manual_job_description)],
+):
+    result = use_case.execute(job_id, description=request.description, expected_sha256=request.expected_sha256)
+    if isinstance(result, ManualDescriptionSaved):
+        return ManualJobDescriptionResponse.model_validate(result, from_attributes=True)
+    status_code = {"not_found": 404, "source_read_only": 409, "changed": 409,
+                   "identity_conflict": 409, "invalid_description": 422}[result]
+    return JSONResponse(status_code=status_code, content={"error": {"code": f"manual_description_{result}",
+        "message": "不能保存此岗位描述，请检查原文和当前岗位记录。"}})
 
 
 class JobDescriptionObservationResponse(CamelCaseModel):
