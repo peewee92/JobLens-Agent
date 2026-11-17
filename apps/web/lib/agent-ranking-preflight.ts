@@ -38,6 +38,12 @@ export function rankingOmissionMessage(item: RankingOmission): string {
     : "尚无匹配报告。请核对已确认的职业资料与求职偏好，再到岗位详情生成匹配报告。";
 }
 
+export function rankingRecoveryAnchor(item: RankingOmission): string {
+  if (item.recoveryCode === "description_incomplete" || item.recoveryCode === "description_too_long") return "job-description";
+  if (item.reason === "hard_conflict" || item.reason === "report_stale" || !item.recoveryCode) return "job-match";
+  return "job-requirements";
+}
+
 /** Reuse saved facts, not the incoming paste, to explain an existing posting. */
 export function existingMatchReportCopy(check: RankingPreflight, jobId: string): string {
   if (check.ranked.includes(jobId)) return "已有匹配报告仍可用于当前比较。";

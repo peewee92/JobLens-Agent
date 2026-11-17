@@ -4,7 +4,7 @@ import {RankedJobExplanation} from "@/components/ranked-job-explanation";
 import {validatedRunLabels} from "@/lib/agent-run-labels";
 import {UnrankedJobs} from "@/components/unranked-jobs";
 import {appendAgentJobPage} from "@/lib/agent-job-pages";
-import {rankingOmissionMessage, rankingPreflight, rankingScope, type RankingPreflight} from "@/lib/agent-ranking-preflight";
+import {rankingOmissionMessage, rankingPreflight, rankingRecoveryAnchor, rankingScope, type RankingPreflight} from "@/lib/agent-ranking-preflight";
 
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
@@ -379,7 +379,9 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <div>
             <p className="eyebrow">第一步 · 选择岗位</p>
             <h2>选择要一起分析的岗位</h2>
-            <p className="muted">请勾选你想比较的岗位；不会替你选入无关或待补充的岗位。一次最多比较 50 个岗位，只读取已有匹配报告，不会调用模型。</p>
+            <p className="muted">{initialScope !== undefined || initialJobId !== undefined
+              ? "已带回你刚才指定的岗位；可以更改勾选，或先检查本批有哪些岗位需要补充。"
+              : "请勾选你想比较的岗位；不会替你选入无关或待补充的岗位。"}一次最多比较 50 个岗位，只读取已有匹配报告，不会调用模型。</p>
           </div>
           <div className="stack-sm">
             {jobs.map((job) => (
@@ -412,7 +414,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               <strong>{currentPreflight.omissions.length} 个岗位暂未进入默认排序</strong>
               <p>未进入排序不等于你不具备相关能力。以下原因仅基于当前保存的记录，正式分析时会重新检查。</p>
               <ul>{currentPreflight.omissions.map(item => <li key={item.jobId}>
-                <Link href={`${jobDetailWithAgentScope(item.jobId, selected)}#${item.recoveryCode === "description_incomplete" || item.recoveryCode === "description_too_long" ? "job-description" : item.reason === "hard_conflict" ? "job-match" : "job-requirements"}`}>{jobLabels[item.jobId] ?? "岗位名称暂不可读取"}<LinkFeedback /></Link>：{rankingOmissionMessage(item)}
+                <Link href={`${jobDetailWithAgentScope(item.jobId, selected)}#${rankingRecoveryAnchor(item)}`}>{jobLabels[item.jobId] ?? "岗位名称暂不可读取"}<LinkFeedback /></Link>：{rankingOmissionMessage(item)}
               </li>)}</ul>
             </aside>}
             {currentPreflight.omissions.some(item => item.reason === "report_stale" || (item.reason === "report_missing" && !item.recoveryCode)) && <aside className="notice stack-sm">

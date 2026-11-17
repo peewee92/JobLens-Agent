@@ -1,6 +1,7 @@
 import Link from "next/link";
-import {rankingOmissionMessage, type RankingOmission} from "@/lib/agent-ranking-preflight";
+import {rankingOmissionMessage, rankingRecoveryAnchor, type RankingOmission} from "@/lib/agent-ranking-preflight";
 import {jobDetailWithAgentScope} from "@/lib/agent-job-scope";
+import {LinkFeedback} from "@/components/link-feedback";
 
 /** Absence from ranking is not evidence that a candidate is unqualified. */
 export function UnrankedJobs({ids, labels = {}, scope, currentOmissions = []}: {ids: readonly string[]; labels?: Readonly<Record<string, string>>; scope?: readonly string[]; currentOmissions?: readonly RankingOmission[]}) {
@@ -11,7 +12,8 @@ export function UnrankedJobs({ids, labels = {}, scope, currentOmissions = []}: {
     {currentOmissions.length > 0 && <p>下方原因来自当前检查，不会替换本次保存的比较结果。</p>}
     <ul>{ids.map(id => {
       const check = currentOmissions.find(item => item.jobId === id);
-      return <li key={id}><Link href={scope?.includes(id) ? jobDetailWithAgentScope(id, scope) : `/jobs/${encodeURIComponent(id)}`}>{labels[id] ?? "名称暂不可读取的岗位"}</Link>：{check ? rankingOmissionMessage(check) : "查看岗位及当前进度"}</li>;
+      const href = scope?.includes(id) ? jobDetailWithAgentScope(id, scope) : `/jobs/${encodeURIComponent(id)}`;
+      return <li key={id}><Link href={check ? `${href}#${rankingRecoveryAnchor(check)}` : href}>{labels[id] ?? "名称暂不可读取的岗位"}<LinkFeedback /></Link>：{check ? rankingOmissionMessage(check) : "查看岗位及当前进度"}</li>;
     })}</ul>
   </aside>;
 }
