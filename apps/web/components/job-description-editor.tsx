@@ -3,9 +3,12 @@
 import {type FormEvent, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
+import {confirmedDescriptionHref, isDescriptionRevision} from "@/lib/job-description-save";
 
-export function JobDescriptionEditor({jobId, description, revision}: {
-  jobId: string; description: string; revision: string;
+const savedText = "已补充描述，仍是同一个岗位。旧结果保留供查看；请用新描述重新分析并核对要求。";
+
+export function JobDescriptionEditor({jobId, description, revision, saved = false}: {
+  jobId: string; description: string; revision: string; saved?: boolean;
 }) {
   const router = useRouter();
   const lock = useRef(false);
@@ -14,7 +17,8 @@ export function JobDescriptionEditor({jobId, description, revision}: {
   const [busy, setBusy] = useState(false);
   const [unverifiedRevision, setUnverifiedRevision] = useState("");
   const [savedRevision, setSavedRevision] = useState("");
-  const [message, setMessage] = useState<{error: boolean; text: string}>();
+  const [message, setMessage] = useState<{error: boolean; text: string} | undefined>(
+    saved ? {error: false, text: savedText} : undefined);
   const currentDraft = draft ?? description;
   const issue = jobDescriptionIssue(currentDraft);
   const waitingOnSavedView = savedRevision === revision;
@@ -28,7 +32,7 @@ export function JobDescriptionEditor({jobId, description, revision}: {
       const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/manual-description`, {cache: "no-store"});
       if (!response.ok) throw new Error();
       const value = await response.json();
-      if (!/^[0-9a-f]{64}$/.test(value?.revision)) throw new Error();
+      if (!isDescriptionRevision(value?.revision)) throw new Error();
       if (value.revision === revision) {
         setUnverifiedRevision("");
         setSavedRevision("");
@@ -61,14 +65,16 @@ export function JobDescriptionEditor({jobId, description, revision}: {
         body: JSON.stringify({description: currentDraft, expectedSha256: revision}),
       });
       const value = await response.json();
-      if (response.ok && value?.jobId === jobId && /^[0-9a-f]{64}$/.test(value.descriptionSha256) && typeof value.changed === "boolean") {
+      if (response.ok && value?.jobId === jobId && isDescriptionRevision(value.descriptionSha256) && typeof value.changed === "boolean") {
         setEditing(false);
         setDraft(null);
-        if (value.changed) setSavedRevision(revision);
-        setMessage({error: false, text: value.changed
-          ? "已补充描述，仍是同一个岗位。旧结果保留供查看；请用新描述重新分析并核对要求。"
-          : "当前原文已是这份描述，无需重复保存。"});
-        router.refresh();
+        if (value.changed || value.descriptionSha256 !== revision) {
+          setSavedRevision(revision);
+          // A full read replaces any stale router view, including the former matching result.
+          window.location.replace(confirmedDescriptionHref(new URL(window.location.href), value.descriptionSha256));
+        } else {
+          setMessage({error: false, text: "当前原文已是这份描述，无需重复保存。"});
+        }
       } else if (response.status === 422) {
         setMessage({error: true, text: "请贴入完整的岗位原文，包含职责与任职要求（40 到 50,000 字符）。"});
       } else if (value?.error?.code === "manual_description_identity_conflict") {

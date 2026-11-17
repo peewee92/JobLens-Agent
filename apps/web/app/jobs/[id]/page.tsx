@@ -1,5 +1,6 @@
 import {createHash} from "node:crypto";
 import {JobDescriptionEditor} from "@/components/job-description-editor";
+import {descriptionSavedQuery} from "@/lib/job-description-save";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import type {CareerContextReleaseReadiness} from "@/lib/contracts";
 import {careerContextReleaseBlockerCopy} from "@/lib/career-context";
@@ -53,10 +54,10 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; scopeJobId?: string | string[]; returnThreadId?: string | string[]}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; scopeJobId?: string | string[]; returnThreadId?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError, reportId, scopeJobId, returnThreadId} = await searchParams;
+  const {requirementExtractionError, reportId, scopeJobId, returnThreadId, [descriptionSavedQuery]: savedRevision} = await searchParams;
   const agentScope = parseAgentScope(scopeJobId);
   const retainedScope = agentScope?.includes(id) ? agentScope : null;
   const detailPath = retainedScope ? jobDetailWithAgentScope(id, retainedScope) : `/jobs/${encodeURIComponent(id)}`;
@@ -153,6 +154,7 @@ export default async function JobDetailPage({
   const hasEnoughDescription = hasEnoughJobDescription(job.description);
   const descriptionIssue = jobDescriptionIssue(job.description);
   const canEditDescription = job.source === "manual" && !publicDemoEnabled();
+  const descriptionRevision = canEditDescription ? createHash("sha256").update(job.description ?? "").digest("hex") : null;
   const descriptionHelp = descriptionIssue && canEditDescription
     ? "请先用上方「补充或更正岗位描述」粘贴完整原文。" : descriptionIssue;
   const acceptedBaselineMissing = requirementBlockerCodes.has(
@@ -206,8 +208,8 @@ export default async function JobDetailPage({
             <p className="eyebrow">第 1 步</p>
             <h2>岗位描述</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
-            {canEditDescription && <JobDescriptionEditor jobId={job.id}
-              description={job.description ?? ""} revision={createHash("sha256").update(job.description ?? "").digest("hex")} />}
+            {descriptionRevision && <JobDescriptionEditor jobId={job.id}
+              description={job.description ?? ""} revision={descriptionRevision} saved={savedRevision === descriptionRevision} />}
             <JobDescriptionObservationsView history={descriptions} />
           </section>
 
