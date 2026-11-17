@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
+import {useExistingMatchStatus} from "@/components/existing-match-status";
 import {type FormEvent, useRef, useState, useSyncExternalStore} from "react";
 import type {ManualJobImportResult, ManualJobInput} from "@/lib/contracts";
 import {submitManualJob} from "@/lib/manual-job-import";
@@ -21,6 +22,7 @@ export function ManualJobForm() {
   const [message, setMessage] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const [result, setResult] = useState<ManualJobImportResult | null>(null);
+  const existingMatchStatus = useExistingMatchStatus(result && !result.created ? [result.jobId] : []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -36,7 +38,7 @@ export function ManualJobForm() {
     try {
       const outcome = await submitManualJob(payload);
       if (outcome.kind === "saved") {
-        setPendingDescription(!!jobDescriptionIssue(payload.description));
+        setPendingDescription(!!outcome.result.created && !!jobDescriptionIssue(payload.description));
         setResult(outcome.result);
       } else {
         setUncertain(outcome.kind === "unknown");
@@ -64,9 +66,9 @@ export function ManualJobForm() {
       <h3>{result.created ? "岗位已保存" : "复用已有岗位，未新增"}</h3>
       <p>{pendingDescription ? "描述信息不足，已保存为待补充，暂不能生成匹配。"
         : result.created ? "下一步核对原文和岗位要求，再生成匹配。"
-        : "如果原文发生变化，旧匹配会保留为历史；请到岗位详情核对当前是否仍适用。"} </p>
+        : existingMatchStatus(result.jobId)} </p>
       <div className="actions">
-        <Link className="button" href={`/jobs/${encodeURIComponent(result.jobId)}#${pendingDescription ? "job-description" : "job-requirements"}`}>{pendingDescription ? "查看并补充描述" : "查看岗位并继续分析"}<LinkFeedback /></Link>
+        <Link className="button" href={`/jobs/${encodeURIComponent(result.jobId)}#${pendingDescription ? "job-description" : result.created ? "job-requirements" : "job-match"}`}>{pendingDescription ? "查看并补充描述" : result.created ? "查看岗位并继续分析" : "核对已有岗位和匹配"}<LinkFeedback /></Link>
         <button className="button-secondary" type="button" onClick={() => {
           form.current?.reset();
           setResult(null);

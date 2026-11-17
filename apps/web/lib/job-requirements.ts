@@ -26,6 +26,16 @@ export function requirementImportanceLabel(
   }[importance];
 }
 
+const capabilityLabels = new Map([
+  ["professional experience", "工作年限"], ["education", "教育背景"],
+  ["employment constraint", "任职条件"],
+]);
+
+/** Only translate known internal fallback names; keep actual skill names and evidence intact. */
+export function requirementCapabilityLabel(capability: string): string {
+  return capabilityLabels.get(capability.trim().toLowerCase()) ?? capability;
+}
+
 export type RequirementReleaseBlockerCopy = {
   title: string;
   description: string;

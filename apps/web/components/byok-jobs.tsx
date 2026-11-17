@@ -37,7 +37,7 @@ export function ByokJobs({jobs}: {jobs: Job[]}) {
       else {form.reset(); setMessage('已保存岗位原文，尚未调用模型。'); router.refresh();}
     } catch {setMessage('网络中断，请先刷新岗位列表检查，不要重复添加。');} finally {setBusy(false);}
   }
-  return <section className="byok-shell stack"><h2>第二步：添加并分析岗位</h2>
+  return <section className="byok-shell stack" id="byok-jobs"><h2>第二步：添加并分析岗位</h2>
     <p>先保存并确认背景和求职偏好，再逐个提取岗位要求、核对原文依据并匹配。最多保存 5 个岗位，每次明确授权仅允许一次模型请求。</p>
     <form className="panel stack-sm" onSubmit={add}>
       <label className="field">岗位名称<input required name="title" maxLength={255}/></label><label className="field">公司<input required name="company" maxLength={255}/></label>

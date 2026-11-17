@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {rankingOmissionMessage, rankingPreflight, rankingScope} from "../lib/agent-ranking-preflight";
+import {existingMatchReportCopy, rankingOmissionMessage, rankingPreflight, rankingScope} from "../lib/agent-ranking-preflight";
 
 test("partial and empty rankings keep the requested scope visible", () => {
   const missing = {jobId: "a", reason: "report_missing", staleReasons: []};
@@ -43,4 +43,20 @@ test("omissions explain different steps; new or absent recovery codes remain opt
   }
   assert.match(rankingOmissionMessage({jobId: "a", reason: "report_stale", staleReasons: ["profile_changed"]}), /已过期.*职业资料已更新/);
   assert.match(rankingOmissionMessage({jobId: "a", reason: "hard_conflict", staleReasons: []}), /硬性条件冲突/);
+});
+
+test("a duplicate receipt explains the current report, not the pasted description", () => {
+  const check = rankingPreflight(["current", "conflict", "historic", "missing"], {
+    items: [{jobId: "current", targetCandidate: false}],
+    omissions: [
+      {jobId: "conflict", reason: "hard_conflict", staleReasons: []},
+      {jobId: "historic", reason: "report_stale", staleReasons: ["job_description_changed"]},
+      {jobId: "missing", reason: "report_missing", staleReasons: [], recoveryCode: "description_incomplete"},
+    ],
+  });
+  assert.match(existingMatchReportCopy(check, "current"), /仍可用于当前比较/);
+  assert.match(existingMatchReportCopy(check, "conflict"), /硬性条件冲突，不进入默认比较/);
+  assert.match(existingMatchReportCopy(check, "historic"), /仅供历史查看/);
+  assert.match(existingMatchReportCopy(check, "missing"), /描述信息不足.*补充完整原文/);
+  assert.match(existingMatchReportCopy(check, "unknown"), /暂时无法核对/);
 });

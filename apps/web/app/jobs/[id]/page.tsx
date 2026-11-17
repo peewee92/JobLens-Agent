@@ -37,6 +37,7 @@ import {formatDateTime, formatSalary} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
+  requirementCapabilityLabel,
   hasEnoughJobDescription,
   jobDescriptionIssue,
   requirementReleaseBlockerCopy,
@@ -302,7 +303,7 @@ export default async function JobDetailPage({
                         </span>
                         <span className="tag">{requirementTypeLabel(requirement.type)}</span>
                         {requirement.normalizedCapability ? (
-                          <span className="tag">{requirement.normalizedCapability}</span>
+                          <span className="tag">{requirementCapabilityLabel(requirement.normalizedCapability)}</span>
                         ) : null}
                       </div>
                       <p>{requirement.originalText}</p>
@@ -415,7 +416,7 @@ export default async function JobDetailPage({
                                 </span>
                                 <span className="tag">{requirementTypeLabel(item.type)}</span>
                                 {item.normalizedCapability ? (
-                                  <span className="tag">{item.normalizedCapability}</span>
+                                  <span className="tag">{requirementCapabilityLabel(item.normalizedCapability)}</span>
                                 ) : null}
                               </div>
                               <strong>{item.originalText}</strong>

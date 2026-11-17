@@ -379,7 +379,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <div>
             <p className="eyebrow">第一步 · 选择岗位</p>
             <h2>选择要一起分析的岗位</h2>
-            <p className="muted">一次最多比较 50 个岗位，只读取已有匹配报告；默认建议最多 3 个目标，不会重新调用模型或自动修改职业事实。</p>
+            <p className="muted">请勾选你想比较的岗位；不会替你选入无关或待补充的岗位。一次最多比较 50 个岗位，只读取已有匹配报告，不会调用模型。</p>
           </div>
           <div className="stack-sm">
             {jobs.map((job) => (

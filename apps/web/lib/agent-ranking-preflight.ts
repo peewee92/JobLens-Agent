@@ -38,6 +38,16 @@ export function rankingOmissionMessage(item: RankingOmission): string {
     : "尚无匹配报告。请核对已确认的职业资料与求职偏好，再到岗位详情生成匹配报告。";
 }
 
+/** Reuse saved facts, not the incoming paste, to explain an existing posting. */
+export function existingMatchReportCopy(check: RankingPreflight, jobId: string): string {
+  if (check.ranked.includes(jobId)) return "已有匹配报告仍可用于当前比较。";
+  const item = check.omissions.find(entry => entry.jobId === jobId);
+  if (item?.reason === "hard_conflict") return "已有匹配报告仍适用，但有明确硬性条件冲突，不进入默认比较。";
+  if (item?.reason === "report_stale") return "已有匹配报告仅供历史查看，须更新后才能参与当前比较。";
+  if (item?.reason === "report_missing") return rankingOmissionMessage(item);
+  return "暂时无法核对已有匹配报告，请到岗位详情查看。";
+}
+
 /** Validate the response rather than silently treating malformed data as an empty ranking. */
 export function rankingPreflight(ids: readonly string[], response: unknown): RankingPreflight {
   if (!ids.length || ids.length > 50 || new Set(ids).size !== ids.length) throw new Error("岗位选择无效，请重新选择。");
