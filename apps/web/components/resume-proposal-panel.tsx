@@ -1,6 +1,6 @@
 "use client";
 
-import {DragEvent, FormEvent, useState} from "react";
+import {DragEvent, FormEvent, useRef, useState} from "react";
 
 import type {
   ApiErrorBody,
@@ -45,14 +45,18 @@ export function ResumeProposalPanel({
   onProposalReady,
   onApply,
   onReviewDraft,
+  disabled = false,
 }: {
   byok?: boolean;
   onProposalReady: (proposal: ProfileExtractionProposal) => boolean;
   onApply: (proposal: ProfileExtractionProposal) => void;
   onReviewDraft: () => void;
+  disabled?: boolean;
 }) {
   const [callPlan, setCallPlan] = useState<{planDigest: string; model: string; maxProviderCalls: number; maxOutputTokens: number} | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const [source, setSource] = useState<"file" | "text">(byok ? "text" : "file");
   const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -61,6 +65,8 @@ export function ResumeProposalPanel({
   const [state, setState] = useState<ProposalState>({kind: "idle", message: ""});
 
   function selectResumeFile(file: File | null) {
+    if (inFlight.current || disabled) return;
+    setSource("file");
     setProposal(null);
     setProposalApplied(false);
     if (!file) {
@@ -81,6 +87,8 @@ export function ResumeProposalPanel({
   function dropResumeFile(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDraggingFile(false);
+    if (inFlight.current || disabled) return;
+    setSource("file");
     const files = event.dataTransfer.files;
     if (files.length !== 1) {
       setProposal(null);
@@ -103,14 +111,17 @@ export function ResumeProposalPanel({
     setProposalApplied(autoApplied);
     setState({
       kind: "success",
-      message: autoApplied
-        ? "AI 已整理好简历，并自动填入下方职业背景草稿。请检查后再保存。"
-        : "AI 已整理好一份新草稿。为避免覆盖你当前正在编辑的内容，请先检查，再决定是否替换。",
+      message: `已整理 ${result.evidence.length} 条经历、${result.skills.length} 项技能。${autoApplied
+        ? "已填入待核对的草稿，尚未保存。"
+        : "尚未替换当前资料，请先查看草稿再决定。"}`,
     });
   }
 
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (inFlight.current || disabled || resumeText.trim().length < 50) return;
+    inFlight.current = true;
+    setSource("text");
     setProposal(null);
     setProposalApplied(false);
     setState({kind: "submitting", message: "正在整理你的简历…"});
@@ -128,12 +139,15 @@ export function ResumeProposalPanel({
       });
       await acceptResponse(response);
     } catch {
-      setState({kind: "error", message: "暂时无法整理简历，请稍后重试。"});
+      setState({kind: "error", message: "暂时无法整理简历，可重试或手动填写。职业资料没有自动保存。"});
+    } finally {
+      inFlight.current = false;
     }
   }
 
   async function executePlan() {
-    if (!callPlan || state.kind === "submitting") return;
+    if (!callPlan || disabled || inFlight.current) return;
+    inFlight.current = true;
     const id = pendingAction ?? crypto.randomUUID(); setPendingAction(id);
     setState({kind:"submitting", message:"正在使用你的模型整理背景……"});
     try {
@@ -144,11 +158,14 @@ export function ResumeProposalPanel({
       await acceptResponse(new Response(JSON.stringify(record.result), {status:200}));
       setCallPlan(null);
     } catch {setState({kind:"error", message:"未取得可用草稿。结果可能未知；再次点击只查询／重放同一请求，不会自动重新付费。可在模型设置中检查调用记录。"});}
+    finally { inFlight.current = false; }
   }
 
   async function proposeFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!resumeFile) return;
+    if (!resumeFile || disabled || inFlight.current) return;
+    inFlight.current = true;
+    setSource("file");
     setProposal(null);
     setProposalApplied(false);
     setState({kind: "submitting", message: "正在读取文件并整理你的简历…"});
@@ -161,24 +178,32 @@ export function ResumeProposalPanel({
       });
       await acceptResponse(response);
     } catch {
-      setState({kind: "error", message: "暂时无法整理简历，请稍后重试。"});
+      setState({kind: "error", message: "暂时无法整理简历，可重试或手动填写。职业资料没有自动保存。"});
+    } finally {
+      inFlight.current = false;
     }
   }
+
+  const busy = state.kind === "submitting";
+  const feedback = state.message && <div className={state.kind === "error" ? "inline-error" : "notice"}
+    role={state.kind === "error" ? "alert" : "status"}>{state.message}</div>;
 
   return (
     <section className="panel proposal-panel" aria-labelledby="resume-proposal-title">
       <div className="section-heading-row">
         <div>
-          <p className="eyebrow">AI 简历整理</p>
-          <h2 id="resume-proposal-title">从简历快速填充职业背景</h2>
+          <p className="eyebrow">第 1 步 · {byok ? "添加简历文字" : "上传简历"}</p>
+          <h2 id="resume-proposal-title">{byok ? "粘贴简历，先生成草稿" : "上传简历，先生成草稿"}</h2>
         </div>
         <span className="version-badge">自动填草稿 · 不自动保存</span>
       </div>
       <p className="muted-copy">
-        {byok ? "在线真实模式仅接收粘贴文本，内容将发送给你选择的模型服务。" : "可上传 5 MiB 内的 PDF/DOCX，或直接粘贴文本。扫描版 PDF 暂时无法识别。"}职业背景为空时，AI 会自动填好可编辑草稿；只有你检查并保存后，才会用于后续岗位匹配。
+        {byok
+          ? "你可以粘贴简历文字。确认调用后，内容才会发送给你选择的模型服务。"
+          : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。本入口不会调用在线模型。"} 整理只生成草稿，只有你核对保存后才会用于匹配。
       </p>
 
-      {!byok && <form className="proposal-file-form" onSubmit={proposeFile}>
+      {!byok && <form className="proposal-file-form" method="post" onSubmit={proposeFile}>
         <div
           className={`file-field compact-file-field drop-file-field${isDraggingFile ? " is-dragging" : ""}`}
           onDragEnter={(event) => {
@@ -199,6 +224,8 @@ export function ResumeProposalPanel({
           </p>
           <input
             type="file"
+            aria-label="选择简历 PDF 或 DOCX"
+            disabled={busy || disabled}
             accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(event) => selectResumeFile(event.target.files?.[0] ?? null)}
           />
@@ -207,7 +234,7 @@ export function ResumeProposalPanel({
           <button
             className="button-secondary"
             type="submit"
-            disabled={state.kind === "submitting" || !resumeFile}
+            disabled={busy || disabled || !resumeFile}
           >
             {state.kind === "submitting" ? "处理中…" : "整理这份简历"}
           </button>
@@ -215,15 +242,17 @@ export function ResumeProposalPanel({
             {resumeFile ? `${resumeFile.name} · ${Math.ceil(resumeFile.size / 1024)} KiB` : "未选择文件"}
           </span>
         </div>
+        {source === "file" ? feedback : null}
       </form>}
 
-      <div className="proposal-divider"><span>或粘贴纯文本</span></div>
-
-      <form onSubmit={propose}>
+      <details className="resume-text-option" open={byok || undefined}>
+        <summary>{byok ? "粘贴简历文字" : "也可以粘贴简历文字"}</summary>
+      <form method="post" onSubmit={propose}>
         <div className="field">
           <label htmlFor="resumeText">简历纯文本</label>
           <textarea
             id="resumeText"
+            readOnly={busy || disabled}
             value={resumeText}
             onChange={(event) => {setResumeText(event.target.value); setCallPlan(null); setPendingAction(null);}}
             rows={10}
@@ -235,24 +264,23 @@ export function ResumeProposalPanel({
           <button
             className="button"
             type="submit"
-            disabled={state.kind === "submitting" || resumeText.trim().length < 50}
+            disabled={busy || disabled || resumeText.trim().length < 50}
           >
             {state.kind === "submitting" ? "整理中…" : (byok ? "查看背景提取计划" : "整理这段简历文本")}
           </button>
           <span className="muted-copy">{resumeText.trim().length} / {byok ? 12000 : 30000} 字符</span>
         </div>
+        {source === "text" ? feedback : null}
       </form>
-
-      {callPlan && <div className="notice"><h3>确认本次模型调用</h3><p>背景文本将发给 {callPlan.model}；最多 {callPlan.maxProviderCalls} 次请求，最多输出 {callPlan.maxOutputTokens} Token，费用未知，由你的模型账户承担。</p>
-        <button type="button" disabled={state.kind === "submitting"} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认并调用我的模型"}</button></div>}
-      {state.message ? (
-        <div className={state.kind === "error" ? "inline-error" : "notice"}>
-          {state.message}
-        </div>
-      ) : null}
+        {callPlan && <div className="notice"><h3>确认本次模型调用</h3><p>背景文本将发给 {callPlan.model}；最多 {callPlan.maxProviderCalls} 次请求，最多输出 {callPlan.maxOutputTokens} Token，费用未知，由你的模型账户承担。</p>
+          <button type="button" disabled={busy || disabled} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认并调用我的模型"}</button></div>}
+      </details>
 
       {proposal ? (
         <div className="proposal-result">
+          {proposalApplied && <button className="button" type="button" onClick={onReviewDraft}>去核对并保存职业背景</button>}
+          <details className="resume-draft-sources" open={proposalApplied ? undefined : true}>
+            <summary>查看这份草稿与简历原文依据</summary>
           <details className="technical-details">
             <summary>查看技术详情</summary>
             <p className="code">run={proposal.runId} · model={proposal.model} · prompt={proposal.promptVersion}</p>
@@ -269,7 +297,6 @@ export function ResumeProposalPanel({
                 <article className="proposal-item" key={item.key}>
                   <strong>{item.summary}</strong>
                   <span className="tag">{evidenceTypeLabels[item.type]}</span>
-                  <p className="muted-copy">经历简称：{item.key}</p>
                   <blockquote>{item.evidenceSpan}</blockquote>
                 </article>
               ))}
@@ -299,18 +326,12 @@ export function ResumeProposalPanel({
             </div>
           ) : null}
 
-          {proposalApplied ? (
-            <button
-              className="button"
-              type="button"
-              onClick={onReviewDraft}
-            >
-              去检查并保存职业背景
-            </button>
-          ) : (
+          </details>
+          {!proposalApplied && (
             <button
               className="button-secondary"
               type="button"
+              disabled={disabled}
               onClick={() => {
                 onApply(proposal);
                 setProposalApplied(true);

@@ -3168,3 +3168,24 @@ h3 {
 .byok-shell button { justify-self: start; }
 .byok-shell details > .field { margin-top: 14px; }
 .byok-shell textarea { resize: vertical; }
+
+.first-use-guide { margin-block: 1.25rem; }
+.first-use-guide ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.first-use-guide li {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: white;
+  color: var(--ink);
+}
+.first-use-guide [aria-current="step"] { border-color: var(--brand); background: var(--brand-soft); }
+.first-use-guide li span { display: block; margin-block: 0.25rem; color: var(--brand-dark); font-size: 0.85rem; }
+.first-use-guide li p { margin: 0; color: var(--ink-soft); }
+@media (max-width: 620px) { .first-use-guide ol { grid-template-columns: 1fr; } }

@@ -219,17 +219,6 @@ export default async function ProfilePage({
         : "暂时无法检查你的信息是否完整，请稍后重试。";
   }
 
-  const nextStep = !releaseReadiness ? null
-    : releaseReadiness.blockers.some(item => item.code.startsWith("profile_"))
-      ? {href: "#profile-background", label: "填写并确认职业资料"}
-      : releaseReadiness.blockers.some(item => item.code.startsWith("search_intent_"))
-        ? {href: "#search-intent", label: "填写并保存求职偏好"}
-        : releaseReadiness.releaseEligible
-          ? agentScope
-            ? {href: jobDetailWithAgentScope(agentScope.jobId, agentScope.ids), label: "继续分析刚才的岗位"}
-            : {href: "/import", label: "添加一个目标岗位"}
-          : null;
-
   return (
     <>
       <section className="page-heading">
@@ -242,7 +231,8 @@ export default async function ProfilePage({
 
       <AgentScopeReturn scope={agentScope} />
 
-      <section className="detail-card">
+      <details className="detail-card">
+        <summary>查看匹配准备情况</summary>
         <div className="section-heading-row">
           <div>
             <h2>匹配准备情况</h2>
@@ -314,7 +304,7 @@ export default async function ProfilePage({
             </details>
           </div>
         ) : null}
-      </section>
+      </details>
 
       {focusRequirementId ? (
         <EvidenceActionProgress
@@ -329,6 +319,8 @@ export default async function ProfilePage({
       <ProfileEditor
         initialProfile={profile}
         initialIntent={intent}
+        readyNextHref={agentScope ? jobDetailWithAgentScope(agentScope.jobId, agentScope.ids) : "/import"}
+        readyNextLabel={agentScope ? "继续分析刚才的岗位" : "去添加岗位"}
         afterProfileSaveHref={afterProfileSaveHref}
         focusEvidenceType={focusEvidenceType}
         focusRequirementType={focusRequirementType}
@@ -336,11 +328,6 @@ export default async function ProfilePage({
         focusCapability={focusCapability}
         focusRequirementText={focusRequirementText}
       />
-      {nextStep ? <section className="detail-card" aria-label="资料确认后的下一步">
-        <h2>下一步</h2>
-        <p>只有已确认保存的资料和偏好会用于分析；未保存的编辑不会被使用。</p>
-        <Link className="button" href={nextStep.href}>{nextStep.label}</Link>
-      </section> : null}
     </>
   );
 }

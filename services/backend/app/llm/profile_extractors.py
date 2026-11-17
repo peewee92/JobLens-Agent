@@ -83,7 +83,7 @@ class FixtureProfileExtractor(AbstractProfileExtractor):
 
     @property
     def model_name(self) -> str:
-        return "fixture-profile-extractor"
+        return "fixture-profile-extractor-v2"
 
     def extract(self, resume_text: str) -> ProfileExtractorResult:
         lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
@@ -136,8 +136,7 @@ class FixtureProfileExtractor(AbstractProfileExtractor):
                 )
             )
 
-        years_match = re.search(r"(\d+(?:\.\d+)?)\s*年", resume_text)
-        years = float(years_match.group(1)) if years_match else None
+        years = _fixture_reported_experience_years(lines)
         return ProfileExtractorResult(
             output=ProfileExtractionOutput(
                 headline=lines[0][:500],
@@ -152,6 +151,28 @@ class FixtureProfileExtractor(AbstractProfileExtractor):
             input_tokens=None,
             output_tokens=None,
         )
+
+
+def _fixture_reported_experience_years(lines: list[str]) -> float | None:
+    """Use explicit totals only. Dates, project durations and conflicting totals stay unknown."""
+    patterns = (
+        r"^(?:total |overall )?(?:professional|work|career) experience\s*[:：]\s*(\d+(?:\.\d+)?)\s*years?\s*[.。]?$",
+        r"^(\d+(?:\.\d+)?)\s*years? of (?:total |overall )?(?:professional|work|career) experience\s*[.。]?$",
+        r"^(?:累计|总计)?\s*工作经验\s*[:：]\s*(\d+(?:\.\d+)?)\s*年\s*[.。]?$",
+    )
+    reported = {
+        float(match.group(1))
+        for line in lines for pattern in patterns
+        if (match := re.search(pattern, line, flags=re.IGNORECASE))
+    }
+    # Existing Chinese summaries may report duration in their headline ("8 年前端开发经验").
+    # Do not take a duration from a dated bullet or a project description elsewhere.
+    if lines and (headline := re.search(
+        r"^(?:累计|总计)?\s*(\d{1,2}(?:\.\d+)?)\s*年[^0-9，。；：:,;]{0,26}(?:经验|实践)(?:$|[，。；,.;：:])",
+        lines[0],
+    )):
+        reported.add(float(headline.group(1)))
+    return next(iter(reported)) if len(reported) == 1 else None
 
 
 class OpenAIProfileExtractor(AbstractProfileExtractor):

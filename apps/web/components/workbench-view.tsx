@@ -1,18 +1,21 @@
 import React from "react";
 import Link from "next/link";
+import {FirstUseSteps} from "./first-use-steps";
 import {formatDateTime} from "@/lib/format";
 import {inputIssueLabel, runStatusLabels, workspaceStatusLabels, workbenchChangeLabel, type Workbench} from "@/lib/workbench";
 
 export function WorkbenchView({data}: {data: Workbench}) {
   const {snapshot: view, nextAction: action} = data;
   const run = view.currentRun;
+  const nextLabel = action.code === "confirm_inputs" && !view.profileVersion ? "上传简历或手填经历" : action.label;
   return <>
     <section className="hero product-hero">
       <p className="eyebrow">JobLens · 求职任务工作台</p>
       <h1>把有依据的选择，变成下一步行动</h1>
-      <p className="lede">确认我的背景 → 比较几个岗位 → 选择准备目标 → 开始一项行动。不会编造经历，也不会自动投递。</p>
-      <h2>下一步：{action.label}</h2><p>{action.reason}</p>
-      <div className="actions"><Link className="button" href={action.href}>{action.label}</Link></div>
+      <p className="lede">用自己的真实经历比较岗位，再为值得投入的目标准备简历和面试。</p>
+      <FirstUseSteps snapshot={view} />
+      <h2>下一步：{nextLabel}</h2><p>{action.code === "confirm_inputs" && !view.profileVersion ? "只有你亲自确认的经历才会用于匹配。现在也可以先浏览岗位。" : action.reason}</p>
+      <div className="actions"><Link className="button" href={action.href}>{nextLabel}</Link></div>
     </section>
     <section className="detail-card" aria-label="当前准备情况">
       <h2>当前准备情况</h2>

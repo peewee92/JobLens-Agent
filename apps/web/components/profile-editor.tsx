@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
@@ -139,6 +140,8 @@ export function ProfileEditor({
   initialIntent,
   byok = false,
   afterProfileSaveHref = null,
+  readyNextHref = "/import",
+  readyNextLabel = "去添加岗位",
   focusEvidenceType = null,
   focusRequirementType = null,
   focusJobId = null,
@@ -149,6 +152,8 @@ export function ProfileEditor({
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
   afterProfileSaveHref?: string | null;
+  readyNextHref?: string;
+  readyNextLabel?: string;
   focusEvidenceType?: EvidenceType | null;
   focusRequirementType?: RequirementType | null;
   focusJobId?: string | null;
@@ -157,6 +162,10 @@ export function ProfileEditor({
 }) {
   const router = useRouter();
   const profileFormRef = useRef<HTMLFormElement>(null);
+  const profileTouched = useRef(Boolean(initialProfile));
+  const savingProfile = useRef(false);
+  const savingIntent = useRef(false);
+  const [starterMode] = useState(!initialProfile && !initialIntent && !afterProfileSaveHref && !focusEvidenceType && !focusRequirementType);
   const [profileVersion, setProfileVersion] = useState(initialProfile?.version ?? 0);
   const [headline, setHeadline] = useState(initialProfile?.headline ?? "");
   const [years, setYears] = useState(
@@ -176,7 +185,7 @@ export function ProfileEditor({
   const [profileDirty, setProfileDirty] = useState(false);
   const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
-    Boolean(!initialProfile || focusEvidenceType || focusRequirementType),
+    Boolean(focusEvidenceType || focusRequirementType),
   );
 
   const [intentVersion, setIntentVersion] = useState(initialIntent?.version ?? 0);
@@ -343,6 +352,7 @@ export function ProfileEditor({
       : "已保存";
 
   function markProfileDirty() {
+    profileTouched.current = true;
     setProfileDirty(true);
     if (profileState.kind === "success") {
       setProfileState({kind: "idle", message: ""});
@@ -512,6 +522,7 @@ export function ProfileEditor({
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savingProfile.current || savingIntent.current) return;
     if (renameImpacts.length > 0) {
       setIsProfileEditorOpen(true);
       setProfileState({
@@ -539,6 +550,7 @@ export function ProfileEditor({
       focusProfileDraft();
       return;
     }
+    savingProfile.current = true;
     setProfileState({kind: "saving", message: "正在保存你的职业背景…"});
     const payload: SaveProfilePayload = {
       expectedVersion: profileVersion,
@@ -572,10 +584,13 @@ export function ProfileEditor({
       if (afterProfileSaveHref) {
         router.push(afterProfileSaveHref);
       } else {
+        if (starterMode && intentVersion === 0) await persistIntent();
         router.refresh();
       }
     } catch {
-      setProfileState({kind: "error", message: "保存失败，请稍后重试。"});
+      setProfileState({kind: "error", message: "暂时无法确认资料是否已保存。请先核对已保存的职业背景，再重试。"});
+    } finally {
+      savingProfile.current = false;
     }
   }
 
@@ -588,6 +603,7 @@ export function ProfileEditor({
     mode: "auto" | "replace" = "replace",
   ) {
     const draft = proposalToProfileDraft(proposal);
+    profileTouched.current = true;
     setHeadline(draft.headline);
     setYears(draft.years);
     setEvidence(draft.evidence);
@@ -602,10 +618,11 @@ export function ProfileEditor({
           ? "AI 已根据简历填好职业背景草稿。请检查内容，确认无误后保存。"
           : "已用这份 AI 草稿替换当前编辑内容。请检查后保存。",
     });
+    focusProfileDraft();
   }
 
   function handleProposalReady(proposal: ProfileExtractionProposal): boolean {
-    if (profileVersion !== 0 || !isBlankProfileDraft(currentProfileDraft())) {
+    if (profileTouched.current || profileVersion !== 0 || !isBlankProfileDraft(currentProfileDraft())) {
       return false;
     }
     applyProposal(proposal, "auto");
@@ -613,7 +630,19 @@ export function ProfileEditor({
   }
 
   function focusProfileDraft() {
-    profileFormRef.current?.scrollIntoView({behavior: "smooth", block: "start"});
+    requestAnimationFrame(() => {
+      document.getElementById("profile-review-heading")?.focus({preventScroll: true});
+      profileFormRef.current?.scrollIntoView({block: "start"});
+    });
+  }
+
+  function openProfileDetails() {
+    setIsProfileEditorOpen(true);
+    requestAnimationFrame(() => {
+      const section = document.getElementById("profile-detail-heading");
+      section?.focus({preventScroll: true});
+      section?.scrollIntoView({block: "start"});
+    });
   }
 
   function focusSkillEditor(skillIndex: number) {
@@ -649,12 +678,18 @@ export function ProfileEditor({
     void saveProfile(event);
   }
 
-  async function saveIntent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function persistIntent(): Promise<boolean> {
+    if (savingIntent.current) return false;
+    const roles = splitList(targetRoles);
+    if (roles.length === 0) {
+      setIntentState({kind: "error", message: "请填写至少一个目标岗位。"});
+      return false;
+    }
+    savingIntent.current = true;
     setIntentState({kind: "saving", message: "正在保存求职偏好…"});
     const payload: SaveSearchIntentPayload = {
       expectedVersion: intentVersion,
-      targetRoles: splitList(targetRoles),
+      targetRoles: roles,
       cities: splitList(cities),
       remoteAccepted:
         remoteAccepted === "" ? null : remoteAccepted === "true",
@@ -674,7 +709,7 @@ export function ProfileEditor({
       });
       if (!response.ok) {
         setIntentState({kind: "error", message: await apiMessage(response)});
-        return;
+        return false;
       }
       const saved = (await response.json()) as SearchIntent;
       setIntentVersion(saved.version);
@@ -682,34 +717,50 @@ export function ProfileEditor({
         kind: "success",
         message: "求职偏好已保存。"
       });
-      router.refresh();
+      return true;
     } catch {
-      setIntentState({kind: "error", message: "保存失败，请稍后重试。"});
+      setIntentState({kind: "error", message: "暂时无法确认偏好是否已保存，请先核对再重试。"});
+      return false;
+    } finally {
+      savingIntent.current = false;
     }
   }
 
+  async function saveIntent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await persistIntent();
+    router.refresh();
+  }
+
+  const awaitingFirstIntent = starterMode && intentVersion === 0;
+  const saving = profileState.kind === "saving" || intentState.kind === "saving";
+  const targetField = (id: string) => <div className="field profile-span-2" id={id === "starter-roles" ? "search-intent" : undefined}>
+    <label htmlFor={id}>你想找什么岗位？</label>
+    <p className="muted-copy">至少填一个岗位方向。多个方向可换行或用逗号分隔；其他偏好稍后再填。</p>
+    <textarea id={id} value={targetRoles} rows={2} required readOnly={saving}
+      onChange={event => setTargetRoles(event.target.value)} />
+  </div>;
+
   return (
     <div className="profile-layout">
-      <details className="detail-card">
-        <summary>可选：从简历整理草稿</summary>
-        <p>不需要先整理简历才能开始。{byok ? "本次使用你连接的模型，需先查看计划并确认费用；你也可以直接手动填写。" : "当前此入口仅支持离线替身，不会调用真实模型；你可以直接在下方手动填写并确认。"}</p>
-        <ResumeProposalPanel
-          byok={byok}
-          onProposalReady={handleProposalReady}
-          onApply={(proposal) => applyProposal(proposal, "replace")}
-          onReviewDraft={focusProfileDraft}
-        />
-      </details>
+      {profileVersion === 0 ? <div className="stack-sm">
+        <ResumeProposalPanel byok={byok} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
+        {profileDraftBlank && <button className="button-secondary" type="button" onClick={openProfileDetails}>不用简历，手动填写经历</button>}
+      </div> : <details className="detail-card">
+        <summary>从新的简历整理草稿</summary>
+        <ResumeProposalPanel byok={byok} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
+      </details>}
       <form
         id="profile-background"
         ref={profileFormRef}
         className="panel profile-form"
+        method="post"
         onSubmit={handleProfileSubmit}
       >
         <div className="section-title-row">
           <div>
-            <p className="eyebrow">我确认的职业事实</p>
-            <h2>我的职业背景</h2>
+            <p className="eyebrow">第 1 步 · 核对资料</p>
+            <h2 id="profile-review-heading" tabIndex={-1}>我的职业背景</h2>
             <p className="section-support-copy">
               先填写职业定位和一段真实经历，再核对并确认保存。技能和教育信息可暂不填写；没有证据不等于你不具备。
             </p>
@@ -874,23 +925,28 @@ export function ProfileEditor({
             <button
               className="button-secondary"
               type="button"
-              onClick={() => setIsProfileEditorOpen(true)}
+              onClick={openProfileDetails}
             >
               手动填写
             </button>
           </section>
         ) : (
           <div className="profile-review">
+            {profileDirty && <p className="notice" role="status">草稿有 {reviewEvidence.length} 条经历、{reviewSkills.length} 项技能。请核对后确认保存。</p>}
             <section className="profile-review-hero">
               <div>
                 <span className="review-label">职业定位</span>
                 <h3>{headline || "职业定位待补充"}</h3>
                 <p>
-                  {years.trim() ? `${years} 年工作经验` : "工作年限待确认"}
-                  {reviewEvidence.length ? ` · ${reviewEvidence.length} 条真实经历` : ""}
-                  {reviewSkills.length ? ` · ${reviewSkills.length} 项技能` : ""}
+                  {reviewEvidence.length} 条经历 · {reviewSkills.length} 项技能
                 </p>
               </div>
+              {!isProfileEditorOpen && <div className="field">
+                <label htmlFor="review-years">工作年限（年）</label>
+                <input id="review-years" type="number" min="0" step="any" value={years} readOnly={saving}
+                  onChange={event => {setYears(event.target.value); markProfileDirty();}} />
+                <p className="muted-copy">请核对简历；不确定可留空，不会推算年限。</p>
+              </div>}
             </section>
 
             <section className="profile-review-section">
@@ -955,10 +1011,10 @@ export function ProfileEditor({
               ) : null}
             </section>
 
-            <div className="profile-review-check">
+            {(profileDirty || profileVersion === 0) && <div className="profile-review-check">
               <strong>确认前重点看 3 件事</strong>
               <span>职业定位是否像你 · 经历是否确实做过 · 技能是否有真实经历支撑</span>
-            </div>
+            </div>}
 
             {globalDanglingEvidenceIssues.length > 0 ? (
               <div className="review-result review-pending" role="alert">
@@ -1000,22 +1056,31 @@ export function ProfileEditor({
               </div>
             ) : null}
 
-            <div className="actions profile-review-actions">
+            {awaitingFirstIntent && !isProfileEditorOpen && targetField("starter-roles")}
+            {!isProfileEditorOpen && <div className="actions profile-review-actions">
               {profileDirty || profileVersion === 0 ? (
-                <button className="button" type="submit" disabled={profileState.kind === "saving"}>
-                  {profileState.kind === "saving" ? "正在保存…" : "内容没问题，确认保存"}
+                <button className="button" type="submit" disabled={saving}>
+                  {saving ? "正在保存…" : awaitingFirstIntent ? "确认资料和目标岗位" : "内容没问题，确认保存"}
+                </button>
+              ) : awaitingFirstIntent ? (
+                <button className="button" type="button" disabled={saving} onClick={() => void persistIntent().then(() => router.refresh())}>
+                  {saving ? "正在保存目标岗位…" : "仅保存目标岗位"}
                 </button>
               ) : (
                 <span className="profile-saved-copy">这份职业背景已经确认并保存。</span>
               )}
-              <button
-                className="button-secondary"
-                type="button"
-                onClick={() => setIsProfileEditorOpen(true)}
-              >
+              <button className="button-secondary" type="button" disabled={saving} onClick={openProfileDetails}>
                 {profileDirty || profileVersion === 0 ? "有问题，编辑详情" : "编辑职业背景"}
               </button>
-            </div>
+            </div>}
+            {awaitingFirstIntent && intentState.kind !== "idle" && <p role={intentState.kind === "error" ? "alert" : "status"}
+              className={intentState.kind === "error" ? "inline-error" : "notice"}>
+              {intentState.kind === "error" ? `职业背景已保存，但目标岗位还需核对：${intentState.message}` : intentState.message}
+            </p>}
+            {starterMode && profileVersion > 0 && intentVersion > 0 && !profileDirty && <div className="success-box" role="status">
+              <p>职业背景与目标岗位已确认。可以继续添加岗位了。</p>
+              <Link className="button" href={readyNextHref}>{readyNextLabel}</Link>
+            </div>}
           </div>
         )}
 
@@ -1024,7 +1089,7 @@ export function ProfileEditor({
             <div className="profile-detail-editor-heading">
               <div>
                 <span className="review-label">详细编辑</span>
-                <h3>修改不准确或遗漏的内容</h3>
+                <h3 id="profile-detail-heading" tabIndex={-1}>修改不准确或遗漏的内容</h3>
                 <p>这里只在需要时使用。修改完成后先返回卡片审核，再确认保存。</p>
               </div>
               <button
@@ -1059,14 +1124,15 @@ export function ProfileEditor({
               id="years"
               type="number"
               min="0"
-              step="0.5"
+              step="any"
               value={years}
               onChange={(event) => {
                 setYears(event.target.value);
                 markProfileDirty();
               }}
-              placeholder="8"
+              aria-describedby="years-help"
             />
+            <p id="years-help" className="muted-copy">只填写已确认的总工作年限，不确定可留空。</p>
           </div>
         </div>
 
@@ -1429,14 +1495,14 @@ export function ProfileEditor({
           </section>
         ) : null}
 
-        {profileState.kind !== "idle" ? (
-          <p className={profileState.kind === "error" ? "inline-error" : "notice"}>
+        {profileState.kind !== "idle" && !(starterMode && profileState.kind === "success") ? (
+          <p role={profileState.kind === "error" ? "alert" : "status"} className={profileState.kind === "error" ? "inline-error" : "notice"}>
             {profileState.message}
           </p>
         ) : null}
       </form>
 
-      <form className="panel profile-form" id="search-intent" onSubmit={saveIntent}>
+      {!awaitingFirstIntent && <form className="panel profile-form" method="post" id="search-intent" onSubmit={saveIntent}>
         <div className="section-title-row">
           <div>
             <p className="eyebrow">我想找什么</p>
@@ -1445,17 +1511,10 @@ export function ProfileEditor({
           <span className="version-badge">{intentVersion > 0 ? "已保存" : "尚未保存"}</span>
         </div>
 
-        <div className="profile-grid">
-          <div className="field profile-span-2">
-            <label htmlFor="targetRoles">目标岗位（每行或逗号分隔）</label>
-            <textarea
-              id="targetRoles"
-              value={targetRoles}
-              onChange={(event) => setTargetRoles(event.target.value)}
-              placeholder={"AI 应用工程师\nAgent 工程师"}
-              required
-            />
-          </div>
+        {targetField("targetRoles")}
+        <details className="optional-preferences">
+          <summary>城市、薪资和其他选填偏好</summary>
+          <div className="profile-grid">
           <div className="field">
             <label htmlFor="cities">目标城市</label>
             <textarea
@@ -1545,17 +1604,18 @@ export function ProfileEditor({
           </div>
         </div>
 
+        </details>
         <div className="actions">
-          <button className="button" type="submit" disabled={intentState.kind === "saving"}>
-            保存求职偏好
+          <button className="button" type="submit" disabled={saving}>
+            {intentState.kind === "saving" ? "正在保存偏好…" : "保存求职偏好"}
           </button>
         </div>
-        {intentState.kind !== "idle" ? (
-          <p className={intentState.kind === "error" ? "inline-error" : "notice"}>
+        {intentState.kind !== "idle" && !(starterMode && intentState.kind === "success" && intentVersion === 1) ? (
+          <p role={intentState.kind === "error" ? "alert" : "status"} className={intentState.kind === "error" ? "inline-error" : "notice"}>
             {intentState.message}
           </p>
         ) : null}
-      </form>
+      </form>}
     </div>
   );
 }
