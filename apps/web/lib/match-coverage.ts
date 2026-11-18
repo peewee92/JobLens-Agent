@@ -8,8 +8,9 @@ export function matchCoverage(report: JobMatchReport) {
   const noCandidates = report.eligibility !== "blocked" && report.requirementResults.length > 0 &&
     report.requirementResults.every(item => item.candidateCount === 0 &&
       item.assessmentSource === "deterministic" && item.eligibilityStatus === "conditional");
-  const legacy = !report.retrievalVersion || report.requirementResults.some(
-    item => item.candidateCount == null || item.assessmentSource == null);
+  // A hard-conflict report intentionally skips retrieval; missing retrieval is not stale history.
+  const legacy = report.eligibility !== "blocked" && (!report.retrievalVersion || report.requirementResults.some(
+    item => item.candidateCount == null || item.assessmentSource == null));
   return {counts, noCandidates, legacy};
 }
 

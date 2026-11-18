@@ -2,7 +2,7 @@
 from hashlib import sha256
 from app.application.job_queries.errors import JobNotFoundError
 from app.application.job_requirements.use_cases import ExtractJobRequirementsUseCase
-from app.workflows.job_requirement_extraction import ExtractJobRequirementsWorkflow, EXTRACTOR_VERSION, PROMPT_VERSION
+from app.workflows.job_requirement_extraction import ExtractJobRequirementsWorkflow, EXTRACTOR_VERSION, PERSONAL_EXTRACTOR_VERSION, PROMPT_VERSION
 from app.application.job_requirements.validation import SEMANTIC_POLICY_VERSION
 from app.application.job_requirements.call_models import RequirementCallConflict, digest
 from app.application.job_requirements.errors import (
@@ -26,7 +26,7 @@ class AuthorizedRequirementExtraction:
         snapshot = dict(connectionVersion=getattr(self.settings, "byok_connection_version", ""), jobId=job_id, inputHash=sha256(description.encode()).hexdigest(),
             availabilityRevision=job.availability_revision,
             previousExtractionId=self.requirements.get_latest_id(job_id),
-            extractionPolicy=[EXTRACTOR_VERSION, PROMPT_VERSION, SEMANTIC_POLICY_VERSION],
+            extractionPolicy=[PERSONAL_EXTRACTOR_VERSION if getattr(settings, "personal_requirement_skill_proof", False) else EXTRACTOR_VERSION, PROMPT_VERSION, SEMANTIC_POLICY_VERSION],
             model=settings.requirement_extractor_model.strip(),
             maxOutputTokens=min(4096, max(256, settings.requirement_extractor_max_completion_tokens or 4096)),
             timeoutSeconds=min(60.0, max(1.0, settings.requirement_extractor_timeout_seconds)),
@@ -71,7 +71,7 @@ class AuthorizedRequirementExtraction:
         try:
             with self.extractor_factory(command.action_id, snapshot) as extractor:
                 use_case = ExtractJobRequirementsUseCase(jobs=self.jobs,
-                    workflow=ExtractJobRequirementsWorkflow(extractor, self.traces),
+                    workflow=ExtractJobRequirementsWorkflow(extractor, self.traces, personal_skill_proof=snapshot["extractionPolicy"][0] == PERSONAL_EXTRACTOR_VERSION),
                     uow_factory=lambda: self.uow_factory(command.action_id),
                     query_repository=self.requirements, provider="openai")
                 use_case.execute(job_id)

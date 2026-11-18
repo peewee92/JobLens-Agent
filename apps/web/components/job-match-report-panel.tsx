@@ -1,4 +1,5 @@
 "use client";
+import {MatchReason} from "@/components/match-reason";
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
 import {matchCoverage} from "@/lib/match-coverage";
@@ -12,7 +13,6 @@ import {SavedMatchReportNotice} from "@/components/saved-match-report-notice";
 
 import type {ApiErrorBody, JobMatchReport, MatchReportHistoryItem, SemanticCallPlan} from "@/lib/contracts";
 import {
-  matchReasonCopy,
   matchRecommendationClasses,
   matchRecommendationDescriptions,
   matchRecommendationLabels,
@@ -159,7 +159,7 @@ export function JobMatchReportPanel({
                   {report.strengths.slice(0, 3).map((item) => (
                     <article className="match-insight-card match-insight-positive" key={item.requirementId}>
                       <strong>{item.requirementText}</strong>
-                      <p>{matchReasonCopy(item.reason)}</p>
+                      <MatchReason reason={item.reason} />
                       {item.evidenceIds.length > 0 ? (
                         <small className="muted-copy">有 {item.evidenceIds.length} 条已确认经历作为依据</small>
                       ) : null}
@@ -181,7 +181,7 @@ export function JobMatchReportPanel({
                   {report.risks.slice(0, 3).map((item) => (
                     <article className="match-insight-card match-insight-risk" key={item.requirementId}>
                       <strong>{item.requirementText}</strong>
-                      <p>{matchReasonCopy(item.reason)}</p>
+                      <MatchReason reason={item.reason} />
                     </article>
                   ))}
                 </div>

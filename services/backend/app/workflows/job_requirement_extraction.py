@@ -19,6 +19,7 @@ from app.application.job_requirements.description_readiness import (
     MIN_DESCRIPTION_CHARS,
     description_length_blocker,
 )
+from app.application.job_requirements.personal_skill_proof import POLICY as PERSONAL_SKILL_POLICY, preserve_skill_requiring_proof
 from app.application.job_requirements.validation import (
     COVERAGE_POLICY_VERSION,
     GROUNDING_POLICY_VERSION,
@@ -43,6 +44,7 @@ TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "requirement-extractor-v42.96"
 PROMPT_VERSION = "requirement-extraction-v9"
+PERSONAL_EXTRACTOR_VERSION = f"{EXTRACTOR_VERSION}+{PERSONAL_SKILL_POLICY}"
 
 
 class ExtractJobRequirementsWorkflow:
@@ -52,9 +54,12 @@ class ExtractJobRequirementsWorkflow:
         self,
         extractor: AbstractJobRequirementExtractor,
         trace_uow_factory: TraceUnitOfWorkFactory,
+        *, personal_skill_proof: bool = False,
     ) -> None:
         self._extractor = extractor
         self._trace_uow_factory = trace_uow_factory
+        self._personal_skill_proof = personal_skill_proof
+        self._extractor_version = PERSONAL_EXTRACTOR_VERSION if personal_skill_proof else EXTRACTOR_VERSION
 
     @property
     def max_provider_calls_per_execution(self) -> int:
@@ -82,6 +87,7 @@ class ExtractJobRequirementsWorkflow:
         input_tokens: int | None = None
         output_tokens: int | None = None
         provider_calls = 0
+        personal_repairs = ()
 
         try:
             result = self._extractor.extract(normalized)
@@ -97,6 +103,8 @@ class ExtractJobRequirementsWorkflow:
             )
             output = semantic_result.output
             semantic_repairs = semantic_result.repairs
+            if self._personal_skill_proof:
+                output, personal_repairs = preserve_skill_requiring_proof(normalized, output)
             validate_job_requirement_output(normalized, output)
             coverage_audit = audit_job_requirement_coverage(normalized, output)
             validate_job_requirement_coverage(coverage_audit)
@@ -124,6 +132,7 @@ class ExtractJobRequirementsWorkflow:
                 output=output,
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
+                personal_repairs=personal_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -145,6 +154,7 @@ class ExtractJobRequirementsWorkflow:
                 output=output,
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
+                personal_repairs=personal_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -163,6 +173,7 @@ class ExtractJobRequirementsWorkflow:
             output=output,
             grounding_repairs=grounding_repairs,
             semantic_repairs=semantic_repairs,
+            personal_repairs=personal_repairs,
             coverage_audit=coverage_audit,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
@@ -172,7 +183,7 @@ class ExtractJobRequirementsWorkflow:
         )
         return JobRequirementExtractionProposal(
             trace_run_id=run_id,
-            extractor_version=EXTRACTOR_VERSION,
+            extractor_version=self._extractor_version,
             model=model,
             prompt_version=PROMPT_VERSION,
             requirements=output.requirements,
@@ -189,6 +200,7 @@ class ExtractJobRequirementsWorkflow:
         output: JobRequirementExtractionOutput | None,
         grounding_repairs: tuple[GroundingRepairEvent, ...],
         semantic_repairs: tuple[SemanticRepairEvent, ...],
+        personal_repairs: tuple[int, ...],
         coverage_audit: JobRequirementCoverageAudit | None,
         latency_ms: int,
         input_tokens: int | None,
@@ -201,7 +213,7 @@ class ExtractJobRequirementsWorkflow:
                 TraceWrite(
                     run_id=run_id,
                     capability="requirement_extraction",
-                    version=EXTRACTOR_VERSION,
+                    version=self._extractor_version,
                     model=model,
                     prompt_version=PROMPT_VERSION,
                     input_refs={
@@ -213,12 +225,10 @@ class ExtractJobRequirementsWorkflow:
                         "providerCalls": provider_calls,
                     },
                     output=(
-                        _requirement_output_dict(
-                            output,
-                            grounding_repairs,
-                            semantic_repairs,
-                            coverage_audit,
-                        )
+                        {
+                            **_requirement_output_dict(output, grounding_repairs, semantic_repairs, coverage_audit),
+                            **({"personalSkillProofRepairs": list(personal_repairs)} if self._personal_skill_proof else {}),
+                        }
                         if output is not None
                         else None
                     ),

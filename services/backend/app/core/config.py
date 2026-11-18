@@ -12,6 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     byok_connection_version: str = ""
+    personal_requirement_skill_proof: bool = False
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -66,7 +67,7 @@ def get_settings() -> Settings:
         return configured.model_copy(update={
             f"{stage}_provider": "openai" if getattr(configured, f"{stage}_provider").strip().casefold() == "openai" else "disabled"
             for stage in stages
-        })
+        } | {"personal_requirement_skill_proof": True})
     return Settings()
 
 
