@@ -17,6 +17,7 @@ import {
   matchRecommendationDescriptions,
   matchRecommendationLabels,
 } from "@/lib/match-report";
+import {savedModelReportHref} from "@/lib/authorized-model-results";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 
 export function JobMatchReportPanel({
@@ -49,12 +50,12 @@ export function JobMatchReportPanel({
   const [semanticPlan, setSemanticPlan] = useState<SemanticCallPlan | null>(null);
 
   async function generateReport() {
-    if (inFlight.current || !enabled) return;
+    if (inFlight.current || !enabled || semanticPlan) return;
     inFlight.current = true;
     setStatus("submitting");
     setMessage("");
     try {
-      const preview = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/semantic-call-plan`);
+      const preview = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/semantic-call-plan`, {cache: "no-store"});
       if (!preview.ok) throw new Error("暂时无法核对匹配输入，请检查资料和岗位要求后重新操作；本次没有授权模型调用。");
       const plan = await preview.json() as SemanticCallPlan;
       if (plan.executionMode === "authorized" && plan.requirements.length > 0) {
@@ -102,11 +103,11 @@ export function JobMatchReportPanel({
         </div>
         <button
           className="button-secondary match-report-action"
-          disabled={!enabled || busy}
+          disabled={!enabled || busy || !!semanticPlan}
           onClick={generateReport}
           type="button"
         >
-          {busy ? "正在生成…" : report ? "重新生成完整匹配建议" : "生成完整匹配建议"}
+          {busy ? "正在生成…" : semanticPlan ? "请核对下方调用范围" : report ? "重新生成完整匹配建议" : "生成完整匹配建议"}
         </button>
       </div>
 
@@ -122,7 +123,8 @@ export function JobMatchReportPanel({
       ) : null}
       {compareHref && report && (generated || savedResult?.isCurrent) &&
         <p className="actions"><Link className="button-secondary" href={compareHref}>{compareLabel ?? "继续比较"}<LinkFeedback /></Link></p>}
-      {semanticPlan ? <AuthorizedModelCall key={semanticPlan.planDigest} jobId={jobId} plan={semanticPlan} disabled={!enabled || busy} kind="semantic" /> : null}
+      {semanticPlan ? <AuthorizedModelCall key={semanticPlan.planDigest} jobId={jobId} plan={semanticPlan} disabled={!enabled || busy} kind="semantic"
+        reportHref={id => savedModelReportHref(returnHref ?? pathname, id)} /> : null}
       {status === "error" ? <p className="inline-error">{message}</p> : null}
 
       {savedResult && !generated ? <SavedMatchReportNotice result={savedResult} /> : null}

@@ -1,26 +1,27 @@
 "use client";
 
 import {useRef, useState} from "react";
-import {useRouter} from "next/navigation";
+import {jobDocumentRoute, openSavedJobDocument, requirementsConfirmedHref} from "@/lib/authorized-model-results";
 
-export function JobRequirementConfirmation({jobId, extractionId, inputHash, factsDigest, confirmed}: {
-  jobId: string; extractionId: string; inputHash: string; factsDigest: string; confirmed: boolean;
+export function JobRequirementConfirmation({jobId, extractionId, inputHash, factsDigest, confirmed, detailHref}: {
+  jobId: string; extractionId: string; inputHash: string; factsDigest: string; confirmed: boolean; detailHref?: string;
 }) {
-  const router = useRouter();
   const inFlight = useRef(false);
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [message, setMessage] = useState("");
+  const confirmedHref = detailHref ? requirementsConfirmedHref(detailHref, extractionId) : null;
   if (confirmed || saved) return <div className="success-box" role="status">
     <strong>你已核对这份岗位要求</strong>
     <p>这次确认只适用于当前岗位原文和这一版要求，不代表抽取模型已通过整体质量评审。个人匹配仍以已确认的职业资料和求职意向为依据。</p>
-    <a className="button-secondary" href="#job-match-report">查看匹配与下一步</a>
+    <a className="button-secondary" href={saved && confirmedHref ? confirmedHref : "#job-match-report"}>查看匹配与下一步</a>
   </div>;
 
   async function confirm() {
     if (inFlight.current || !checked) return;
     inFlight.current = true;
+    const startedOn = jobDocumentRoute(window.location);
     setBusy(true);
     setMessage("");
     try {
@@ -41,7 +42,8 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
         return;
       }
       setSaved(true);
-      router.refresh();
+      if (confirmedHref) openSavedJobDocument(window.location, confirmedHref, startedOn);
+      else if (jobDocumentRoute(window.location) === startedOn) window.location.reload();
     } catch {
       setMessage("连接或浏览器存储不可用。请先刷新查看是否已确认；页面不会自动重发，重试仍使用原请求。");
     } finally { inFlight.current = false; setBusy(false); }
