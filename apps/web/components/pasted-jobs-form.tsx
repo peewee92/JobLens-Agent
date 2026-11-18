@@ -10,7 +10,7 @@ import {useRef, useState} from "react";
 import type {ManualJobInput, ManualJobImportResult} from "@/lib/contracts";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
 import {agentScopeHref, jobDetailWithAgentScope} from "@/lib/agent-job-scope";
-import {duplicatePastedJobIndices, manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
+import {duplicatePastedJobIndices, hasPastedJobDividers, manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
 
 import {savePastedJobScope} from "@/lib/pasted-job-session";
 
@@ -22,6 +22,7 @@ type Row = {
 
 export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
   const [draft, setDraft] = useState("");
+  const [dividersAreDescription, setDividersAreDescription] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [feedback, setFeedback] = useState("");
   const [working, setWorking] = useState<number | null>(null);
@@ -37,7 +38,7 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
 
   function preview() {
     try {
-      setRows(parsePastedJobs(draft).map((job, key) => ({job, key})));
+      setRows(parsePastedJobs(draft, {dividersAreDescription}).map((job, key) => ({job, key})));
       setFeedback("");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "无法预览，未保存任何岗位。");
@@ -74,15 +75,24 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
 
   return <section className="detail-card stack-md pasted-jobs-form" aria-label="批量粘贴岗位">
     <h2>一次粘贴多条岗位</h2>
-    <Field id="pasted-job-text" label="岗位列表原文" hint="第一行写岗位名，下一行粘贴描述。多条岗位用单独一行 --- 分隔，每批最多 20 条。">
+    <Field id="pasted-job-text" label="岗位列表原文" hint="第一行写岗位名，或写「岗位名｜公司名」；下一行粘贴描述。用单独一行 --- 分隔岗位，每批最多 20 条。">
       <textarea id="pasted-job-text" aria-describedby="pasted-job-text-hint" rows={7} maxLength={maxPastedCharacters} value={draft} readOnly={working !== null || hasReceipts}
-        onChange={event => {setDraft(event.target.value); setRows([]); setFeedback("");}}
-        placeholder={"岗位名称\n岗位描述原文\n\n---\n\n另一个岗位\n岗位描述原文"} />
+        onChange={event => {
+          const text = event.target.value;
+          setDraft(text); setRows([]); setFeedback("");
+          if (dividersAreDescription && !hasPastedJobDividers(text)) setDividersAreDescription(false);
+        }}
+        placeholder={"岗位名称｜公司名称\n岗位描述原文\n\n---\n\n另一个岗位\n岗位描述原文"} />
     </Field>
+    {hasPastedJobDividers(draft) && !hasReceipts && <label className="check-row">
+      <input type="checkbox" checked={dividersAreDescription} disabled={working !== null}
+        onChange={event => {setDividersAreDescription(event.target.checked); setRows([]); setFeedback("");}} />
+      <span>保留正文里的 ---（改用「岗位名｜公司名」的标题分隔岗位）</span>
+    </label>}
     <div className="jl-inline">
       <Button disabled={!draft.trim() || working !== null || hasReceipts} onClick={preview}>预览岗位清单</Button>
       {hasReceipts && !uncertain && <button className="button-secondary" type="button" disabled={working !== null} onClick={() => {
-        setDraft(""); setRows([]); setFeedback("");
+        setDraft(""); setRows([]); setFeedback(""); setDividersAreDescription(false);
       }}>开始新一批</button>}
     </div>
     {feedback && <ActionFeedback tone="danger">{feedback}</ActionFeedback>}

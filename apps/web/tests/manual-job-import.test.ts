@@ -23,11 +23,21 @@ test("accepts a title-only list with explicit dividers, including blank paragrap
   ]);
   assert.throws(() => parsePastedJobs("甲\n要求\n---\n---\n乙\n描述"), /第 2 条/);
   assert.throws(() => parsePastedJobs(Array(21).fill("甲\n要求").join("\n---\n")), /20 条/);
-  const [legacy] = parsePastedJobs("甲｜乙\n要求\n---\n这是正文\n\n丙｜丁\n另一条");
+  const [legacy] = parsePastedJobs("甲｜乙\n要求\n---\n这是正文\n\n丙｜丁\n另一条", {dividersAreDescription: true});
   assert.equal(legacy.description, "要求\n---\n这是正文");
 });
 
 test("exact duplicate hints distinguish different text, preserving the backend content identity", () => {
   const jobs = parsePastedJobs("甲\n原文\n---\n甲\n原文\n---\n甲\n另一份正文\n---\n甲｜公司乙\n原文");
   assert.deepEqual([...duplicatePastedJobIndices(jobs)], [1]);
+});
+
+test("explicit dividers never absorb a company-less posting into a named company's description", () => {
+  const first = "甲｜公司甲\n第一条原文";
+  const jobs = parsePastedJobs([first, "乙\n第二条原文", "丙\n待补充", first].join("\n\n---\n\n"));
+  assert.deepEqual(jobs.map(job => [job.title, job.company, job.description]), [
+    ["甲", "公司甲", "第一条原文"], ["乙", "公司未公开", "第二条原文"],
+    ["丙", "公司未公开", "待补充"], ["甲", "公司甲", "第一条原文"],
+  ]);
+  assert.deepEqual([...duplicatePastedJobIndices(jobs)], [3]);
 });
