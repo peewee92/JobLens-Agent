@@ -7,7 +7,9 @@ import {useRef, useState} from "react";
 import type {ManualJobInput, ManualJobImportResult} from "@/lib/contracts";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
 import {agentScopeHref, jobDetailWithAgentScope} from "@/lib/agent-job-scope";
-import {manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
+import {duplicatePastedJobIndices, manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
+
+import {savePastedJobScope} from "@/lib/pasted-job-session";
 
 type Row = {
   key: number;
@@ -15,7 +17,7 @@ type Row = {
   outcome?: {kind: "saved"; result: ManualJobImportResult} | {kind: "error" | "unknown"; message: string};
 };
 
-export function PastedJobsForm() {
+export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
   const [draft, setDraft] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [feedback, setFeedback] = useState("");
@@ -25,6 +27,7 @@ export function PastedJobsForm() {
   const uncertain = rows.some(row => row.outcome?.kind === "unknown");
   const scope = [...new Set(rows.flatMap(row => row.outcome?.kind === "saved" ? [row.outcome.result.jobId] : []))];
   const pending = rows.filter(row => row.outcome?.kind !== "saved" && row.outcome?.kind !== "unknown");
+  const duplicates = duplicatePastedJobIndices(rows.map(row => row.job));
   const hasInvalid = pending.some(row => manualJobValidation(row.job));
   const existingMatchStatus = useExistingMatchStatus(working === null ? rows.flatMap(row =>
     row.outcome?.kind === "saved" && !row.outcome.result.created ? [row.outcome.result.jobId] : []) : []);
@@ -46,11 +49,18 @@ export function PastedJobsForm() {
     if (submitting.current) return;
     submitting.current = true;
     setFeedback("");
+    const roundScope = new Set(scope);
     try {
       for (const index of indices) {
         setWorking(index);
         const outcome = await submitManualJob(rows[index].job);
         setRows(previous => previous.map((row, i) => i === index ? {...row, outcome} : row));
+        if (outcome.kind === "saved") {
+          roundScope.add(outcome.result.jobId);
+          const ids = [...roundScope];
+          try { savePastedJobScope(window.sessionStorage, ids); } catch { /* Storage is optional. */ }
+          onSaved(ids);
+        }
         if (outcome.kind === "unknown") break;
       }
     } finally {
@@ -61,12 +71,12 @@ export function PastedJobsForm() {
 
   return <section className="detail-card stack-md pasted-jobs-form" aria-label="批量粘贴岗位">
     <h2>一次粘贴多条岗位</h2>
-    <p>每条第一行写「岗位名称｜公司名称」，下一行开始粘贴原始描述；条目之间留一个空行，也可以用编号开头。每批最多 20 条。</p>
+    <p>第一行写岗位名称，下一行开始粘贴描述。没有公司名称时，用单独一行「---」分隔各条；也可以沿用「岗位名称｜公司名称」，以空行或编号区分。每批最多 20 条。</p>
     <label className="file-field">
       <span>岗位列表原文</span>
       <textarea rows={9} maxLength={maxPastedCharacters} value={draft} readOnly={working !== null || hasReceipts}
         onChange={event => {setDraft(event.target.value); setRows([]); setFeedback("");}}
-        placeholder={"1. 岗位名称｜公司名称\n岗位描述原文\n\n2. 另一个岗位｜公司名称\n岗位描述原文"} />
+        placeholder={"岗位名称\n岗位描述原文\n\n---\n\n另一个岗位\n岗位描述原文"} />
     </label>
     <div className="actions">
       <button className="button" type="button" disabled={!draft.trim() || working !== null || hasReceipts} onClick={preview}>预览岗位清单</button>
@@ -76,7 +86,7 @@ export function PastedJobsForm() {
     </div>
     {feedback && <p className="inline-error" role="alert">{feedback}</p>}
     {rows.length > 0 && <section className="stack-md" aria-label="待保存岗位清单">
-      <h3>核对清单 · {rows.length} 条</h3>
+      <h3>核对清单 · {rows.length} 条记录{duplicates.size ? ` · 批内重复 ${duplicates.size} 条` : ""}</h3>
       <p>这里只保存招聘原文。短描述可以留作待补充，不会用于匹配；保存后还要核对提取出的岗位要求。</p>
       <ol className="paste-job-list">
         {rows.map((row, index) => {
@@ -86,6 +96,7 @@ export function PastedJobsForm() {
           const locked = working !== null || row.outcome?.kind === "unknown" || !!result;
           return <li key={row.key} className="paste-job-row">
             <strong>{row.job.title || "未命名岗位"} · {row.job.company || "公司待填"}</strong>
+            {!result && duplicates.has(index) && <p className="notice">与本批前面一条完全相同，不会新增一个岗位。</p>}
             {working === index ? <p className="notice" role="status">正在保存这条岗位…</p>
             : result ? <div className="success-box" role="status">
               <p>{result.created ? "已添加" : "复用已有岗位，未新增"}{result.created && short ? " · 描述待补充，暂不能分析" : ""}</p>
@@ -111,7 +122,7 @@ export function PastedJobsForm() {
       <div className="actions">
         {pending.length > 0 && <button className="button" type="button" disabled={working !== null || uncertain || hasInvalid}
           onClick={() => void save(rows.flatMap((row, i) => row.outcome?.kind !== "saved" && row.outcome?.kind !== "unknown" ? [i] : []))}>
-          {working !== null ? "正在保存岗位…" : `保存 ${pending.length} 条岗位`}
+          {working !== null ? "正在保存岗位…" : `保存 ${pending.length} 条记录（重复不新增）`}
         </button>}
         {working === null && scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位<LinkFeedback /></Link>}
       </div>
