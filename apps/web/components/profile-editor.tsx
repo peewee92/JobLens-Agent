@@ -140,6 +140,7 @@ export function ProfileEditor({
   initialProfile,
   initialIntent,
   byok = false,
+  localProfileModel = null,
   afterProfileSaveHref = null,
   readyNextHref = "/import",
   readyNextLabel = "去添加岗位",
@@ -150,6 +151,7 @@ export function ProfileEditor({
   focusRequirementText = null,
 }: {
   byok?: boolean;
+  localProfileModel?: boolean | null;
   initialProfile: UserProfile | null;
   initialIntent: SearchIntent | null;
   afterProfileSaveHref?: string | null;
@@ -745,11 +747,11 @@ export function ProfileEditor({
   return (
     <div className="profile-layout">
       {profileVersion === 0 ? <div className="stack-sm">
-        <ResumeProposalPanel byok={byok} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
+        <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
         {profileDraftBlank && <button className="button-secondary" type="button" onClick={openProfileDetails}>不用简历，手动填写经历</button>}
       </div> : <details className="detail-card">
         <summary>从新的简历整理草稿</summary>
-        <ResumeProposalPanel byok={byok} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
+        <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
       </details>}
       <form
         id="profile-background"

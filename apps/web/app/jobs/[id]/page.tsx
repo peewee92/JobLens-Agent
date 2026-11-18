@@ -232,6 +232,7 @@ export default async function JobDetailPage({
                 </p>
               </div>
               <JobRequirementExtractButton
+                localProduct={process.env.JOBLENS_LOCAL_PRODUCT === "1"}
                 disabled={job.userMarkedInactive || !hasEnoughDescription}
                 disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionHelp ?? undefined}
                 hasExisting={extraction !== null}

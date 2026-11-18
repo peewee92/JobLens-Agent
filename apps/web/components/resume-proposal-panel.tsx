@@ -42,18 +42,24 @@ async function apiMessage(response: Response): Promise<string> {
 
 export function ResumeProposalPanel({
   byok = false,
+  localProfileModel = null,
   onProposalReady,
   onApply,
   onReviewDraft,
   disabled = false,
 }: {
   byok?: boolean;
+  localProfileModel?: boolean | null;
   onProposalReady: (proposal: ProfileExtractionProposal) => boolean;
   onApply: (proposal: ProfileExtractionProposal) => void;
   onReviewDraft: () => void;
   disabled?: boolean;
 }) {
-  const [callPlan, setCallPlan] = useState<{planDigest: string; model: string; maxProviderCalls: number; maxOutputTokens: number} | null>(null);
+  const authorizeModel = byok || localProfileModel === true;
+  const unavailable = localProfileModel === false;
+  const [callPlan, setCallPlan] = useState<{
+    planDigest: string; model: string; destination?: string; maxProviderCalls: number; maxOutputTokens: number;
+  } | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const inFlight = useRef(false);
   const [source, setSource] = useState<"file" | "text">(byok ? "text" : "file");
@@ -67,6 +73,7 @@ export function ResumeProposalPanel({
   function selectResumeFile(file: File | null) {
     if (inFlight.current || disabled) return;
     setSource("file");
+    setCallPlan(null); setPendingAction(null);
     setProposal(null);
     setProposalApplied(false);
     if (!file) {
@@ -91,6 +98,7 @@ export function ResumeProposalPanel({
     setSource("file");
     const files = event.dataTransfer.files;
     if (files.length !== 1) {
+      setCallPlan(null); setPendingAction(null);
       setProposal(null);
       setProposalApplied(false);
       setResumeFile(null);
@@ -119,16 +127,17 @@ export function ResumeProposalPanel({
 
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current || disabled || resumeText.trim().length < 50) return;
+    if (inFlight.current || disabled || unavailable || resumeText.trim().length < 50) return;
     inFlight.current = true;
     setSource("text");
+    setCallPlan(null); setPendingAction(null);
     setProposal(null);
     setProposalApplied(false);
     setState({kind: "submitting", message: "正在整理你的简历…"});
     try {
-      if (byok) {
-        const r = await fetch("/api/byok/profile-call-plan", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({resumeText})});
-        if (!r.ok) throw new Error();
+      if (authorizeModel) {
+        const r = await fetch(byok ? "/api/byok/profile-call-plan" : "/api/local/profile-model/plan", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({resumeText})});
+        if (!r.ok) { setState({kind: "error", message: await apiMessage(r)}); return; }
         setCallPlan(await r.json()); setPendingAction(null);
         setState({kind: "idle", message: "请核对下方调用计划；尚未发送模型请求。"}); return;
       }
@@ -151,31 +160,46 @@ export function ResumeProposalPanel({
     const id = pendingAction ?? crypto.randomUUID(); setPendingAction(id);
     setState({kind:"submitting", message:"正在使用你的模型整理背景……"});
     try {
-      const response = await fetch("/api/byok/profile-calls", {method:"POST", headers:{"Content-Type":"application/json"},
+      const response = await fetch(byok ? "/api/byok/profile-calls" : "/api/local/profile-model/calls", {method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({actionId:id, planDigest:callPlan.planDigest, confirmed:true, maxProviderCalls:1})});
       const record = await response.json();
+      if (response.ok && record.status === "failed") {
+        setState({kind: "error", message: record.errorCode === "provider_payment_required"
+          ? "模型服务余额或计费不可用，没有得到草稿。可手填经历，或解决计费后重新授权。"
+          : record.errorCode === "provider_auth_failed" || record.errorCode === "provider_forbidden"
+            ? "模型服务拒绝了授权，请检查配置，或手填经历。"
+            : "模型没有返回可用草稿，尚未保存背景。可以手动填写，或重新查看计划后明确授权。"});
+        setCallPlan(null);
+        return;
+      }
       if (!response.ok || record.status !== "completed" || !record.result) throw new Error();
       await acceptResponse(new Response(JSON.stringify(record.result), {status:200}));
       setCallPlan(null);
-    } catch {setState({kind:"error", message:"未取得可用草稿。结果可能未知；再次点击只查询／重放同一请求，不会自动重新付费。可在模型设置中检查调用记录。"});}
+    } catch {setState({kind:"error", message:"未取得可用草稿。结果可能未知；再次点击只查询／重放同一请求，不会自动重新付费。也可以先手动填写。"});}
     finally { inFlight.current = false; }
   }
 
   async function proposeFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!resumeFile || disabled || inFlight.current) return;
+    if (!resumeFile || disabled || unavailable || inFlight.current) return;
     inFlight.current = true;
     setSource("file");
+    setCallPlan(null); setPendingAction(null);
     setProposal(null);
     setProposalApplied(false);
     setState({kind: "submitting", message: "正在读取文件并整理你的简历…"});
     const form = new FormData();
     form.set("file", resumeFile, resumeFile.name);
     try {
-      const response = await fetch("/api/profile-proposals/file", {
+      const response = await fetch(authorizeModel ? "/api/local/profile-model/file-plan" : "/api/profile-proposals/file", {
         method: "POST",
         body: form,
       });
+      if (authorizeModel && response.ok) {
+        setCallPlan(await response.json());
+        setState({kind: "idle", message: "已在本机读取文件；尚未发送给模型。"});
+        return;
+      }
       await acceptResponse(response);
     } catch {
       setState({kind: "error", message: "暂时无法整理简历，可重试或手动填写。职业资料没有自动保存。"});
@@ -200,10 +224,14 @@ export function ResumeProposalPanel({
       <p className="muted-copy">
         {byok
           ? "你可以粘贴简历文字。确认调用后，内容才会发送给你选择的模型服务。"
-          : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。本入口不会调用在线模型。"} 整理只生成草稿，只有你核对保存后才会用于匹配。
+          : authorizeModel
+            ? "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。文件在本机读取；只有确认调用后，提取出的文本才会发送给模型服务。"
+            : unavailable
+              ? "还没配置可用的简历模型。可先手动填写真实经历，之后再从本地启动配置接入模型。"
+              : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。离线演示只使用样本规则；其他模式需先配置并授权模型。"} 整理只生成草稿，只有你核对保存后才会用于匹配。
       </p>
 
-      {!byok && <form className="proposal-file-form" method="post" onSubmit={proposeFile}>
+      {!byok && !unavailable && <form className="proposal-file-form" method="post" onSubmit={proposeFile}>
         <div
           className={`file-field compact-file-field drop-file-field${isDraggingFile ? " is-dragging" : ""}`}
           onDragEnter={(event) => {
@@ -236,16 +264,16 @@ export function ResumeProposalPanel({
             type="submit"
             disabled={busy || disabled || !resumeFile}
           >
-            {state.kind === "submitting" ? "处理中…" : "整理这份简历"}
+            {state.kind === "submitting" ? "处理中…" : authorizeModel ? "读取文件，查看模型调用计划" : "整理这份简历"}
           </button>
           <span className="muted-copy" aria-live="polite">
             {resumeFile ? `${resumeFile.name} · ${Math.ceil(resumeFile.size / 1024)} KiB` : "未选择文件"}
           </span>
         </div>
-        {source === "file" ? feedback : null}
+        {source === "file" && !(callPlan && pendingAction) ? feedback : null}
       </form>}
 
-      <details className="resume-text-option" open={byok || undefined}>
+      {!unavailable && <details className="resume-text-option" open={byok || undefined}>
         <summary>{byok ? "粘贴简历文字" : "也可以粘贴简历文字"}</summary>
       <form method="post" onSubmit={propose}>
         <div className="field">
@@ -266,15 +294,20 @@ export function ResumeProposalPanel({
             type="submit"
             disabled={busy || disabled || resumeText.trim().length < 50}
           >
-            {state.kind === "submitting" ? "整理中…" : (byok ? "查看背景提取计划" : "整理这段简历文本")}
+            {state.kind === "submitting" ? "整理中…" : (authorizeModel ? "查看模型调用计划" : "整理这段简历文本")}
           </button>
           <span className="muted-copy">{resumeText.trim().length} / {byok ? 12000 : 30000} 字符</span>
         </div>
-        {source === "text" ? feedback : null}
+        {source === "text" && !(callPlan && pendingAction) ? feedback : null}
       </form>
-        {callPlan && <div className="notice"><h3>确认本次模型调用</h3><p>背景文本将发给 {callPlan.model}；最多 {callPlan.maxProviderCalls} 次请求，最多输出 {callPlan.maxOutputTokens} Token，费用未知，由你的模型账户承担。</p>
-          <button type="button" disabled={busy || disabled} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认并调用我的模型"}</button></div>}
-      </details>
+      </details>}
+
+      {callPlan && <section className="notice" aria-label="确认本次模型调用">
+        <h3>确认本次模型调用</h3>
+        <p>简历文本将发给 {callPlan.destination ? `${callPlan.destination} 的 ` : ""}{callPlan.model}。最多发送 {callPlan.maxProviderCalls} 次，最多输出 {callPlan.maxOutputTokens} 个模型计量单位；费用由模型账户承担，此处不估价。</p>
+        <button className="button" type="button" disabled={busy || disabled} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认发送简历文字并生成草稿"}</button>
+        {pendingAction && feedback}
+      </section>}
 
       {proposal ? (
         <div className="proposal-result">

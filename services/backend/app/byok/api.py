@@ -72,14 +72,17 @@ def delete_connection():
 
 
 def plan(kind, text=''):
-    s = state()
-    if not s.connection:
-        raise DemoError('model_not_connected', 409, '请先连接自己的模型。')
-    model = s.connection.profileModel or s.connection.model if kind == 'profile' else s.connection.model
-    payload = dict(kind=kind, version=s.version, model=model, inputHash=sha256(text.encode()).hexdigest(),
-                   maxProviderCalls=1, maxOutputTokens=4096 if kind == 'profile' else 256, timeoutSeconds=60)
-    digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return plan_for(state(), kind, text)
+
+
+def plan_for(s, kind, text='', *, profile_max_tokens=4096):
     with s.lock:
+        if not s.connection:
+            raise DemoError('model_not_connected', 409, '请先连接自己的模型。')
+        model = (s.connection.profileModel or s.connection.model) if kind == 'profile' else s.connection.model
+        payload = dict(kind=kind, version=s.version, model=model, inputHash=sha256(text.encode()).hexdigest(),
+                       maxProviderCalls=1, maxOutputTokens=profile_max_tokens if kind == 'profile' else 256, timeoutSeconds=60)
+        digest = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
         if len(s.plans) >= 20:
             s.plans.pop(next(iter(s.plans)))
         s.plans[digest] = (payload, text)
@@ -114,7 +117,10 @@ class RecordedTransport(OnceTransport):
 
 
 def execute(kind, command):
-    s = state()
+    return execute_for(state(), kind, command)
+
+
+def execute_for(s, kind, command):
     # Serialize claim/config changes and hold the execution lease throughout the send.
     with execution(s):
         old = s.calls.get(command.actionId)
@@ -147,7 +153,7 @@ def execute(kind, command):
                     from app.api.deps import get_trace_uow_factory
                     from app.api.v1.schemas.profile_extraction import ProfileExtractionProposalResponse
                     extractor = OpenAIProfileExtractor(api_key=c.apiKey.get_secret_value(), model=p['model'],
-                        base_url=c.baseUrl, api_style=c.apiStyle, max_completion_tokens=4096, enable_thinking=c.enableThinking, client=client)
+                        base_url=c.baseUrl, api_style=c.apiStyle, max_completion_tokens=p['maxOutputTokens'], enable_thinking=c.enableThinking, client=client)
                     result = ProposeProfileFromResumeWorkflow(extractor, get_trace_uow_factory()).execute(text)
                     record['result'] = ProfileExtractionProposalResponse.from_proposal(result).model_dump(mode='json', by_alias=True)
                 else:

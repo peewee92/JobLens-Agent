@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
 
+const localPort = process.env.JOBLENS_LOCAL_WEB_PORT;
+const cacheKey = localPort ? `local-${localPort}`
+  : process.env.JOBLENS_DEMO === "1" ? `demo-${process.env.JOBLENS_DEMO_WEB_PORT ?? "3100"}` : null;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  distDir: process.env.JOBLENS_DEMO === "1" ? `.next-demo-${process.env.JOBLENS_DEMO_WEB_PORT ?? "3100"}` : ".next",
-  typescript: {tsconfigPath: process.env.JOBLENS_DEMO === "1" ? `.tsconfig-demo-${process.env.JOBLENS_DEMO_WEB_PORT ?? "3100"}.json` : "tsconfig.json"},
+  distDir: cacheKey ? `.next-${cacheKey}` : ".next",
+  typescript: {tsconfigPath: cacheKey ? `.tsconfig-${cacheKey}.json` : "tsconfig.json"},
   allowedDevOrigins: ["127.0.0.1", "localhost"],
 };
 

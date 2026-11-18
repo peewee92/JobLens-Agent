@@ -72,6 +72,12 @@ async def propose_profile_from_file(
 ) -> ProfileExtractionProposalResponse:
     """Parse one bounded PDF/DOCX and return a reviewable proposal."""
 
+    document = await read_resume_file(file)
+    proposal = workflow.execute(document)
+    return ProfileExtractionProposalResponse.from_proposal(proposal)
+
+
+async def read_resume_file(file: UploadFile | None) -> ResumeDocumentInput:
     if file is None:
         raise InvalidResumeDocumentError("Request must contain a resume file.")
 
@@ -88,11 +94,8 @@ async def propose_profile_from_file(
     finally:
         await file.close()
 
-    proposal = workflow.execute(
-        ResumeDocumentInput(
-            filename=file.filename or "resume",
-            content_type=file.content_type,
-            content=b"".join(chunks),
-        )
+    return ResumeDocumentInput(
+        filename=file.filename or "resume",
+        content_type=file.content_type,
+        content=b"".join(chunks),
     )
-    return ProfileExtractionProposalResponse.from_proposal(proposal)
