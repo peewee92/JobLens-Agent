@@ -104,3 +104,30 @@ def test_preflight_distinguishes_incomplete_unanalyzed_and_failed_with_no_writes
             output=None, error=None, latency_ms=0, input_tokens=None, output_tokens=None,
         ))
     assert preflight(client, [failed])["omissions"][0]["recoveryCode"] == "requirements_not_analyzed"
+
+
+def test_personal_gap_uses_the_same_confirmed_job_gate_and_still_blocks_stale_or_unchecked(first_user):
+    client, factory = first_user
+    save_inputs(client, supported=True)
+    job = manual_job(client, "应用工程师", PYTHON)
+    base = f"/api/v1/jobs/{job}"
+    facts = client.post(base + "/requirement-extractions").json()
+    def gap():
+        result = client.post("/api/v1/target-cohort/gaps", json={
+            "cohortId": "personal-gap", "name": "个人目标", "selectedJobIds": [job]})
+        assert result.status_code == 200, result.text
+        return result.json()
+    assert not gap()["factsUsable"]
+    confirmed = client.post(base + "/requirement-confirmations", json={
+        "actionId": "personal-gap-check", "extractionId": facts["extractionId"],
+        "inputHash": facts["inputHash"], "factsDigest": facts["factsDigest"], "confirmed": True})
+    assert confirmed.status_code == 200
+    assert gap()["factsUsable"], gap()
+    from app.application.job_queries.manual_description import description_digest
+    changed = client.put(base + "/manual-description", json={
+        "description": PYTHON + "\n工作职责：维护应用服务。", "expectedSha256": description_digest(PYTHON)})
+    assert changed.status_code == 200
+    assert not gap()["factsUsable"]
+    with factory() as session:
+        from sqlalchemy import text
+        assert session.execute(text("SELECT count(*) FROM requirement_review_batch_final_decisions")).scalar_one() == 0

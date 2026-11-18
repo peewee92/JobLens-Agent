@@ -553,4 +553,4 @@ services/backend/
 
 ### 本地单用户正式入口
 
-优先从仓库根目录执行 `python3 scripts/local.py`；可指定 `--directory`、`--backend-port`、`--web-port` 和私有 `--model-config`。该入口仅监听本机，独立空库且不加载演示样本，不会读取默认 `.env` 或旧库。未配置模型可手填资料。PDF/DOCX 先本机读取，简历文本需逐次授权才发送给模型。原有公开合成演示和内部正式质量审核保持独立。
+优先从仓库根目录执行 `python3 scripts/local.py`；可指定 `--directory`、`--backend-port`、`--web-port` 和私有 `--model-config`。该入口仅监听本机，独立空库且不加载演示样本，不会读取默认 `.env` 或旧库。未配置模型可手填资料。PDF/DOCX 读取、逐次授权与请求回执契约见[本轮需求及验收](../../docs/implementation/P1-local-product-acceptance.md)。原有公开合成演示和内部正式质量审核保持独立。
