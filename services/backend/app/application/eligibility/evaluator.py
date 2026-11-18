@@ -14,6 +14,10 @@ from app.application.job_requirements.models import (
     JobRequirementDetail,
     JobRequirementExtractionDetail,
 )
+from app.application.job_requirements.personal_qualifications import (
+    POLICY as PERSONAL_QUALIFICATIONS_POLICY,
+    qualification_review_reason,
+)
 from app.domain.job_requirements import RequirementImportance, RequirementType
 
 _YEAR_REQUIREMENT = re.compile(
@@ -205,16 +209,16 @@ def evaluate_eligibility(
         _evaluate_requirement(profile=profile, requirement=requirement)
         for requirement in extraction.requirements
     )
-    missing_must_have = any(
-        item.importance is RequirementImportance.MUST_HAVE
-        and item.status is RequirementFitStatus.MISSING
-        for item in results
+    # A role duty is useful for assessing fit, but it is not a prerequisite
+    # for applying. Scope the new distinction to versioned personal facts.
+    personal_qualifications = PERSONAL_QUALIFICATIONS_POLICY in extraction.extractor_version.split("+")
+    hard_requirements = tuple(
+        item for item in results
+        if item.importance is RequirementImportance.MUST_HAVE
+        and not (personal_qualifications and item.type is RequirementType.RESPONSIBILITY)
     )
-    conditional_must_have = any(
-        item.importance is RequirementImportance.MUST_HAVE
-        and item.status is RequirementFitStatus.CONDITIONAL
-        for item in results
-    )
+    missing_must_have = any(item.status is RequirementFitStatus.MISSING for item in hard_requirements)
+    conditional_must_have = any(item.status is RequirementFitStatus.CONDITIONAL for item in hard_requirements)
     if missing_must_have:
         eligibility = EligibilityDecision.BLOCKED
     elif conditional_must_have:
@@ -242,6 +246,9 @@ def _evaluate_requirement(
     profile: ProfileDetail,
     requirement: JobRequirementDetail,
 ) -> RequirementEligibilityResult:
+    if reason := qualification_review_reason(requirement):
+        return _unknown(requirement, reason)
+
     # 条件组先判：整体是一道门，命中任意一项即可满足。
     group_result = _evaluate_alternative_group(profile, requirement)
     if group_result is not None:
