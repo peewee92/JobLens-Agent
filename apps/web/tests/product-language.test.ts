@@ -815,6 +815,13 @@ test("first-use recovery can save a user-authored experience without entering de
   assert.doesNotMatch(quick, /<fieldset|id="years"|fetch\(/);
 });
 
+test("local job empty state points to the actual authorization instead of the offline button", async () => {
+  const page = await source("app/jobs/[id]/page.tsx");
+  assert.match(page, /localProduct=\{localProduct\}/);
+  assert.match(page, /localProduct\s+\? "这个岗位还没有可核对的要求。先查看上方的模型调用范围，再决定是否授权一次提取。"/);
+  assert.match(page, /!requirementError && !job\.userMarkedInactive \? \(/);
+});
+
 test("education add actions open a dedicated education editor instead of a generic experience card", async () => {
   const editor = await source("components/profile-editor.tsx");
 
