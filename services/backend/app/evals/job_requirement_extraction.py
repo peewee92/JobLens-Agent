@@ -69,6 +69,14 @@ FORBIDDEN_CAPABILITY_RATE_THRESHOLD = 0.0
 
 
 def load_job_requirement_eval_cases(path: Path) -> tuple[JobRequirementEvalCase, ...]:
+    cases = read_job_requirement_eval_cases(path)
+    if len(cases) < 10:
+        raise ValueError("Requirement Eval dataset must contain at least 10 cases")
+    return cases
+
+
+def read_job_requirement_eval_cases(path: Path) -> tuple[JobRequirementEvalCase, ...]:
+    """Read reference labels without treating a small holdout as a release suite."""
     cases: list[JobRequirementEvalCase] = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
@@ -93,8 +101,6 @@ def load_job_requirement_eval_cases(path: Path) -> tuple[JobRequirementEvalCase,
             )
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError(f"Invalid Requirement Eval case at line {line_number}") from error
-    if len(cases) < 10:
-        raise ValueError("Requirement Eval dataset must contain at least 10 cases")
     if len({case.case_id for case in cases}) != len(cases):
         raise ValueError("Requirement Eval caseId values must be unique")
     return tuple(cases)
