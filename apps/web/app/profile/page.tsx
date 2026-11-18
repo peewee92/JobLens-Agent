@@ -2,6 +2,7 @@ import {publicSession} from "@/lib/model-session";
 import {redirect} from "next/navigation";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import {EvidenceActionProgress} from "@/components/evidence-action-progress";
+import {PageHeading} from "@/components/ui/patterns";
 import {ProfileEditor} from "@/components/profile-editor";
 import {ServiceError} from "@/components/service-error";
 import {
@@ -231,13 +232,8 @@ export default async function ProfilePage({
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">我的背景</p>
-        <h1>我的背景和求职偏好</h1>
-        <p className="lede">
-          告诉 JobLens 你真实做过什么、会什么，以及你想找什么样的工作。AI 可以帮你从简历生成草稿，但只有你确认保存的信息才会用于岗位匹配。
-        </p>
-      </section>
+      <PageHeading kicker="第 1 步 · 确认资料" title="我的背景和求职偏好"
+        description="先写下你做过什么、想找什么岗位。只有你核对并保存的资料才会用于匹配。" />
 
       <AgentScopeReturn scope={agentScope} />
       {gapIds.length > 0 && <Link className="button-secondary" href={gapScopeHref(gapIds)}>返回原目标岗位差距</Link>}

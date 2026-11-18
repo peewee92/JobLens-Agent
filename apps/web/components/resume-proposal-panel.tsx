@@ -8,6 +8,8 @@ import type {
   ProfileExtractionProposal,
   SkillLevel,
 } from "@/lib/contracts";
+import {Button} from "@/components/ui/button";
+import {ActionFeedback} from "@/components/ui/patterns";
 import {validateResumeFile} from "@/lib/resume-files";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 
@@ -48,6 +50,7 @@ export function ResumeProposalPanel({
   onReviewDraft,
   onManualEntry,
   manualEntryLabel = "不用简历，快速填写",
+  hideManualEntry = false,
   disabled = false,
 }: {
   byok?: boolean;
@@ -57,6 +60,7 @@ export function ResumeProposalPanel({
   onReviewDraft: () => void;
   onManualEntry?: () => void;
   manualEntryLabel?: string;
+  hideManualEntry?: boolean;
   disabled?: boolean;
 }) {
   const authorizeModel = byok || localProfileModel === true;
@@ -213,15 +217,14 @@ export function ResumeProposalPanel({
   }
 
   const busy = state.kind === "submitting";
-  const feedback = state.message && <div className={state.kind === "error" ? "inline-error" : "notice"}
-    role={state.kind === "error" ? "alert" : "status"}>{state.message}</div>;
+  const feedback = state.message && <ActionFeedback tone={state.kind === "error" ? "danger" : "info"}>{state.message}</ActionFeedback>;
 
   return (
     <section className="panel proposal-panel" aria-labelledby="resume-proposal-title">
       <div className="section-heading-row">
         <div>
           <p className="eyebrow">第 1 步 · {byok ? "添加简历文字" : "上传简历"}</p>
-          <h2 id="resume-proposal-title">{byok ? "粘贴简历，先生成草稿" : "上传简历，先生成草稿"}</h2>
+          <h2 id="resume-proposal-title">{unavailable ? "先填写你的真实经历" : byok ? "粘贴简历，先生成草稿" : "上传简历，先生成草稿"}</h2>
         </div>
         <span className="version-badge">自动填草稿 · 不自动保存</span>
       </div>
@@ -313,9 +316,9 @@ export function ResumeProposalPanel({
         {pendingAction && feedback}
       </section>}
 
-      {onManualEntry && !proposal && <div className="actions">
-        <button className={state.kind === "error" ? "button" : "button-secondary"} type="button"
-          disabled={busy || disabled} onClick={onManualEntry}>{manualEntryLabel}</button>
+      {onManualEntry && !hideManualEntry && !proposal && <div className="actions">
+        <Button variant={unavailable || state.kind === "error" ? "primary" : "secondary"}
+          disabled={busy || disabled} onClick={onManualEntry}>{manualEntryLabel}</Button>
         {state.kind === "error" && <span className="muted-copy">
           {callPlan && pendingAction ? "手动填写不影响查询刚才的请求。" : "想重试解析，可修改输入后重新查看调用计划；不会自动发送。"}
         </span>}

@@ -1,0 +1,84 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme inline {
+  --color-jl-brand: var(--brand);
+  --color-jl-brand-hover: var(--brand-dark);
+  --color-jl-accent: var(--brand-soft);
+  --color-jl-panel: var(--panel);
+  --color-jl-ink: var(--ink);
+  --color-jl-muted: var(--muted);
+  --color-jl-line: var(--line-strong);
+  --color-jl-soft: var(--soft);
+}
+
+:root {
+  --jl-space-1: .25rem;
+  --jl-space-2: .5rem;
+  --jl-space-3: .75rem;
+  --jl-space-4: 1rem;
+  --jl-space-6: 1.5rem;
+  --jl-space-8: 2rem;
+  --jl-space-12: 3rem;
+}
+
+.jl-page-heading { margin-block: 0 var(--jl-space-6); display: grid; gap: var(--jl-space-2); max-width: 66ch; }
+.jl-page-heading h1 { margin: 0; font-size: clamp(1.75rem, 1.22rem + 2vw, 2.6rem); line-height: 1.22; letter-spacing: -.025em; text-wrap: balance; overflow-wrap: anywhere; }
+.jl-page-heading p { margin: 0; line-height: 1.65; max-width: 58ch; }
+.jl-kicker { color: var(--brand-dark); font-size: .875rem; font-weight: 700; }
+.jl-description { color: var(--ink-soft); }
+.jl-panel { border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-m); padding: clamp(1rem, 2.5vw, 1.5rem); min-width: 0; overflow-wrap: anywhere; }
+.jl-panel > :first-child { margin-block-start: 0; }
+.jl-panel > :last-child { margin-block-end: 0; }
+.jl-panel h2, .jl-panel h3 { line-height: 1.35; }
+.jl-section-stack { display: grid; gap: var(--jl-space-6); }
+.jl-section-stack > * { min-width: 0; }
+.jl-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--jl-space-2) var(--jl-space-4); }
+.jl-text-link { color: var(--brand-dark); text-decoration: underline; text-underline-offset: 3px; }
+.jl-workbench-focus { background: linear-gradient(100deg, var(--brand-soft), var(--panel) 85%); border-color: #c9d9fb; }
+.jl-workbench-focus > h2 { margin: 0 0 var(--jl-space-2); font-size: 1.25rem; }
+.jl-workbench-focus > p { margin: 0 0 var(--jl-space-4); color: var(--ink-soft); }
+.jl-workbench-focus .jl-inline a { min-height: 44px; display: inline-flex; align-items: center; }
+.jl-phase { display: grid; gap: var(--jl-space-3); margin: 0; padding: 0; list-style: none; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.jl-phase li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: var(--jl-space-2) var(--jl-space-3); align-content: start; padding: var(--jl-space-3); border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--panel); }
+.jl-phase li[aria-current] { border-color: #9ab3f2; background: var(--brand-soft); }
+.jl-phase-number { display: grid; place-content: center; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); color: var(--ink-soft); width: 2rem; height: 2rem; font-weight: 700; }
+.jl-phase [aria-current] .jl-phase-number { background: var(--brand); color: #fff; border-color: var(--brand); }
+.jl-phase strong { display: block; }
+.jl-phase small { color: var(--ink-soft); }
+.jl-phase p { grid-column: 2; margin: 0; color: var(--ink-soft); font-size: .875rem; line-height: 1.5; }
+.jl-root-notice { padding: var(--jl-space-2) var(--jl-space-3); border-inline-start: 3px solid var(--line-strong); background: var(--soft); color: var(--ink-soft); font-size: .875rem; line-height: 1.55; }
+.jl-root-notice a { color: var(--brand-dark); text-decoration: underline; }
+.jl-callout { border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--soft); padding: var(--jl-space-3) var(--jl-space-4); margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+.jl-callout[data-tone="info"] { background: var(--brand-soft); border-color: #c9d9fb; color: var(--brand-dark); }
+.jl-callout[data-tone="warning"] { background: var(--warning-soft); color: #634d0a; border-color: #dfcc97; }
+.jl-callout[data-tone="danger"] { background: var(--danger-soft); color: var(--danger); border-color: #e5aaa6; }
+.jl-badge { display: inline-flex; align-items: center; width: fit-content; border-radius: 999px; padding: var(--jl-space-1) var(--jl-space-2); color: var(--ink-soft); background: var(--soft); font-size: .8125rem; font-weight: 650; }
+.jl-badge[data-tone="info"] { color: var(--brand-dark); background: var(--brand-soft); }
+.jl-badge[data-tone="success"] { color: #086039; background: var(--success-soft); }
+.jl-badge[data-tone="warning"] { color: #634d0a; background: var(--warning-soft); }
+.jl-badge[data-tone="danger"] { color: var(--danger); background: var(--danger-soft); }
+.jl-field { display: grid; gap: var(--jl-space-2); min-width: 0; }
+.jl-field label { font-weight: 700; }
+.jl-field p { margin: 0; color: var(--ink-soft); font-size: .875rem; }
+.jl-field input:not([type=checkbox]), .jl-field textarea, .jl-field select { width: 100%; min-height: 44px; background: var(--panel); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-s); padding: var(--jl-space-2) var(--jl-space-3); box-sizing: border-box; }
+.jl-field [aria-invalid=true] { border-color: var(--danger); }
+.jl-field .jl-field-error { color: var(--danger); }
+.jl-skeleton { display: block; background: var(--soft); border-radius: var(--radius-s); }
+.jl-dialog-backdrop { position: fixed; inset: 0; z-index: 49; background: #18233777; }
+.jl-dialog { position: fixed; z-index: 50; inset-inline: 0; top: 8vh; margin-inline: auto; width: min(34rem, calc(100% - 2rem)); max-height: 84dvh; overflow: auto; box-shadow: var(--shadow-lg); }
+.jl-dialog h2 { margin: 0 0 var(--jl-space-2); }
+.jl-dialog-description { color: var(--ink-soft); margin: 0 0 var(--jl-space-4); }
+.jl-table-scroll { overflow-x: auto; max-width: 100%; }
+.jl-table { width: 100%; border-collapse: collapse; text-align: start; }
+.jl-table :is(th,td) { padding: .75rem; border-block-end: 1px solid var(--line); text-align: start; vertical-align: top; }
+.jl-table th { background: var(--soft); }
+@media (max-width: 700px) {
+  .jl-phase { grid-template-columns: 1fr; gap: var(--jl-space-2); }
+  .jl-phase li { align-items: center; padding: var(--jl-space-2) var(--jl-space-3); }
+  .jl-phase li:not([aria-current]) p { display: none; }
+  .jl-phase p { margin-block-start: -.25rem; }
+  .site-header { position: static; }
+  [id] { scroll-margin-top: 1rem; }
+}

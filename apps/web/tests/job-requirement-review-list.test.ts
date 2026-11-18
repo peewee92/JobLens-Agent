@@ -35,5 +35,5 @@ test("import step does not imply that job requirements have been reviewed", () =
     profileVersion: null, searchIntentVersion: null, evidenceCount: 0,
     inputIssueCodes: ["profile_missing"], jobCount: 4, currentRun: null, workspaces: [], changes: [],
   }}));
-  assert.match(html, /添加岗位<\/strong><span>已完成<\/span><p>先粘贴招聘描述；比较前，在对应岗位核对要求。/);
+  assert.match(html, /添加岗位<\/strong><small>已完成<\/small><\/div><p>先粘贴招聘描述；比较前，在对应岗位核对要求。/);
 });

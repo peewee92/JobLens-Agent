@@ -776,7 +776,7 @@ export function ProfileEditor({
     <div className="profile-layout">
       {profileVersion === 0 ? <div className="stack-sm">
         <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft}
-          onManualEntry={beginManualEntry} manualEntryLabel={profileDraftBlank || isQuickEntryOpen ? "不用简历，快速填写" : "继续填写或核对背景"} disabled={saving} />
+          onManualEntry={beginManualEntry} manualEntryLabel="手动填写经历" hideManualEntry={isQuickEntryOpen || isProfileEditorOpen} disabled={saving} />
       </div> : <details className="detail-card">
         <summary>从新的简历整理草稿</summary>
         <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
@@ -970,20 +970,11 @@ export function ProfileEditor({
             </div>
           </section>
         ) : profileDraftBlank ? (
-          <section className="profile-review-empty">
+          <section className="profile-review-empty" aria-label="尚无职业背景">
             <div>
               <h3>还没有可确认的职业背景</h3>
-              <p>
-                可以快速添加一段真实经历，不需要调用模型。
-              </p>
+              <p>从上方上传简历或手动填写；核对后再保存。</p>
             </div>
-            <button
-              className="button-secondary"
-              type="button"
-              onClick={beginManualEntry}
-            >
-              快速填写职业背景
-            </button>
           </section>
         ) : (
           <div className="profile-review">

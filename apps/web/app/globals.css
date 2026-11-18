@@ -3182,26 +3182,6 @@ h3 {
 .byok-shell details > .field { margin-top: 14px; }
 .byok-shell textarea { resize: vertical; }
 
-.first-use-guide { margin-block: 1.25rem; }
-.first-use-guide ol {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.first-use-guide li {
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-s);
-  background: white;
-  color: var(--ink);
-}
-.first-use-guide [aria-current="step"] { border-color: var(--brand); background: var(--brand-soft); }
-.first-use-guide li span { display: block; margin-block: 0.25rem; color: var(--brand-dark); font-size: 0.85rem; }
-.first-use-guide li p { margin: 0; color: var(--ink-soft); }
-@media (max-width: 620px) { .first-use-guide ol { grid-template-columns: 1fr; } }
 
 .manual-job-form {
   display: grid;
@@ -3235,12 +3215,6 @@ h3 {
 [id^="saved-"], #start-preparation, #resume, #actions, #evidence, #interview { scroll-margin-top: 78px; }
 
 .route-loading { width: 100%; min-height: 215px; }
-.route-loading-bar { height: 16px; width: min(100%, 560px); border-radius: 999px; background: #e4eaf3; }
-.route-loading-bar:first-of-type { width: min(70%, 270px); }
-@media (prefers-reduced-motion: no-preference) {
-  .route-loading-bar { animation: route-pulse 1.2s ease-in-out infinite alternate; }
-  @keyframes route-pulse { to { opacity: 0.46; } }
-}
 
 .link-feedback { font-size: 0.85em; }
 .saved-analysis { display: grid; gap: 18px; }

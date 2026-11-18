@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import {NavLink} from "@/components/nav-link";
 import "@/app/globals.css";
+import "@/app/design.css";
 
 export const metadata: Metadata = {
   title: "JobLens",
@@ -39,12 +40,12 @@ export default async function RootLayout({children}: {children: ReactNode}) {
           </div>
         </header>
         <main id="main" className="shell page-shell">
-          {session?.mode === "byok" && <aside className="notice"><strong>自带模型真实分析</strong>：资料来源为{session.synthetic ? "合成样本" : "用户填写"}，模型费用由你的账户承担。进度临时保存，闲置 30 分钟、最长两小时或服务重启后失效。<Link href="/my-analysis">继续分析</Link> · <Link href="/connect">设置与导出</Link></aside>}
-          {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && session?.mode !== "byok" && <aside className="notice" role="note" aria-label="隔离合成演示">
+          {session?.mode === "byok" && <aside className="jl-root-notice"><strong>自带模型真实分析</strong>：资料来源为{session.synthetic ? "合成样本" : "用户填写"}，模型费用由你的账户承担。进度临时保存，闲置 30 分钟、最长两小时或服务重启后失效。<Link href="/my-analysis">继续分析</Link> · <Link href="/connect">设置与导出</Link></aside>}
+          {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && session?.mode !== "byok" && <aside className="jl-root-notice" role="note" aria-label="隔离合成演示">
             <strong>离线合成演示</strong>：这里的资料、公司和岗位均为合成样本，不是真实求职结论。已禁用在线模型；数据保存在独立演示库，不会修改你的真实记录。{publicDemoEnabled() && <>临时进度可能随服务休眠或重启丢失。<Link href="/demo">重新开始样本体验</Link></>}
           </aside>}
           {process.env.JOBLENS_LOCAL_PRODUCT === "1" && !publicDemoEnabled() &&
-            <aside className="notice" role="note" aria-label="本地正式使用"><strong>本地正式使用</strong>：使用你录入的资料与岗位，进度保存在本机。只有授权的模型步骤才会把指定文本发送给模型服务。</aside>}
+            <aside className="jl-root-notice" role="note" aria-label="本地正式使用"><strong>本地正式使用</strong>：使用你录入的资料与岗位，进度保存在本机。只有授权的模型步骤才会把指定文本发送给模型服务。</aside>}
           {children}
         </main>
         <footer className="shell site-footer">
