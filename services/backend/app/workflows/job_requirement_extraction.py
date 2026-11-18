@@ -23,6 +23,10 @@ from app.application.job_requirements.personal_optional_skill import (
     POLICY as PERSONAL_OPTIONAL_SKILL_POLICY,
     preserve_explicit_optional_skill,
 )
+from app.application.job_requirements.personal_qualifications import (
+    POLICY as PERSONAL_QUALIFICATIONS_POLICY,
+    preserve_grounded_qualifications,
+)
 from app.application.job_requirements.personal_skill_proof import POLICY as PERSONAL_SKILL_POLICY, preserve_skill_requiring_proof
 from app.application.job_requirements.validation import (
     COVERAGE_POLICY_VERSION,
@@ -48,7 +52,7 @@ TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "requirement-extractor-v42.96"
 PROMPT_VERSION = "requirement-extraction-v9"
-PERSONAL_EXTRACTOR_VERSION = f"{EXTRACTOR_VERSION}+{PERSONAL_SKILL_POLICY}+{PERSONAL_OPTIONAL_SKILL_POLICY}"
+PERSONAL_EXTRACTOR_VERSION = f"{EXTRACTOR_VERSION}+{PERSONAL_SKILL_POLICY}+{PERSONAL_OPTIONAL_SKILL_POLICY}+{PERSONAL_QUALIFICATIONS_POLICY}"
 
 
 class ExtractJobRequirementsWorkflow:
@@ -93,6 +97,7 @@ class ExtractJobRequirementsWorkflow:
         provider_calls = 0
         personal_repairs = ()
         personal_optional_repairs = ()
+        personal_qualification_repairs = ()
 
         try:
             result = self._extractor.extract(normalized)
@@ -111,6 +116,7 @@ class ExtractJobRequirementsWorkflow:
             if self._personal_skill_proof:
                 output, personal_repairs = preserve_skill_requiring_proof(normalized, output)
                 output, personal_optional_repairs = preserve_explicit_optional_skill(normalized, output)
+                output, personal_qualification_repairs = preserve_grounded_qualifications(normalized, output)
             validate_job_requirement_output(normalized, output)
             coverage_audit = audit_job_requirement_coverage(normalized, output)
             validate_job_requirement_coverage(coverage_audit)
@@ -140,6 +146,7 @@ class ExtractJobRequirementsWorkflow:
                 semantic_repairs=semantic_repairs,
                 personal_repairs=personal_repairs,
                 personal_optional_repairs=personal_optional_repairs,
+                personal_qualification_repairs=personal_qualification_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -163,6 +170,7 @@ class ExtractJobRequirementsWorkflow:
                 semantic_repairs=semantic_repairs,
                 personal_repairs=personal_repairs,
                 personal_optional_repairs=personal_optional_repairs,
+                personal_qualification_repairs=personal_qualification_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -183,6 +191,7 @@ class ExtractJobRequirementsWorkflow:
             semantic_repairs=semantic_repairs,
             personal_repairs=personal_repairs,
             personal_optional_repairs=personal_optional_repairs,
+            personal_qualification_repairs=personal_qualification_repairs,
             coverage_audit=coverage_audit,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
@@ -211,6 +220,7 @@ class ExtractJobRequirementsWorkflow:
         semantic_repairs: tuple[SemanticRepairEvent, ...],
         personal_repairs: tuple[int, ...],
         personal_optional_repairs: tuple[int, ...],
+        personal_qualification_repairs: tuple[tuple[int, str], ...],
         coverage_audit: JobRequirementCoverageAudit | None,
         latency_ms: int,
         input_tokens: int | None,
@@ -240,6 +250,10 @@ class ExtractJobRequirementsWorkflow:
                             **({
                                 "personalSkillProofRepairs": list(personal_repairs),
                                 "personalOptionalSkillRepairs": list(personal_optional_repairs),
+                                "personalQualificationRepairs": [
+                                    {"requirementIndex": index, "strategy": strategy}
+                                    for index, strategy in personal_qualification_repairs
+                                ],
                             } if self._personal_skill_proof else {}),
                         }
                         if output is not None
