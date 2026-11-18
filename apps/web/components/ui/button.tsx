@@ -18,6 +18,6 @@ type Props = ComponentProps<"button"> & VariantProps<typeof buttonVariants> & {a
 // shadcn/ui Button pattern: variants plus Radix Slot; never nest a link inside a button.
 export function Button({asChild, variant, className, type, ref, ...props}: Props) {
   const style = twMerge(clsx(buttonVariants({variant}), className));
-  if (asChild) return <Slot ref={ref} className={style} {...props} />;
+  if (asChild) return <Slot ref={ref} className={style} data-jl-button={variant ?? "primary"} {...props} />;
   return <button ref={ref} className={style} type={type ?? "button"} {...props} />;
 }

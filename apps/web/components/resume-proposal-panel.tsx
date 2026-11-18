@@ -234,8 +234,8 @@ export function ResumeProposalPanel({
           : authorizeModel
             ? "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。文件在本机读取；只有确认调用后，提取出的文本才会发送给模型服务。"
             : unavailable
-              ? "还没配置可用的简历模型。可先手动填写真实经历，之后再从本地启动配置接入模型。"
-              : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。离线演示只使用样本规则；其他模式需先配置并授权模型。"} 整理只生成草稿，只有你核对保存后才会用于匹配。
+              ? "现在没有可用的简历模型。手动填写两项就能开始。"
+              : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。离线演示使用样本规则。"}
       </p>
 
       {!byok && !unavailable && <form className="proposal-file-form" method="post" onSubmit={proposeFile}>

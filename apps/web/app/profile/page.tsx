@@ -238,7 +238,7 @@ export default async function ProfilePage({
       <AgentScopeReturn scope={agentScope} />
       {gapIds.length > 0 && <Link className="button-secondary" href={gapScopeHref(gapIds)}>返回原目标岗位差距</Link>}
 
-      <details className="detail-card">
+      <details className="detail-card jl-profile-readiness">
         <summary>查看匹配准备情况</summary>
         <div className="section-heading-row">
           <div>
