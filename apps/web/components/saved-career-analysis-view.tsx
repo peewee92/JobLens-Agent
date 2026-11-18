@@ -14,15 +14,18 @@ const evidenceLabels: Record<string, string> = {
   supported: "已有证据支持", evidenced: "已有证据支持", partial: "证据部分覆盖",
 };
 
-export function SavedCareerAnalysisView({result, backHref, savedScope, additionalLabels = {}, currentOmissions}: {
+export function SavedCareerAnalysisView({result, backHref, savedScope, additionalLabels = {}, currentOmissions, savedPartialSupport = {}}: {
   result: SavedCareerAnalysis; backHref: string;
   savedScope?: {requested: readonly string[]; compared: number};
   additionalLabels?: Record<string, string>; currentOmissions?: RankingOmission[];
+  savedPartialSupport?: Record<string, readonly string[]>;
 }) {
   const labels = {...additionalLabels, ...Object.fromEntries(result.bindings.map(item => [item.jobId, item.title]))};
   const preparedFacts = result.preparations.map(preparationFacts);
   const requirements = new Map(preparedFacts.flatMap(item => [...item.requirements]));
   const importance = new Map([...requirements].map(([id, item]) => [id, item.importance]));
+  const matchHref = (binding: SavedCareerAnalysis["bindings"][number]) =>
+    `/jobs/${encodeURIComponent(binding.jobId)}?reportId=${encodeURIComponent(binding.matchReportId)}#job-match-report`;
   return <div className="saved-analysis">
     <section className="page-heading"><p className="eyebrow">第 3 步 · 比较并准备</p>
       <h1>本次目标岗位的差距与准备材料</h1>
@@ -61,25 +64,36 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
     <section className="card stack-md" id="saved-gaps"><h2>能力差距：先核实经历，再决定怎么准备</h2>
       <p className="muted">这里显示哪些岗位要求还没有被你的已确认经历覆盖。不是能力评分，不因资料缺失就认定你不会。</p>
       {result.gaps.items.length === 0 ? <p>本次没有可列出的能力差距，不代表已经满足全部岗位要求。</p> :
-        result.gaps.items.map((item, index) => <article className="card stack-sm" key={`${item.capability}-${index}`}>
+        result.gaps.items.map((item, index) => {
+          const partiallySupported = result.bindings.filter(binding => item.supportingJobIds.includes(binding.jobId)
+            && item.supportingRequirementIds.some(id => savedPartialSupport[binding.jobId]?.includes(id)));
+          return <article className="card stack-sm" key={`${item.capability}-${index}`}>
           <h3>{item.capability}</h3>
           <p><strong>{gapImportanceLabel(item.whyImportant.mustHaveRatio, item.supportingRequirementIds, importance)}</strong></p>
-          <p>{currentStateLabel(item.currentState)}</p>
+          <p>{partiallySupported.length > 0 ? "还没有确认经历能覆盖全部要求。" : currentStateLabel(item.currentState)}</p>
+          {partiallySupported.length > 0 && <div className="notice">
+            <p>当时的匹配找到了相关经历，但只覆盖了部分要求；其余条件仍需要核实。</p>
+            <ul>{partiallySupported.map(binding => <li key={binding.jobId}><Link href={matchHref(binding)}>
+              查看「{binding.title}」当时的匹配依据
+            </Link></li>)}</ul>
+          </div>}
           <p><strong>下一步：</strong>{gapNextStep(item.whyImportant.mustHaveRatio)}</p>
           <p>涉及岗位：{item.supportingJobIds.map(id => labels[id]).filter(Boolean).join("、") || "名称暂不可读取"}</p>
           {!!item.supportingRequirementIds.length && <p>岗位依据：{item.supportingRequirementIds.map(id => requirements.get(id)?.text).filter(Boolean).join("；") || "可在下方的匹配依据里核对原文。"}</p>}
           <details><summary>查看来源证据</summary><p className="muted">依据：{item.supportingJobIds.length} 个岗位 · 要求 {item.supportingRequirementIds.join("、")} · 个人证据 {item.evidenceIds.join("、") || "尚未覆盖"}</p></details>
           <p><strong>如果你确实有相关经历，核对以下两点：</strong></p>
           <ul>{item.completionCriteria.map((criterion, i) => <li key={i}>{completionCriterionLabel(criterion)}</li>)}</ul>
-        </article>)}
+        </article>;
+        })}
     </section>
     {result.preparations.map((preparation, index) => {
       const binding = result.bindings.find(item => item.jobId === preparation.jobId);
       const facts = preparedFacts[index];
+      const partial = savedPartialSupport[preparation.jobId] ?? [];
       return <section className="card stack-md" key={preparation.jobId}>
         <h2>{binding?.title ?? "目标岗位"} · 准备材料</h2>
         <p>{binding?.company}</p>
-        {binding && <Link href={`/jobs/${encodeURIComponent(binding.jobId)}?reportId=${encodeURIComponent(binding.matchReportId)}`}>查看当时的匹配依据</Link>}
+        {binding && <Link href={matchHref(binding)}>查看当时的匹配依据</Link>}
         <h3 id={`saved-resume-${index}`}>简历可用事实要点</h3>
         <p className="muted">以下不是完整简历，也不增加未经确认的经历。</p>
         {preparation.resumeDelta?.highlights.length ? <ul>{preparation.resumeDelta.highlights.map((item, i) =>
@@ -93,8 +107,12 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         <h3 id={`saved-interview-${index}`}>面试问题与证据提示</h3>
         <p className="muted">围绕岗位要求准备说明，不是面试能力评分。</p>
         <ul>{preparation.interviewFacts?.items.map((item, i) => <li key={i}>
-          如何用真实经历说明“{item.requirementText}”？
-          <p>{item.evidenceSummaries.length ? item.evidenceSummaries.join("；") : "暂无可引用的经历，请如实说明并核实。"}</p>
+          <p><strong>招聘原文：</strong>{item.requirementText}</p>
+          <p>你做过哪些相关的事？当时是怎么做的，结果如何？</p>
+          {item.evidenceSummaries.length > 0 && <p>{item.evidenceSummaries.join("；")}</p>}
+          {partial.includes(item.requirementId) && binding
+            ? <p>已有相关经历，只覆盖部分要求。<Link href={matchHref(binding)}>核对当时用了哪些经历</Link>，没做过的部分请如实说明。</p>
+            : item.evidenceSummaries.length === 0 && <p>此准备材料没有可直接引用的经历。请核对自己的实际经历，不要补写没做过的事。</p>}
           <details><summary>查看问题依据</summary>要求 {item.requirementId} · 证据 {item.evidenceIds.join("、") || "待补充"}</details>
         </li>)}</ul>
         <h3>建议行动与完成标准</h3>

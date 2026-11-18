@@ -1,8 +1,9 @@
 import Link from "next/link";
-import {BackendApiError, backendJson, fetchJobDetail} from "@/lib/backend";
+import {BackendApiError, backendJson, fetchJobDetail, fetchMatchReportHistory} from "@/lib/backend";
 import type {CareerAgentRunState, SavedCareerAnalysis} from "@/lib/contracts";
 import {rankingPreflight, type RankingOmission} from "@/lib/agent-ranking-preflight";
 import {SavedCareerAnalysisView} from "@/components/saved-career-analysis-view";
+import {savedMatchSupport} from "@/lib/saved-match-support";
 
 export const dynamic = "force-dynamic";
 
@@ -14,18 +15,26 @@ export default async function AnalysisResultPage({params}: {params: Promise<{thr
     const ids = [...new Set([...(result.unrankedJobIds ?? []), ...(result.unanalysedJobIds ?? [])])]
       .filter(id => /^[A-Za-z0-9_-]{1,100}$/.test(id)).slice(0, 50);
     const params = new URLSearchParams(ids.map(id => ["jobId", id]));
-    const [run, labels, currentOmissions] = await Promise.all([
+    const [run, labels, currentOmissions, savedPartialSupport] = await Promise.all([
       backendJson<CareerAgentRunState>(`/api/v1/career-agent/runs/${encodeURIComponent(threadId)}`).catch(() => null),
       Promise.allSettled(ids.map(id => fetchJobDetail(id))).then(responses => Object.fromEntries(
         responses.flatMap((item, index) => item.status === "fulfilled" && item.value.id === ids[index]
           ? [[ids[index], item.value.title]] : []))),
       ids.length ? backendJson<unknown>(`/api/v1/match-ranking/preflight?${params}`)
         .then(body => rankingPreflight(ids, body).omissions).catch((): RankingOmission[] => []) : [],
+      Promise.all(result.bindings.filter(binding => result.selectedJobIds.includes(binding.jobId)).slice(0, 20)
+        .map(async binding => {
+          try {
+            return [binding.jobId, savedMatchSupport(result, binding, await fetchMatchReportHistory(binding.jobId))] as const;
+          } catch {
+            return [binding.jobId, []] as const;
+          }
+        })).then(entries => Object.fromEntries(entries)),
     ]);
     const savedScope = run?.threadId === threadId && run.resultId === result.resultId
       ? {requested: run.requestedJobIds, compared: run.rankedJobIds.length} : undefined;
     return <SavedCareerAnalysisView result={result} backHref={backHref}
-      savedScope={savedScope} additionalLabels={labels} currentOmissions={currentOmissions} />;
+      savedScope={savedScope} additionalLabels={labels} currentOmissions={currentOmissions} savedPartialSupport={savedPartialSupport} />;
   } catch (error) {
     return <section className="card stack-md"><h1>暂时无法打开已保存结果</h1>
       <p>{error instanceof BackendApiError && error.status === 404
