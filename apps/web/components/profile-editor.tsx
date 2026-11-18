@@ -186,6 +186,7 @@ export function ProfileEditor({
     message: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
+  const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false);
   const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
     Boolean(focusEvidenceType || focusRequirementType),
@@ -577,6 +578,7 @@ export function ProfileEditor({
       setProfileVersion(saved.version);
       setEvidenceReferenceKeys(saved.evidence.map((item) => item.key));
       setProfileDirty(false);
+      setIsQuickEntryOpen(false);
       setIsProfileEditorOpen(false);
       setProfileState({
         kind: "success",
@@ -613,6 +615,7 @@ export function ProfileEditor({
     setEvidenceReferenceKeys(draft.evidence.map((item) => item.key));
     setSkills(draft.skills);
     setProfileDirty(true);
+    setIsQuickEntryOpen(false);
     setIsProfileEditorOpen(false);
     setProfileState({
       kind: "idle",
@@ -639,7 +642,23 @@ export function ProfileEditor({
     });
   }
 
+  function beginManualEntry() {
+    if (isQuickEntryOpen || (profileDraftBlank && !isProfileEditorOpen && !activeRequirementFocus && !afterProfileSaveHref)) {
+      setIsQuickEntryOpen(true);
+      requestAnimationFrame(() => {
+        const input = document.getElementById("quick-profile-headline");
+        input?.scrollIntoView({block: "center"});
+        input?.focus({preventScroll: true});
+      });
+    } else if (isProfileEditorOpen || profileDraftBlank) {
+      openProfileDetails();
+    } else {
+      focusProfileDraft();
+    }
+  }
+
   function openProfileDetails() {
+    setIsQuickEntryOpen(false);
     setIsProfileEditorOpen(true);
     requestAnimationFrame(() => {
       const section = document.getElementById("profile-detail-heading");
@@ -676,6 +695,12 @@ export function ProfileEditor({
       event.preventDefault();
       setIsProfileEditorOpen(false);
       focusProfileDraft();
+      return;
+    }
+    if (isQuickEntryOpen && (!headline.trim() || !evidence[0]?.summary.trim() ||
+      (awaitingFirstIntent && splitList(targetRoles).length === 0))) {
+      event.preventDefault();
+      setProfileState({kind: "error", message: "请填写职业定位和一段真实经历；若需要同时保存求职目标，也请填一个岗位方向。"});
       return;
     }
     void saveProfile(event);
@@ -747,8 +772,8 @@ export function ProfileEditor({
   return (
     <div className="profile-layout">
       {profileVersion === 0 ? <div className="stack-sm">
-        <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
-        {profileDraftBlank && <button className="button-secondary" type="button" onClick={openProfileDetails}>不用简历，手动填写经历</button>}
+        <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft}
+          onManualEntry={beginManualEntry} manualEntryLabel={profileDraftBlank || isQuickEntryOpen ? "不用简历，快速填写" : "继续填写或核对背景"} disabled={saving} />
       </div> : <details className="detail-card">
         <summary>从新的简历整理草稿</summary>
         <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
@@ -917,20 +942,44 @@ export function ProfileEditor({
           </section>
         ) : null}
 
-        {profileDraftBlank ? (
+        {isQuickEntryOpen ? (
+          <section className="stack-md" aria-labelledby="quick-profile-heading">
+            <h3 id="quick-profile-heading">快速填写职业背景</h3>
+            <p className="muted-copy">直接写你真实做过的事。工作年限、学历、技能和其他偏好可以以后补；不会调用模型。</p>
+            <div className="field">
+              <label htmlFor="quick-profile-headline">职业定位</label>
+              <input id="quick-profile-headline" value={headline} required maxLength={500} readOnly={saving}
+                placeholder="例如：后端工程师，做过内部自动化工具"
+                onChange={event => {setHeadline(event.target.value); markProfileDirty();}} />
+            </div>
+            <div className="field">
+              <label htmlFor="quick-profile-experience">一段真实经历</label>
+              <textarea id="quick-profile-experience" value={evidence[0]?.summary ?? ""} rows={3} required maxLength={1000} readOnly={saving}
+                placeholder="例如：我用 Python 做了报表工具，每周自动汇总各组的数据。"
+                onChange={event => updateEvidence(0, {key: "first-experience", type: "self_report", summary: event.target.value})} />
+            </div>
+            {awaitingFirstIntent && targetField("starter-roles")}
+            <div className="actions">
+              <button className="button" type="submit" disabled={saving}>
+                {saving ? "正在保存…" : awaitingFirstIntent ? "确认保存背景和求职目标" : "确认保存职业背景"}
+              </button>
+              <button className="button-secondary" type="button" disabled={saving} onClick={openProfileDetails}>打开详细编辑</button>
+            </div>
+          </section>
+        ) : profileDraftBlank ? (
           <section className="profile-review-empty">
             <div>
               <h3>还没有可确认的职业背景</h3>
               <p>
-                直接在下方填写真实经历即可开始，不需要调用模型。填写后先返回卡片核对，再确认保存。
+                可以快速添加一段真实经历，不需要调用模型。
               </p>
             </div>
             <button
               className="button-secondary"
               type="button"
-              onClick={openProfileDetails}
+              onClick={beginManualEntry}
             >
-              手动填写
+              快速填写职业背景
             </button>
           </section>
         ) : (
