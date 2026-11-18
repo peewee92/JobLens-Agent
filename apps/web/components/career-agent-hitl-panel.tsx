@@ -1,4 +1,7 @@
 "use client";
+import {Button} from "@/components/ui/button";
+import {ActionFeedback} from "@/components/ui/patterns";
+import {Callout, Panel} from "@/components/ui/primitives";
 import {RankedJobExplanation} from "@/components/ranked-job-explanation";
 
 import {validatedRunLabels} from "@/lib/agent-run-labels";
@@ -298,35 +301,19 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
 
   return (
     <div className="stack-lg">
-      <section className="card stack-md" aria-label="Career Agent Chat">
-        <div>
-          <p className="eyebrow">本次求职分析</p>
-          <h2>比较进度与下一步</h2>
-          <p className="muted">先比较已有报告，再由你确认目标，最后保存准备材料。这里不会自由聊天、编造经历或自动投递。</p>
-        </div>
-        <div className="stack-sm">
-          <div>
-            <strong>你的请求</strong>
-            <p>{requestSummary}</p>
-          </div>
-          <div>
-            <strong>当前计划</strong>
-            <p>{planSummary}</p>
-            {hasRankingResult && <p>已选 {run.requestedJobIds.length} 个岗位，实际比较 {run.rankedJobIds.length} 个。</p>}
-          </div>
-          <div>
-            <strong>执行状态</strong>
-            <p role="status">{message}</p>
-          </div>
-          <details>
-            <summary>查看依据</summary>
-            <p className="muted">只使用已有匹配报告、已核对的岗位要求和你确认的经历，不猜测事实。</p>
-            {activeJobNames.length > 0 && <p className="muted">当前岗位范围：{activeJobNames.join("、")}</p>}
-            {run?.updateSourceThreadId && <p>这是基于历史结果创建的独立更新，原结果不会被覆盖。<Link href={`/agent/results/${encodeURIComponent(run.updateSourceThreadId)}`}>查看原分析</Link></p>}
-            {run?.gapResultFingerprint && <p className="muted">能力差距结果指纹：{run.gapResultFingerprint}</p>}
-          </details>
-        </div>
-      </section>
+      {(run || pendingCommand || recoverableThreadId) && <Panel className="stack-sm" aria-label="本次比较详情">
+        <h2>比较进度与下一步</h2>
+        {hasRankingResult && <p className="jl-scope-count">已选 {run.requestedJobIds.length} 个岗位，实际比较 {run.rankedJobIds.length} 个。</p>}
+        <p>{planSummary}</p>
+        <ActionFeedback>{message}</ActionFeedback>
+        <details>
+          <summary>查看本次范围与依据</summary>
+          <p>{requestSummary} 只使用已保存的报告、已核对的岗位要求和你确认的经历。</p>
+          {activeJobNames.length > 0 && <p>当前岗位范围：{activeJobNames.join("、")}</p>}
+          {run?.updateSourceThreadId && <p>这次更新不会覆盖旧结果。<Link href={`/agent/results/${encodeURIComponent(run.updateSourceThreadId)}`}>查看原分析</Link></p>}
+          {run?.gapResultFingerprint && <p className="muted">能力差距结果指纹：{run.gapResultFingerprint}</p>}
+        </details>
+      </Panel>}
       {!!run?.updateSteps?.length && <UpdateMatchProgress key={run.threadId} run={run} jobTitles={jobLabels} onState={state => {
         displayState(state);
         setMessage(state.pendingApproval ? "岗位排序已完成，请确认目标岗位。" : targetSelectionBlockMessage(state.currentStep) ?? "本次处理已保存，请查看当前状态。");
@@ -375,9 +362,8 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
       )}
 
       {!run && !recoverableThreadId && jobs.length > 0 && (
-        <section className="card stack-md">
+        <Panel className="stack-md">
           <div>
-            <p className="eyebrow">第一步 · 选择岗位</p>
             <h2>选择要一起分析的岗位</h2>
             <p className="muted">{initialScope !== undefined || initialJobId !== undefined
               ? "已带回你刚才指定的岗位；可以更改勾选，或先检查本批有哪些岗位需要补充。"
@@ -406,10 +392,12 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           {hasMore && <button className="button" disabled={loadingJobs} onClick={() => void loadMoreJobs()} type="button">{loadingJobs ? "正在读取岗位…" : "加载更多岗位"}</button>}
           {jobPageError && <p role="alert">{jobPageError}</p>}
           <p className="muted">已选择 {selected.length} / 50 个岗位；加载更多不会清除已选岗位。</p>
-          <button className="button" disabled={busy || checking || selected.length === 0} onClick={() => void checkRanking()} type="button">{checking ? "正在检查…" : "检查所选岗位"}</button>
-          {preflightError?.scope === currentScope && <p role="alert">{preflightError.message}</p>}
+          <div className="jl-inline"><Button variant={currentPreflight ? "secondary" : "primary"} aria-busy={checking} disabled={busy || checking || selected.length === 0}
+            onClick={() => void checkRanking()} type="button">{checking ? "正在检查…" : currentPreflight ? "重新检查所选岗位" : "检查所选岗位"}</Button></div>
+          {preflightError?.scope === currentScope && <ActionFeedback tone="danger">{preflightError.message}</ActionFeedback>}
           {currentPreflight && <div className="stack-sm" aria-live="polite">
-            <p>已选 {selected.length} 个岗位，目前有 {currentPreflight.ranked.length} 个可以比较。正式分析时会重新核对；可以比较不等于会推荐。</p>
+            <p className="jl-scope-count">已选 {selected.length} 个岗位，目前有 {currentPreflight.ranked.length} 个可以比较。</p>
+            <p className="muted">正式分析时会重新核对；可以比较不等于会推荐。</p>
             {currentPreflight.omissions.length > 0 && <aside className="notice ranking-omissions" aria-label="未进入排序的岗位及原因">
               <strong>{currentPreflight.omissions.length} 个岗位暂未进入默认排序</strong>
               <p>未进入排序不等于你不具备相关能力。以下原因仅基于当前保存的记录，正式分析时会重新检查。</p>
@@ -417,10 +405,10 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
                 <Link href={`${jobDetailWithAgentScope(item.jobId, selected)}#${rankingRecoveryAnchor(item)}`}>{jobLabels[item.jobId] ?? "岗位名称暂不可读取"}<LinkFeedback /></Link>：{rankingOmissionMessage(item)}
               </li>)}</ul>
             </aside>}
-            {currentPreflight.omissions.some(item => item.reason === "report_stale" || (item.reason === "report_missing" && !item.recoveryCode)) && <aside className="notice stack-sm">
+            {currentPreflight.omissions.some(item => item.reason === "report_stale" || (item.reason === "report_missing" && !item.recoveryCode)) && <Callout tone="info" className="stack-sm">
               <p>缺少或过期的报告可以按当前已确认事实重新分析。先预览这批岗位需要哪些处理，再明确启动；旧报告保留，需要模型时不会自动调用。</p>
-              <Link className="button primary" href={initialScopeAnalysisHref(selected)}>按当前事实分析这批岗位</Link>
-            </aside>}
+              <Button variant={currentPreflight.candidates.length ? "secondary" : "primary"} asChild><Link href={initialScopeAnalysisHref(selected)}>按当前事实分析这批岗位</Link></Button>
+            </Callout>}
             {currentPreflight.insufficient.length > 0 && <aside className="notice" aria-label="暂不提出目标建议的岗位">
               <strong>{currentPreflight.insufficient.length} 个岗位可以查看，但当前证据不足以提出目标建议</strong>
               <p>这不代表你不具备相应能力。可以查看要求、核对已有事实，补充确认后的真实证据，再更新匹配报告。</p>
@@ -429,10 +417,10 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
             {currentPreflight.ranked.length > 0 && !currentPreflight.candidates.length && <p>当前没有足够依据提出目标建议，请先查看岗位及匹配依据，更新后重新检查。</p>}
           </div>}
           {!currentPreflight && selected.length > 0 && <p className="muted">请先检查当前所选岗位；更改选择后需重新检查。</p>}
-          <button className="button primary" disabled={busy || checking || !currentPreflight?.candidates.length} onClick={startRun} type="button">
+          {!!currentPreflight?.candidates.length && <div className="jl-inline"><Button aria-busy={busy} disabled={busy || checking} onClick={startRun} type="button">
             {busy ? "正在比较…" : compareButtonLabel}
-          </button>
-        </section>
+          </Button></div>}
+        </Panel>
       )}
 
       {run && !run.legacyReadOnly && !(run.updateSteps?.length && ["analysis_created", "update_matching"].includes(run.currentStep)) && ["created", "running", "resuming"].includes(run.status) && (

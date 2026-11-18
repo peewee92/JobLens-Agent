@@ -1,5 +1,8 @@
 import React from "react";
 import Link from "next/link";
+import {Button} from "./ui/button";
+import {PageHeading} from "./ui/patterns";
+import {Badge, Panel} from "./ui/primitives";
 import {currentStateLabel, completionCriterionLabel, gapImportanceLabel, gapNextStep} from "@/lib/gap-language";
 import {UnrankedJobs} from "./unranked-jobs";
 import {AnalysisExecutionControls} from "./analysis-execution-controls";
@@ -28,23 +31,14 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
   const matchHref = (binding: SavedCareerAnalysis["bindings"][number]) =>
     `/jobs/${encodeURIComponent(binding.jobId)}?reportId=${encodeURIComponent(binding.matchReportId)}#job-match-report`;
   return <div className="saved-analysis">
-    <section className="page-heading"><p className="eyebrow">第 3 步 · 比较并准备</p>
-      <h1>本次目标岗位的差距与准备材料</h1>
-      <p>保存于 {formatDateTime(result.createdAt)}。以下是当时的事实与结论，不会在打开时重新生成。</p>
-      {savedScope && <p>已选 {savedScope.requested.length} 个岗位，实际比较 {savedScope.compared} 个；你确认了 {result.selectedJobIds.length} 个准备目标。</p>}
-      <nav className="actions" aria-label="跳到准备材料">
-        <a className="button-secondary" href="#saved-gaps">看能力差距</a>
-        {result.preparations.length > 0 && <><a className="button-secondary" href="#saved-resume-0">看简历建议</a>
-          <a className="button-secondary" href="#saved-interview-0">看面试问题</a></>}
-        <a className="button-secondary" href="#start-preparation">开始准备行动</a>
-      </nav>
-      {result.preparations.length > 1 && <ul>{result.preparations.map((item, index) =>
-        <li key={item.jobId}>{labels[item.jobId] ?? "目标岗位"} · <a href={`#saved-resume-${index}`}>简历建议</a> · <a href={`#saved-interview-${index}`}>面试问题</a></li>)}</ul>}
-      <Link href={backHref}>返回本次比较</Link>
-    </section>
-    <section className="card stack-md" aria-label="材料是否仍可用">
-      <h2>{result.isCurrent ? "这些材料仍适用于当前资料" : "历史材料：当前事实已变化"}</h2>
-      {!result.isCurrent && <p className="notice">保留原始材料，但不要将它当作当前建议。请返回运行，使用最新确认的事实新建分析。</p>}
+    <PageHeading kicker="第 3 步 · 比较并准备" title="本次目标岗位的差距与准备材料"
+      description={`保存于 ${formatDateTime(result.createdAt)}。以下是当时的事实与结论，不会在打开时重新生成。`} />
+    <Panel className="stack-sm" aria-labelledby="saved-scope-heading">
+      <Badge tone={result.isCurrent ? "success" : "warning"}>{result.isCurrent ? "已保存 · 当前可用" : "历史记录 · 只读"}</Badge>
+      <h2 id="saved-scope-heading">{result.isCurrent ? "这些材料仍适用于当前资料" : "历史材料：当前事实已变化"}</h2>
+      {savedScope && <p className="jl-scope-count">已选 {savedScope.requested.length} 个岗位，实际比较 {savedScope.compared} 个；你确认了 {result.selectedJobIds.length} 个准备目标。</p>}
+      {result.selectedJobIds.length > 0 && <p>准备目标：{result.selectedJobIds.map(id => labels[id] ?? "名称暂不可读取").join("、")}</p>}
+      {!result.isCurrent && <p>保留原始材料，但不要将它当作当前建议。请先核对当前事实，再创建独立的新分析。</p>}
       {!result.isCurrent && result.staleReasons.length > 0 && <ul>{result.staleReasons.map(reason => {
         const separator = reason.indexOf(":");
         const jobId = separator < 0 ? null : reason.slice(0, separator);
@@ -52,12 +46,25 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         const job = result.bindings.find(item => item.jobId === jobId);
         return <li key={reason}>{job ? `${job.title}：` : ""}{reportStaleReasonLabel(code)}</li>;
       })}</ul>}
+      <div className="jl-inline">
+        {!result.isCurrent
+          ? <Button asChild><Link href={`/agent/results/${encodeURIComponent(result.threadId)}/update`}>先核对更新范围</Link></Button>
+          : result.selectedJobIds.length > 0 && <Button asChild><a href="#start-preparation">开始准备行动</a></Button>}
+        <Link className="jl-text-link" href={backHref}>返回本次比较</Link>
+      </div>
       <details><summary>查看依据版本与变化原因</summary>
         <p>结果格式第 {result.schemaVersion} 版 · 资料 {result.profileId} 第 {result.profileVersion} 版 · 意向 {result.searchIntentId} 第 {result.searchIntentVersion} 版</p>
         <ul>{result.bindings.map(item => <li key={item.jobId}>{item.title} · {item.company}：要求 {item.extractionId} · 报告 {item.matchReportId} · {item.policyVersion}</li>)}</ul>
         {result.staleReasons.length > 0 && <p>原因码：{result.staleReasons.join("、")}</p>}
       </details>
-    </section>
+    </Panel>
+    <nav className="jl-inline jl-job-outline" aria-label="跳到准备材料">
+      <a href="#saved-gaps">看能力差距</a>
+      {result.preparations.length > 0 && <><a href="#saved-resume-0">看简历建议</a>
+        <a href="#saved-interview-0">看面试问题</a></>}
+    </nav>
+    {result.preparations.length > 1 && <ul>{result.preparations.map((item, index) =>
+      <li key={item.jobId}>{labels[item.jobId] ?? "目标岗位"} · <a href={`#saved-resume-${index}`}>简历建议</a> · <a href={`#saved-interview-${index}`}>面试问题</a></li>)}</ul>}
     <UnrankedJobs ids={result.unrankedJobIds ?? []} labels={labels} scope={savedScope?.requested} currentOmissions={currentOmissions} />
     {result.updatePartial && <section className="card stack-md" aria-label="部分范围说明"><h2>这是一份部分范围分析</h2>
       <p>用户明确选择只使用已完成岗位；以下岗位没有在本次完成分析，不代表已不适合：{result.unanalysedJobIds?.map(id => labels[id] ?? "名称暂不可读取").join("、")}。</p>
@@ -68,7 +75,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         result.gaps.items.map((item, index) => {
           const partiallySupported = result.bindings.filter(binding => item.supportingJobIds.includes(binding.jobId)
             && item.supportingRequirementIds.some(id => savedPartialSupport[binding.jobId]?.includes(id)));
-          return <article className="card stack-sm" key={`${item.capability}-${index}`}>
+          return <article className="jl-gap-item stack-sm" key={`${item.capability}-${index}`}>
           <h3>{item.capability}</h3>
           <p><strong>{gapImportanceLabel(item.whyImportant.mustHaveRatio, item.supportingRequirementIds, importance)}</strong></p>
           <p>{partiallySupported.length > 0 ? "还没有确认经历能覆盖全部要求。" : currentStateLabel(item.currentState)}</p>

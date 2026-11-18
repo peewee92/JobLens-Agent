@@ -2,6 +2,9 @@ import {preparationFacts} from "@/lib/preparation-facts";
 import {completionCriterionLabel} from "@/lib/gap-language";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import Link from "next/link";
+import {Button} from "@/components/ui/button";
+import {PageHeading} from "@/components/ui/patterns";
+import {Badge, Panel} from "@/components/ui/primitives";
 
 import {LegacyAnalysisStart} from "@/components/legacy-analysis-start";
 import {reasonLabels} from "@/components/analysis-update-plan-view";
@@ -116,19 +119,23 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         <Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的准备依据" : "按当前资料查看准备依据"}</Link>
       </div>
 
-      <section className="detail-card">
-        <p className="eyebrow">岗位准备工作区</p>
-        <h1>{job.title}</h1>
-        <p className="company">{job.company}</p>
-        <p className="lede">在这里准备岗位简历和面试、跟踪行动与投递进度。系统不会替你投递或确认经历。</p>
+      <PageHeading kicker="岗位准备工作区" title={job.title}
+        description={`${job.company} · 准备岗位简历与面试、跟踪行动和投递进度。系统不会替你投递或确认经历。`} />
+      <Panel className="jl-workbench-focus jl-workspace-next stack-sm" aria-labelledby="workspace-next-title">
+        <Badge tone="info">{statusLabel[overview.workspace.status] ?? "状态待核实"}</Badge>
+        {savedPreparation && !savedPreparation.isCurrent ? <>
+          <h2 id="workspace-next-title">下一步：先核对变化的事实</h2>
+          <p>已有记录仍可查看和更新进度；建立新材料前，请先核对本次分析的范围和已确认资料。</p>
+          <Button asChild><Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link></Button>
+        </> : <>
+          <h2 id="workspace-next-title">下一步：{overview.nextBestAction.label}</h2>
+          <p>{overview.nextBestAction.reason}</p>
+          <Button asChild><a href={overview.nextBestAction.href}>继续这一步</a></Button>
+        </>}
+      </Panel>
 
-        <div className="notice">
-          <strong>下一步最值得做：{overview.nextBestAction.label}</strong>
-          <p className="muted">{overview.nextBestAction.reason}</p>
-          <div className="actions"><a className="button" href={overview.nextBestAction.href}>继续这一步 ↓</a></div>
-        </div>
-
-        <nav className="actions" aria-label="跳到岗位准备项目">
+      <section className="detail-card jl-workspace-body">
+        <nav className="jl-inline jl-job-outline" aria-label="跳到岗位准备项目">
           <a href="#resume">岗位简历</a><a href="#interview">面试练习</a><a href="#actions">执行行动</a><a href="#evidence">补充真实经历</a>
         </nav>
         {savedPreparation && <section className="detail-section">
