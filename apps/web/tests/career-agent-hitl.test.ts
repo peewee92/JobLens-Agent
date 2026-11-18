@@ -36,3 +36,10 @@ test("web proxy keeps durable run start, load and resume behind same-origin rout
   assert.match(threadRoute, /career-agent\/runs\/\$\{encodeURIComponent\(threadId\)\}/);
   assert.match(resumeRoute, /career-agent\/runs\/\$\{encodeURIComponent\(threadId\)\}\/resume/);
 });
+
+test("in-flight comparison does not ask users to retry or abandon the current request", () => {
+  const panel = read("components/career-agent-hitl-panel.tsx");
+  assert.match(panel, /pendingCommand && !busy/);
+  assert.match(panel, /recoverableThreadId && !pendingCommand && !busy/);
+  assert.match(panel, /确认这些目标并继续/);
+});

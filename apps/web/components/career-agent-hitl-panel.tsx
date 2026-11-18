@@ -161,26 +161,26 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
 
   async function recoverRun(threadId: string) {
     setBusy(true);
-    setMessage("正在恢复上次 比较…");
+    setMessage("正在恢复上次比较…");
     try {
       const state = await parseResponse(
         await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"}),
       );
       const resolution = displayState(state);
-      setMessage(resolution === "superseded" ? "另一个页面已提交不同决定，当前显示服务端已接受的结果，原请求不会再重试。" : state.pendingApproval ? "已恢复上次等待你确认的 比较。" : targetSelectionBlockMessage(state.currentStep) ?? "已恢复上次 比较。");
+      setMessage(resolution === "superseded" ? "另一个页面已提交不同决定，当前显示服务端已接受的结果，原请求不会再重试。" : state.pendingApproval ? "已恢复上次等待你确认的 比较。" : targetSelectionBlockMessage(state.currentStep) ?? "已恢复上次比较。");
     } catch (error) {
       let saved: SavedRunCommand | null = null;
       try { saved = loadRunCommand(window.localStorage, threadId); } catch {}
       if (shouldForgetPendingThread(error) && saved?.kind !== "start") {
         try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
         setRecoverableThreadId(null);
-        setMessage("上次 比较 已不存在，可以开始新的比较。");
+        setMessage("上次比较 已不存在，可以开始新的比较。");
       } else {
         setRecoverableThreadId(threadId);
         setPendingCommand(saved);
         setMessage(saved?.kind === "start" && shouldForgetPendingThread(error)
           ? "服务端尚未找到这次分析。原请求已保留，可以用相同标识重试，不会新建另一次分析。"
-          : "暂时无法恢复上次 比较。恢复引用已保留，请重试，不会重新启动比较。");
+          : "暂时无法恢复上次比较。恢复引用已保留，请重试，不会重新启动比较。");
       }
     } finally {
       setBusy(false);
@@ -304,7 +304,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
       {(run || pendingCommand || recoverableThreadId) && <Panel className="stack-sm" aria-label="本次比较详情">
         <h2>比较进度与下一步</h2>
         {hasRankingResult && <p className="jl-scope-count">已选 {run.requestedJobIds.length} 个岗位，实际比较 {run.rankedJobIds.length} 个。</p>}
-        <p>{planSummary}</p>
+        {!busy && <p>{planSummary}</p>}
         <ActionFeedback>{message}</ActionFeedback>
         <details>
           <summary>查看本次范围与依据</summary>
@@ -318,7 +318,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         displayState(state);
         setMessage(state.pendingApproval ? "岗位排序已完成，请确认目标岗位。" : targetSelectionBlockMessage(state.currentStep) ?? "本次处理已保存，请查看当前状态。");
       }} />}
-      {pendingCommand && (
+      {pendingCommand && !busy && (
         <section className="card stack-md" aria-label="未确认请求">
           <h2>这次请求的结果尚未确认</h2>
           <p>原岗位范围和决定已保存。请先查看服务端状态；需要重试时会沿用原标识和原内容，不会改成另一决定。</p>
@@ -332,12 +332,12 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         </section>
       )}
 
-      {!run && recoverableThreadId && (
+      {!run && recoverableThreadId && !pendingCommand && !busy && (
         <section className="card stack-md">
           <div>
             <p className="eyebrow">继续上次比较</p>
             <h2>上次比较仍可继续</h2>
-            <p className="muted">刚才可能只是网络或服务暂时不可用。JobLens 已保留 已保存的运行引用，不会因为一次读取失败就重新排序。</p>
+            <p className="muted">刚才可能只是网络或服务暂时不可用。JobLens 已保留上次比较记录，不会因为一次读取失败就重新排序。</p>
           </div>
           <div className="button-row">
             <button className="button primary" disabled={busy} onClick={() => void recoverRun(recoverableThreadId)} type="button">
@@ -351,7 +351,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
                 window.history.replaceState(null, "", "/agent");
                 setPendingCommand(null);
                 setRecoverableThreadId(null);
-                setMessage("已放弃本地上次比较的本地记录，可以开始新的 比较。");
+                setMessage("已放弃本地上次比较的本地记录，可以开始新的比较。");
               }}
               type="button"
             >
@@ -435,10 +435,9 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
       )}
 
       {run?.pendingApproval && (
-        <section className="card stack-md">
+        <Panel className="stack-md">
           <div>
-            <p className="eyebrow">第二步 · 确认目标</p>
-            <h2>确认目标岗位集合</h2>
+            <h2>确认要准备的岗位</h2>
             <p className="muted">默认建议最多 3 个；你可调整并确认最多 5 个。只有确认后才会继续能力差距分析，不能直接选择没有有效报告的岗位。</p>
             {run.targetSuggestionMode === "challenge_only" ? <p className="notice">本次只有挑战／待核实目标，没有优先投入建议。相关基础不代表条件已全部满足，请先查看关键未知。</p> : null}
             <p>请查看每个岗位本次排序所用的已保存匹配依据；报告可帮助你核对支持证据和待确认条件。</p>
@@ -452,7 +451,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
                   <input
                     type="checkbox"
                     checked={edited.includes(jobId)}
-                    disabled={!edited.includes(jobId) && edited.length >= 5}
+                    disabled={busy || !!pendingCommand || (!edited.includes(jobId) && edited.length >= 5)}
                     onChange={(event) => setEdited((current) => event.target.checked
                       ? Array.from(new Set([...current, jobId])).slice(0, 5)
                       : current.filter((id) => id !== jobId))}
@@ -465,20 +464,19 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               );
             })}
           </div>
-          {busy && <p className="muted-copy" role="status">正在保存你的选择并准备材料…</p>}
-          <div className="button-row">
-            <button className="button primary" disabled={busy || !!pendingCommand} onClick={() => decide("approve")} type="button">{busy ? "正在确认目标…" : "直接确认建议"}</button>
-            <button className="button" disabled={busy || !!pendingCommand || edited.length === 0} onClick={() => decide("edit")} type="button">按当前勾选继续</button>
-            <button className="button" disabled={busy || !!pendingCommand} onClick={() => decide("reject")} type="button">拒绝并结束</button>
+          <div className="jl-inline">
+            {rankingScope(edited) === rankingScope(run.proposedTargetJobIds)
+              ? <Button aria-busy={busy} disabled={busy || !!pendingCommand} onClick={() => decide("approve")}>{busy ? "正在确认目标…" : "确认这些目标并继续"}</Button>
+              : <Button aria-busy={busy} disabled={busy || !!pendingCommand || edited.length === 0} onClick={() => decide("edit")}>{busy ? "正在确认目标…" : "按当前勾选继续"}</Button>}
+            <Button variant="secondary" disabled={busy || !!pendingCommand} onClick={() => decide("reject")}>结束这次比较</Button>
           </div>
-        </section>
+        </Panel>
       )}
 
       {run && !run.pendingApproval && !["created", "running", "resuming"].includes(run.status) && (
         <section className="card stack-md">
           <p className="eyebrow">比较状态 · {RUN_STATUS_LABELS[run.status] ?? "待核实"}</p>
           <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "目标与准备材料已保存" : "本次比较已结束或暂停"}</h2>
-          <p>{message}</p>
           {run.status === "stale" && <div className="notice">
             <p>{careerAgentStepSummary(run.currentStep)}</p>
             <a href={run.requestedJobIds.length ? agentScopeHref(run.requestedJobIds) : "/agent"}>检查原岗位范围并重新分析</a>
@@ -502,7 +500,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               <p className="muted">使用已确认的目标岗位查看需要核对的条件、对应岗位和准备标准。</p>
             </div>
           )}
-          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); setPreflight(null); setPreflightError(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的 比较。");}}>开始新的比较</button>
+          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); setPreflight(null); setPreflightError(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的比较。");}}>开始新的比较</button>
         </section>
       )}
 
@@ -517,7 +515,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         </li>)}</ul>
       </section>
 
-      <p className="muted" role="status">{message}</p>
+      {!run && !pendingCommand && !recoverableThreadId && <p className="muted" role="status">{message}</p>}
     </div>
   );
 }

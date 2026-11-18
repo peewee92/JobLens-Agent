@@ -126,3 +126,4 @@
 .jl-workspace-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--jl-space-2) var(--jl-space-4); }
 .jl-workspace-list li + li { border-block-start: 1px solid var(--line); margin-block-start: var(--jl-space-3); padding-block-start: var(--jl-space-3); }
 .jl-workspace-list p { color: var(--ink-soft); margin: .25rem 0 0; }
+.jl-workspace-skeleton { width: 8rem; height: .5rem; margin-block-end: var(--jl-space-2); }
