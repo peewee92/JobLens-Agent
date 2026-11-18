@@ -186,6 +186,7 @@ export function ProfileEditor({
     message: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
+  const [sourceRecovery, setSourceRecovery] = useState<ProfileExtractionProposal["sourceRecovery"]>();
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false);
   const [focusedEvidenceIndex, setFocusedEvidenceIndex] = useState<number | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(
@@ -578,6 +579,7 @@ export function ProfileEditor({
       setProfileVersion(saved.version);
       setEvidenceReferenceKeys(saved.evidence.map((item) => item.key));
       setProfileDirty(false);
+      setSourceRecovery(undefined);
       setIsQuickEntryOpen(false);
       setIsProfileEditorOpen(false);
       setProfileState({
@@ -614,6 +616,7 @@ export function ProfileEditor({
     setEvidence(draft.evidence);
     setEvidenceReferenceKeys(draft.evidence.map((item) => item.key));
     setSkills(draft.skills);
+    setSourceRecovery(proposal.sourceRecovery);
     setProfileDirty(true);
     setIsQuickEntryOpen(false);
     setIsProfileEditorOpen(false);
@@ -984,6 +987,11 @@ export function ProfileEditor({
           </section>
         ) : (
           <div className="profile-review">
+            {sourceRecovery && <p className="notice" role="status">
+              草稿不完整：{sourceRecovery.omittedEvidenceCount} 条经历找不到对应原文，已排除
+              {sourceRecovery.omittedSkillCount > 0 ? `，同时排除依赖这些经历的 ${sourceRecovery.omittedSkillCount} 项技能` : ""}。
+              剩余经历按简历原文展示，请核对职业定位、年限和经历，再决定是否补充或保存。
+            </p>}
             {profileDirty && <p className="notice" role="status">草稿有 {reviewEvidence.length} 条经历、{reviewSkills.length} 项技能。请核对后确认保存。</p>}
             <section className="profile-review-hero">
               <div>

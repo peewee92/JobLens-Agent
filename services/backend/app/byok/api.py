@@ -154,7 +154,9 @@ def execute_for(s, kind, command):
                     from app.api.v1.schemas.profile_extraction import ProfileExtractionProposalResponse
                     extractor = OpenAIProfileExtractor(api_key=c.apiKey.get_secret_value(), model=p['model'],
                         base_url=c.baseUrl, api_style=c.apiStyle, max_completion_tokens=p['maxOutputTokens'], enable_thinking=c.enableThinking, client=client)
-                    result = ProposeProfileFromResumeWorkflow(extractor, get_trace_uow_factory()).execute(text)
+                    result = ProposeProfileFromResumeWorkflow(
+                        extractor, get_trace_uow_factory(), allow_partial=s.mode == 'local',
+                    ).execute(text)
                     record['result'] = ProfileExtractionProposalResponse.from_proposal(result).model_dump(mode='json', by_alias=True)
                 else:
                     schema = {'type':'object', 'properties':{'ok':{'type':'boolean'}}, 'required':['ok'], 'additionalProperties':False}

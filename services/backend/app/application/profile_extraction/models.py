@@ -50,3 +50,5 @@ class ProfileExtractionProposal:
     evidence: tuple[ProposedEvidence, ...]
     skills: tuple[ProposedSkill, ...]
     warnings: tuple[str, ...]
+    omitted_evidence_count: int = 0
+    omitted_skill_count: int = 0

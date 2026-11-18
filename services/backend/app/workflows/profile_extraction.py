@@ -17,6 +17,7 @@ from app.application.profile_extraction import (
     ProfileExtractorUnavailableError,
 )
 from app.application.profile_extraction.validation import (
+    recover_partial_profile_output,
     validate_profile_extraction_output,
 )
 from app.application.tracing import TraceWrite
@@ -24,6 +25,7 @@ from app.application.tracing import TraceWrite
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "profile-extractor-v2"
+LOCAL_PARTIAL_EXTRACTOR_VERSION = "profile-extractor-v3-local-partial"
 PROMPT_VERSION = "profile-proposal-v1"
 MIN_RESUME_CHARS = 50
 MAX_RESUME_CHARS = 30_000
@@ -36,9 +38,13 @@ class ProposeProfileFromResumeWorkflow:
         self,
         extractor: AbstractProfileExtractor,
         trace_uow_factory: TraceUnitOfWorkFactory,
+        *,
+        allow_partial: bool = False,
     ) -> None:
         self._extractor = extractor
         self._trace_uow_factory = trace_uow_factory
+        self._allow_partial = allow_partial
+        self._extractor_version = LOCAL_PARTIAL_EXTRACTOR_VERSION if allow_partial else EXTRACTOR_VERSION
 
     def execute(self, resume_text: str) -> ProfileExtractionProposal:
         normalized_text = resume_text.strip()
@@ -57,6 +63,7 @@ class ProposeProfileFromResumeWorkflow:
         output: ProfileExtractionOutput | None = None
         input_tokens: int | None = None
         output_tokens: int | None = None
+        omitted_evidence_count = omitted_skill_count = 0
 
         try:
             result = self._extractor.extract(normalized_text)
@@ -64,7 +71,10 @@ class ProposeProfileFromResumeWorkflow:
             input_tokens = result.input_tokens
             output_tokens = result.output_tokens
             output = result.output
-            output = validate_profile_extraction_output(normalized_text, output)
+            if self._allow_partial:
+                output, omitted_evidence_count, omitted_skill_count = recover_partial_profile_output(normalized_text, output)
+            else:
+                output = validate_profile_extraction_output(normalized_text, output)
         except (
             ProfileExtractorUnavailableError,
             ProfileExtractorFailedError,
@@ -109,10 +119,12 @@ class ProposeProfileFromResumeWorkflow:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             error=None,
+            omitted_evidence_count=omitted_evidence_count,
+            omitted_skill_count=omitted_skill_count,
         )
         return ProfileExtractionProposal(
             run_id=run_id,
-            extractor_version=EXTRACTOR_VERSION,
+            extractor_version=self._extractor_version,
             model=model,
             prompt_version=PROMPT_VERSION,
             headline=output.headline,
@@ -120,6 +132,8 @@ class ProposeProfileFromResumeWorkflow:
             evidence=output.evidence,
             skills=output.skills,
             warnings=output.warnings,
+            omitted_evidence_count=omitted_evidence_count,
+            omitted_skill_count=omitted_skill_count,
         )
 
     def _record_trace(
@@ -133,13 +147,15 @@ class ProposeProfileFromResumeWorkflow:
         input_tokens: int | None,
         output_tokens: int | None,
         error: str | None,
+        omitted_evidence_count: int = 0,
+        omitted_skill_count: int = 0,
     ) -> None:
         with self._trace_uow_factory() as uow:
             uow.traces.add(
                 TraceWrite(
                     run_id=run_id,
                     capability="profile_extraction",
-                    version=EXTRACTOR_VERSION,
+                    version=self._extractor_version,
                     model=model,
                     prompt_version=PROMPT_VERSION,
                     input_refs={
@@ -149,7 +165,7 @@ class ProposeProfileFromResumeWorkflow:
                         "characterCount": len(resume_text),
                     },
                     output=(
-                        _profile_output_dict(output) if output is not None else None
+                        _profile_output_dict(output, omitted_evidence_count, omitted_skill_count) if output is not None else None
                     ),
                     latency_ms=latency_ms,
                     input_tokens=input_tokens,
@@ -164,7 +180,7 @@ class ProposeProfileFromResumeWorkflow:
         return max(0, round((perf_counter() - started) * 1000))
 
 
-def _profile_output_dict(output: ProfileExtractionOutput) -> dict:
+def _profile_output_dict(output: ProfileExtractionOutput, omitted_evidence_count: int = 0, omitted_skill_count: int = 0) -> dict:
     return {
         "headline": output.headline,
         "yearsOfExperience": output.years_of_experience,
@@ -187,4 +203,6 @@ def _profile_output_dict(output: ProfileExtractionOutput) -> dict:
             for item in output.skills
         ],
         "warnings": list(output.warnings),
+        **({"sourceRecovery": {"omittedEvidenceCount": omitted_evidence_count, "omittedSkillCount": omitted_skill_count}}
+           if omitted_evidence_count else {}),
     }
