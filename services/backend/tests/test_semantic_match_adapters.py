@@ -152,3 +152,12 @@ def test_openai_semantic_matcher_maps_invalid_json_to_provider_failure() -> None
         )
         with pytest.raises(SemanticMatcherFailedError, match="ValidationError|json"):
             matcher.match(_requirements())
+
+
+def test_prompt_distinguishes_alternatives_from_shared_context():
+    from app.llm.semantic_matchers import _SYSTEM_PROMPT
+
+    assert 'is satisfied by either branch' in _SYSTEM_PROMPT
+    assert 'Judge any shared qualifier separately' in _SYSTEM_PROMPT
+    assert '待核对的是实验室脚本用途，而不是 Bash' in _SYSTEM_PROMPT
+    assert 'language of originalText' in _SYSTEM_PROMPT

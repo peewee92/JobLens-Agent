@@ -235,7 +235,8 @@ export default async function JobDetailPage({
                   系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。符合当前匹配规则的结果才会用于后续匹配。
                 </p>
               </div>
-              <JobRequirementExtractButton
+              <JobRequirementExtractButton key={job.id}
+                detailHref={reportId ? reportHref(reportId) : detailHref}
                 localProduct={localProduct}
                 disabled={job.userMarkedInactive || !hasEnoughDescription}
                 disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionHelp ?? undefined}
@@ -312,7 +313,7 @@ export default async function JobDetailPage({
             ) : null}
             {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
                 <JobRequirementConfirmation key={extraction.factsDigest}
-                  jobId={job.id} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
+                  jobId={job.id} detailHref={detailHref} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
           </section>
@@ -356,7 +357,7 @@ export default async function JobDetailPage({
               <Link className="button" href={profileWithAgentScope(id, retainedScope ?? [id])}>确认资料和偏好，返回这个岗位</Link>
             </section> : null}
             <JobMatchReportPanel
-              key={savedResult ? `${savedResult.reportId}:${savedResult.isCurrent}` : "no-saved-result"}
+              key={`${job.id}:${savedResult?.reportId ?? "no-saved-result"}:${savedResult?.isCurrent ?? false}`}
               savedResult={savedResult}
               disabledReason={matchDisabledReason}
               enabled={eligibility !== null && job.userMarkedInactive === false}

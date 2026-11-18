@@ -213,6 +213,8 @@ def test_invalid_evidence_cannot_be_saved(authorized_match):
     state['handler'] = invent
     r = c.post(f'/api/v1/jobs/{job}/semantic-calls', json=payload(c, job)).json()
     assert r['status'] == 'failed' and r['attempts'] == 1 and r['outputTokens'] == 35
+    assert r['responseStatus'] == 200 and r['errorCode'] == 'semantic_output_not_grounded'
+    assert 'invented-evidence' not in json.dumps(r)
     assert c.get(f'/api/v1/jobs/{job}/match-reports').json()['count'] == 0
 
 

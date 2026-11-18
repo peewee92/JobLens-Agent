@@ -17,6 +17,7 @@ export function JobRequirementExtractButton({
   returnTo,
   actionLabel,
   localProduct = false,
+  detailHref,
 }: {
   jobId: string;
   disabled: boolean;
@@ -25,6 +26,7 @@ export function JobRequirementExtractButton({
   returnTo?: string;
   actionLabel?: string;
   localProduct?: boolean;
+  detailHref?: string;
 }) {
   const router = useRouter();
   const [planLoaded, setPlanLoaded] = useState(false);
@@ -84,7 +86,7 @@ export function JobRequirementExtractButton({
 
   if (disabled) return <p className="notice">{disabledReason ?? shortJobDescriptionGuidance}</p>;
   if (!planLoaded) return <p role="status">正在核对可用分析方式…</p>;
-  if (plan && (plan.available || plan.latestRequest)) return <AuthorizedRequirementExtraction key={`${jobId}:${plan.planDigest}`} jobId={jobId} plan={plan} disabled={disabled} />;
+  if (plan && (plan.available || plan.latestRequest)) return <AuthorizedRequirementExtraction key={`${jobId}:${plan.planDigest}`} jobId={jobId} plan={plan} disabled={disabled} detailHref={detailHref} />;
   if (localProduct) return <p className="notice">当前还不能使用岗位分析模型。请检查已指定的模型配置与完整岗位原文，再刷新查看；没有发送模型请求，也不会用离线样本替代。</p>;
 
   const fallbackReturnTo = returnTo ?? `/jobs/${jobId}`;

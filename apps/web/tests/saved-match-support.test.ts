@@ -19,10 +19,10 @@ const report = {
 } as JobMatchReport;
 const historical = {reportId: "report", createdAt: "", isCurrent: false, staleReasons: [], report};
 
-test("saved preparation reads evidence-backed partial support from the exact historical report", () => {
+test("saved preparation reads evidence-backed full and partial support from the exact historical report", () => {
   const current = {...historical, reportId: "latest", isCurrent: true, report: {...report, requirementResults: []}};
-  assert.deepEqual(savedMatchSupport(saved, binding, {items: [current, historical], count: 2}), ["partial"]);
-  assert.deepEqual(savedMatchSupport(saved, binding, {items: [current], count: 1}), []);
+  assert.deepEqual(savedMatchSupport(saved, binding, {items: [current, historical], count: 2}), {partial: ["partial"], matched: ["exact"]});
+  assert.deepEqual(savedMatchSupport(saved, binding, {items: [current], count: 1}), {partial: [], matched: []});
 });
 
 test("saved preparation never borrows support if any source binding differs", () => {
@@ -31,7 +31,7 @@ test("saved preparation never borrows support if any source binding differs", ()
     {searchIntentId: "another"}, {searchIntentVersion: 2}, {policyVersion: undefined},
   ]) {
     const changed = {...historical, report: {...report, ...override}};
-    assert.deepEqual(savedMatchSupport(saved, binding, {items: [changed], count: 1}), []);
+    assert.deepEqual(savedMatchSupport(saved, binding, {items: [changed], count: 1}), {partial: [], matched: []});
   }
-  assert.deepEqual(savedMatchSupport({...saved, selectedJobIds: []}, binding, {items: [historical], count: 1}), []);
+  assert.deepEqual(savedMatchSupport({...saved, selectedJobIds: []}, binding, {items: [historical], count: 1}), {partial: [], matched: []});
 });

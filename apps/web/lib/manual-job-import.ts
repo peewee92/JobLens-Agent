@@ -8,21 +8,61 @@ type Result =
 
 export const maxPastedJobs = 20;
 export const maxPastedCharacters = 1_020_000;
+const unknownCompany = "公司未公开";
+const companyHeader = /^(?:(\d{1,2})\s*[.、）)]\s*)?([^｜|]{1,255})[｜|]([^｜|]{1,255})$/u;
+const separator = /^\s*---\s*$/u;
+
+function parseSeparatedJobs(lines: string[]): ManualJobInput[] {
+  const sections: string[][] = [[]];
+  for (const line of lines) {
+    if (separator.test(line)) sections.push([]);
+    else sections[sections.length - 1].push(line);
+    if (sections.length > maxPastedJobs) throw new Error("每批最多添加 20 条岗位，请分批粘贴。");
+  }
+  return sections.map((section, index) => {
+    const first = section.findIndex(line => line.trim());
+    const header = section[first]?.trim() ?? "";
+    const match = companyHeader.exec(header);
+    const title = match?.[2].trim() ?? header.replace(/^\d{1,2}\s*[.、）)]\s*/u, "");
+    const company = match?.[3].trim() ?? unknownCompany;
+    if (!title || !company || /[｜|]/u.test(title) || Array.from(title).length > 255) {
+      throw new Error(`第 ${index + 1} 条找不到有效岗位名称。分隔线后请先单独写岗位名称，再粘贴描述。`);
+    }
+    return {title, company, description: section.slice(first + 1).join("\n").trim()};
+  });
+}
+
+/** The pasted batch has no source URLs. Compare the same fields as the backend content identity. */
+export function duplicatePastedJobIndices(jobs: readonly ManualJobInput[]): Set<number> {
+  const seen = new Set<string>();
+  const duplicates = new Set<number>();
+  jobs.forEach((job, index) => {
+    const identity = JSON.stringify([job.title.trim(), job.company.trim(), job.description]);
+    if (seen.has(identity)) duplicates.add(index);
+    else seen.add(identity);
+  });
+  return duplicates;
+}
 
 export function parsePastedJobs(text: string): ManualJobInput[] {
   if (text.length > maxPastedCharacters) throw new Error("文本太长，请拆成几批，每批最多 20 条。");
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const firstHeading = lines.findIndex(line => line.trim() && !/^【[^】]+】$/u.test(line.trim()));
+  // Keep legacy lists with company headers intact, including Markdown dividers inside descriptions.
+  if (firstHeading >= 0 && !companyHeader.test(lines[firstHeading].trim()) && lines.some(line => separator.test(line))) {
+    return parseSeparatedJobs(lines.slice(firstHeading));
+  }
   const jobs: Array<{title: string; company: string; lines: string[]}> = [];
   for (const [index, line] of lines.entries()) {
     if (!jobs.length && /^【[^】]+】$/u.test(line.trim())) continue;
-    const match = /^(?:(\d{1,2})\s*[.、）)]\s*)?([^｜|]{1,255})[｜|]([^｜|]{1,255})$/u.exec(line.trim());
+    const match = companyHeader.exec(line.trim());
     if (match && (!jobs.length || match[1] || !lines[index - 1].trim()) && match[2].trim() && match[3].trim()) {
       jobs.push({title: match[2].trim(), company: match[3].trim(), lines: []});
       if (jobs.length > maxPastedJobs) throw new Error("每批最多添加 20 条岗位，请分批粘贴。");
     } else if (jobs.length) {
       jobs[jobs.length - 1].lines.push(line);
     } else if (line.trim()) {
-      throw new Error("没找到第一条岗位的标题。请用「岗位名称｜公司名称」作为每条的第一行。");
+      throw new Error("没找到第一条岗位的标题。每条先写「岗位名称｜公司名称」；没有公司时，只写岗位名称并用单独一行 --- 分隔各条。");
     }
   }
   if (!jobs.length) throw new Error("没有找到岗位。每条请先写「岗位名称｜公司名称」，换行再贴描述。");

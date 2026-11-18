@@ -62,3 +62,13 @@ test("saved comparison uses its actual scope, shows real names and calls a bonus
   assert.match(html, /#saved-resume-0/);
   assert.match(html, /#saved-interview-0/);
 });
+
+test("interview can refer to a saved match without rewriting the preparation facts", () => {
+  const jobId = result.preparations[0].jobId;
+  const html = renderToStaticMarkup(React.createElement(SavedCareerAnalysisView, {
+    result, backHref: "/agent", savedMatchedSupport: {[jobId]: ["req_python"]},
+  }));
+  assert.match(html, /当时的匹配找到了已确认经历，这份面试材料没有直接引用/);
+  assert.match(html, /reportId=report_1#job-match-report/);
+  assert.match(html, /参见当时的匹配依据/);
+});

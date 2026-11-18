@@ -15,7 +15,7 @@ export default async function AnalysisResultPage({params}: {params: Promise<{thr
     const ids = [...new Set([...(result.unrankedJobIds ?? []), ...(result.unanalysedJobIds ?? [])])]
       .filter(id => /^[A-Za-z0-9_-]{1,100}$/.test(id)).slice(0, 50);
     const params = new URLSearchParams(ids.map(id => ["jobId", id]));
-    const [run, labels, currentOmissions, savedPartialSupport] = await Promise.all([
+    const [run, labels, currentOmissions, matchSupport] = await Promise.all([
       backendJson<CareerAgentRunState>(`/api/v1/career-agent/runs/${encodeURIComponent(threadId)}`).catch(() => null),
       Promise.allSettled(ids.map(id => fetchJobDetail(id))).then(responses => Object.fromEntries(
         responses.flatMap((item, index) => item.status === "fulfilled" && item.value.id === ids[index]
@@ -27,14 +27,16 @@ export default async function AnalysisResultPage({params}: {params: Promise<{thr
           try {
             return [binding.jobId, savedMatchSupport(result, binding, await fetchMatchReportHistory(binding.jobId))] as const;
           } catch {
-            return [binding.jobId, []] as const;
+            return [binding.jobId, {partial: [], matched: []}] as const;
           }
-        })).then(entries => Object.fromEntries(entries)),
+        })).then(entries => Object.fromEntries<ReturnType<typeof savedMatchSupport>>(entries)),
     ]);
     const savedScope = run?.threadId === threadId && run.resultId === result.resultId
       ? {requested: run.requestedJobIds, compared: run.rankedJobIds.length} : undefined;
     return <SavedCareerAnalysisView result={result} backHref={backHref}
-      savedScope={savedScope} additionalLabels={labels} currentOmissions={currentOmissions} savedPartialSupport={savedPartialSupport} />;
+      savedScope={savedScope} additionalLabels={labels} currentOmissions={currentOmissions}
+      savedPartialSupport={Object.fromEntries(Object.entries(matchSupport).map(([id, support]) => [id, support.partial]))}
+      savedMatchedSupport={Object.fromEntries(Object.entries(matchSupport).map(([id, support]) => [id, support.matched]))} />;
   } catch (error) {
     return <section className="card stack-md"><h1>暂时无法打开已保存结果</h1>
       <p>{error instanceof BackendApiError && error.status === 404
