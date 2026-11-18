@@ -17,6 +17,7 @@ import {notFound} from "next/navigation";
 
 import {JobMatchReportPanel} from "@/components/job-match-report-panel";
 import {JobRequirementExtractButton} from "@/components/job-requirement-extract-button";
+import {JobRequirementReviewList} from "@/components/job-requirement-review-list";
 import {JobRequirementConfirmation} from "@/components/job-requirement-confirmation";
 import {RemoteStatusPill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
@@ -45,7 +46,6 @@ import {
   requirementReleaseBlockerCopy,
   requirementReleaseLabel,
   requirementTypeLabel,
-  sortJobRequirements,
 } from "@/lib/job-requirements";
 
 export const dynamic = "force-dynamic";
@@ -301,24 +301,7 @@ export default async function JobDetailPage({
                     当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
                   </p>
                 ) : null}
-                <div className="requirement-list">
-                  {sortJobRequirements(extraction.requirements).map((requirement) => (
-                    <article className="requirement-card" key={requirement.requirementIndex}>
-                      <div className="tags">
-                        <span className={`tag importance-${requirement.importance}`}>
-                          {requirementImportanceLabel(requirement.importance)}
-                        </span>
-                        <span className="tag">{requirementTypeLabel(requirement.type)}</span>
-                        {requirement.normalizedCapability ? (
-                          <span className="tag">{requirementCapabilityLabel(requirement.normalizedCapability)}</span>
-                        ) : null}
-                      </div>
-                      <p>{requirement.originalText}</p>
-                      <small className="muted-copy">岗位原文依据</small>
-                      <blockquote>{requirement.evidenceSpan}</blockquote>
-                    </article>
-                  ))}
-                </div>
+                <JobRequirementReviewList requirements={extraction.requirements} />
               </>
             ) : !requirementError && !job.userMarkedInactive ? (
               <p className="notice">
@@ -339,7 +322,7 @@ export default async function JobDetailPage({
                 <p className="eyebrow">第 3 步 · 结合我的职业背景</p>
                 <h2>这个岗位适合我吗？</h2>
                 <p className="lede requirement-lede">
-                  这里只判断当前已确认资料能不能支撑岗位硬条件，不使用模糊的百分制匹配分数。
+                  对照已确认的资料，检查任职条件，并了解经历与岗位职责的相关性。不使用模糊的百分制匹配分数。
                 </p>
               </div>
             </div>
@@ -420,9 +403,11 @@ export default async function JobDetailPage({
                           {items.map((item) => (
                             <article className={`eligibility-result-card fit-${status}`} key={item.requirementIndex}>
                               <div className="tags">
-                                <span className={`tag importance-${item.importance}`}>
-                                  {requirementImportanceLabel(item.importance)}
-                                </span>
+                                {item.type !== "responsibility" ? (
+                                  <span className={`tag importance-${item.importance}`}>
+                                    {requirementImportanceLabel(item.importance)}
+                                  </span>
+                                ) : null}
                                 <span className="tag">{requirementTypeLabel(item.type)}</span>
                                 {item.normalizedCapability ? (
                                   <span className="tag">{requirementCapabilityLabel(item.normalizedCapability)}</span>

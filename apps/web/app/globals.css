@@ -2089,6 +2089,19 @@ h3 {
   gap: 14px;
 }
 
+.requirement-list > h3 {
+  margin: 8px 0 0;
+}
+
+.requirement-source summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.requirement-card .requirement-source blockquote {
+  margin-top: 8px;
+}
+
 .requirement-card {
   padding: 18px;
   border: 1px solid var(--line);

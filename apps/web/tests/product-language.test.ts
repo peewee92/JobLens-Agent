@@ -298,7 +298,7 @@ test("job detail keeps internal requirement metadata out of the ordinary user ex
   const css = await source("app/globals.css");
 
   assert.match(page, /岗位要求分析/);
-  assert.match(page, /岗位原文依据/);
+  assert.match(page, /<JobRequirementReviewList/);
   assert.doesNotMatch(page, /查看技术详情/);
   assert.doesNotMatch(page, /查看分析详情/);
   assert.doesNotMatch(page, /Baseline：|Decision：|Evidence Fingerprint：/);
