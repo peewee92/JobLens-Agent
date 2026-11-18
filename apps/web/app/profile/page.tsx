@@ -6,6 +6,7 @@ import {ProfileEditor} from "@/components/profile-editor";
 import {ServiceError} from "@/components/service-error";
 import {
   BackendApiError,
+  backendResponse,
   fetchCareerContextReleaseReadiness,
   fetchCurrentProfile,
   fetchCurrentSearchIntent,
@@ -87,7 +88,13 @@ export default async function ProfilePage({
         <Link className="button" href="/agent">比较三个样本岗位</Link></section>;
     } catch {return <section className="error-panel"><h1>演示会话暂时不可用</h1><Link href="/demo">重新开始样本体验</Link></section>;}
   }
-  const params = await searchParams;
+  const [params, localProfileModel] = await Promise.all([
+    searchParams,
+    process.env.JOBLENS_LOCAL_PRODUCT !== "1" ? null :
+      backendResponse("/api/v1/local/profile-model/status")
+        .then(async (response) => response.ok && (await response.json()).available === true)
+        .catch(() => false),
+  ]);
   const agentScope = agentScopeFromProfile(params.scopeFocusJobId, params.scopeJobId);
   const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
   const requestedFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
@@ -317,6 +324,7 @@ export default async function ProfilePage({
       ) : null}
 
       <ProfileEditor
+        localProfileModel={localProfileModel}
         initialProfile={profile}
         initialIntent={intent}
         readyNextHref={agentScope ? `${jobDetailWithAgentScope(agentScope.jobId, agentScope.ids)}#job-match` : "/import"}

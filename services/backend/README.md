@@ -550,3 +550,7 @@ services/backend/
 ### 保存结果比较
 
 `GET /api/v1/career-agent/runs/{threadId}/comparison` 只读新运行明确来源及两次绑定的归档报告，不重新匹配或查询最新事实补齐。岗位要求/策略变更、部分范围与报告缺失有稳定原因码；身份冲突返回 409，数据库不可读返回安全 503。无新表或模型调用。复现：`.venv/bin/python -m pytest tests/test_analysis_comparison.py -q`，须按测试说明配置隔离 SQLite、禁用模型。详见根目录 `docs/implementation/P1-main-loop-analysis-comparison.md`。
+
+### 本地单用户正式入口
+
+优先从仓库根目录执行 `python3 scripts/local.py`；可指定 `--directory`、`--backend-port`、`--web-port` 和私有 `--model-config`。该入口仅监听本机，独立空库且不加载演示样本，不会读取默认 `.env` 或旧库。未配置模型可手填资料。PDF/DOCX 先本机读取，简历文本需逐次授权才发送给模型。原有公开合成演示和内部正式质量审核保持独立。

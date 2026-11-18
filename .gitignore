@@ -7,7 +7,7 @@
 !.env.example
 
 # Node
-node_modules/
+node_modules
 .next/
 dist/
 coverage/
@@ -64,3 +64,5 @@ docs/interview-labs.md
 
 # Local deployment linkage and downloaded environment.
 .vercel/
+.next-local-*/
+.tsconfig-local-*.json

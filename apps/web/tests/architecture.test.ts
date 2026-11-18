@@ -73,7 +73,8 @@ test("the Resume Proposal Client Component calls only the same-origin proxy", as
     "utf8",
   );
   assert.match(source, /fetch\("\/api\/profile-proposals"/);
-  assert.match(source, /fetch\("\/api\/profile-proposals\/file"/);
+  assert.match(source, /"\/api\/profile-proposals\/file"/);
+  assert.match(source, /"\/api\/local\/profile-model\/file-plan"/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
   assert.doesNotMatch(source, /fetch\("\/api\/profile"/);
 });

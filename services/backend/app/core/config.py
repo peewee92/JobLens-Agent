@@ -4,6 +4,7 @@ Single source of truth for runtime settings. Business code must read
 DATABASE_URL from here, never hardcode a second copy.
 """
 from functools import lru_cache
+import os
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,6 +59,14 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    if os.environ.get("JOBLENS_LOCAL_PRODUCT") == "1":
+        # The personal launcher opts into exactly one configuration file.
+        configured = Settings(_env_file=os.environ.get("JOBLENS_LOCAL_CONFIG") or None)
+        stages = ("profile_extractor", "requirement_extractor", "semantic_match")
+        return configured.model_copy(update={
+            f"{stage}_provider": "openai" if getattr(configured, f"{stage}_provider").strip().casefold() == "openai" else "disabled"
+            for stage in stages
+        })
     return Settings()
 
 
