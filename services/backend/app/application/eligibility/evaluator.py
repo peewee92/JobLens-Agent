@@ -324,7 +324,7 @@ def _evaluate_experience(
             status=RequirementFitStatus.CONDITIONAL,
             reason=(
                 "这条经验要求不包含可确定性核验的年限，当前结构化事实不足以直接判定缺失；"
-                "保留给后续基于 Evidence 的语义匹配判断。"
+                "需要再对照已确认的经历核实。"
             ),
         )
 

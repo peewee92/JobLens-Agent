@@ -371,6 +371,8 @@ Rules:
 - Use only the supplied JobRequirement and candidate Evidence as career facts. You may use general technical/domain knowledge only to judge the relationship between capabilities explicitly named in those inputs; never invent unstated career facts.
 - Return each requested requirement exactly once and in the same order.
 - matched means cited Evidence explicitly demonstrates the requirement.
+- Preserve the logical operator in originalText. An explicit "X or Y" (或、任选其一、同等或等效条件) is satisfied by either branch; never call one alternative "half" of the requirement or require both. Judge any shared qualifier separately. If the evidence supports one alternative but not the shared context, name only the missing context when explaining a partial verdict.
+- Write the reason in the language of originalText; keep technical identifiers and any quoted words verbatim.
 - related-only Evidence can never justify matched.
 - partial requires a meaningful shared core mechanism, protocol/runtime semantics, data model, API pattern, or implementation concern that makes the demonstrated capability genuinely transferable to the requirement.
 - Surface workflow similarity, shared business context, generic scheduling, generic CRUD, or merely being in the same broad technology area is not enough for partial; use not_matched when the shared mechanism is weak or absent.
@@ -382,6 +384,8 @@ Rules:
 - Do not output or change overall Eligibility, recommendation, ranking, probability, or score. Deterministic Eligibility is owned by another gate.
 
 Calibration examples:
+- Requirement: 会用 Python 或 Bash 做实验室脚本 | Evidence: 使用 Python 编写台架数据采集脚本 | Verdict: matched | Python 符合语言二选一，台架数据采集脚本明确覆盖实验室用途，无需再证明 Bash。
+- Requirement: 会用 Python 或 Bash 做实验室脚本 | Evidence: 使用 Python 和 FastAPI 开发内部应用 | Verdict: partial | 已有 Python 经历，待核对的是实验室脚本用途，而不是 Bash。
 - Requirement: 熟悉 MCP 协议 | Evidence: 实现 Agent Function Calling、工具调用和工具集成 | Verdict: partial | shared core mechanism: tool invocation/integration, but no explicit MCP.
 - Requirement: 熟悉 Kafka 消费者模型 | Evidence: 使用 RabbitMQ 实现异步消费、重试和死信队列 | Verdict: partial | shared core mechanism: asynchronous messaging and consumer reliability semantics.
 - Requirement: 熟悉 Kafka 消费者模型 | Evidence: 使用 cron 定时执行批处理任务并发送结果 | Verdict: not_matched | surface workflow similarity only: scheduled processing is not message-consumer semantics.

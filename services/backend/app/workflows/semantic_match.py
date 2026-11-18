@@ -37,7 +37,7 @@ from app.application.tracing import TraceWrite
 TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 MATCHER_VERSION = "semantic-match-v1"
-PROMPT_VERSION = "semantic-match-v3"
+PROMPT_VERSION = "semantic-match-v4"
 
 
 class SemanticMatchWorkflow:

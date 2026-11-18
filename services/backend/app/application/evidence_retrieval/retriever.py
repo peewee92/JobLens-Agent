@@ -4,7 +4,17 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import replace
-from app.application.evidence_retrieval.strategy import TECHNOLOGIES, RESPONSIBILITIES, MAX_CANDIDATES
+from app.application.evidence_retrieval.strategy import (
+    DELIVERED_SERVICE_TARGET,
+    DELIVERY_COUNTEREXAMPLE,
+    DELIVERY_EVIDENCE,
+    DELIVERY_REQUIREMENT,
+    EXPLICIT_BUILT_AND_SHIPPED_SERVICE,
+    MAX_CANDIDATES,
+    PLAIN_DEPLOYED_SERVICE_REQUIREMENT,
+    RESPONSIBILITIES,
+    TECHNOLOGIES,
+)
 
 from app.application.career_context.models import EvidenceDetail, ProfileDetail
 from app.application.evidence_retrieval.models import (
@@ -14,6 +24,7 @@ from app.application.evidence_retrieval.models import (
     JobEvidenceRetrievalResult,
     RequirementEvidenceCandidates,
 )
+from app.domain.career_context import EvidenceType
 from app.application.job_requirements.models import (
     JobRequirementDetail,
     JobRequirementExtractionDetail,
@@ -164,6 +175,13 @@ def _retrieve_for_requirement(
     # A long capability label or sentence need not occur verbatim in the profile.
     # Only explicit technical terms or concrete, shared responsibility groups qualify.
     requirement_text = f"{capability}\n{requirement.original_text}"
+    delivery_requirement = bool(
+        re.search(DELIVERED_SERVICE_TARGET, requirement.original_text, re.IGNORECASE)
+        and re.search(DELIVERY_REQUIREMENT, requirement.original_text, re.IGNORECASE)
+    )
+    plain_delivery_requirement = bool(re.fullmatch(
+        PLAIN_DEPLOYED_SERVICE_REQUIREMENT, requirement.original_text.strip(), re.IGNORECASE,
+    ))
     technical_groups = list(TECHNOLOGIES) + [(skill.name,) for skill in profile.skills
         if _specific_skill(skill.name)]
     for evidence in profile.evidence:
@@ -187,6 +205,23 @@ def _retrieve_for_requirement(
             evidence_hits = [term for term in group if _contains_explicit_term(evidence_text, term)]
             if requirement_hits and evidence_hits:
                 related.append(f"{requirement_hits[0]} ↔ {evidence_hits[0]}")
+        if delivery_requirement and evidence.type in {EvidenceType.PROJECT, EvidenceType.WORK, EvidenceType.ACHIEVEMENT}:
+            # Never assemble deployment from one sentence and an API mention in another,
+            # or infer deployment from linked skills without an explicit statement.
+            for clause in re.split(r"[。；;！？!?\n]|\.(?=\s|$)", evidence.summary):
+                service = re.search(DELIVERED_SERVICE_TARGET, clause, re.IGNORECASE)
+                delivery = re.search(DELIVERY_EVIDENCE, clause, re.IGNORECASE)
+                if service and delivery and not re.search(DELIVERY_COUNTEREXAMPLE, clause, re.IGNORECASE):
+                    direct = re.search(EXPLICIT_BUILT_AND_SHIPPED_SERVICE, clause, re.IGNORECASE)
+                    if plain_delivery_requirement and direct:
+                        _keep_best(candidates, _candidate(evidence,
+                            relevance_tier=EvidenceRelevanceTier.DIRECT,
+                            retrieval_basis=EvidenceRetrievalBasis.EXPLICIT_TEXT_OVERLAP,
+                            matched_terms=(direct.group(0),),
+                            reason="这段已确认经历明确说明做过并部署了岗位列出的后端服务或 API；仍需核对实际范围。"))
+                    else:
+                        related.append(f"{delivery.group(0)} · {service.group(0)}")
+                    break
         if related:
             _keep_best(candidates, _candidate(evidence,
                 relevance_tier=EvidenceRelevanceTier.RELATED,

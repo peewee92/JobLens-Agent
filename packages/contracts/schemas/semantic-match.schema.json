@@ -80,7 +80,7 @@
     "partialCount": {"type": "integer", "minimum": 0},
     "notMatchedCount": {"type": "integer", "minimum": 0},
     "matcherVersion": {"const": "semantic-match-v1"},
-    "promptVersion": {"const": "semantic-match-v3"},
+    "promptVersion": {"enum": ["semantic-match-v3", "semantic-match-v4"]},
     "model": {"type": ["string", "null"]},
     "traceRunId": {"type": ["string", "null"]},
     "dbWrites": {"const": 0},

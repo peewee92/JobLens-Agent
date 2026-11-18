@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from app.application.job_requirements.call_models import RequirementCallConflict, digest
 from app.application.eligibility import EligibilityDecision
 from app.application.job_queries.errors import JobNotFoundError
+from app.application.semantic_match.errors import InvalidSemanticMatcherOutputError
 from app.application.semantic_match.call_boundary import needs_semantic_model, semantic_requirement_input, semantic_input_payload
 from app.application.match_policy_version import CURRENT_MATCH_POLICY_VERSION
 from app.application.match_report import BuildJobMatchReportUseCase
@@ -84,6 +85,8 @@ class AuthorizedSemanticMatch:
                 runner = SimpleNamespace(execute=lambda _: workflow.execute(eligibility=eligibility, evidence=evidence))
                 BuildJobMatchReportUseCase(runner, eligibility=SimpleNamespace(execute=lambda _: eligibility),
                     jobs=self.jobs, uow_factory=lambda: self.uow_factory(command.action_id)).execute(job_id)
+        except InvalidSemanticMatcherOutputError:
+            self.journal.fail(command.action_id, "semantic_output_not_grounded")
         except Exception as exc:
             # Never persist exception text: the provider could echo private evidence or credentials.
             code = "match_facts_changed" if isinstance(exc, RequirementCallConflict) else "semantic_result_not_saved"

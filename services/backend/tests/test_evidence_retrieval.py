@@ -305,3 +305,54 @@ def test_retrieval_fails_closed_if_profile_or_requirement_changes_after_readines
 
     with pytest.raises(EvidenceRetrievalInputsNotReadyError, match="changed after readiness"):
         stale.execute("job_1")
+
+
+@pytest.mark.parametrize("requirement_text,summary,expected", [
+    ("做过已上线的全栈产品、API 或后端服务", "Built and deployed backend APIs for inventory and support workflows.", EvidenceRelevanceTier.DIRECT),
+    ("Shipped API or backend services in production", "已上线订单后端服务，支持仓库库存同步。", EvidenceRelevanceTier.RELATED),
+    ("做过已上线的全栈产品、API 或后端服务", "Never deployed the backend API to production.", None),
+    ("有后端接口上线经验", "Deployed a static website. Built the backend API locally.", None),
+    ("有后端接口上线经验", "Deployed mock APIs in a sandbox.", None),
+    ("做过已上线的后端接口", "Built and deployed backend APIs locally on my own laptop.", None),
+    ("做过已上线的后端接口", "Built and deployed backend APIs to a development environment.", None),
+    ("有后端接口上线经验", "Wrote API documentation and deployed it.", None),
+    ("有后端接口上线经验", "Built a backend API and ran test cases.", None),
+    ("做过已上线的全栈产品、API 或后端服务并负责容量规划", "Built and deployed backend APIs for inventory.", EvidenceRelevanceTier.RELATED),
+    ("做过已上线的后端接口", "Developed and launched backend services for reporting.", EvidenceRelevanceTier.DIRECT),
+    ("做过已上线的后端接口", "Deployed backend services but did not build them.", None),
+    ("熟悉 API 设计", "Built and deployed backend APIs for inventory and support workflows.", None),
+])
+def test_cross_language_delivery_only_retrieves_explicit_work_or_project(requirement_text, summary, expected):
+    from dataclasses import replace
+
+    profile = _profile()
+    work = replace(profile.evidence[2], summary=summary)
+    education = replace(profile.evidence[1], summary=summary, type=EvidenceType.EDUCATION)
+    profile = replace(profile, evidence=(work, education), skills=())
+    requirement = _requirement(0, text=requirement_text, capability=None, type=RequirementType.EXPERIENCE)
+
+    candidates = retrieve_candidate_evidence(profile=profile, extraction=_extraction(requirement)).requirements[0].candidates
+    assert [candidate.evidence_id for candidate in candidates] == ([work.id] if expected else [])
+    if expected:
+        assert candidates[0].relevance_tier is expected
+        assert candidates[0].retrieval_basis is (
+            EvidenceRetrievalBasis.EXPLICIT_TEXT_OVERLAP if expected is EvidenceRelevanceTier.DIRECT
+            else EvidenceRetrievalBasis.RELATED_CAPABILITY_HINT
+        )
+
+
+def test_confirmed_achievement_can_ground_explicit_deployment():
+    from dataclasses import replace
+
+    profile = _profile()
+    evidence = replace(
+        profile.evidence[0], summary="Built and deployed backend APIs for inventory and support workflows.",
+        type=EvidenceType.ACHIEVEMENT,
+    )
+    self_report = replace(evidence, id="ev_unverified_category", type=EvidenceType.SELF_REPORT)
+    profile = replace(profile, evidence=(evidence, self_report), skills=())
+    requirement = _requirement(0, text="做过已上线的全栈产品、API 或后端服务", capability=None, type=RequirementType.EXPERIENCE)
+
+    retrieved = retrieve_candidate_evidence(profile=profile, extraction=_extraction(requirement))
+    assert [item.evidence_id for item in retrieved.requirements[0].candidates] == [evidence.id]
+    assert retrieved.requirements[0].candidates[0].relevance_tier is EvidenceRelevanceTier.DIRECT
