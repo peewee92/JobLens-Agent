@@ -1,7 +1,8 @@
 "use client";
+import {MatchReason} from "@/components/match-reason";
 import React, {useEffect, useState} from "react";
 import type {MatchReportHistoryItem} from "@/lib/contracts";
-import {matchReasonCopy, matchRecommendationLabels} from "@/lib/match-report";
+import {matchRecommendationLabels} from "@/lib/match-report";
 
 /** Read the exact immutable report already bound by the runtime, never run matching. */
 export function RankedJobExplanation({jobId, reportId, position}: {
@@ -38,9 +39,9 @@ export function SavedRankedJobExplanation({saved, position}: {saved: MatchReport
     <p>{report.summary}</p>
     {!saved.isCurrent && <p className="notice">这是本次排序的历史依据，当前事实已变化；请核对资料后重新分析，不能直接沿用旧建议。</p>}
     {report.strengths.length ? <><h3>已有支持</h3><ul>{report.strengths.slice(0, 2).map(item =>
-      <li key={item.requirementId}>{item.requirementText}<p>{matchReasonCopy(item.reason)}</p></li>)}</ul></> : <p>当前没有足够明确的核心优势证据。</p>}
+      <li key={item.requirementId}>{item.requirementText}<MatchReason reason={item.reason} /></li>)}</ul></> : <p>当前没有足够明确的核心优势证据。</p>}
     {report.risks.length ? <><h3>需要核对的条件</h3><ul>{report.risks.slice(0, 2).map(item =>
-      <li key={item.requirementId}>{item.requirementText}<p>{matchReasonCopy(item.reason)}</p></li>)}</ul></> : <p>当前报告未列出额外岗位风险，不代表所有条件都已验证。</p>}
+      <li key={item.requirementId}>{item.requirementText}<MatchReason reason={item.reason} /></li>)}</ul></> : <p>当前报告未列出额外岗位风险，不代表所有条件都已验证。</p>}
     <details><summary>查看依据版本</summary>已保存资料第 {report.profileVersion} 版 · 意向第 {report.searchIntentVersion ?? "未记录"} 版</details>
     <p className="muted">排序位置不是录用概率；完整要求、证据和偏好检查见下方报告。</p>
   </section>;

@@ -90,7 +90,7 @@ export function PastedJobsForm() {
             : result ? <div className="success-box" role="status">
               <p>{result.created ? "已添加" : "复用已有岗位，未新增"}{result.created && short ? " · 描述待补充，暂不能分析" : ""}</p>
               {!result.created && <p>{existingMatchStatus(result.jobId)}</p>}
-              <Link href={`${jobDetailWithAgentScope(result.jobId, scope)}#${!result.created ? "job-match" : short ? "job-description" : "job-requirements"}`}>{!result.created ? "核对已有岗位和匹配" : short ? "查看并补充描述" : "查看这个岗位并分析要求"}<LinkFeedback /></Link>
+              {working === null ? <Link href={`${jobDetailWithAgentScope(result.jobId, scope)}#${!result.created ? "job-match" : short ? "job-description" : "job-requirements"}`}>{!result.created ? "核对已有岗位和匹配" : short ? "查看并补充描述" : "查看这个岗位并分析要求"}<LinkFeedback /></Link> : <p>整批保存结束后可继续，返回时会保留这批岗位。</p>}
             </div> : short ? <p className="notice">描述信息不足。保存后标为待补充，不会直接参与匹配。</p> : null}
             {!result && <details open={validation ? true : undefined}>
               <summary>{locked ? "查看原文" : "查看或修改原文"}</summary>
@@ -113,7 +113,7 @@ export function PastedJobsForm() {
           onClick={() => void save(rows.flatMap((row, i) => row.outcome?.kind !== "saved" && row.outcome?.kind !== "unknown" ? [i] : []))}>
           {working !== null ? "正在保存岗位…" : `保存 ${pending.length} 条岗位`}
         </button>}
-        {scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位<LinkFeedback /></Link>}
+        {working === null && scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位<LinkFeedback /></Link>}
       </div>
     </section>}
   </section>;

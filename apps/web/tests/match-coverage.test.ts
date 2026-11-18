@@ -18,3 +18,7 @@ test('old reports with unknown provenance do not claim zero retrieval or model r
  const result=matchCoverage({...report([{...item,candidateCount:undefined,assessmentSource:undefined}]),retrievalVersion:undefined});
  assert.equal(result.legacy,true);assert.equal(result.noCandidates,false);assert.equal(result.counts.pending,1);
 });
+test('a current hard-conflict report skips retrieval without pretending to be stale history',()=>{
+ const result=matchCoverage({...report([{...item,eligibilityStatus:'missing',candidateCount:undefined}]),eligibility:'blocked',retrievalVersion:undefined});
+ assert.equal(result.legacy,false);assert.equal(result.noCandidates,false);assert.equal(result.counts.conflict,1);
+});
