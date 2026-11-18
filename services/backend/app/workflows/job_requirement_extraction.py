@@ -19,6 +19,10 @@ from app.application.job_requirements.description_readiness import (
     MIN_DESCRIPTION_CHARS,
     description_length_blocker,
 )
+from app.application.job_requirements.personal_optional_skill import (
+    POLICY as PERSONAL_OPTIONAL_SKILL_POLICY,
+    preserve_explicit_optional_skill,
+)
 from app.application.job_requirements.personal_skill_proof import POLICY as PERSONAL_SKILL_POLICY, preserve_skill_requiring_proof
 from app.application.job_requirements.validation import (
     COVERAGE_POLICY_VERSION,
@@ -44,7 +48,7 @@ TraceUnitOfWorkFactory = Callable[[], AbstractTraceUnitOfWork]
 
 EXTRACTOR_VERSION = "requirement-extractor-v42.96"
 PROMPT_VERSION = "requirement-extraction-v9"
-PERSONAL_EXTRACTOR_VERSION = f"{EXTRACTOR_VERSION}+{PERSONAL_SKILL_POLICY}"
+PERSONAL_EXTRACTOR_VERSION = f"{EXTRACTOR_VERSION}+{PERSONAL_SKILL_POLICY}+{PERSONAL_OPTIONAL_SKILL_POLICY}"
 
 
 class ExtractJobRequirementsWorkflow:
@@ -88,6 +92,7 @@ class ExtractJobRequirementsWorkflow:
         output_tokens: int | None = None
         provider_calls = 0
         personal_repairs = ()
+        personal_optional_repairs = ()
 
         try:
             result = self._extractor.extract(normalized)
@@ -105,6 +110,7 @@ class ExtractJobRequirementsWorkflow:
             semantic_repairs = semantic_result.repairs
             if self._personal_skill_proof:
                 output, personal_repairs = preserve_skill_requiring_proof(normalized, output)
+                output, personal_optional_repairs = preserve_explicit_optional_skill(normalized, output)
             validate_job_requirement_output(normalized, output)
             coverage_audit = audit_job_requirement_coverage(normalized, output)
             validate_job_requirement_coverage(coverage_audit)
@@ -133,6 +139,7 @@ class ExtractJobRequirementsWorkflow:
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
                 personal_repairs=personal_repairs,
+                personal_optional_repairs=personal_optional_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -155,6 +162,7 @@ class ExtractJobRequirementsWorkflow:
                 grounding_repairs=grounding_repairs,
                 semantic_repairs=semantic_repairs,
                 personal_repairs=personal_repairs,
+                personal_optional_repairs=personal_optional_repairs,
                 coverage_audit=coverage_audit,
                 latency_ms=self._elapsed_ms(started),
                 input_tokens=input_tokens,
@@ -174,6 +182,7 @@ class ExtractJobRequirementsWorkflow:
             grounding_repairs=grounding_repairs,
             semantic_repairs=semantic_repairs,
             personal_repairs=personal_repairs,
+            personal_optional_repairs=personal_optional_repairs,
             coverage_audit=coverage_audit,
             latency_ms=self._elapsed_ms(started),
             input_tokens=input_tokens,
@@ -201,6 +210,7 @@ class ExtractJobRequirementsWorkflow:
         grounding_repairs: tuple[GroundingRepairEvent, ...],
         semantic_repairs: tuple[SemanticRepairEvent, ...],
         personal_repairs: tuple[int, ...],
+        personal_optional_repairs: tuple[int, ...],
         coverage_audit: JobRequirementCoverageAudit | None,
         latency_ms: int,
         input_tokens: int | None,
@@ -227,7 +237,10 @@ class ExtractJobRequirementsWorkflow:
                     output=(
                         {
                             **_requirement_output_dict(output, grounding_repairs, semantic_repairs, coverage_audit),
-                            **({"personalSkillProofRepairs": list(personal_repairs)} if self._personal_skill_proof else {}),
+                            **({
+                                "personalSkillProofRepairs": list(personal_repairs),
+                                "personalOptionalSkillRepairs": list(personal_optional_repairs),
+                            } if self._personal_skill_proof else {}),
                         }
                         if output is not None
                         else None
