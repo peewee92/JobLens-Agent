@@ -154,6 +154,7 @@ export default async function JobDetailPage({
     "requirement_extraction_missing",
   );
   const hasEnoughDescription = hasEnoughJobDescription(job.description);
+  const localProduct = process.env.JOBLENS_LOCAL_PRODUCT === "1";
   const descriptionIssue = jobDescriptionIssue(job.description);
   const canEditDescription = job.source === "manual" && !publicDemoEnabled();
   const descriptionRevision = canEditDescription ? createHash("sha256").update(job.description ?? "").digest("hex") : null;
@@ -235,7 +236,7 @@ export default async function JobDetailPage({
                 </p>
               </div>
               <JobRequirementExtractButton
-                localProduct={process.env.JOBLENS_LOCAL_PRODUCT === "1"}
+                localProduct={localProduct}
                 disabled={job.userMarkedInactive || !hasEnoughDescription}
                 disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionHelp ?? undefined}
                 hasExisting={extraction !== null}
@@ -319,11 +320,13 @@ export default async function JobDetailPage({
                   ))}
                 </div>
               </>
-            ) : (
+            ) : !requirementError && !job.userMarkedInactive ? (
               <p className="notice">
-                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionHelp}
+                {!hasEnoughDescription ? descriptionHelp : localProduct
+                  ? "这个岗位还没有可核对的要求。先查看上方的模型调用范围，再决定是否授权一次提取。"
+                  : "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。"}
               </p>
-            )}
+            ) : null}
             {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
                 <JobRequirementConfirmation key={extraction.factsDigest}
                   jobId={job.id} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
