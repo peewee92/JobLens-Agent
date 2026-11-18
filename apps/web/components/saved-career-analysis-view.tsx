@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import {currentStateLabel, completionCriterionLabel, gapImportanceLabel} from "@/lib/gap-language";
+import {currentStateLabel, completionCriterionLabel, gapImportanceLabel, gapNextStep} from "@/lib/gap-language";
 import {UnrankedJobs} from "./unranked-jobs";
 import {AnalysisExecutionControls} from "./analysis-execution-controls";
 import type {SavedCareerAnalysis} from "@/lib/contracts";
@@ -58,15 +58,18 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
     {result.updatePartial && <section className="card stack-md" aria-label="部分范围说明"><h2>这是一份部分范围分析</h2>
       <p>用户明确选择只使用已完成岗位；以下岗位没有在本次完成分析，不代表已不适合：{result.unanalysedJobIds?.map(id => labels[id] ?? "名称暂不可读取").join("、")}。</p>
       <Link href={backHref}>查看未完成步骤与原因</Link></section>}
-    <section className="card stack-md" id="saved-gaps"><h2>差距与补齐标准</h2>
-      <p className="muted">差距表示当前资料和证据的覆盖情况，不是对你真实能力的否定。</p>
+    <section className="card stack-md" id="saved-gaps"><h2>能力差距：先核实经历，再决定怎么准备</h2>
+      <p className="muted">这里显示哪些岗位要求还没有被你的已确认经历覆盖。不是能力评分，不因资料缺失就认定你不会。</p>
       {result.gaps.items.length === 0 ? <p>本次没有可列出的能力差距，不代表已经满足全部岗位要求。</p> :
         result.gaps.items.map((item, index) => <article className="card stack-sm" key={`${item.capability}-${index}`}>
           <h3>{item.capability}</h3>
           <p><strong>{gapImportanceLabel(item.whyImportant.mustHaveRatio, item.supportingRequirementIds, importance)}</strong></p>
           <p>{currentStateLabel(item.currentState)}</p>
+          <p><strong>下一步：</strong>{gapNextStep(item.whyImportant.mustHaveRatio)}</p>
+          <p>涉及岗位：{item.supportingJobIds.map(id => labels[id]).filter(Boolean).join("、") || "名称暂不可读取"}</p>
           {!!item.supportingRequirementIds.length && <p>岗位依据：{item.supportingRequirementIds.map(id => requirements.get(id)?.text).filter(Boolean).join("；") || "可在下方的匹配依据里核对原文。"}</p>}
           <details><summary>查看来源证据</summary><p className="muted">依据：{item.supportingJobIds.length} 个岗位 · 要求 {item.supportingRequirementIds.join("、")} · 个人证据 {item.evidenceIds.join("、") || "尚未覆盖"}</p></details>
+          <p><strong>如果你确实有相关经历，核对以下两点：</strong></p>
           <ul>{item.completionCriteria.map((criterion, i) => <li key={i}>{completionCriterionLabel(criterion)}</li>)}</ul>
         </article>)}
     </section>
@@ -97,6 +100,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         <h3>建议行动与完成标准</h3>
         {!preparation.studyChecklist?.items.length && <p>当前没有证据缺口驱动的补充行动；实际投递与面试安排仍由你决定。</p>}
         <ul>{preparation.studyChecklist?.items.slice(0, 3).map((item, i) => <li key={i}>{item.capability} · {item.requirementText}
+          <p><strong>如果你确实有相关经历，核对以下两点：</strong></p>
           <ul>{item.completionCriteria.map((criterion, j) => <li key={j}>{completionCriterionLabel(criterion)}</li>)}</ul></li>)}</ul>
         {(preparation.studyChecklist?.items.length ?? 0) > 3 && <details><summary>展开其余行动</summary><ul>
           {preparation.studyChecklist?.items.slice(3).map((item, i) => <li key={i}>{item.capability}<ul>{item.completionCriteria.map((criterion, j) => <li key={j}>{completionCriterionLabel(criterion)}</li>)}</ul></li>)}

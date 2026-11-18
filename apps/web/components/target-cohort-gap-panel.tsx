@@ -1,7 +1,8 @@
 "use client";
-import {currentStateLabel, completionCriterionLabel} from "@/lib/gap-language";
+import {currentStateLabel, completionCriterionLabel, gapImportanceLabel, gapNextStep} from "@/lib/gap-language";
 
 import Link from "next/link";
+import {withGapReturn} from "@/lib/gap-scope";
 import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
 import {formatDateTime, formatSalary} from "@/lib/format";
@@ -87,11 +88,10 @@ const reasonLabels: Record<string, string> = {
   other: "其他",
 };
 
+const NO_REQUIREMENT_IMPORTANCE = new Map<string, string>();
 const SAFE_FACT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 
 function buildGapEvidenceHref(item: GapItem): string | null {
-  if (item.priority !== "P0") return null;
-
   const supportingJobIds = Array.from(new Set(item.supportingJobIds.filter((id) => SAFE_FACT_ID.test(id))));
   const supportingRequirementIds = Array.from(
     new Set(item.supportingRequirementIds.filter((id) => SAFE_FACT_ID.test(id))),
@@ -102,7 +102,7 @@ function buildGapEvidenceHref(item: GapItem): string | null {
   if (!focusJobId || !focusRequirementId || !focusCapability) return null;
 
   const query = new URLSearchParams({
-    next: "/recommendations",
+    next: "/gaps",
     focusRequirement: "skill",
     focusJob: focusJobId,
     focusRequirementId,
@@ -149,10 +149,8 @@ function gapBlockerCopy(code: string): GapBlockerCopy {
   }
   if (code === "accepted_baseline_missing") {
     return {
-      title: "岗位要求还没有完成质量确认",
-      description: "这些岗位已经有要求分析结果，但当前版本还没有完成正式质量确认，所以暂时不能把它们当作可靠事实与你的经历比较。",
-      actionHref: "/evals/requirements/canary/readiness",
-      actionLabel: "查看岗位要求准备状态",
+      title: "还有岗位要求没有核对",
+      description: "打开受影响的岗位，对照原文核对并确认分析结果，再回来查看差距。",
     };
   }
   if (code === "requirement_extraction_missing") {
@@ -169,10 +167,8 @@ function gapBlockerCopy(code: string): GapBlockerCopy {
   }
   if (code === "extraction_cohort_mismatch") {
     return {
-      title: "岗位要求来自旧的分析版本",
-      description: "当前要求分析与已经确认的质量版本不一致，需要重新完成要求分析或质量确认。",
-      actionHref: "/evals/requirements/canary/readiness",
-      actionLabel: "查看岗位要求准备状态",
+      title: "需要核对当前的岗位要求",
+      description: "打开受影响的岗位，重新分析或核对当前结果；不需要完成模型质量审核。",
     };
   }
   if (
@@ -188,9 +184,7 @@ function gapBlockerCopy(code: string): GapBlockerCopy {
   ) {
     return {
       title: "岗位要求分析还没有通过完整性检查",
-      description: "系统发现岗位要求的分析记录、来源或追踪证据还不完整。为避免给你错误的学习建议，当前先不生成技能差距。",
-      actionHref: "/evals/requirements/canary/readiness",
-      actionLabel: "查看岗位要求准备状态",
+      description: "当前要求记录不完整。请回到相应岗位检查原文和分析结果；若仍无法修复，可以明确移出该岗位再分析其余岗位。",
     };
   }
   return {
@@ -210,6 +204,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
   const [result, setResult] = useState<GapResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const running = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,8 +221,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
           const candidateResponse = payload as CandidateResponse;
           setCandidates(candidateResponse);
           if (!appliedInitialSelection.current && initialJobIds.length > 0) {
-            const availableJobIds = new Set(candidateResponse.items.map((item) => item.jobId));
-            setSelectedJobIds(new Set(initialJobIds.filter((jobId) => availableJobIds.has(jobId))));
+            setSelectedJobIds(new Set(initialJobIds));
             appliedInitialSelection.current = true;
           }
         }
@@ -272,6 +266,9 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
     for (const raw of result?.blockers ?? []) {
       const blocker = parseGapBlocker(raw);
       const current = groups.get(blocker.code) ?? [];
+      if (blocker.code === "accepted_baseline_missing" && result?.blockers.some(
+        raw => raw === `${blocker.jobId}:requirement_extraction_missing` || raw === `${blocker.jobId}:extraction_input_stale`
+      )) continue;
       current.push(blocker);
       groups.set(blocker.code, current);
     }
@@ -309,11 +306,17 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (running.current) return;
     if (selectedJobIds.size === 0) {
       setError("请先选择至少一个你真正想作为目标的岗位。");
       return;
     }
 
+    if (selectedJobIds.size > 50) {
+      setError("一次最多分析 50 个目标岗位，请缩小范围。");
+      return;
+    }
+    running.current = true;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -336,6 +339,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
     } catch {
       setError("暂时无法连接分析服务，请稍后重试。");
     } finally {
+      running.current = false;
       setLoading(false);
     }
   }
@@ -412,9 +416,9 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
             ) : null}
 
             <div className="gap-quick-actions">
-              <button className="button-ghost" onClick={selectInterested} type="button">选择全部“感兴趣”</button>
+              <button className="button-ghost" onClick={selectInterested} type="button" disabled={loading}>选择全部“感兴趣”</button>
               {selectedJobIds.size > 0 ? (
-                <button className="button-ghost" onClick={clearSelection} type="button">清空选择</button>
+                <button className="button-ghost" onClick={clearSelection} type="button" disabled={loading}>清空选择</button>
               ) : null}
               <span>建议选 3～8 个你真正愿意投入时间准备的岗位，结果会更聚焦。</span>
             </div>
@@ -429,6 +433,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                     <label className={selected ? "gap-candidate-card is-selected" : "gap-candidate-card"} key={item.jobId}>
                       <input
                         checked={selected}
+                        disabled={loading || (!selected && selectedJobIds.size >= 50)}
                         onChange={() => toggleCandidate(item.jobId)}
                         type="checkbox"
                       />
@@ -480,8 +485,8 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                     : "先选岗位，再查看哪些能力最值得优先补。"}
                 </p>
               </div>
-              <button className="button" disabled={loading || selectedJobIds.size === 0} type="submit">
-                {loading ? "正在分析能力差距…" : "分析这些岗位的共同能力差距"}
+              <button className="button" disabled={loading || selectedJobIds.size === 0 || selectedJobIds.size > 50} type="submit">
+                {loading ? "正在对照岗位要求和经历…" : selectedJobIds.size === 1 ? "查看这个岗位的能力差距" : "查看所选岗位的能力差距"}
               </button>
             </div>
           </form>
@@ -498,7 +503,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
               <h2>这些目标岗位最值得补什么？</h2>
               <p>基于 {result.jobIds.length} 个你亲自选择的岗位，以及当前已确认的职业证据。</p>
             </div>
-            {result.factsUsable ? <span className="gap-ready-badge">事实已通过使用门槛</span> : null}
+            {result.factsUsable ? <span className="gap-ready-badge">使用已核对的岗位要求</span> : null}
           </div>
 
           {!result.factsUsable ? (
@@ -523,8 +528,8 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                 </article>
                 <article className="gap-readiness-state is-blocked">
                   <span>目标岗位要求</span>
-                  <strong>暂未全部准备好</strong>
-                  <p>至少一个目标岗位的要求分析还没有达到可用于能力规划的可信状态。</p>
+                  <strong>{blockerGroups.some(group => group.blockers.some(item => item.jobId)) ? "有岗位需处理" : "没有发现待处理的岗位"}</strong>
+                  <p>不会自动去掉你选的岗位。先处理下方提示，再用同一选择重试。</p>
                 </article>
               </div>
 
@@ -544,7 +549,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                           <div className="gap-blocker-jobs">
                             <span>受影响的岗位</span>
                             {affectedJobs.map((job) => (
-                              <Link href={`/jobs/${job.jobId}`} key={job.jobId}>
+                              <Link href={withGapReturn(`/jobs/${encodeURIComponent(job.jobId)}#job-requirements`, result.jobIds)} key={job.jobId}>
                                 {job.title} · {job.company}
                               </Link>
                             ))}
@@ -552,7 +557,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                         ) : null}
                         {copy.actionHref && copy.actionLabel ? (
                           <div className="actions">
-                            <Link className="button-ghost" href={copy.actionHref}>{copy.actionLabel}</Link>
+                            <Link className="button-ghost" href={withGapReturn(copy.actionHref, result.jobIds)}>{copy.actionLabel}</Link>
                           </div>
                         ) : null}
                       </article>
@@ -564,8 +569,8 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
               <div className="gap-next-preview">
                 <strong>准备完成后，你会在这里直接看到</strong>
                 <ul>
-                  <li>哪些技能是真正缺失，哪些只是“会但缺项目证据”；</li>
-                  <li>每项技能是 P0 还是 P1，以及它影响多少个目标岗位；</li>
+                  <li>哪些要求尚未有对应记录，哪些已有技能但还缺可核实的经历；</li>
+                  <li>哪些要求是必需条件、哪些是加分项，以及涉及哪些岗位；</li>
                   <li>你当前已有的真实证据，以及做到什么才算补齐。</li>
                 </ul>
               </div>
@@ -580,37 +585,29 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
           ) : result.items.length === 0 ? (
             <div className="gap-empty-state">
               <strong>当前没有识别到需要优先补齐的能力差距。</strong>
-              <p>这不代表“完全匹配”，而是当前已确认事实下没有形成 P0/P1 补强项。</p>
+              <p>这不代表完全匹配。可返回岗位核对未纳入技能分析的条件，例如年限、地点与学历。</p>
             </div>
           ) : (
             <div className="gap-result-grid">
-              {result.items.map((item, index) => {
+              {result.items.map((item) => {
                 const supportingJobs = item.supportingJobIds
                   .map((jobId) => candidateByJobId.get(jobId))
                   .filter((candidate): candidate is CohortCandidate => Boolean(candidate));
-                const coverage = Math.round((item.whyImportant.targetCoverage ?? 0) * 100);
-                const mustHaveRatio = Math.round((item.whyImportant.mustHaveRatio ?? 0) * 100);
+                const mustHaveRatio = item.whyImportant.mustHaveRatio;
                 const evidenceHref = buildGapEvidenceHref(item);
                 return (
                   <article className="gap-result-card" key={item.capability}>
                     <div className="gap-result-topline">
-                      <span className={`gap-priority priority-${item.priority.toLowerCase()}`}>{item.whyImportant.mustHaveRatio === 0 ? "非必需" : item.priority === "P0" ? "优先核对" : "按需准备"}</span>
-                      <span className="gap-rank">优先级 #{index + 1}</span>
+                      <span className={`gap-priority priority-${item.priority.toLowerCase()}`}>{gapImportanceLabel(mustHaveRatio, [], NO_REQUIREMENT_IMPORTANCE)}</span>
                     </div>
                     <h3>{item.capability}</h3>
                     <div className="gap-metric-grid">
-                      <div><strong>{coverage}%</strong><span>目标岗位覆盖</span></div>
-                      <div><strong>{mustHaveRatio}%</strong><span>其中属于硬要求</span></div>
-                      <div><strong>{item.supportingJobIds.length}</strong><span>个岗位提到</span></div>
-                      <div><strong>{item.evidenceIds.length}</strong><span>条当前证据</span></div>
+                      <div><strong>{item.supportingJobIds.length} / {result.jobIds.length}</strong><span>所选岗位提到</span></div>
+                      <div><strong>{item.evidenceIds.length}</strong><span>条已关联的经历</span></div>
                     </div>
 
                     <div className="gap-result-section">
-                      <span className="gap-result-label">为什么值得现在补</span>
-                      <p>
-                        这项能力出现在 {item.supportingJobIds.length} 个目标岗位中；
-                        {item.whyImportant.mustHaveRatio === 0 ? "所依据的要求都不是必需条件。" : mustHaveRatio >= 50 ? "在提到它的要求里，多数是必需条件。" : "有部分要求将它作为必需条件。"}
-                      </p>
+                      <span className="gap-result-label">涉及哪些岗位</span>
                       {supportingJobs.length > 0 ? (
                         <div className="gap-supporting-jobs">
                           {supportingJobs.map((job) => (
@@ -621,12 +618,13 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                     </div>
 
                     <div className="gap-result-section">
-                      <span className="gap-result-label">你现在差在哪里</span>
+                      <span className="gap-result-label">当前资料说明了什么</span>
                       <p>{currentStateLabel(item.currentState)}</p>
                     </div>
 
                     <div className="gap-result-section gap-completion-section">
-                      <span className="gap-result-label">做到什么算补齐</span>
+                      <span className="gap-result-label">下一步做什么</span>
+                      <p>{gapNextStep(mustHaveRatio)}</p>
                       <ol>
                         {item.completionCriteria.map((criterion) => (
                           <li key={criterion}>{completionCriterionLabel(criterion)}</li>
@@ -634,7 +632,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                       </ol>
                       {evidenceHref ? (
                         <div className="actions">
-                          <Link className="button" href={evidenceHref}>核实并补充真实经历</Link>
+                          <Link className="button" href={withGapReturn(evidenceHref, result.jobIds)}>核实并补充真实经历</Link>
                           <p className="muted">
                             只补你确实做过的经历。保存后回到推荐页重新匹配，核对是否真的带来改善。
                           </p>
@@ -645,7 +643,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                     {item.priority === "P0" && supportingJobs.length > 0 ? (
                       <div className="gap-result-section">
                         <span className="gap-result-label">针对这些岗位开始准备</span>
-                        <p>直接进入受这项首要差距影响的岗位准备页，用同一组已确认 Requirement 检查简历、面试与学习清单。</p>
+                        <p>直接进入受这项首要差距影响的岗位准备页，用已核对的岗位要求检查简历、面试与学习清单。</p>
                         <div className="gap-supporting-jobs">
                           {supportingJobs.map((job) => (
                             <Link href={buildGapPreparationHref(item, job.jobId)} key={job.jobId}>

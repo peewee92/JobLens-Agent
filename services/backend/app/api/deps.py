@@ -1029,7 +1029,7 @@ def get_target_cohort_candidates_use_case(
 
 def get_target_cohort_gap_query_use_case(
     release_gate: GetJobRequirementReleaseReadinessUseCase = Depends(
-        get_job_requirement_release_readiness_use_case
+        get_mvp_job_requirement_release_readiness_use_case
     ),
     requirements: AbstractJobRequirementQueryRepository = Depends(
         get_job_requirement_query_repository

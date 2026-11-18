@@ -5,6 +5,10 @@ export function preparationFacts(preparation: JobPreparationBundle | null | unde
   const evidenceSummaries = new Map<string, string>();
   for (const item of preparation?.interviewFacts?.items ?? []) {
     requirements.set(item.requirementId, {text: item.requirementText, importance: item.importance});
+    // Only a one-to-one saved binding is unambiguous; never guess array alignment.
+    if (item.evidenceIds.length === 1 && item.evidenceSummaries.length === 1 && item.evidenceSummaries[0].trim()) {
+      evidenceSummaries.set(item.evidenceIds[0], item.evidenceSummaries[0]);
+    }
   }
   for (const item of preparation?.studyChecklist?.items ?? []) {
     requirements.set(item.requirementId, {text: item.requirementText, importance: item.importance});

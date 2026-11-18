@@ -18,6 +18,7 @@ import {
 import type {RequirementType, SearchParams} from "@/lib/contracts";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import Link from "next/link";
+import {gapScope, gapScopeHref} from "@/lib/gap-scope";
 import {agentScopeFromProfile, agentScopeHref, jobDetailWithAgentScope} from "@/lib/agent-job-scope";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,7 @@ export default async function ProfilePage({
         .catch(() => false),
   ]);
   const agentScope = agentScopeFromProfile(params.scopeFocusJobId, params.scopeJobId);
+  const gapIds = gapScope(params.gapJobId);
   const requestedNext = Array.isArray(params.next) ? params.next[0] : params.next;
   const requestedFocus = Array.isArray(params.focus) ? params.focus[0] : params.focus;
   const requestedRequirementFocus = Array.isArray(params.focusRequirement)
@@ -161,7 +163,7 @@ export default async function ProfilePage({
       )).slice(0, 20).join(",") || null
     : null;
   // Return to recommendations carrying the same focus so the recompute can prioritize that job.
-  const afterProfileSaveHref = requestedNext === "/recommendations"
+  const afterProfileSaveHref = requestedNext === "/gaps" && gapIds.length ? gapScopeHref(gapIds) : requestedNext === "/recommendations"
     ? buildRecommendationReturnHref({
         focusJob: requestedFocusJob,
         focusRequirement: typeof requestedRequirementFocus === "string" ? requestedRequirementFocus : null,
@@ -210,6 +212,7 @@ export default async function ProfilePage({
           <h1>我的背景和求职偏好</h1>
         </section>
         <AgentScopeReturn scope={agentScope} />
+      {gapIds.length > 0 && <Link className="button-secondary" href={gapScopeHref(gapIds)}>返回原目标岗位差距</Link>}
         <ServiceError message={message} />
       </>
     );
@@ -237,6 +240,7 @@ export default async function ProfilePage({
       </section>
 
       <AgentScopeReturn scope={agentScope} />
+      {gapIds.length > 0 && <Link className="button-secondary" href={gapScopeHref(gapIds)}>返回原目标岗位差距</Link>}
 
       <details className="detail-card">
         <summary>查看匹配准备情况</summary>

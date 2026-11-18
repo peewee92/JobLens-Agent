@@ -42,6 +42,8 @@ python3 scripts/local.py --backend-port 8102 --web-port 3102
 - 页面“本地正式使用”表示真实录入和持久化；下方“离线演示”使用固定样本规则，二者不是同一验收。
 - 添加 `--production` 可先构建再启动稳定网页，不显示开发工具。端口占用时换两个空闲端口；脚本不会停止其他项目。只绑定本机，不改变原项目数据。
 
+[本轮真实模型与屏幕操作验收](docs/implementation/P1-local-product-acceptance.md)。
+
 ## 先体验：本地零模型演示
 
 需要 Python 3.12+、uv、Node.js 20.9+ 和 pnpm 10.33.2。首次在仓库根目录安装依赖，再启动：

@@ -717,13 +717,13 @@ test("Target Cohort Gap page is phrased around choosing Jobs instead of internal
   const panel = await source("components/target-cohort-gap-panel.tsx");
   const preparation = await source("app/jobs/[id]/prepare/page.tsx");
 
-  assert.match(page, /别按感觉补技能/);
+  assert.match(page, /不把证据不足当成不会/);
   assert.match(panel, /选择目标岗位/);
   assert.match(panel, /不需要再找任何 ID/);
   assert.match(panel, /感兴趣/);
   assert.match(panel, /再看看/);
-  assert.match(panel, /分析这些岗位的共同能力差距/);
-  assert.match(panel, /做到什么算补齐/);
+  assert.match(panel, /查看所选岗位的能力差距/);
+  assert.match(panel, /做到什么才算补齐/);
   assert.match(panel, /针对这些岗位开始准备/);
   assert.match(panel, /buildGapPreparationHref\(item, job\.jobId\)/);
   assert.match(panel, /核实并补充真实经历/);
@@ -742,8 +742,9 @@ test("Target Cohort Gap blockers explain readiness instead of exposing internal 
 
   assert.match(panel, /这不是你的技能缺口/);
   assert.match(panel, /你的职业背景已确认，可以用于对比/);
-  assert.match(panel, /岗位要求还没有完成质量确认/);
-  assert.match(panel, /查看岗位要求准备状态/);
+  assert.match(panel, /还有岗位要求没有核对/);
+  assert.match(panel, /打开受影响的岗位/);
+  assert.doesNotMatch(panel, /href="\/evals\/requirements\/readiness"/);
   assert.match(panel, /准备完成后，你会在这里直接看到/);
   assert.match(panel, /查看技术原因/);
   assert.match(panel, /gapBlockerCopy/);
