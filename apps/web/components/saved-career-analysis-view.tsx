@@ -14,11 +14,12 @@ const evidenceLabels: Record<string, string> = {
   supported: "已有证据支持", evidenced: "已有证据支持", partial: "证据部分覆盖",
 };
 
-export function SavedCareerAnalysisView({result, backHref, savedScope, additionalLabels = {}, currentOmissions, savedPartialSupport = {}}: {
+export function SavedCareerAnalysisView({result, backHref, savedScope, additionalLabels = {}, currentOmissions, savedPartialSupport = {}, savedMatchedSupport = {}}: {
   result: SavedCareerAnalysis; backHref: string;
   savedScope?: {requested: readonly string[]; compared: number};
   additionalLabels?: Record<string, string>; currentOmissions?: RankingOmission[];
   savedPartialSupport?: Record<string, readonly string[]>;
+  savedMatchedSupport?: Record<string, readonly string[]>;
 }) {
   const labels = {...additionalLabels, ...Object.fromEntries(result.bindings.map(item => [item.jobId, item.title]))};
   const preparedFacts = result.preparations.map(preparationFacts);
@@ -90,12 +91,13 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
       const binding = result.bindings.find(item => item.jobId === preparation.jobId);
       const facts = preparedFacts[index];
       const partial = savedPartialSupport[preparation.jobId] ?? [];
+      const matched = savedMatchedSupport[preparation.jobId] ?? [];
       return <section className="card stack-md" key={preparation.jobId}>
         <h2>{binding?.title ?? "目标岗位"} · 准备材料</h2>
         <p>{binding?.company}</p>
         {binding && <Link href={matchHref(binding)}>查看当时的匹配依据</Link>}
         <h3 id={`saved-resume-${index}`}>简历可用事实要点</h3>
-        <p className="muted">以下不是完整简历，也不增加未经确认的经历。</p>
+        <p className="muted">以下不是完整简历，主要列出已与技能关联的事实。其他相关工作和项目可到当时的匹配依据里核对；不会自动写进简历。</p>
         {preparation.resumeDelta?.highlights.length ? <ul>{preparation.resumeDelta.highlights.map((item, i) =>
           <li key={i}><strong>{item.capability}</strong>
             {facts.requirements.get(item.requirementId)?.text && <p>对应岗位要求：{facts.requirements.get(item.requirementId)?.text}</p>}
@@ -112,8 +114,10 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
           {item.evidenceSummaries.length > 0 && <p>{item.evidenceSummaries.join("；")}</p>}
           {partial.includes(item.requirementId) && binding
             ? <p>已有相关经历，只覆盖部分要求。<Link href={matchHref(binding)}>核对当时用了哪些经历</Link>，没做过的部分请如实说明。</p>
-            : item.evidenceSummaries.length === 0 && <p>此准备材料没有可直接引用的经历。请核对自己的实际经历，不要补写没做过的事。</p>}
-          <details><summary>查看问题依据</summary>要求 {item.requirementId} · 证据 {item.evidenceIds.join("、") || "待补充"}</details>
+            : item.evidenceSummaries.length === 0 && (matched.includes(item.requirementId) && binding
+              ? <p>当时的匹配找到了已确认经历，这份面试材料没有直接引用。<Link href={matchHref(binding)}>查看当时的匹配依据</Link>，准备时请按实际经历说明。</p>
+              : <p>此准备材料没有可直接引用的经历。请核对自己的实际经历，不要补写没做过的事。</p>)}
+          <details><summary>查看问题依据</summary>要求 {item.requirementId} · 证据 {item.evidenceIds.join("、") || (matched.includes(item.requirementId) || partial.includes(item.requirementId) ? "参见当时的匹配依据" : "待补充")}</details>
         </li>)}</ul>
         <h3>建议行动与完成标准</h3>
         {!preparation.studyChecklist?.items.length && <p>当前没有证据缺口驱动的补充行动；实际投递与面试安排仍由你决定。</p>}
