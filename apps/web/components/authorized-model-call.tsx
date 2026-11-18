@@ -117,7 +117,7 @@ export function AuthorizedModelCall({jobId, plan: initialPlan, disabled, kind}: 
 
   return <section className="detail-card">
     <h3>{semantic ? "授权本次经历语义匹配" : "授权本次岗位要求提取"}</h3>
-    <p>{semantic ? "只发送下方岗位要求和候选经历摘要，不发送完整简历或原始岗位描述。" : "只发送当前岗位描述，不发送职业资料。"}模型：{plan.model}；
+    <p>{semantic ? "只发送下方岗位要求和候选经历摘要，不发送完整简历或原始岗位描述。" : "只发送当前岗位描述，不发送职业资料。"}模型：{plan.model || "未配置"}；
       {"descriptionCharacters" in plan ? `原文 ${plan.descriptionCharacters} 字符；` : `资料第 ${plan.profileVersion} 版；意向第 ${plan.searchIntentVersion} 版；`}
       最多 1 次请求，最多输出 {plan.maxOutputTokens} token，网络超时 {plan.timeoutSeconds} 秒。不自动重试或切换模型。</p>
     {"requirements" in plan ? <details><summary>查看本次将发送的要求与经历（{plan.requirements.length} 项）</summary>

@@ -8,7 +8,7 @@ export function FirstUseSteps({snapshot}: {snapshot: Workbench["snapshot"]}) {
   const current = !profileReady ? 0 : !jobsAdded ? 1 : !prepared ? 2 : -1;
   const steps = [
     {title: "确认资料", hint: "上传简历或手填经历，确认你想找的岗位。", done: profileReady},
-    {title: "添加岗位", hint: "粘贴招聘描述，核对岗位要求。", done: jobsAdded},
+    {title: "添加岗位", hint: "先粘贴招聘描述；比较前，在对应岗位核对要求。", done: jobsAdded},
     {title: "比较并准备", hint: "查看有依据的诊断，确认目标并开始准备。", done: prepared},
   ];
   return <nav aria-label="首次使用三步" className="first-use-guide">
