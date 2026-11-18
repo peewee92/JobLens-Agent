@@ -46,6 +46,8 @@ export function ResumeProposalPanel({
   onProposalReady,
   onApply,
   onReviewDraft,
+  onManualEntry,
+  manualEntryLabel = "不用简历，快速填写",
   disabled = false,
 }: {
   byok?: boolean;
@@ -53,6 +55,8 @@ export function ResumeProposalPanel({
   onProposalReady: (proposal: ProfileExtractionProposal) => boolean;
   onApply: (proposal: ProfileExtractionProposal) => void;
   onReviewDraft: () => void;
+  onManualEntry?: () => void;
+  manualEntryLabel?: string;
   disabled?: boolean;
 }) {
   const authorizeModel = byok || localProfileModel === true;
@@ -168,7 +172,7 @@ export function ResumeProposalPanel({
           ? "模型服务余额或计费不可用，没有得到草稿。可手填经历，或解决计费后重新授权。"
           : record.errorCode === "provider_auth_failed" || record.errorCode === "provider_forbidden"
             ? "模型服务拒绝了授权，请检查配置，或手填经历。"
-            : "模型没有返回可用草稿，尚未保存背景。可以手动填写，或重新查看计划后明确授权。"});
+            : "没能从这次模型结果整理出可核对的草稿。没有保存或改动职业背景；可以先快速填写一段经历。"});
         setCallPlan(null);
         return;
       }
@@ -308,6 +312,14 @@ export function ResumeProposalPanel({
         <button className="button" type="button" disabled={busy || disabled} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认发送简历文字并生成草稿"}</button>
         {pendingAction && feedback}
       </section>}
+
+      {onManualEntry && !proposal && <div className="actions">
+        <button className={state.kind === "error" ? "button" : "button-secondary"} type="button"
+          disabled={busy || disabled} onClick={onManualEntry}>{manualEntryLabel}</button>
+        {state.kind === "error" && <span className="muted-copy">
+          {callPlan && pendingAction ? "手动填写不影响查询刚才的请求。" : "想重试解析，可修改输入后重新查看调用计划；不会自动发送。"}
+        </span>}
+      </div>}
 
       {proposal ? (
         <div className="proposal-result">

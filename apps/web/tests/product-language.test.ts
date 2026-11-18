@@ -801,6 +801,20 @@ test("career background keeps explicit fact review and a manual editing path", a
   assert.match(editor, /完成编辑，返回审核/);
 });
 
+test("first-use recovery can save a user-authored experience without entering detailed editing", async () => {
+  const editor = await source("components/profile-editor.tsx");
+  const proposal = await source("components/resume-proposal-panel.tsx");
+  assert.match(proposal, /onClick=\{onManualEntry\}/);
+  assert.match(editor, /onManualEntry=\{beginManualEntry\}/);
+  const quick = editor.slice(editor.indexOf('aria-labelledby="quick-profile-heading"'), editor.indexOf('className="profile-review-empty"'));
+  assert.match(quick, /职业定位/);
+  assert.match(quick, /一段真实经历/);
+  assert.match(quick, /awaitingFirstIntent && targetField/);
+  assert.match(quick, /确认保存/);
+  assert.match(quick, /打开详细编辑/);
+  assert.doesNotMatch(quick, /<fieldset|id="years"|fetch\(/);
+});
+
 test("education add actions open a dedicated education editor instead of a generic experience card", async () => {
   const editor = await source("components/profile-editor.tsx");
 
