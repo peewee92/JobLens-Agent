@@ -215,7 +215,7 @@ export default async function JobDetailPage({
             <a href="#job-match">匹配依据</a>
           </nav>
 
-          <section className="detail-section" id="job-description">
+          <section className="detail-section" id="job-description" tabIndex={-1}>
             <p className="eyebrow">第 1 步</p>
             <h2>岗位原文</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
@@ -233,7 +233,7 @@ export default async function JobDetailPage({
             </div>
           </section>}
 
-          <section className="detail-section requirement-section" id="job-requirements">
+          <section className="detail-section requirement-section" id="job-requirements" tabIndex={-1}>
             <div className="section-title-row">
               <div>
                 <p className="eyebrow">第 2 步</p>
@@ -324,7 +324,7 @@ export default async function JobDetailPage({
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
           </section>
-          <section className="detail-section eligibility-section" id="job-match">
+          <section className="detail-section eligibility-section" id="job-match" tabIndex={-1}>
             <div className="section-title-row">
               <div>
                 <p className="eyebrow">第 3 步 · 结合我的职业背景</p>

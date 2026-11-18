@@ -82,7 +82,7 @@ textarea {
 }
 
 [id] {
-  scroll-margin-top: 92px;
+  scroll-margin-top: var(--jl-anchor-offset, 5.75rem);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3211,9 +3211,6 @@ h3 {
 .job-description-editor { margin: 12px 0; }
 .job-description-editor .vertical-form { display: grid; gap: 10px; }
 .job-description-editor textarea { width: 100%; min-width: 0; box-sizing: border-box; }
-#job-description, #job-requirements, #job-match, #job-match-report { scroll-margin-top: 78px; }
-[id^="saved-"], #start-preparation, #resume, #actions, #evidence, #interview { scroll-margin-top: 78px; }
-
 .route-loading { width: 100%; min-height: 215px; }
 
 .link-feedback { font-size: 0.85em; }

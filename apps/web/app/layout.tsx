@@ -39,7 +39,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
             </nav>
           </div>
         </header>
-        <main id="main" className="shell page-shell">
+        <main id="main" tabIndex={-1} className="shell page-shell">
           {session?.mode === "byok" && <aside className="jl-root-notice"><strong>自带模型真实分析</strong>：资料来源为{session.synthetic ? "合成样本" : "用户填写"}，模型费用由你的账户承担。进度临时保存，闲置 30 分钟、最长两小时或服务重启后失效。<Link href="/my-analysis">继续分析</Link> · <Link href="/connect">设置与导出</Link></aside>}
           {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && session?.mode !== "byok" && <aside className="jl-root-notice" role="note" aria-label="隔离合成演示">
             <strong>离线合成演示</strong>：这里的资料、公司和岗位均为合成样本，不是真实求职结论。已禁用在线模型；数据保存在独立演示库，不会修改你的真实记录。{publicDemoEnabled() && <>临时进度可能随服务休眠或重启丢失。<Link href="/demo">重新开始样本体验</Link></>}

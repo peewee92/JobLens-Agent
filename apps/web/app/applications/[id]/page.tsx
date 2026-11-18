@@ -171,8 +171,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           />
         </section>
 
-        <section className="detail-section" id="resume">
-          <h2>岗位简历</h2>
+        <section className="detail-section" id="resume" tabIndex={-1} aria-labelledby="workspace-resume-heading">
+          <h2 id="workspace-resume-heading">岗位简历</h2>
           <p className="muted">只把已确认的经历与对应岗位要求组织成专用草稿，不允许用改写掩盖真实能力缺口。</p>
           {resumeProposal ? <ApplicationResumeControls
             workspaceId={id}
@@ -184,8 +184,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的简历事实依据 →" : "按当前资料查看简历调整依据 →"}</Link></div>
         </section>
 
-        <section className="detail-section" id="actions">
-          <h2>执行行动</h2>
+        <section className="detail-section" id="actions" tabIndex={-1} aria-labelledby="workspace-actions-heading">
+          <h2 id="workspace-actions-heading">执行行动</h2>
           {actions.length === 0 ? <>
             <p className="notice">尚未建立可跟踪行动，可以从已有准备材料建立清单。</p>
             <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />
@@ -205,15 +205,15 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           </>}
         </section>
 
-        <section className="detail-section" id="evidence">
-          <h2>补充真实经历</h2>
+        <section className="detail-section" id="evidence" tabIndex={-1} aria-labelledby="workspace-evidence-heading">
+          <h2 id="workspace-evidence-heading">补充真实经历</h2>
           <p className="muted">行动完成不等于获得能力。只有你提交真实经历并显式确认，再更新分析，才能核对判断变化；结论可能改善、未变或变弱。</p>
           <p>待确认 {overview.evidencePendingConfirmation} 项 · 已确认 {overview.evidenceConfirmed} 项</p>
           <ApplicationEvidenceControls workspaceId={id} jobId={job.id} actorId={overview.workspace.actorId} actions={actions} proposals={proposals} context={evidenceContext} analysisThreadId={overview.workspace.currentAnalysisThreadId} analysisProfileVersion={savedPreparation?.preparation.profileVersion} />
         </section>
 
-        <section className="detail-section" id="interview">
-          <h2>面试练习</h2>
+        <section className="detail-section" id="interview" tabIndex={-1} aria-labelledby="workspace-interview-heading">
+          <h2 id="workspace-interview-heading">面试练习</h2>
           <p className="muted">问题来自已核对的岗位要求。回答只核对已确认的经历是否可引用，不打面试分，也不预测录用。</p>
           {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
           <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的面试准备事实 →" : "按当前资料查看面试准备事实 →"}</Link></div>

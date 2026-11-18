@@ -83,13 +83,18 @@
 .jl-table { width: 100%; border-collapse: collapse; text-align: start; }
 .jl-table :is(th,td) { padding: .75rem; border-block-end: 1px solid var(--line); text-align: start; vertical-align: top; }
 .jl-table th { background: var(--soft); }
+/* The navigation wraps to two rows on tablet, but is not sticky on phones. */
+@media (max-width: 800px) {
+  :root { --jl-anchor-offset: 7.5rem; }
+}
 @media (max-width: 700px) {
+  :root { --jl-anchor-offset: 1rem; }
+  .jl-page-heading h1 { text-wrap: pretty; }
   .jl-phase { grid-template-columns: 1fr; gap: var(--jl-space-2); }
   .jl-phase li { align-items: center; padding: var(--jl-space-2) var(--jl-space-3); }
   .jl-phase li:not([aria-current]) p { display: none; }
   .jl-phase p { margin-block-start: -.25rem; }
   .site-header { position: static; }
-  [id] { scroll-margin-top: 1rem; }
 }
 
 .jl-job-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: var(--jl-space-4); margin-block-end: var(--jl-space-4); }

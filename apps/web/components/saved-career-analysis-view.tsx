@@ -69,7 +69,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
     {result.updatePartial && <section className="card stack-md" aria-label="部分范围说明"><h2>这是一份部分范围分析</h2>
       <p>用户明确选择只使用已完成岗位；以下岗位没有在本次完成分析，不代表已不适合：{result.unanalysedJobIds?.map(id => labels[id] ?? "名称暂不可读取").join("、")}。</p>
       <Link href={backHref}>查看未完成步骤与原因</Link></section>}
-    <section className="card stack-md" id="saved-gaps"><h2>能力差距：先核实经历，再决定怎么准备</h2>
+    <section className="card stack-md" id="saved-gaps" tabIndex={-1}><h2>能力差距：先核实经历，再决定怎么准备</h2>
       <p className="muted">这里显示哪些岗位要求还没有被你的已确认经历覆盖。不是能力评分，不因资料缺失就认定你不会。</p>
       {result.gaps.items.length === 0 ? <p>本次没有可列出的能力差距，不代表已经满足全部岗位要求。</p> :
         result.gaps.items.map((item, index) => {
@@ -103,7 +103,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         <h2>{binding?.title ?? "目标岗位"} · 准备材料</h2>
         <p>{binding?.company}</p>
         {binding && <Link href={matchHref(binding)}>查看当时的匹配依据</Link>}
-        <h3 id={`saved-resume-${index}`}>简历可用事实要点</h3>
+        <h3 id={`saved-resume-${index}`} tabIndex={-1}>简历可用事实要点</h3>
         <p className="muted">以下不是完整简历，主要列出已与技能关联的事实。其他相关工作和项目可到当时的匹配依据里核对；不会自动写进简历。</p>
         {preparation.resumeDelta?.highlights.length ? <ul>{preparation.resumeDelta.highlights.map((item, i) =>
           <li key={i}><strong>{item.capability}</strong>
@@ -113,7 +113,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
         <h3>仍需核实或补充</h3>
         {!preparation.resumeDelta?.evidenceGaps.length && <p>本次未列出技能证据缺口，仍请逐项核对岗位条件。</p>}
         <ul>{preparation.resumeDelta?.evidenceGaps.map((item, i) => <li key={i}>{item.capability}：{evidenceLabels[item.status] ?? "证据待核实"}</li>)}</ul>
-        <h3 id={`saved-interview-${index}`}>面试问题与证据提示</h3>
+        <h3 id={`saved-interview-${index}`} tabIndex={-1}>面试问题与证据提示</h3>
         <p className="muted">围绕岗位要求准备说明，不是面试能力评分。</p>
         <ul>{preparation.interviewFacts?.items.map((item, i) => <li key={i}>
           <p><strong>招聘原文：</strong>{item.requirementText}</p>
@@ -145,7 +145,7 @@ export function SavedCareerAnalysisView({result, backHref, savedScope, additiona
     <section className="card stack-md"><h2>根据新事实更新分析</h2><p>先检查原目标或原批次的输入与可复用结果；查看预检不会调用模型或覆盖本次材料。</p>
       <Link href={`/agent/results/${encodeURIComponent(result.threadId)}/update`}>查看更新范围与输入</Link>
     </section>
-    <div id="start-preparation"><AnalysisExecutionControls threadId={result.threadId} resultId={result.resultId}
+    <div id="start-preparation" tabIndex={-1}><AnalysisExecutionControls threadId={result.threadId} resultId={result.resultId}
       jobIds={result.selectedJobIds} isCurrent={result.isCurrent} isUpdate={Boolean(result.updateSourceThreadId)}
       jobLabels={labels} /></div>
   </div>;
