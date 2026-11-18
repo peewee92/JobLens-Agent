@@ -60,6 +60,18 @@ class SqlAlchemyJobRepository(AbstractJobRepository):
         row = self._session.execute(statement).one_or_none()
         return None if row is None else JobSourceRef(id=row.id, job_id=row.job_id)
 
+    def has_manual_description_observation(self, source_id: str, description: str) -> bool:
+        legacy_observation = select(JobSourceORM.id).where(
+            JobSourceORM.id == source_id,
+            JobSourceORM.source == "manual",
+            JobSourceORM.source_raw["description"].as_string() == description,
+        )
+        immutable_observation = select(JobImportItemORM.id).where(
+            JobImportItemORM.job_source_id == source_id,
+            JobImportItemORM.source_raw_snapshot["description"].as_string() == description,
+        )
+        return bool(self._session.scalar(select(legacy_observation.exists() | immutable_observation.exists())))
+
     def add_job(self, data: NormalizedJobInput) -> str:
         model = JobORM(
             canonical_key=data.canonical_key,

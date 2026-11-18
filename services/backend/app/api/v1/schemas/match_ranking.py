@@ -7,7 +7,7 @@ from typing import Literal
 from app.api.v1.schemas.common import CamelCaseModel
 from app.api.v1.schemas.preference_check import PreferenceCheckResponse
 from app.application.match_report import StoredMatchReport
-from app.application.match_ranking import is_target_candidate
+from app.application.match_ranking import RankingRecoveryCode, is_target_candidate
 
 
 class RankedMatchReportItemResponse(CamelCaseModel):
@@ -81,6 +81,7 @@ class RankingOmissionResponse(CamelCaseModel):
     job_id: str
     reason: Literal["report_missing", "report_stale", "hard_conflict"]
     stale_reasons: list[str]
+    recovery_code: RankingRecoveryCode | None = None
 
 
 class RankingPreflightResponse(CamelCaseModel):

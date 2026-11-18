@@ -1,3 +1,7 @@
+import {createHash} from "node:crypto";
+import {JobDescriptionEditor} from "@/components/job-description-editor";
+import {descriptionSavedQuery} from "@/lib/job-description-save";
+import {publicDemoEnabled} from "@/lib/public-demo";
 import type {CareerContextReleaseReadiness} from "@/lib/contracts";
 import {careerContextReleaseBlockerCopy} from "@/lib/career-context";
 import {JobReportComparison} from "@/components/job-report-comparison";
@@ -34,6 +38,7 @@ import {formatDateTime, formatSalary} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
+  requirementCapabilityLabel,
   hasEnoughJobDescription,
   jobDescriptionIssue,
   requirementReleaseBlockerCopy,
@@ -49,10 +54,10 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; scopeJobId?: string | string[]; returnThreadId?: string | string[]}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; scopeJobId?: string | string[]; returnThreadId?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError, reportId, scopeJobId, returnThreadId} = await searchParams;
+  const {requirementExtractionError, reportId, scopeJobId, returnThreadId, [descriptionSavedQuery]: savedRevision} = await searchParams;
   const agentScope = parseAgentScope(scopeJobId);
   const retainedScope = agentScope?.includes(id) ? agentScope : null;
   const detailPath = retainedScope ? jobDetailWithAgentScope(id, retainedScope) : `/jobs/${encodeURIComponent(id)}`;
@@ -74,15 +79,24 @@ export default async function JobDetailPage({
     return <ServiceError message={message} />;
   }
 
+  // Start independent reads together; any failed read still blocks only its dependent action.
+  const fetched = await Promise.allSettled([
+    fetchJobDescriptionObservations(id), fetchMatchReportHistory(id), fetchLatestJobRequirements(id),
+    fetchJobMatchInputReadiness(id), fetchJobEligibility(id),
+  ] as const);
+  function read<T>(result: PromiseSettledResult<T>) {
+    if (result.status === "rejected") throw result.reason;
+    return result.value;
+  }
   let descriptions = null;
   try {
-    const result = await fetchJobDescriptionObservations(id);
+    const result = read(fetched[0]);
     if (result.jobId === id && Array.isArray(result.items)) descriptions = result;
   } catch { /* A failed history read must not hide the current job. */ }
   let history = null;
   let historyError = "";
   try {
-    history = await fetchMatchReportHistory(id);
+    history = read(fetched[1]);
   } catch {
     historyError = "暂时无法读取保存的匹配结果，请刷新重试；这不表示历史结果已丢失。";
   }
@@ -98,7 +112,7 @@ export default async function JobDetailPage({
   let releaseReadinessError = "";
   let eligibilityError = "";
   try {
-    extraction = await fetchLatestJobRequirements(id);
+    extraction = read(fetched[2]);
   } catch (caught) {
     requirementError =
       caught instanceof BackendApiError
@@ -106,7 +120,7 @@ export default async function JobDetailPage({
         : "暂时无法读取岗位要求分析结果，请稍后重试。";
   }
   try {
-    const inputReadiness = await fetchJobMatchInputReadiness(id);
+    const inputReadiness = read(fetched[3]);
     if (!validImportMatchInputs(id, inputReadiness)) {
       throw new Error("invalid match input readiness");
     }
@@ -119,7 +133,7 @@ export default async function JobDetailPage({
         : "暂时无法检查岗位匹配准备状态，请稍后重试。";
   }
   try {
-    eligibility = await fetchJobEligibility(id);
+    eligibility = read(fetched[4]);
   } catch (caught) {
     if (!(caught instanceof BackendApiError && caught.code === "eligibility_inputs_not_ready")) {
       eligibilityError =
@@ -139,6 +153,10 @@ export default async function JobDetailPage({
   );
   const hasEnoughDescription = hasEnoughJobDescription(job.description);
   const descriptionIssue = jobDescriptionIssue(job.description);
+  const canEditDescription = job.source === "manual" && !publicDemoEnabled();
+  const descriptionRevision = canEditDescription ? createHash("sha256").update(job.description ?? "").digest("hex") : null;
+  const descriptionHelp = descriptionIssue && canEditDescription
+    ? "请先用上方「补充或更正岗位描述」粘贴完整原文。" : descriptionIssue;
   const acceptedBaselineMissing = requirementBlockerCodes.has(
     "accepted_baseline_missing",
   );
@@ -152,12 +170,12 @@ export default async function JobDetailPage({
     : job.userMarkedInactive !== false
       ? "暂时无法确认岗位标记，请刷新页面或检查服务版本。"
     : requirementExtractionMissing
-      ? descriptionIssue ?? "请先完成下方的岗位要求分析，再检查匹配准备情况。"
+      ? descriptionHelp ?? "请先完成上方的岗位要求分析，再检查匹配准备情况。"
       : canConfirmRequirements && !releaseReadiness?.userConfirmationId
-        ? "请先对照原文核对下方全部岗位要求，再确认这一版用于匹配。"
+        ? "请先对照原文核对上方全部岗位要求，再确认这一版用于匹配。"
       : acceptedBaselineMissing
-        ? "岗位要求尚未核对或未满足输入检查，请先处理下方具体准备项。"
-      : "当前职业背景或岗位要求仍未通过匹配输入检查，请先处理下方准备项。";
+        ? "岗位要求尚未核对或未满足输入检查，请先处理上方的岗位准备项。"
+      : "当前职业背景或岗位要求仍未通过匹配输入检查，请先核对资料或处理上方岗位准备项。";
 
   return (
     <>
@@ -186,151 +204,36 @@ export default async function JobDetailPage({
             {job.remoteConfidence === "high" ? <span className="tag">远程信息较明确</span> : null}
           </div>
 
-          <section className="detail-section">
+          <section className="detail-section" id="job-description">
+            <p className="eyebrow">第 1 步</p>
             <h2>岗位描述</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
+            {descriptionRevision && <JobDescriptionEditor jobId={job.id}
+              description={job.description ?? ""} revision={descriptionRevision} saved={savedRevision === descriptionRevision} />}
             <JobDescriptionObservationsView history={descriptions} />
           </section>
 
-          <section className="detail-section">
+          {job.skills.length > 0 && <section className="detail-section">
             <h2>技能标签</h2>
             <div className="tags">
               {job.skills.length > 0
                 ? job.skills.map((skill) => <span className="tag" key={skill}>{skill}</span>)
                 : <span className="tag">尚未提取技能</span>}
             </div>
-          </section>
+          </section>}
 
-          <section className="detail-section eligibility-section">
+          <section className="detail-section requirement-section" id="job-requirements">
             <div className="section-title-row">
               <div>
-                <p className="eyebrow">结合我的职业背景</p>
-                <h2>这个岗位适合我吗？</h2>
-                <p className="lede requirement-lede">
-                  这里只判断当前已确认资料能不能支撑岗位硬条件，不使用模糊的百分制匹配分数。
-                </p>
-              </div>
-            </div>
-
-            {historyError ? <p className="inline-error">{historyError}</p> : null}
-            {selectedReportMissing ? <p className="inline-error">找不到指定结果，或它不属于此岗位。未自动替换为其他结果。<Link href={detailHref}>查看此岗位最新保存结果</Link></p> : null}
-            {history && history.items.length > 0 ? (
-              <details>
-                <summary>查看保存的匹配历史（{history.count} 份）</summary>
-                <ul>{history.items.map((item) => (
-                  <li key={item.reportId}>
-                    <Link href={reportHref(item.reportId)}>
-                      {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
-                      {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
-                    </Link>
-                  </li>
-                ))}</ul>
-              </details>
-            ) : null}
-            {savedResult && history && (() => {
-              const index = history.items.findIndex(item => item.reportId === savedResult.reportId);
-              const previous = index >= 0 ? history.items[index + 1] : undefined;
-              return previous ? <JobReportComparison previous={previous} current={savedResult} /> : null;
-            })()}
-            {careerReadiness && !careerReadiness.releaseEligible ? <section className="notice" aria-label="个人匹配输入准备">
-              <h3>下一步：确认职业资料和求职偏好</h3>
-              <p>仍可查看岗位。个性化结论只使用你确认保存的事实，不需要先完成模型整体质量评审。</p>
-              <ul>{careerReadiness.blockers.map(blocker => <li key={blocker.code}>
-                {careerContextReleaseBlockerCopy(blocker.code)?.title ?? "请核对职业资料和偏好"}
-              </li>)}</ul>
-              <Link className="button" href={profileWithAgentScope(id, retainedScope ?? [id])}>确认资料和偏好，返回这个岗位</Link>
-            </section> : null}
-            <JobMatchReportPanel
-              key={savedResult?.reportId ?? "no-saved-result"}
-              savedResult={savedResult}
-              disabledReason={matchDisabledReason}
-              enabled={eligibility !== null && job.userMarkedInactive === false}
-              jobId={job.id}
-              returnHref={detailHref}
-              profileHref={profileWithAgentScope(id, retainedScope ?? [id])}
-            />
-
-            {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
-            {eligibility && groupedEligibility ? (
-              <div className={`eligibility-summary eligibility-${eligibility.eligibility}`}>
-                <div className="eligibility-summary-header">
-                  <div>
-                    <span className="review-label">当前判断</span>
-                    <h3>{eligibilityLabels[eligibility.eligibility]}</h3>
-                    <p>{eligibilityDescriptions[eligibility.eligibility]}</p>
-                  </div>
-                  <div className="eligibility-counts" aria-label="岗位要求判断统计">
-                    <span>岗位要求：</span>
-                    <span><strong>{eligibility.matchedCount}</strong> 已匹配</span>
-                    <span><strong>{eligibility.conditionalCount}</strong> 待确认</span>
-                    <span><strong>{eligibility.missingCount}</strong> 明确不满足</span>
-                  </div>
-                </div>
-
-                <PreferenceCheckList checks={eligibility.preferenceChecks ?? []} version={eligibility.searchIntentVersion} />
-                <p className="notice">
-                  缺少技能、学历或专项年限证据只表示待核实，不代表你不具备这些条件，也不代表已经满足。
-                <Link href={profileWithAgentScope(id, retainedScope ?? [id])}>补充或确认职业资料</Link>
-                </p>
-                <div className="eligibility-groups">
-                  {(["missing", "conditional", "matched"] as const).map((status) => {
-                    const items = groupedEligibility[status];
-                    if (items.length === 0) return null;
-                    return (
-                      <section className="eligibility-group" key={status}>
-                        <div className="eligibility-group-heading">
-                          <h3>{requirementFitLabels[status]}</h3>
-                          <span>{items.length} 项</span>
-                        </div>
-                        <div className="eligibility-result-list">
-                          {items.map((item) => (
-                            <article className={`eligibility-result-card fit-${status}`} key={item.requirementIndex}>
-                              <div className="tags">
-                                <span className={`tag importance-${item.importance}`}>
-                                  {requirementImportanceLabel(item.importance)}
-                                </span>
-                                <span className="tag">{requirementTypeLabel(item.type)}</span>
-                                {item.normalizedCapability ? (
-                                  <span className="tag">{item.normalizedCapability}</span>
-                                ) : null}
-                              </div>
-                              <strong>{item.originalText}</strong>
-                              <p>{item.reason}</p>
-                              {item.evidenceIds.length > 0 ? (
-                                <small className="muted-copy">
-                                  有 {item.evidenceIds.length} 条已确认经历作为依据
-                                </small>
-                              ) : null}
-                              {item.profileFactRefs.includes("yearsOfExperience") ? (
-                                <small className="muted-copy">依据包含你已确认的总工作年限</small>
-                              ) : null}
-                            </article>
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : !eligibilityError ? (
-              <div className="review-result review-pending">
-                <strong>匹配判断还没有开始</strong>
-                <p>{matchDisabledReason}</p>
-              </div>
-            ) : null}
-          </section>
-
-          <section className="detail-section requirement-section">
-            <div className="section-title-row">
-              <div>
-                <h2>岗位要求分析</h2>
+                <p className="eyebrow">第 2 步</p>
+                <h2>分析并核对岗位要求</h2>
                 <p className="lede requirement-lede">
                   系统会先把原始岗位描述整理成可核对的学历、经验、技能和职责。符合当前匹配规则的结果才会用于后续匹配。
                 </p>
               </div>
               <JobRequirementExtractButton
                 disabled={job.userMarkedInactive || !hasEnoughDescription}
-                disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionIssue ?? undefined}
+                disabledReason={job.userMarkedInactive ? "你已标记此岗位失效；请先恢复为待核实，再分析岗位要求。" : descriptionHelp ?? undefined}
                 hasExisting={extraction !== null}
                 jobId={job.id}
               />
@@ -345,11 +248,6 @@ export default async function JobDetailPage({
                 )}
               </p>
             ) : null}
-            {!extraction && !requirementError && hasEnoughDescription ? (
-              <p className="notice">
-                <strong>你现在可以做第 1 步：</strong> 在上方检查分析方式与调用范围，然后提取当前岗位要求。提取完成后，对照原文核对这一版要求，即可继续个人匹配。
-              </p>
-            ) : null}
             {acceptedBaselineMissing ? (
               <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
                 <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
@@ -358,7 +256,8 @@ export default async function JobDetailPage({
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}
-            {releaseReadiness ? (
+            {releaseReadiness && (extraction || releaseReadiness.blockers.some(blocker =>
+              !["requirement_extraction_missing", "accepted_baseline_missing"].includes(blocker.code))) ? (
               <div className={`review-result ${releaseReadiness.releaseEligible ? "review-accepted" : "review-pending"}`}>
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
@@ -406,7 +305,7 @@ export default async function JobDetailPage({
                         </span>
                         <span className="tag">{requirementTypeLabel(requirement.type)}</span>
                         {requirement.normalizedCapability ? (
-                          <span className="tag">{requirement.normalizedCapability}</span>
+                          <span className="tag">{requirementCapabilityLabel(requirement.normalizedCapability)}</span>
                         ) : null}
                       </div>
                       <p>{requirement.originalText}</p>
@@ -418,7 +317,7 @@ export default async function JobDetailPage({
               </>
             ) : (
               <p className="notice">
-                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionIssue}
+                {hasEnoughDescription ? "这个岗位还没有做要求分析。点击上方“分析岗位要求”后，系统会整理岗位描述中的学历、经验、技能和职责。" : descriptionHelp}
               </p>
             )}
             {canConfirmRequirements && extraction?.factsDigest && releaseReadiness ? (
@@ -427,6 +326,127 @@ export default async function JobDetailPage({
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
           </section>
+          <section className="detail-section eligibility-section" id="job-match">
+            <div className="section-title-row">
+              <div>
+                <p className="eyebrow">第 3 步 · 结合我的职业背景</p>
+                <h2>这个岗位适合我吗？</h2>
+                <p className="lede requirement-lede">
+                  这里只判断当前已确认资料能不能支撑岗位硬条件，不使用模糊的百分制匹配分数。
+                </p>
+              </div>
+            </div>
+
+            {historyError ? <p className="inline-error">{historyError}</p> : null}
+            {selectedReportMissing ? <p className="inline-error">找不到指定结果，或它不属于此岗位。未自动替换为其他结果。<Link href={detailHref}>查看此岗位最新保存结果</Link></p> : null}
+            {history && history.items.length > 0 ? (
+              <details>
+                <summary>查看保存的匹配历史（{history.count} 份）</summary>
+                <ul>{history.items.map((item) => (
+                  <li key={item.reportId}>
+                    <Link href={reportHref(item.reportId)}>
+                      {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
+                      {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
+                    </Link>
+                  </li>
+                ))}</ul>
+              </details>
+            ) : null}
+            {savedResult && history && (() => {
+              const index = history.items.findIndex(item => item.reportId === savedResult.reportId);
+              const previous = index >= 0 ? history.items[index + 1] : undefined;
+              return previous ? <JobReportComparison previous={previous} current={savedResult} /> : null;
+            })()}
+            {careerReadiness && !careerReadiness.releaseEligible ? <section className="notice" aria-label="个人匹配输入准备">
+              <h3>下一步：确认职业资料和求职偏好</h3>
+              <p>仍可查看岗位。个性化结论只使用你确认保存的事实，不需要先完成模型整体质量评审。</p>
+              <ul>{careerReadiness.blockers.map(blocker => <li key={blocker.code}>
+                {careerContextReleaseBlockerCopy(blocker.code)?.title ?? "请核对职业资料和偏好"}
+              </li>)}</ul>
+              <Link className="button" href={profileWithAgentScope(id, retainedScope ?? [id])}>确认资料和偏好，返回这个岗位</Link>
+            </section> : null}
+            <JobMatchReportPanel
+              key={savedResult ? `${savedResult.reportId}:${savedResult.isCurrent}` : "no-saved-result"}
+              savedResult={savedResult}
+              disabledReason={matchDisabledReason}
+              enabled={eligibility !== null && job.userMarkedInactive === false}
+              jobId={job.id}
+              returnHref={detailHref}
+              profileHref={profileWithAgentScope(id, retainedScope ?? [id])}
+              compareHref={agentScopeHref(retainedScope ?? [id])}
+              compareLabel={retainedScope && retainedScope.length > 1 ? "返回比较这批岗位" : "比较岗位并准备"}
+            />
+
+            {eligibilityError ? <p className="inline-error">{eligibilityError}</p> : null}
+            {eligibility && groupedEligibility ? (
+              <div className={`eligibility-summary eligibility-${eligibility.eligibility}`}>
+                <div className="eligibility-summary-header">
+                  <div>
+                    <span className="review-label">当前判断</span>
+                    <h3>{eligibilityLabels[eligibility.eligibility]}</h3>
+                    <p>{eligibilityDescriptions[eligibility.eligibility]}</p>
+                  </div>
+                  <div className="eligibility-counts" aria-label="岗位要求判断统计">
+                    <span>岗位要求：</span>
+                    <span><strong>{eligibility.matchedCount}</strong> 已匹配</span>
+                    <span><strong>{eligibility.conditionalCount}</strong> 待确认</span>
+                    <span><strong>{eligibility.missingCount}</strong> 明确不满足</span>
+                  </div>
+                </div>
+
+                <PreferenceCheckList checks={eligibility.preferenceChecks ?? []} version={eligibility.searchIntentVersion} />
+                <p className="notice">
+                  缺少技能、学历或专项年限证据只表示待核实，不代表你不具备这些条件，也不代表已经满足。
+                <Link href={profileWithAgentScope(id, retainedScope ?? [id])}>补充或确认职业资料</Link>
+                </p>
+                <div className="eligibility-groups">
+                  {(["missing", "conditional", "matched"] as const).map((status) => {
+                    const items = groupedEligibility[status];
+                    if (items.length === 0) return null;
+                    return (
+                      <section className="eligibility-group" key={status}>
+                        <div className="eligibility-group-heading">
+                          <h3>{requirementFitLabels[status]}</h3>
+                          <span>{items.length} 项</span>
+                        </div>
+                        <div className="eligibility-result-list">
+                          {items.map((item) => (
+                            <article className={`eligibility-result-card fit-${status}`} key={item.requirementIndex}>
+                              <div className="tags">
+                                <span className={`tag importance-${item.importance}`}>
+                                  {requirementImportanceLabel(item.importance)}
+                                </span>
+                                <span className="tag">{requirementTypeLabel(item.type)}</span>
+                                {item.normalizedCapability ? (
+                                  <span className="tag">{requirementCapabilityLabel(item.normalizedCapability)}</span>
+                                ) : null}
+                              </div>
+                              <strong>{item.originalText}</strong>
+                              <p>{item.reason}</p>
+                              {item.evidenceIds.length > 0 ? (
+                                <small className="muted-copy">
+                                  有 {item.evidenceIds.length} 条已确认经历作为依据
+                                </small>
+                              ) : null}
+                              {item.profileFactRefs.includes("yearsOfExperience") ? (
+                                <small className="muted-copy">依据包含你已确认的总工作年限</small>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : !eligibilityError && (!careerReadiness || careerReadiness.releaseEligible) ? (
+              <div className="review-result review-pending">
+                <strong>匹配判断还没有开始</strong>
+                <p>{matchDisabledReason}</p>
+              </div>
+            ) : null}
+          </section>
+
         </article>
 
         <aside className="detail-card">

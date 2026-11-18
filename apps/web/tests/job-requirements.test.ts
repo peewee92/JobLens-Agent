@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type {JobRequirement, JobRequirementReleaseReadiness} from "@/lib/contracts";
 import {
+  requirementCapabilityLabel,
   requirementImportanceLabel,
   requirementReleaseBlockerCopy,
   requirementReleaseLabel,
@@ -36,6 +37,14 @@ test("Requirement labels preserve type and importance semantics", () => {
   assert.equal(requirementImportanceLabel("must_have"), "必须");
   assert.equal(requirementImportanceLabel("preferred"), "优先");
   assert.equal(requirementImportanceLabel("bonus"), "加分");
+});
+
+test("internal fallback names are translated without renaming actual skills", () => {
+  assert.equal(requirementCapabilityLabel("Professional Experience"), "工作年限");
+  assert.equal(requirementCapabilityLabel("Education"), "教育背景");
+  assert.equal(requirementCapabilityLabel("Employment Constraint"), "任职条件");
+  assert.equal(requirementCapabilityLabel("FastAPI"), "FastAPI");
+  assert.equal(requirementCapabilityLabel("数字电路测试"), "数字电路测试");
 });
 
 test("Requirement release labels distinguish allowed facts from blockers", () => {

@@ -12,7 +12,7 @@ function source(relative: string) {
 test("job preparation exposes the application workspace entry", () => {
   const page = source("app/jobs/[id]/prepare/page.tsx");
   assert.match(page, /ApplicationWorkspaceEntry/);
-  assert.match(page, /统一查看岗位简历、面试、行动、Evidence 回流、投递状态与下一建议动作/);
+  assert.match(page, /统一查看岗位简历、面试、行动、经历补充与投递状态/);
 });
 
 test("application workspace renders deterministic next action and execution facts", () => {
@@ -20,7 +20,7 @@ test("application workspace renders deterministic next action and execution fact
   assert.match(page, /nextBestAction\.label/);
   assert.match(page, /actionOpen/);
   assert.match(page, /evidencePendingConfirmation/);
-  assert.match(page, /系统不会自动投递或替你确认职业事实/);
+  assert.match(page, /系统不会替你投递或确认经历/);
 });
 
 test("application workspace lets the user save and explicitly review a grounded resume variant", () => {
@@ -30,7 +30,7 @@ test("application workspace lets the user save and explicitly review a grounded 
   const reviewProxy = source("app/api/application-workspaces/[id]/resume-variants/[variantId]/review/route.ts");
 
   assert.match(page, /ApplicationResumeControls/);
-  assert.match(controls, /仍有 .* Requirement 没有可用 Evidence/);
+  assert.match(controls, /仍有 .* 项岗位要求还缺可引用的真实经历/);
   assert.match(controls, /保存岗位简历草稿/);
   assert.match(controls, /确认已人工审核/);
   assert.match(controls, /expectedStatus: "draft"/);
@@ -91,12 +91,13 @@ test("application workspace runs grounded interview practice without provider sc
   const reviewProxy = source("app/api/application-workspaces/[id]/interview/questions/[questionId]/review/route.ts");
 
   assert.match(page, /ApplicationInterviewControls/);
-  assert.match(page, /回答审核只检查真实 Evidence grounding/);
+  assert.match(page, /回答只核对已确认的经历是否可引用/);
   assert.match(controls, /你的真实回答/);
   assert.match(controls, /allowedEvidenceIds/);
-  assert.match(controls, /按真实 Evidence 审核回答/);
+  assert.match(controls, /按真实经历核对回答/);
   assert.match(controls, /修改后重新审核/);
-  assert.match(controls, /Provider calls:/);
+  assert.doesNotMatch(controls, /Provider calls:/);
+  assert.match(controls, /evidenceSummaries.get/);
   assert.match(reviewProxy, /interview\/questions\/\$\{encodeURIComponent\(questionId\)\}\/review/);
 });
 

@@ -97,6 +97,10 @@ class AbstractJobRepository(ABC):
         """Find source identity by the stable normalized source URL."""
 
     @abstractmethod
+    def has_manual_description_observation(self, source_id: str, description: str) -> bool:
+        """Whether the exact text was already saved for this manual source."""
+
+    @abstractmethod
     def add_job(self, data: NormalizedJobInput) -> str:
         """Add a normalized Job and flush so its generated ID is available."""
 

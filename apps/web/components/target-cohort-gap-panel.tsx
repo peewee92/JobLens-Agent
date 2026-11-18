@@ -594,7 +594,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                 return (
                   <article className="gap-result-card" key={item.capability}>
                     <div className="gap-result-topline">
-                      <span className={`gap-priority priority-${item.priority.toLowerCase()}`}>{item.priority}</span>
+                      <span className={`gap-priority priority-${item.priority.toLowerCase()}`}>{item.whyImportant.mustHaveRatio === 0 ? "非必需" : item.priority === "P0" ? "优先核对" : "按需准备"}</span>
                       <span className="gap-rank">优先级 #{index + 1}</span>
                     </div>
                     <h3>{item.capability}</h3>
@@ -609,7 +609,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                       <span className="gap-result-label">为什么值得现在补</span>
                       <p>
                         这项能力出现在 {item.supportingJobIds.length} 个目标岗位中；
-                        {mustHaveRatio >= 50 ? "而且较多岗位把它当作必须条件。" : "其中一部分岗位把它作为必须条件或重要偏好。"}
+                        {item.whyImportant.mustHaveRatio === 0 ? "所依据的要求都不是必需条件。" : mustHaveRatio >= 50 ? "在提到它的要求里，多数是必需条件。" : "有部分要求将它作为必需条件。"}
                       </p>
                       {supportingJobs.length > 0 ? (
                         <div className="gap-supporting-jobs">
@@ -636,7 +636,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
                         <div className="actions">
                           <Link className="button" href={evidenceHref}>核实并补充真实经历</Link>
                           <p className="muted">
-                            只有你确实做过时才补 Skill / Evidence；保存后回到推荐页显式 Re-match，JobLens 会用这些 Requirement 重新验证这次资料是否真的带来改善。
+                            只补你确实做过的经历。保存后回到推荐页重新匹配，核对是否真的带来改善。
                           </p>
                         </div>
                       ) : null}

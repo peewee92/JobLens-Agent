@@ -97,7 +97,7 @@ class FixtureJobRequirementExtractor(AbstractJobRequirementExtractor):
 
     @property
     def model_name(self) -> str:
-        return "fixture-requirement-extractor"
+        return "fixture-requirement-extractor-v2"
 
     def extract(self, description: str) -> JobRequirementExtractorResult:
         segments = _segments(description)
@@ -610,6 +610,7 @@ _CAPABILITY_ALIASES = (
     ("RAG", ("rag", "检索增强生成")),
     ("Agent", ("agent", "智能体")),
     ("LLM", ("llm", "大语言模型")),
+    ("数字电路测试", ("数字电路测试",)),
 )
 
 

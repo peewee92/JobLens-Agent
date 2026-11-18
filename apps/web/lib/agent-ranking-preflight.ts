@@ -1,4 +1,15 @@
-export type RankingOmission = {jobId: string; reason: "report_missing" | "report_stale" | "hard_conflict"; staleReasons: string[]};
+const recoveryMessages = {
+  job_unavailable: "岗位当前不可用。请核对岗位记录；若标记为失效，可恢复后重新检查。",
+  description_incomplete: "岗位描述信息不足。请打开岗位详情，补充完整原文或重新采集后再分析。",
+  description_too_long: "岗位描述超过分析长度限制。可使用保留职责和任职要求的版本重新添加。",
+  description_not_extractable: "当前岗位来源没有提供可用的完整描述。请从原招聘页面重新采集详情。",
+  requirement_analysis_failed: "上次分析这份描述时没有保存岗位要求。请核对原文，确认后重新分析，或先跳过。",
+  requirements_not_analyzed: "当前描述还没有可用的岗位要求。请先在岗位详情分析要求。",
+  requirements_need_review: "已分析岗位要求，但目前还不能用于匹配。请到岗位详情核对要求与页面提示。",
+};
+type RecoveryCode = keyof typeof recoveryMessages;
+
+export type RankingOmission = {jobId: string; reason: "report_missing" | "report_stale" | "hard_conflict"; staleReasons: string[]; recoveryCode?: RecoveryCode};
 export type RankingPreflight = {scope: string; ranked: string[]; candidates: string[]; insufficient: string[]; omissions: RankingOmission[]};
 
 export function rankingScope(ids: readonly string[]): string {
@@ -18,6 +29,29 @@ const staleLabels: Record<string, string> = {
 };
 export function staleReasonLabels(reasons: readonly string[]): string {
   return [...new Set(reasons.map(reason => staleLabels[reason] ?? "其他关联事实已变化"))].join("、");
+}
+
+export function rankingOmissionMessage(item: RankingOmission): string {
+  if (item.reason === "hard_conflict") return "当前匹配发现明确的硬性条件冲突。请查看岗位的匹配依据和原始要求。";
+  if (item.reason === "report_stale") return `原匹配报告已过期：${staleReasonLabels(item.staleReasons)}；请核对后更新匹配。`;
+  return item.recoveryCode ? recoveryMessages[item.recoveryCode]
+    : "尚无匹配报告。请核对已确认的职业资料与求职偏好，再到岗位详情生成匹配报告。";
+}
+
+export function rankingRecoveryAnchor(item: RankingOmission): string {
+  if (item.recoveryCode === "description_incomplete" || item.recoveryCode === "description_too_long") return "job-description";
+  if (item.reason === "hard_conflict" || item.reason === "report_stale" || !item.recoveryCode) return "job-match";
+  return "job-requirements";
+}
+
+/** Reuse saved facts, not the incoming paste, to explain an existing posting. */
+export function existingMatchReportCopy(check: RankingPreflight, jobId: string): string {
+  if (check.ranked.includes(jobId)) return "已有匹配报告仍可用于当前比较。";
+  const item = check.omissions.find(entry => entry.jobId === jobId);
+  if (item?.reason === "hard_conflict") return "已有匹配报告仍适用，但有明确硬性条件冲突，不进入默认比较。";
+  if (item?.reason === "report_stale") return "已有匹配报告仅供历史查看，须更新后才能参与当前比较。";
+  if (item?.reason === "report_missing") return rankingOmissionMessage(item);
+  return "暂时无法核对已有匹配报告，请到岗位详情查看。";
 }
 
 /** Validate the response rather than silently treating malformed data as an empty ranking. */
@@ -40,10 +74,14 @@ export function rankingPreflight(ids: readonly string[], response: unknown): Ran
   const seen = new Set(ranked);
   for (const raw of (response as {omissions: unknown[]}).omissions) {
     if (!raw || typeof raw !== "object") throw new Error("排序检查返回的数据不完整，请稍后重试。");
-    const {jobId, reason, staleReasons} = raw as Record<string, unknown>;
-    if (typeof jobId !== "string" || !selected.has(jobId) || seen.has(jobId) || !["report_missing", "report_stale", "hard_conflict"].includes(String(reason)) || !Array.isArray(staleReasons) || !staleReasons.every(x => typeof x === "string") || (reason === "report_stale" ? staleReasons.length === 0 : staleReasons.length !== 0)) throw new Error("排序检查返回的数据不完整，请稍后重试。");
+    const {jobId, reason, staleReasons, recoveryCode} = raw as Record<string, unknown>;
+    if (typeof jobId !== "string" || !selected.has(jobId) || seen.has(jobId) || (reason !== "report_missing" && reason !== "report_stale" && reason !== "hard_conflict") || !Array.isArray(staleReasons) || !staleReasons.every(x => typeof x === "string") || (reason === "report_stale" ? staleReasons.length === 0 : staleReasons.length !== 0)) throw new Error("排序检查返回的数据不完整，请稍后重试。");
     seen.add(jobId);
-    omissions.push({jobId, reason: reason as RankingOmission["reason"], staleReasons});
+    omissions.push({
+      jobId, reason, staleReasons,
+      ...(reason === "report_missing" && typeof recoveryCode === "string" && Object.hasOwn(recoveryMessages, recoveryCode)
+        ? {recoveryCode: recoveryCode as RecoveryCode} : {}),
+    });
   }
   if (seen.size !== ids.length) throw new Error("排序检查返回的数据不完整，请稍后重试。");
   return {scope: rankingScope(ids), ranked: ids.filter(id => ranked.has(id)), candidates: ids.filter(id => candidates.has(id)), insufficient: ids.filter(id => ranked.has(id) && !candidates.has(id)), omissions};

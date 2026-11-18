@@ -191,6 +191,27 @@
           },
           "title": "Stalereasons",
           "type": "array"
+        },
+        "recoveryCode": {
+          "anyOf": [
+            {
+              "enum": [
+                "job_unavailable",
+                "description_incomplete",
+                "description_too_long",
+                "description_not_extractable",
+                "requirement_analysis_failed",
+                "requirements_not_analyzed",
+                "requirements_need_review"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recoverycode"
         }
       },
       "required": [

@@ -1,10 +1,12 @@
 import React from "react";
 import Link from "next/link";
-import {currentStateLabel, completionCriterionLabel} from "@/lib/gap-language";
+import {currentStateLabel, completionCriterionLabel, gapImportanceLabel} from "@/lib/gap-language";
 import {UnrankedJobs} from "./unranked-jobs";
 import {AnalysisExecutionControls} from "./analysis-execution-controls";
 import type {SavedCareerAnalysis} from "@/lib/contracts";
 import {formatDateTime} from "@/lib/format";
+import {preparationFacts} from "@/lib/preparation-facts";
+import type {RankingOmission} from "@/lib/agent-ranking-preflight";
 import {reportStaleReasonLabel} from "@/lib/match-report";
 
 const evidenceLabels: Record<string, string> = {
@@ -12,15 +14,32 @@ const evidenceLabels: Record<string, string> = {
   supported: "已有证据支持", evidenced: "已有证据支持", partial: "证据部分覆盖",
 };
 
-export function SavedCareerAnalysisView({result, backHref}: {result: SavedCareerAnalysis; backHref: string}) {
-  return <>
-    <section className="page-heading"><p className="eyebrow">已保存分析 · 版本 {result.schemaVersion}</p>
+export function SavedCareerAnalysisView({result, backHref, savedScope, additionalLabels = {}, currentOmissions}: {
+  result: SavedCareerAnalysis; backHref: string;
+  savedScope?: {requested: readonly string[]; compared: number};
+  additionalLabels?: Record<string, string>; currentOmissions?: RankingOmission[];
+}) {
+  const labels = {...additionalLabels, ...Object.fromEntries(result.bindings.map(item => [item.jobId, item.title]))};
+  const preparedFacts = result.preparations.map(preparationFacts);
+  const requirements = new Map(preparedFacts.flatMap(item => [...item.requirements]));
+  const importance = new Map([...requirements].map(([id, item]) => [id, item.importance]));
+  return <div className="saved-analysis">
+    <section className="page-heading"><p className="eyebrow">第 3 步 · 比较并准备</p>
       <h1>本次目标岗位的差距与准备材料</h1>
       <p>保存于 {formatDateTime(result.createdAt)}。以下是当时的事实与结论，不会在打开时重新生成。</p>
-      <Link href={backHref}>返回本次运行</Link>
+      {savedScope && <p>已选 {savedScope.requested.length} 个岗位，实际比较 {savedScope.compared} 个；你确认了 {result.selectedJobIds.length} 个准备目标。</p>}
+      <nav className="actions" aria-label="跳到准备材料">
+        <a className="button-secondary" href="#saved-gaps">看能力差距</a>
+        {result.preparations.length > 0 && <><a className="button-secondary" href="#saved-resume-0">看简历建议</a>
+          <a className="button-secondary" href="#saved-interview-0">看面试问题</a></>}
+        <a className="button-secondary" href="#start-preparation">开始准备行动</a>
+      </nav>
+      {result.preparations.length > 1 && <ul>{result.preparations.map((item, index) =>
+        <li key={item.jobId}>{labels[item.jobId] ?? "目标岗位"} · <a href={`#saved-resume-${index}`}>简历建议</a> · <a href={`#saved-interview-${index}`}>面试问题</a></li>)}</ul>}
+      <Link href={backHref}>返回本次比较</Link>
     </section>
-    <section className="card stack-md" aria-label="分析事实版本">
-      <h2>{result.isCurrent ? "事实版本仍适用于当前资料" : "历史材料：当前事实已变化"}</h2>
+    <section className="card stack-md" aria-label="材料是否仍可用">
+      <h2>{result.isCurrent ? "这些材料仍适用于当前资料" : "历史材料：当前事实已变化"}</h2>
       {!result.isCurrent && <p className="notice">保留原始材料，但不要将它当作当前建议。请返回运行，使用最新确认的事实新建分析。</p>}
       {!result.isCurrent && result.staleReasons.length > 0 && <ul>{result.staleReasons.map(reason => {
         const separator = reason.indexOf(":");
@@ -29,49 +48,46 @@ export function SavedCareerAnalysisView({result, backHref}: {result: SavedCareer
         const job = result.bindings.find(item => item.jobId === jobId);
         return <li key={reason}>{job ? `${job.title}：` : ""}{reportStaleReasonLabel(code)}</li>;
       })}</ul>}
-      <p>职业资料 v{result.profileVersion} · 求职意向 v{result.searchIntentVersion} · {result.selectedJobIds.length} 个确认目标</p>
-      <details><summary>查看事实标识、策略和变化原因</summary>
-        <p>资料：{result.profileId}；意向：{result.searchIntentId}</p>
+      <details><summary>查看依据版本与变化原因</summary>
+        <p>结果格式第 {result.schemaVersion} 版 · 资料 {result.profileId} 第 {result.profileVersion} 版 · 意向 {result.searchIntentId} 第 {result.searchIntentVersion} 版</p>
         <ul>{result.bindings.map(item => <li key={item.jobId}>{item.title} · {item.company}：要求 {item.extractionId} · 报告 {item.matchReportId} · {item.policyVersion}</li>)}</ul>
         {result.staleReasons.length > 0 && <p>原因码：{result.staleReasons.join("、")}</p>}
       </details>
     </section>
-    <UnrankedJobs ids={result.unrankedJobIds ?? []} labels={Object.fromEntries(result.bindings.map(item => [item.jobId, item.title]))} />
+    <UnrankedJobs ids={result.unrankedJobIds ?? []} labels={labels} scope={savedScope?.requested} currentOmissions={currentOmissions} />
     {result.updatePartial && <section className="card stack-md" aria-label="部分范围说明"><h2>这是一份部分范围分析</h2>
-      <p>用户明确选择只使用已完成岗位；以下岗位没有在本次完成分析，不代表已不适合：{result.unanalysedJobIds?.join("、")}。</p>
+      <p>用户明确选择只使用已完成岗位；以下岗位没有在本次完成分析，不代表已不适合：{result.unanalysedJobIds?.map(id => labels[id] ?? "名称暂不可读取").join("、")}。</p>
       <Link href={backHref}>查看未完成步骤与原因</Link></section>}
-    {result.updateSourceThreadId && <section className="card stack-md"><h2>对比原分析</h2>
-      <p>核对同一范围下推荐、证据覆盖和目标选择的变化；结论未变也是合法结果。</p>
-      <Link href={`/agent/results/${encodeURIComponent(result.threadId)}/comparison`}>查看新旧结果与变化原因</Link></section>}
-    <section className="card stack-md"><h2>根据新事实更新分析</h2><p>先检查原目标或原批次的输入与可复用结果；查看预检不会调用模型或覆盖本次材料。</p>
-      <Link href={`/agent/results/${encodeURIComponent(result.threadId)}/update`}>查看更新范围与输入</Link>
-    </section>
-    <AnalysisExecutionControls threadId={result.threadId} resultId={result.resultId}
-      jobIds={result.selectedJobIds} isCurrent={result.isCurrent} isUpdate={Boolean(result.updateSourceThreadId)}
-      jobLabels={Object.fromEntries(result.bindings.map(item => [item.jobId, item.title]))} />
-    <section className="card stack-md"><h2>差距与补齐标准</h2>
+    <section className="card stack-md" id="saved-gaps"><h2>差距与补齐标准</h2>
       <p className="muted">差距表示当前资料和证据的覆盖情况，不是对你真实能力的否定。</p>
       {result.gaps.items.length === 0 ? <p>本次没有可列出的能力差距，不代表已经满足全部岗位要求。</p> :
         result.gaps.items.map((item, index) => <article className="card stack-sm" key={`${item.capability}-${index}`}>
-          <h3>{item.priority} · {item.capability}</h3><p>{currentStateLabel(item.currentState)}</p>
+          <h3>{item.capability}</h3>
+          <p><strong>{gapImportanceLabel(item.whyImportant.mustHaveRatio, item.supportingRequirementIds, importance)}</strong></p>
+          <p>{currentStateLabel(item.currentState)}</p>
+          {!!item.supportingRequirementIds.length && <p>岗位依据：{item.supportingRequirementIds.map(id => requirements.get(id)?.text).filter(Boolean).join("；") || "可在下方的匹配依据里核对原文。"}</p>}
           <details><summary>查看来源证据</summary><p className="muted">依据：{item.supportingJobIds.length} 个岗位 · 要求 {item.supportingRequirementIds.join("、")} · 个人证据 {item.evidenceIds.join("、") || "尚未覆盖"}</p></details>
           <ul>{item.completionCriteria.map((criterion, i) => <li key={i}>{completionCriterionLabel(criterion)}</li>)}</ul>
         </article>)}
     </section>
-    {result.preparations.map(preparation => {
+    {result.preparations.map((preparation, index) => {
       const binding = result.bindings.find(item => item.jobId === preparation.jobId);
+      const facts = preparedFacts[index];
       return <section className="card stack-md" key={preparation.jobId}>
-        <h2>{binding?.title ?? preparation.jobId} · 准备材料</h2>
+        <h2>{binding?.title ?? "目标岗位"} · 准备材料</h2>
         <p>{binding?.company}</p>
         {binding && <Link href={`/jobs/${encodeURIComponent(binding.jobId)}?reportId=${encodeURIComponent(binding.matchReportId)}`}>查看当时的匹配依据</Link>}
-        <h3>简历可用事实要点</h3>
+        <h3 id={`saved-resume-${index}`}>简历可用事实要点</h3>
         <p className="muted">以下不是完整简历，也不增加未经确认的经历。</p>
         {preparation.resumeDelta?.highlights.length ? <ul>{preparation.resumeDelta.highlights.map((item, i) =>
-          <li key={i}>{item.capability}<details><summary>查看事实来源</summary>要求 {item.requirementId} · 证据 {item.evidenceIds.join("、")}</details></li>)}</ul> : <p>当前没有足够证据形成事实要点。</p>}
+          <li key={i}><strong>{item.capability}</strong>
+            {facts.requirements.get(item.requirementId)?.text && <p>对应岗位要求：{facts.requirements.get(item.requirementId)?.text}</p>}
+            <p>{item.evidenceIds.map(id => facts.evidenceSummaries.get(id)).filter(Boolean).join("；") || "已关联真实经历，可按下方来源核对；此材料未提供可展示的经历摘要。"}</p>
+            <details><summary>查看事实来源</summary>要求 {item.requirementId} · 证据 {item.evidenceIds.join("、")}</details></li>)}</ul> : <p>当前没有足够证据形成事实要点。</p>}
         <h3>仍需核实或补充</h3>
         {!preparation.resumeDelta?.evidenceGaps.length && <p>本次未列出技能证据缺口，仍请逐项核对岗位条件。</p>}
         <ul>{preparation.resumeDelta?.evidenceGaps.map((item, i) => <li key={i}>{item.capability}：{evidenceLabels[item.status] ?? "证据待核实"}</li>)}</ul>
-        <h3>面试问题与证据提示</h3>
+        <h3 id={`saved-interview-${index}`}>面试问题与证据提示</h3>
         <p className="muted">围绕岗位要求准备说明，不是面试能力评分。</p>
         <ul>{preparation.interviewFacts?.items.map((item, i) => <li key={i}>
           如何用真实经历说明“{item.requirementText}”？
@@ -86,8 +102,18 @@ export function SavedCareerAnalysisView({result, backHref}: {result: SavedCareer
           {preparation.studyChecklist?.items.slice(3).map((item, i) => <li key={i}>{item.capability}<ul>{item.completionCriteria.map((criterion, j) => <li key={j}>{completionCriterionLabel(criterion)}</li>)}</ul></li>)}
         </ul></details>}
         <details><summary>已保存的经历事实</summary><ul>{preparation.storyFacts?.items.map((item, i) =>
-          <li key={i}>{item.evidenceSummary} · 证据 {item.evidenceId}</li>)}</ul></details>
+          <li key={i}>{item.evidenceSummary}</li>)}</ul></details>
       </section>;
     })}
-  </>;
+
+    {result.updateSourceThreadId && <section className="card stack-md"><h2>对比原分析</h2>
+      <p>核对同一范围下推荐、证据覆盖和目标选择的变化；结论未变也是合法结果。</p>
+      <Link href={`/agent/results/${encodeURIComponent(result.threadId)}/comparison`}>查看新旧结果与变化原因</Link></section>}
+    <section className="card stack-md"><h2>根据新事实更新分析</h2><p>先检查原目标或原批次的输入与可复用结果；查看预检不会调用模型或覆盖本次材料。</p>
+      <Link href={`/agent/results/${encodeURIComponent(result.threadId)}/update`}>查看更新范围与输入</Link>
+    </section>
+    <div id="start-preparation"><AnalysisExecutionControls threadId={result.threadId} resultId={result.resultId}
+      jobIds={result.selectedJobIds} isCurrent={result.isCurrent} isUpdate={Boolean(result.updateSourceThreadId)}
+      jobLabels={labels} /></div>
+  </div>;
 }

@@ -14,3 +14,19 @@ export function currentStateLabel(value: string): string {
 export function completionCriterionLabel(value: string): string {
   return completionCriteriaLabels[value] ?? value;
 }
+
+
+/** Use only frozen facts. Legacy priorities alone cannot tell whether a posting required a skill. */
+export function gapImportanceLabel(
+  mustHaveRatio: number | undefined,
+  supportingIds: readonly string[],
+  requirements: ReadonlyMap<string, string>,
+): string {
+  const known = supportingIds.map(id => requirements.get(id));
+  if (typeof mustHaveRatio === "number" && mustHaveRatio > 0 || known.includes("must_have")) {
+    return "含必需条件 · 先核对";
+  }
+  if (known.length > 0 && known.every(value => value === "bonus")) return "加分项 · 可选补充";
+  if (mustHaveRatio === 0) return "非必需 · 可择机准备";
+  return "待核对 · 以岗位原文为准";
+}

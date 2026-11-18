@@ -4,12 +4,13 @@ import {RankedJobExplanation} from "@/components/ranked-job-explanation";
 import {validatedRunLabels} from "@/lib/agent-run-labels";
 import {UnrankedJobs} from "@/components/unranked-jobs";
 import {appendAgentJobPage} from "@/lib/agent-job-pages";
-import {rankingPreflight, rankingScope, staleReasonLabels, type RankingPreflight} from "@/lib/agent-ranking-preflight";
+import {rankingOmissionMessage, rankingPreflight, rankingRecoveryAnchor, rankingScope, type RankingPreflight} from "@/lib/agent-ranking-preflight";
 
 import Link from "next/link";
+import {LinkFeedback} from "@/components/link-feedback";
 import {agentScopeHref, initialAgentJobScope, jobDetailWithAgentScope, initialScopeAnalysisHref} from "@/lib/agent-job-scope";
 import {UpdateMatchProgress} from "./update-match-progress";
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 
 import {
   CareerAgentRunHttpError,
@@ -47,11 +48,13 @@ async function parseResponse(response: Response): Promise<RunState> {
   throw new CareerAgentRunHttpError(response.status, message);
 }
 
-export function RankedJobLabel({job, label, jobId}: {job?: JobListItem; label?: string; jobId: string}) {
-  return job ? <><strong>{job.title}</strong> · {job.company}</> : <>{label ?? jobId}</>;
+export function RankedJobLabel({job, label}: {job?: JobListItem; label?: string; jobId: string}) {
+  return job ? <><strong>{job.title}</strong> · {job.company}</> : <>{label ?? "岗位名称暂不可读取"}</>;
 }
 
 export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialScope, initialPageOffset = 0, initialHasMore = false}: {jobs: JobListItem[]; initialJobId?: string; initialScope?: string[]; initialPageOffset?: number; initialHasMore?: boolean}) {
+  const commandLock = useRef(false);
+  const checkLock = useRef(false);
   const [jobs, setJobs] = useState(initialJobs);
   const [pageOffset, setPageOffset] = useState(initialPageOffset);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -73,6 +76,9 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
   const jobsById = useMemo(() => new Map(jobs.map((job) => [job.id, job])), [jobs]);
   const currentScope = rankingScope(selected);
   const currentPreflight = preflight?.scope === currentScope ? preflight : null;
+  const rankableCount = currentPreflight?.ranked.length;
+  const compareButtonLabel = rankableCount === undefined ? "检查后开始比较"
+    : rankableCount === 0 ? "没有可比较的岗位" : `比较 ${rankableCount} 个岗位`;
 
   useEffect(() => {
     void loadRecentRuns();
@@ -152,26 +158,26 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
 
   async function recoverRun(threadId: string) {
     setBusy(true);
-    setMessage("正在恢复上次 Agent Run…");
+    setMessage("正在恢复上次 比较…");
     try {
       const state = await parseResponse(
         await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"}),
       );
       const resolution = displayState(state);
-      setMessage(resolution === "superseded" ? "另一个页面已提交不同决定，当前显示服务端已接受的结果，原请求不会再重试。" : state.pendingApproval ? "已恢复上次等待你确认的 Agent Run。" : targetSelectionBlockMessage(state.currentStep) ?? "已恢复上次 Agent Run。");
+      setMessage(resolution === "superseded" ? "另一个页面已提交不同决定，当前显示服务端已接受的结果，原请求不会再重试。" : state.pendingApproval ? "已恢复上次等待你确认的 比较。" : targetSelectionBlockMessage(state.currentStep) ?? "已恢复上次 比较。");
     } catch (error) {
       let saved: SavedRunCommand | null = null;
       try { saved = loadRunCommand(window.localStorage, threadId); } catch {}
       if (shouldForgetPendingThread(error) && saved?.kind !== "start") {
         try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
         setRecoverableThreadId(null);
-        setMessage("上次 Agent Run 已不存在，可以开始新的比较。");
+        setMessage("上次 比较 已不存在，可以开始新的比较。");
       } else {
         setRecoverableThreadId(threadId);
         setPendingCommand(saved);
         setMessage(saved?.kind === "start" && shouldForgetPendingThread(error)
           ? "服务端尚未找到这次分析。原请求已保留，可以用相同标识重试，不会新建另一次分析。"
-          : "暂时无法恢复上次 Agent Run。恢复引用已保留，请重试，不会重新启动 Ranking。");
+          : "暂时无法恢复上次 比较。恢复引用已保留，请重试，不会重新启动比较。");
       }
     } finally {
       setBusy(false);
@@ -179,6 +185,8 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
   }
 
   async function submitSavedCommand(command: SavedRunCommand) {
+    if (commandLock.current) return;
+    commandLock.current = true;
     setBusy(true);
     setMessage(command.kind === "start" ? "正在读取现有匹配报告并排序…" : "正在提交已保存的决定并校验事实…");
     try {
@@ -195,7 +203,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         targetSelectionBlockMessage(state.currentStep) ?? "分析状态已更新。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "暂时无法提交；原请求已保留，请先查看状态或重试原请求。");
-    } finally { setBusy(false); }
+    } finally { commandLock.current = false; setBusy(false); }
   }
 
   async function loadMoreJobs() {
@@ -212,7 +220,8 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
   }
 
   async function checkRanking() {
-    if (!selected.length || checking) return;
+    if (!selected.length || checkLock.current) return;
+    checkLock.current = true;
     const ids = [...selected];
     const scope = rankingScope(ids);
     setChecking(true); setPreflight(null); setPreflightError(null);
@@ -224,7 +233,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
       setPreflight(rankingPreflight(ids, await response.json()));
     } catch (error) {
       setPreflightError({scope, message: error instanceof Error ? error.message : "暂时无法检查排序，请重试。"});
-    } finally { setChecking(false); }
+    } finally { checkLock.current = false; setChecking(false); }
   }
 
   async function startRun() {
@@ -237,7 +246,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
   }
 
   async function decide(decision: Decision) {
-    if (!run?.interruptId || pendingCommand) return;
+    if (!run?.interruptId || pendingCommand || busy) return;
     await submitSavedCommand({version: 1, kind: "decision", threadId: run.threadId, body: {
       interruptId: run.interruptId, actionId: newId("action"), decision,
       selectedJobIds: decision === "edit" ? [...edited] : [],
@@ -268,11 +277,12 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
   const gapHandoffHref = run?.status === "completed" && !run.legacyReadOnly
     ? buildGapHandoffHref(run.confirmedTargetJobIds)
     : null;
-  const unrankedJobIds = run && (run.pendingApproval || ["completed", "blocked", "rejected"].includes(run.status))
+  const hasRankingResult = run && (run.pendingApproval || ["completed", "blocked", "cancelled"].includes(run.status));
+  const unrankedJobIds = hasRankingResult
     ? run.requestedJobIds.filter(id => !run.rankedJobIds.includes(id)) : [];
   const jobLabels = {...runLabels, ...Object.fromEntries(jobs.map(job => [job.id, job.title]))};
   const activeJobIds = run?.requestedJobIds ?? selected;
-  const activeJobNames = activeJobIds.map((id) => jobLabels[id] ?? id);
+  const activeJobNames = activeJobIds.map((id) => jobLabels[id] ?? "岗位名称暂不可读取");
   const requestSummary = activeJobNames.length > 0
     ? `帮我先比较这 ${activeJobNames.length} 个岗位，找出最值得优先考虑的岗位，再分析共同能力差距。`
     : "帮我比较目标岗位并分析共同能力差距。";
@@ -302,6 +312,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <div>
             <strong>当前计划</strong>
             <p>{planSummary}</p>
+            {hasRankingResult && <p>已选 {run.requestedJobIds.length} 个岗位，实际比较 {run.rankedJobIds.length} 个。</p>}
           </div>
           <div>
             <strong>执行状态</strong>
@@ -309,7 +320,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           </div>
           <details>
             <summary>查看依据</summary>
-            <p className="muted">本流程只读取已有 MatchReport，并沿同一套 JobRequirement / Profile Evidence 事实继续分析，不重新猜测简历或岗位事实。</p>
+            <p className="muted">只使用已有匹配报告、已核对的岗位要求和你确认的经历，不猜测事实。</p>
             {activeJobNames.length > 0 && <p className="muted">当前岗位范围：{activeJobNames.join("、")}</p>}
             {run?.updateSourceThreadId && <p>这是基于历史结果创建的独立更新，原结果不会被覆盖。<Link href={`/agent/results/${encodeURIComponent(run.updateSourceThreadId)}`}>查看原分析</Link></p>}
             {run?.gapResultFingerprint && <p className="muted">能力差距结果指纹：{run.gapResultFingerprint}</p>}
@@ -325,7 +336,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <h2>这次请求的结果尚未确认</h2>
           <p>原岗位范围和决定已保存。请先查看服务端状态；需要重试时会沿用原标识和原内容，不会改成另一决定。</p>
           <p className="muted">{pendingCommand.kind === "start"
-            ? `原请求：分析 ${pendingCommand.body.jobIds.map((id) => jobLabels[id] ?? id).join("、")}；最多建议 ${pendingCommand.body.topN} 个目标。`
+            ? `原请求：分析 ${pendingCommand.body.jobIds.map((id) => jobLabels[id] ?? "岗位名称暂不可读取").join("、")}；最多建议 ${pendingCommand.body.topN} 个目标。`
             : `原决定：${pendingCommand.body.decision === "approve" ? "确认建议" : pendingCommand.body.decision === "reject" ? "拒绝并结束" : `确认所选 ${pendingCommand.body.selectedJobIds.length} 个目标`}。`}</p>
           <div className="button-row">
             <button className="button primary" disabled={busy} onClick={() => void recoverRun(pendingCommand.threadId)} type="button">查看请求状态</button>
@@ -353,7 +364,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
                 window.history.replaceState(null, "", "/agent");
                 setPendingCommand(null);
                 setRecoverableThreadId(null);
-                setMessage("已放弃本地旧 Run 引用，可以开始新的 Agent Run。");
+                setMessage("已放弃本地上次比较的本地记录，可以开始新的 比较。");
               }}
               type="button"
             >
@@ -363,12 +374,14 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         </section>
       )}
 
-      {!run && !recoverableThreadId && (
+      {!run && !recoverableThreadId && jobs.length > 0 && (
         <section className="card stack-md">
           <div>
             <p className="eyebrow">第一步 · 选择岗位</p>
             <h2>选择要一起分析的岗位</h2>
-            <p className="muted">一次最多比较 50 个岗位，只读取已有匹配报告；默认建议最多 3 个目标，不会重新调用模型或自动修改职业事实。</p>
+            <p className="muted">{initialScope !== undefined || initialJobId !== undefined
+              ? "已带回你刚才指定的岗位；可以更改勾选，或先检查本批有哪些岗位需要补充。"
+              : "请勾选你想比较的岗位；不会替你选入无关或待补充的岗位。"}一次最多比较 50 个岗位，只读取已有匹配报告，不会调用模型。</p>
           </div>
           <div className="stack-sm">
             {jobs.map((job) => (
@@ -376,10 +389,15 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
                 <input
                   type="checkbox"
                   checked={selected.includes(job.id)}
-                  disabled={!selected.includes(job.id) && selected.length >= 50}
-                  onChange={(event) => setSelected((current) => event.target.checked
-                    ? Array.from(new Set([...current, job.id])).slice(0, 50)
-                    : current.filter((id) => id !== job.id))}
+                  disabled={checking || busy || (!selected.includes(job.id) && selected.length >= 50)}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setPreflight(null);
+                    setPreflightError(null);
+                    setSelected(current => checked
+                      ? Array.from(new Set([...current, job.id])).slice(0, 50)
+                      : current.filter(id => id !== job.id));
+                  }}
                 />
                 <span><strong>{job.title}</strong> · {job.company}</span>
               </label>
@@ -391,28 +409,28 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <button className="button" disabled={busy || checking || selected.length === 0} onClick={() => void checkRanking()} type="button">{checking ? "正在检查…" : "检查所选岗位"}</button>
           {preflightError?.scope === currentScope && <p role="alert">{preflightError.message}</p>}
           {currentPreflight && <div className="stack-sm" aria-live="polite">
-            <p>当前有 {currentPreflight.ranked.length} / {selected.length} 个岗位可进入默认排序。检查只反映当前快照，不代表这些岗位一定会被推荐；正式分析时会重新检查。</p>
-            {currentPreflight.omissions.length > 0 && <aside className="notice" aria-label="未进入排序的岗位及原因">
+            <p>已选 {selected.length} 个岗位，目前有 {currentPreflight.ranked.length} 个可以比较。正式分析时会重新核对；可以比较不等于会推荐。</p>
+            {currentPreflight.omissions.length > 0 && <aside className="notice ranking-omissions" aria-label="未进入排序的岗位及原因">
               <strong>{currentPreflight.omissions.length} 个岗位暂未进入默认排序</strong>
               <p>未进入排序不等于你不具备相关能力。以下原因仅基于当前保存的记录，正式分析时会重新检查。</p>
               <ul>{currentPreflight.omissions.map(item => <li key={item.jobId}>
-                <Link href={jobDetailWithAgentScope(item.jobId, selected)}>{jobsById.get(item.jobId)?.title ?? item.jobId}</Link>：{item.reason === "report_missing" ? "尚无匹配报告，请查看岗位并按页面提示准备匹配。" : item.reason === "report_stale" ? `${staleReasonLabels(item.staleReasons)}；请先核对岗位与分析依据。` : "当前报告存在明确硬冲突，请查看具体依据并核对相关事实。"}
+                <Link href={`${jobDetailWithAgentScope(item.jobId, selected)}#${rankingRecoveryAnchor(item)}`}>{jobLabels[item.jobId] ?? "岗位名称暂不可读取"}<LinkFeedback /></Link>：{rankingOmissionMessage(item)}
               </li>)}</ul>
             </aside>}
-            {currentPreflight.omissions.some(item => item.reason === "report_missing" || item.reason === "report_stale") && <aside className="notice stack-sm">
+            {currentPreflight.omissions.some(item => item.reason === "report_stale" || (item.reason === "report_missing" && !item.recoveryCode)) && <aside className="notice stack-sm">
               <p>缺少或过期的报告可以按当前已确认事实重新分析。先预览这批岗位需要哪些处理，再明确启动；旧报告保留，需要模型时不会自动调用。</p>
               <Link className="button primary" href={initialScopeAnalysisHref(selected)}>按当前事实分析这批岗位</Link>
             </aside>}
             {currentPreflight.insufficient.length > 0 && <aside className="notice" aria-label="暂不提出目标建议的岗位">
               <strong>{currentPreflight.insufficient.length} 个岗位可以查看，但当前证据不足以提出目标建议</strong>
               <p>这不代表你不具备相应能力。可以查看要求、核对已有事实，补充确认后的真实证据，再更新匹配报告。</p>
-              <ul>{currentPreflight.insufficient.map(id => <li key={id}><Link href={jobDetailWithAgentScope(id, selected)}>{jobLabels[id] ?? id}：查看岗位和匹配依据</Link></li>)}</ul>
+              <ul>{currentPreflight.insufficient.map(id => <li key={id}><Link href={jobDetailWithAgentScope(id, selected)}>{jobLabels[id] ?? "岗位名称暂不可读取"}：查看岗位和匹配依据</Link></li>)}</ul>
             </aside>}
             {currentPreflight.ranked.length > 0 && !currentPreflight.candidates.length && <p>当前没有足够依据提出目标建议，请先查看岗位及匹配依据，更新后重新检查。</p>}
           </div>}
           {!currentPreflight && selected.length > 0 && <p className="muted">请先检查当前所选岗位；更改选择后需重新检查。</p>}
           <button className="button primary" disabled={busy || checking || !currentPreflight?.candidates.length} onClick={startRun} type="button">
-            {busy ? "正在运行…" : `比较所选岗位（${selected.length} 个岗位）`}
+            {busy ? "正在比较…" : compareButtonLabel}
           </button>
         </section>
       )}
@@ -436,7 +454,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
             <p className="muted">默认建议最多 3 个；你可调整并确认最多 5 个。只有确认后才会继续能力差距分析，不能直接选择没有有效报告的岗位。</p>
             {run.targetSuggestionMode === "challenge_only" ? <p className="notice">本次只有挑战／待核实目标，没有优先投入建议。相关基础不代表条件已全部满足，请先查看关键未知。</p> : null}
             <p>请查看每个岗位本次排序所用的已保存匹配依据；报告可帮助你核对支持证据和待确认条件。</p>
-            <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} />
+            <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} scope={run.requestedJobIds} currentOmissions={currentPreflight?.scope === rankingScope(run.requestedJobIds) ? currentPreflight.omissions : undefined} />
           </div>
           <div className="stack-sm">
             {run.rankedJobIds.map((jobId, index) => {
@@ -459,8 +477,9 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               );
             })}
           </div>
+          {busy && <p className="muted-copy" role="status">正在保存你的选择并准备材料…</p>}
           <div className="button-row">
-            <button className="button primary" disabled={busy || !!pendingCommand} onClick={() => decide("approve")} type="button">直接确认建议</button>
+            <button className="button primary" disabled={busy || !!pendingCommand} onClick={() => decide("approve")} type="button">{busy ? "正在确认目标…" : "直接确认建议"}</button>
             <button className="button" disabled={busy || !!pendingCommand || edited.length === 0} onClick={() => decide("edit")} type="button">按当前勾选继续</button>
             <button className="button" disabled={busy || !!pendingCommand} onClick={() => decide("reject")} type="button">拒绝并结束</button>
           </div>
@@ -469,33 +488,33 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
 
       {run && !run.pendingApproval && !["created", "running", "resuming"].includes(run.status) && (
         <section className="card stack-md">
-          <p className="eyebrow">Run 状态 · {run.status}</p>
-          <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "目标与准备材料已保存" : "Agent Run 已结束或暂停"}</h2>
+          <p className="eyebrow">比较状态 · {RUN_STATUS_LABELS[run.status] ?? "待核实"}</p>
+          <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "目标与准备材料已保存" : "本次比较已结束或暂停"}</h2>
           <p>{message}</p>
           {run.status === "stale" && <div className="notice">
             <p>{careerAgentStepSummary(run.currentStep)}</p>
             <a href={run.requestedJobIds.length ? agentScopeHref(run.requestedJobIds) : "/agent"}>检查原岗位范围并重新分析</a>
           </div>}
-          <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} />
+          <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} scope={run.requestedJobIds} currentOmissions={currentPreflight?.scope === rankingScope(run.requestedJobIds) ? currentPreflight.omissions : undefined} />
           {run.currentStep === "analysis_facts_changed" ? <p className="notice">分析期间资料、意向或岗位事实发生变化。本次材料如已保存，仅供历史查看；请使用当前事实新建分析。</p> : null}
           {run.legacyReadOnly ? <p className="notice">旧运行仅供历史查看。旧结果没有保存可重开的原始分析快照，未完成的旧运行也不会按新规则继续；请开始新分析。</p> : null}
           {run.status === "blocked" ? <div className="actions">
             <Link href="/recommendations">查看分类和逐项原因</Link>
             <Link href="/profile">核实职业资料与求职意向</Link>
           </div> : null}
-          {run.confirmedTargetJobIds.length > 0 && <p className="muted">已确认目标岗位：{run.confirmedTargetJobIds.map((id) => jobLabels[id] ?? id).join("、")}</p>}
+          {run.confirmedTargetJobIds.length > 0 && <p className="muted">已确认目标岗位：{run.confirmedTargetJobIds.map((id) => jobLabels[id] ?? "岗位名称暂不可读取").join("、")}</p>}
           {run.gapResultFingerprint && !run.resultId && <p className="muted">已保存本次分析指纹，完整结果快照尚未保存（{run.gapResultFingerprint.slice(0, 12)}…）。</p>}
           {run.resultId ? <div className="actions">
-            <Link className="button primary" href={`/agent/results/${encodeURIComponent(run.threadId)}`}>打开已保存的分析与准备材料</Link>
+            <Link className="button primary" href={`/agent/results/${encodeURIComponent(run.threadId)}`}>打开已保存的分析与准备材料<LinkFeedback /></Link>
             <p className="muted">查看本次事实版本下的原始结果，不会重新计算或调用模型。</p>
           </div> : null}
           {gapHandoffHref && !run.resultId && (
             <div className="actions">
               <Link className="button primary" href={gapHandoffHref}>按当前资料查看能力差距</Link>
-              <p className="muted">已确认的目标岗位会直接带入现有能力差距工作区，由同一套 JobRequirement / Profile Evidence 规则展示 P0/P1、影响岗位和补齐标准。</p>
+              <p className="muted">使用已确认的目标岗位查看需要核对的条件、对应岗位和准备标准。</p>
             </div>
           )}
-          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的 Agent Run。");}}>开始新的比较</button>
+          <button className="button" type="button" onClick={() => {setRun(null); setPendingCommand(null); setPreflight(null); setPreflightError(null); window.history.replaceState(null, "", "/agent"); try { window.localStorage.removeItem(STORAGE_KEY); } catch {} setMessage("可以开始新的 比较。");}}>开始新的比较</button>
         </section>
       )}
 
@@ -506,7 +525,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         <button className="button" disabled={busy} onClick={() => void loadRecentRuns()} type="button">刷新最近分析</button>
         {recentRuns.length === 0 && !recentError ? <p>暂无已保存分析。</p> : null}
         <ul>{recentRuns.map((item) => <li key={item.threadId}>
-          <a href={runHref(item.threadId)}>{item.requestedJobIds.length} 个岗位 · {item.updatePartial ? "部分范围已保存" : RUN_STATUS_LABELS[item.status] ?? "已保存"} · {item.threadId.slice(-8)}</a>
+          <a href={runHref(item.threadId)}>{item.requestedJobIds.length} 个岗位 · {item.updatePartial ? "部分范围已保存" : RUN_STATUS_LABELS[item.status] ?? "已保存"}</a>
         </li>)}</ul>
       </section>
 

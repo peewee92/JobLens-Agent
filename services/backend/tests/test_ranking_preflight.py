@@ -19,7 +19,7 @@ def test_real_sqlite_preflight_identifies_missing_and_stale_without_writes_or_mo
     assert response.status_code == 200, response.text
     body = response.json()
     assert [x["jobId"] for x in body["items"]] == [ids[0]]
-    assert body["omissions"] == [{"jobId": "missing_synthetic", "reason": "report_missing", "staleReasons": []}]
+    assert body["omissions"] == [{"jobId": "missing_synthetic", "reason": "report_missing", "staleReasons": [], "recoveryCode": "job_unavailable"}]
     assert _dump(factory) == before
     _profile(client)
     before = _dump(factory)
@@ -43,7 +43,7 @@ def test_current_blocked_report_is_distinct_from_missing_and_stale(synthetic_api
     before = _dump(factory)
     response = client.get("/api/v1/match-ranking/preflight", params=[("jobId", ids[0])])
     assert response.status_code == 200, response.text
-    assert response.json()["omissions"] == [{"jobId": ids[0], "reason": "hard_conflict", "staleReasons": []}]
+    assert response.json()["omissions"] == [{"jobId": ids[0], "reason": "hard_conflict", "staleReasons": [], "recoveryCode": None}]
     assert _dump(factory) == before
 
 

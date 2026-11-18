@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {rankingPreflight, rankingScope} from "../lib/agent-ranking-preflight";
+import {existingMatchReportCopy, rankingOmissionMessage, rankingPreflight, rankingRecoveryAnchor, rankingScope} from "../lib/agent-ranking-preflight";
 
 test("partial and empty rankings keep the requested scope visible", () => {
   const missing = {jobId: "a", reason: "report_missing", staleReasons: []};
@@ -24,4 +24,47 @@ test("malformed or unexpected ranking results do not enable a run", () => {
   }
   assert.throws(() => rankingPreflight([], {items: []}));
   assert.throws(() => rankingPreflight(["a", "a"], {items: []}));
+});
+
+test("omissions explain different steps; new or absent recovery codes remain optional", () => {
+  for (const [code, guidance] of [
+    ["description_incomplete", /描述信息不足/],
+    ["requirement_analysis_failed", /没有保存岗位要求/],
+    ["requirements_not_analyzed", /先在岗位详情分析要求/],
+    ["requirements_need_review", /不能用于匹配/],
+    [null, /尚无匹配报告/],
+    ["future_code", /尚无匹配报告/],
+    ["constructor", /尚无匹配报告/],
+  ] as const) {
+    const result = rankingPreflight(["a"], {items: [], omissions: [
+      {jobId: "a", reason: "report_missing", staleReasons: [], recoveryCode: code},
+    ]});
+    assert.match(rankingOmissionMessage(result.omissions[0]), guidance);
+  }
+  assert.match(rankingOmissionMessage({jobId: "a", reason: "report_stale", staleReasons: ["profile_changed"]}), /已过期.*职业资料已更新/);
+  assert.match(rankingOmissionMessage({jobId: "a", reason: "hard_conflict", staleReasons: []}), /硬性条件冲突/);
+});
+
+test("a duplicate receipt explains the current report, not the pasted description", () => {
+  const check = rankingPreflight(["current", "conflict", "historic", "missing"], {
+    items: [{jobId: "current", targetCandidate: false}],
+    omissions: [
+      {jobId: "conflict", reason: "hard_conflict", staleReasons: []},
+      {jobId: "historic", reason: "report_stale", staleReasons: ["job_description_changed"]},
+      {jobId: "missing", reason: "report_missing", staleReasons: [], recoveryCode: "description_incomplete"},
+    ],
+  });
+  assert.match(existingMatchReportCopy(check, "current"), /仍可用于当前比较/);
+  assert.match(existingMatchReportCopy(check, "conflict"), /硬性条件冲突，不进入默认比较/);
+  assert.match(existingMatchReportCopy(check, "historic"), /仅供历史查看/);
+  assert.match(existingMatchReportCopy(check, "missing"), /描述信息不足.*补充完整原文/);
+  assert.match(existingMatchReportCopy(check, "unknown"), /暂时无法核对/);
+});
+
+test("recovery links lead to the step that explains the omission", () => {
+  const missing = {jobId: "a", reason: "report_missing", staleReasons: []} as const;
+  assert.equal(rankingRecoveryAnchor({...missing, staleReasons: [], recoveryCode: "description_incomplete"}), "job-description");
+  assert.equal(rankingRecoveryAnchor({...missing, staleReasons: [], recoveryCode: "requirement_analysis_failed"}), "job-requirements");
+  assert.equal(rankingRecoveryAnchor({jobId: "a", reason: "hard_conflict", staleReasons: []}), "job-match");
+  assert.equal(rankingRecoveryAnchor({jobId: "a", reason: "report_stale", staleReasons: ["job_description_changed"]}), "job-match");
 });

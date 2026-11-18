@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.deps import get_import_jobs_use_case
+from app.api.deps import get_import_jobs_use_case, get_revise_manual_job_description
 from app.application.job_imports import ImportJobsUseCase
 from app.application.job_imports.adapter import adapt_collector_report
 from app.application.job_imports.normalizer import normalize_adapted_report
@@ -47,7 +47,10 @@ def api_environment(
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     use_case = ImportJobsUseCase(lambda: SqlAlchemyUnitOfWork(factory))
+    from app.application.job_queries.manual_description import ReviseManualJobDescription
+    from app.repositories.sqlalchemy_manual_job_description import SqlAlchemyManualJobDescription
     app.dependency_overrides[get_import_jobs_use_case] = lambda: use_case
+    app.dependency_overrides[get_revise_manual_job_description] = lambda: ReviseManualJobDescription(SqlAlchemyManualJobDescription(factory))
 
     try:
         with TestClient(app, raise_server_exceptions=False) as client:
@@ -407,3 +410,67 @@ def test_openapi_registers_job_import_endpoint(
     operation = response.json()["paths"]["/api/v1/job-imports"]["post"]
     assert "job-imports" in operation["tags"]
     assert set(operation["responses"]) >= {"201", "409", "422", "500"}
+
+
+@pytest.mark.parametrize("source_url", [None, "https://example.org/jobs/to-edit"])
+def test_manual_correction_preserves_identity_and_original_observations(api_environment, source_url):
+    from app.application.job_queries.manual_description import description_digest
+    from app.api.v1.jobs import ManualJobDescriptionRequest, ManualJobDescriptionResponse
+
+    client, factory = api_environment
+    original = {"title": "应用工程师", "company": "合成测试", "description": "仅岗位标题", "sourceUrl": source_url}
+    start = client.post("/api/v1/job-imports/manual", json=original).json()
+    job_id = start["jobId"]
+    endpoint = f"/api/v1/jobs/{job_id}/manual-description"
+    expected = description_digest(original["description"])
+    full = "工作职责：开发和维护内部工具，并跟进服务可用性。\n任职要求：熟练掌握 Python，能够真实讲述实践项目。"
+    request = {"description": full, "expectedSha256": expected}
+    assert client.put(endpoint, json={**request, "description": "???"}).status_code == 422
+    assert client.put(endpoint, json={**request, "expectedSha256": "0" * 64}).status_code == 409
+
+    schemas = Path(__file__).resolve().parents[3] / "packages/contracts/schemas"
+    for suffix, model in (("request", ManualJobDescriptionRequest), ("response", ManualJobDescriptionResponse)):
+        schema = json.loads((schemas / f"manual-job-description-{suffix}.schema.json").read_text())
+        schema.pop("$schema")
+        assert schema == model.model_json_schema(by_alias=True)
+    changed = client.put(endpoint, json=request)
+    assert changed.status_code == 200, changed.text
+    assert changed.json() == {"jobId": job_id, "descriptionSha256": description_digest(full), "changed": True}
+    replay = client.put(endpoint, json=request)
+    assert replay.status_code == 200 and not replay.json()["changed"]
+    for paste in (original, {**original, "description": full}, original):
+        # A new URL-less paste alias, or the original URL, keeps the same posting.
+        output = client.post("/api/v1/job-imports/manual", json=paste).json()
+        assert output["jobId"] == job_id and output["created"] == 0
+    with factory() as session:
+        assert count_rows(session, JobORM) == 1
+        assert session.get(JobORM, job_id).description == full
+        snapshots = session.scalars(select(JobImportItemORM.source_raw_snapshot)
+            .join(JobImportORM).where(JobImportORM.source_version == "manual-description-revision-v1")).all()
+        assert len(snapshots) == 1
+        assert snapshots[0]["description"] == full and snapshots[0]["previousDescriptionSha256"] == expected
+        original_record = session.scalar(select(JobImportItemORM).where(JobImportItemORM.import_id == start["importId"]))
+        assert original_record.source_raw_snapshot["description"] == original["description"]
+
+
+def test_correction_never_modifies_collector_or_merges_another_job(api_environment):
+    from app.application.job_queries.manual_description import description_digest
+
+    client, factory = api_environment
+    original = "任职要求：熟练掌握 Python，能够说明真实维护经历和服务改进过程，并和团队合作。"
+    replacement = original + "\n加分项：熟悉 Docker 部署。"
+    data = {"title": "后端工程师", "company": "测试"}
+    ids = [client.post("/api/v1/job-imports/manual", json={**data, "description": description}).json()["jobId"]
+           for description in (original, replacement)]
+    request = {"description": replacement, "expectedSha256": description_digest(original)}
+    conflict = client.put(f"/api/v1/jobs/{ids[0]}/manual-description", json=request)
+    assert conflict.status_code == 409 and conflict.json()["error"]["code"] == "manual_description_identity_conflict"
+    assert client.post("/api/v1/job-imports", json=load_report()).status_code == 201
+    with factory() as session:
+        job = session.scalar(select(JobORM).where(JobORM.id.not_in(ids)))
+        target = job.id
+        request["expectedSha256"] = description_digest(job.description)
+    read_only = client.put(f"/api/v1/jobs/{target}/manual-description", json=request)
+    assert read_only.status_code == 409 and read_only.json()["error"]["code"] == "manual_description_source_read_only"
+    with factory() as session:
+        assert session.get(JobORM, ids[0]).description == original

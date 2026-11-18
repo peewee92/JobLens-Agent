@@ -1,12 +1,11 @@
 "use client";
 
 import {useRouter} from "next/navigation";
-import {useEffect, useState, type FormEvent} from "react";
+import {useEffect, useRef, useState, type FormEvent} from "react";
 
-import type {ApiErrorBody, JobRequirementExtraction, RequirementCallPlan} from "@/lib/contracts";
-import {userFacingApiError} from "@/lib/user-facing-errors";
+import type {RequirementCallPlan} from "@/lib/contracts";
+import {requirementExtractionOutcome} from "@/lib/requirement-extraction-outcome";
 import {shortJobDescriptionGuidance} from "@/lib/job-requirements";
-import {isUncertainMatchResponse} from "@/lib/import-match-batching";
 import {AuthorizedRequirementExtraction} from "@/components/authorized-requirement-extraction";
 import {BatchMatchUncertainNotice} from "@/components/batch-match-uncertain-notice";
 
@@ -40,17 +39,19 @@ export function JobRequirementExtractButton({
   const [status, setStatus] = useState<"idle" | "submitting" | "error" | "uncertain">("idle");
   const [message, setMessage] = useState("");
   const [confirmLiveCost, setConfirmLiveCost] = useState(false);
+  const requestLocked = useRef(false);
 
   async function extract(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
-    if (status === "submitting" || status === "uncertain") return;
-    setStatus("submitting");
-    setMessage("");
+    if (disabled || requestLocked.current) return;
     if (!confirmLiveCost) {
       setStatus("error");
       setMessage("请先确认本次离线岗位要求分析。");
       return;
     }
+    requestLocked.current = true;
+    setStatus("submitting");
+    setMessage("");
     try {
       const response = await fetch(
         `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions`,
@@ -60,24 +61,20 @@ export function JobRequirementExtractButton({
           body: JSON.stringify({confirmLiveCost: true}),
         },
       );
-      if (isUncertainMatchResponse(response.status)) {
+      const outcome = requirementExtractionOutcome(response.status, await response.json().catch(() => null), jobId);
+      if (outcome.kind === "uncertain") {
         setStatus("uncertain");
         return;
       }
-      const body = (await response.json()) as
-        | JobRequirementExtraction
-        | ApiErrorBody;
-      if (!response.ok) {
-        setStatus("error");
-        setMessage(userFacingApiError(
-            "error" in body ? body : null,
-            `岗位要求分析失败（${response.status}），请稍后重试。`,
-          ));
-        return;
-      }
-      router.refresh();
       setConfirmLiveCost(false);
-      setStatus("idle");
+      if (outcome.kind === "rejected") {
+        setStatus("error");
+        setMessage(outcome.message);
+      } else {
+        setStatus("idle");
+        router.refresh();
+      }
+      requestLocked.current = false;
     } catch {
       setStatus("uncertain");
     }
@@ -97,11 +94,7 @@ export function JobRequirementExtractButton({
             checked={confirmLiveCost}
             disabled={disabled || status === "submitting" || status === "uncertain"}
             name="confirmLiveCost"
-            onChange={(event) => {
-              setConfirmLiveCost(event.target.checked);
-              setMessage("");
-              if (status === "error") setStatus("idle");
-            }}
+            onChange={(event) => setConfirmLiveCost(event.target.checked)}
             required
             type="checkbox"
             value="true"
@@ -115,6 +108,7 @@ export function JobRequirementExtractButton({
         >
           {status === "submitting"
             ? "正在分析…"
+            : status === "error" ? "重试岗位要求分析"
             : actionLabel ?? (hasExisting
               ? "重新分析岗位要求"
               : "分析岗位要求")}
@@ -137,7 +131,7 @@ export function JobRequirementExtractButton({
       {disabled ? (
         <p className="notice">{disabledReason ?? shortJobDescriptionGuidance}</p>
       ) : null}
-      {status === "error" ? <p className="inline-error">{message}</p> : null}
+      {status === "error" ? <p className="inline-error" role="alert">{message}</p> : null}
     </div>
   );
 }

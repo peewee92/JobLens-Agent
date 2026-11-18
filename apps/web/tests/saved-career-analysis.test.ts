@@ -29,7 +29,7 @@ test("changed facts show the same historical materials, never a silently refresh
   assert.match(html, /不要将它当作当前建议/);
   assert.match(html, /ev_react/);
   assert.match(html, /profile_changed/); // Reason code is in the explicit technical disclosure.
-  assert.doesNotMatch(html, /事实版本仍适用于当前资料/);
+  assert.doesNotMatch(html, /这些材料仍适用于当前资料/);
 });
 
 test("saved gap guidance translates known internal codes and folds evidence identifiers", () => {
@@ -37,4 +37,28 @@ test("saved gap guidance translates known internal codes and folds evidence iden
   assert.doesNotMatch(html, />capability_missing</);
   assert.doesNotMatch(html, />confirmed_profile_skill_exists</);
   assert.match(html, /查看来源证据/);
+});
+
+test("saved comparison uses its actual scope, shows real names and calls a bonus optional", () => {
+  const seeded = {...result, unrankedJobIds: ["j-hard", "j-short"], gaps: {...result.gaps,
+    items: [{...result.gaps.items[0], capability: "Docker", priority: "P0",
+      whyImportant: {mustHaveRatio: 0}, supportingRequirementIds: ["bonus-docker"]}]},
+    preparations: result.preparations.map(p => ({...p, studyChecklist: {items: [{
+      requirementId: "bonus-docker", requirementText: "加分项：熟悉 Docker 部署",
+      capability: "Docker", importance: "bonus", evidenceStatus: "missing", need: "optional",
+      profileSkillIds: [], completionCriteria: [],
+    }]}}))};
+  const html = renderToStaticMarkup(React.createElement(SavedCareerAnalysisView, {
+    result: seeded, backHref: "/agent", additionalLabels: {"j-hard": "硬件验证工程师"},
+    savedScope: {requested: ["job_1", "j-hard", "j-short"], compared: 1},
+    currentOmissions: [{jobId: "j-hard", reason: "hard_conflict", staleReasons: []}],
+  }));
+  assert.match(html, /已选 3 个岗位，实际比较 1 个/);
+  assert.match(html, /硬件验证工程师<\/a>：当前匹配发现明确/);
+  assert.match(html, /名称暂不可读取的岗位<\/a>/);
+  assert.match(html, /来自当前检查/);
+  assert.match(html, /加分项 · 可选补充/);
+  assert.doesNotMatch(html, /P0 · Docker/);
+  assert.match(html, /#saved-resume-0/);
+  assert.match(html, /#saved-interview-0/);
 });

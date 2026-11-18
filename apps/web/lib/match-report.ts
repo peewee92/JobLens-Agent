@@ -89,3 +89,14 @@ export function groupRecommendationItems<T extends {report: {recommendation: Mat
 export function selectDefaultTargetSuggestions<T extends {report: {recommendation: MatchRecommendation}}>(items: readonly T[]): T[] {
   return items.filter(({report}) => ["strong", "good", "stretch"].includes(report.recommendation)).slice(0, 3);
 }
+
+/** Translate known generated copy without changing the frozen reasons or any job quotes. */
+export function matchReasonCopy(reason: string): string {
+  if (reason === "确定性 Eligibility 已有直接证据或已确认 Profile 事实，无需模型再次判断。") {
+    return "这项要求有已确认的经历或资料支持，无需进一步判断。";
+  }
+  if (reason === "没有检索到可供语义判断的已确认职业证据。") {
+    return "当前资料中没有找到可用于判断这项要求的已确认经历。";
+  }
+  return reason;
+}

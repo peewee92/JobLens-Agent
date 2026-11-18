@@ -4,7 +4,8 @@ export function initialAgentJobScope(jobIds: string[], requested?: string | read
     const scope = typeof requested === "string" ? [requested] : [...requested];
     return scope.every(id => jobIds.includes(id)) ? scope : [];
   }
-  return jobIds.slice(0, 5);
+  // The generic comparison page must not select unrelated or incomplete imports.
+  return [];
 }
 
 export function parseAgentScope(value: string | string[] | undefined): string[] | null {

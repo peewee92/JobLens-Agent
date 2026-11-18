@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {agentScopeFromProfile, agentScopeHref, initialAgentJobScope, jobDetailWithAgentScope, parseAgentScope, profileWithAgentScope} from "../lib/agent-job-scope";
-test("an explicit historical job replaces the default selection", () => {
+test("generic comparison starts unselected, while a requested historical job is retained", () => {
   assert.deepEqual(initialAgentJobScope(["other", "original"], "original"), ["original"]);
   assert.deepEqual(initialAgentJobScope(["other"], "missing"), []);
-  assert.deepEqual(initialAgentJobScope(["a", "b"], undefined), ["a", "b"]);
+  assert.deepEqual(initialAgentJobScope(["a", "garbage", "b"], undefined), []);
 });
 
 test("profile return is restricted to a focus job within a valid batch", () => {

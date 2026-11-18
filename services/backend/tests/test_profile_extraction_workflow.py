@@ -88,7 +88,7 @@ def test_success_returns_proposal_and_writes_sanitized_trace(
         assert trace.capability == "profile_extraction"
         assert trace.version == "profile-extractor-v2"
         assert trace.prompt_version == "profile-proposal-v1"
-        assert trace.model == "fixture-profile-extractor"
+        assert trace.model == "fixture-profile-extractor-v2"
         assert trace.error is None
         assert trace.output["headline"] == proposal.headline
         assert trace.input_refs["characterCount"] == len(resume_text())
@@ -259,3 +259,15 @@ def test_provider_failure_writes_error_trace(
         assert trace.model == "failing-provider"
         assert trace.output is None
         assert trace.error == "simulated provider outage"
+
+
+@pytest.mark.parametrize(("lines", "expected"), [
+    ("Professional experience: 2 years", 2),
+    ("2.5 years of professional experience", 2.5),
+    ("8 年前端开发经验。", 8),
+    ("2024 年加入团队\nBuilt a Python project for 2 years", None),
+    ("Professional experience: 2 years\nWork experience: 3 years", None),
+])
+def test_fixture_defers_unknown_or_conflicting_total_experience(lines, expected):
+    result = FixtureProfileExtractor().extract(lines + "\nBuilt a Python tool using documented project evidence.")
+    assert result.output.years_of_experience == expected

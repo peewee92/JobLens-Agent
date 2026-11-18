@@ -1,3 +1,5 @@
+import {preparationFacts} from "@/lib/preparation-facts";
+import {completionCriterionLabel} from "@/lib/gap-language";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import Link from "next/link";
 
@@ -23,6 +25,7 @@ import {
   fetchApplicationTimeline,
   fetchApplicationWorkspaceOverview,
   fetchJobDetail,
+  fetchJobPreparation,
   fetchLegacyWorkspaceAnalysisPlan,
   fetchWorkspaceSavedPreparation,
 } from "@/lib/backend";
@@ -57,7 +60,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <ApplicationActionControls workspaceId={id} actorId="local-user" actions={[action]} /></article>)}
         {!actions.length && <p>尚无保存的行动，请返回已保存分析，明确开始执行。</p>}
         <p>公开演示不开放私人事实、简历上传、投递状态修改或模型调用。临时进度在会话过期或服务重启后重置。</p>
-        <Link href="/applications">查看我的准备</Link><Link href="/">返回首页</Link></section>;
+        <Link href="/applications">查看我的准备</Link><a href="/">返回首页</a></section>;
     }
 
     const [job, actions, proposals, timeline, resumeProposal, resumeVariants, interviewQuestions] = await Promise.all([
@@ -70,8 +73,17 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
       readOptionalPreparation(() => fetchApplicationInterviewQuestions(id)),
     ]);
     const currentResumeVariant = resumeVariants.at(-1) ?? null;
-    const savedPreparation = overview.workspace.currentAnalysisThreadId ? await fetchWorkspaceSavedPreparation(id) : null;
-    const evidenceContext = await fetchApplicationEvidenceContext(id);
+    const [savedPreparation, evidenceContext, currentPreparation] = await Promise.all([
+      overview.workspace.currentAnalysisThreadId ? fetchWorkspaceSavedPreparation(id) : null,
+      fetchApplicationEvidenceContext(id),
+      resumeProposal || interviewQuestions ? fetchJobPreparation(job.id).catch(() => null) : null,
+    ]);
+    const attachFacts = (source: {sourceProfileId: string; sourceProfileVersion: number; requirementExtractionId: string} | null) =>
+      preparationFacts(source ? [savedPreparation?.preparation, currentPreparation].find(candidate => candidate?.jobId === job.id
+        && candidate.profileId === source.sourceProfileId && candidate.profileVersion === source.sourceProfileVersion
+        && candidate.extractionId === source.requirementExtractionId) : null);
+    const resumeFacts = attachFacts(resumeProposal);
+    const interviewFacts = attachFacts(interviewQuestions);
     let legacyPlan: import("@/lib/contracts").LegacyWorkspaceAnalysisPlan | null = null;
     let legacyPlanUnavailable = false;
     if (!overview.workspace.currentAnalysisThreadId && proposals.some(item => item.status === "confirmed")) {
@@ -90,8 +102,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
       <strong>{action.sourceGapCapability ?? action.description}</strong>
       <p>{action.description}</p>
       <p>目的：{actionPurposeLabels[action.actionType] ?? "岗位准备"} · 状态：{actionStatusLabels[action.status] ?? "待核实"}</p>
-      <ul>{action.completionCriteria.map((criterion, index) => <li key={index}>{criterion}</li>)}</ul>
-      <small className="muted-copy">来源岗位要求：{action.sourceRequirementIds.join("、") || "无"}</small>
+      <ul>{action.completionCriteria.map((criterion, index) => <li key={index}>{completionCriterionLabel(criterion)}</li>)}</ul>
+      {action.sourceRequirementIds.length > 0 && <p className="muted-copy">关联 {action.sourceRequirementIds.length} 条岗位要求。{!action.sourceAnalysisThreadId && <Link href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>核对岗位准备依据</Link>}</p>}
       {currentActionIds?.includes(action.actionId) && action.sourceAnalysisResultId !== overview.workspace.currentAnalysisResultId && <p>本次分析复用了这项行动；原有进度与创建来源保留。</p>}
       {action.sourceAnalysisThreadId && <p><Link href={`/agent/results/${encodeURIComponent(action.sourceAnalysisThreadId)}`}>查看行动创建时的分析与事实</Link></p>}
       <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={[action]} />
@@ -105,10 +117,10 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
       </div>
 
       <section className="detail-card">
-        <p className="eyebrow">Application Workspace · 求职执行工作区</p>
+        <p className="eyebrow">岗位准备工作区</p>
         <h1>{job.title}</h1>
         <p className="company">{job.company}</p>
-        <p className="lede">把这个岗位的简历、面试、行动、Evidence 与投递进度放在同一个事实上下文中；系统不会自动投递或替你确认职业事实。</p>
+        <p className="lede">在这里准备岗位简历和面试、跟踪行动与投递进度。系统不会替你投递或确认经历。</p>
 
         <div className="notice">
           <strong>下一步最值得做：{overview.nextBestAction.label}</strong>
@@ -116,9 +128,12 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <div className="actions"><a className="button" href={overview.nextBestAction.href}>继续这一步 ↓</a></div>
         </div>
 
+        <nav className="actions" aria-label="跳到岗位准备项目">
+          <a href="#resume">岗位简历</a><a href="#interview">面试练习</a><a href="#actions">执行行动</a><a href="#evidence">补充真实经历</a>
+        </nav>
         {savedPreparation && <section className="detail-section">
           <h2>已保存的准备材料</h2>
-          <div className="actions"><Link className="button-secondary" href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link><Link href="/">返回求职工作台</Link></div>
+          <div className="actions"><Link className="button-secondary" href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link><a href="/">返回求职工作台</a></div>
           <p>职业资料 v{savedPreparation.preparation.profileVersion} · 来自确认目标时保存的分析，不会在打开工作区时重算。</p>
           {!savedPreparation.isCurrent && <p className="notice">当前事实已变化。这些历史材料仍可查看，投递结果和行动进度仍可记录；请更新分析后再建立新材料。</p>}
           <Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}`}>打开原始分析、差距与完整准备材料</Link>
@@ -140,7 +155,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
             <article className="eligibility-result-card"><strong>投递状态</strong><p>{statusLabel[overview.workspace.status] ?? overview.workspace.status}</p></article>
             <article className="eligibility-result-card"><strong>岗位简历</strong><p>{overview.resumeStatus === "reviewed" ? "已人工审核" : overview.resumeStatus === "not_started" ? "尚未开始" : "草稿待审核"}</p></article>
             <article className="eligibility-result-card"><strong>行动事项</strong><p>{overview.actionOpen} 项待完成 / 共 {overview.actionTotal} 项</p></article>
-            <article className="eligibility-result-card"><strong>真实 Evidence</strong><p>{overview.evidencePendingConfirmation} 项待确认 / {overview.evidenceConfirmed} 项已确认</p></article>
+            <article className="eligibility-result-card"><strong>真实经历</strong><p>{overview.evidencePendingConfirmation} 项待确认 / {overview.evidenceConfirmed} 项已确认</p></article>
           </div>
           <ApplicationStatusControls
             workspaceId={id}
@@ -151,12 +166,13 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
 
         <section className="detail-section" id="resume">
           <h2>岗位简历</h2>
-          <p className="muted">只允许把已确认 Evidence 与对应 Requirement 组织进岗位专用版本，不允许用改写掩盖真实能力缺口。</p>
+          <p className="muted">只把已确认的经历与对应岗位要求组织成专用草稿，不允许用改写掩盖真实能力缺口。</p>
           {resumeProposal ? <ApplicationResumeControls
             workspaceId={id}
             actorId={overview.workspace.actorId}
             proposal={resumeProposal}
             currentVariant={currentResumeVariant}
+            facts={resumeFacts}
           /> : <p className="notice">职业事实已变化，不能按旧版本生成新简历材料。已有简历状态：{currentResumeVariant ? (currentResumeVariant.status === "reviewed" ? "已人工审核" : "草稿待审核") : "尚未保存"}；历史记录仍保留，请更新或重新创建分析。</p>}
           <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的简历事实依据 →" : "按当前资料查看简历调整依据 →"}</Link></div>
         </section>
@@ -183,7 +199,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         </section>
 
         <section className="detail-section" id="evidence">
-          <h2>Evidence 回流</h2>
+          <h2>补充真实经历</h2>
           <p className="muted">行动完成不等于获得能力。只有你提交真实经历并显式确认，再更新分析，才能核对判断变化；结论可能改善、未变或变弱。</p>
           <p>待确认 {overview.evidencePendingConfirmation} 项 · 已确认 {overview.evidenceConfirmed} 项</p>
           <ApplicationEvidenceControls workspaceId={id} jobId={job.id} actorId={overview.workspace.actorId} actions={actions} proposals={proposals} context={evidenceContext} analysisThreadId={overview.workspace.currentAnalysisThreadId} analysisProfileVersion={savedPreparation?.preparation.profileVersion} />
@@ -191,8 +207,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
 
         <section className="detail-section" id="interview">
           <h2>面试练习</h2>
-          <p className="muted">练习问题只来自 released JobRequirement 和已确认 Evidence，不重新读取 JD 自由发挥；回答审核只检查真实 Evidence grounding，不伪造录用概率或语义评分。</p>
-          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
+          <p className="muted">问题来自已核对的岗位要求。回答只核对已确认的经历是否可引用，不打面试分，也不预测录用。</p>
+          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
           <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的面试准备事实 →" : "按当前资料查看面试准备事实 →"}</Link></div>
         </section>
 

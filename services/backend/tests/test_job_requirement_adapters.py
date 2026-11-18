@@ -959,7 +959,7 @@ def test_fallback_requirement_adapter_routes_only_after_primary_unavailable() ->
 
     assert extractor.model_name == "primary-model"
     assert extractor.max_provider_calls_per_execution == 2
-    assert result.model == "fixture-requirement-extractor"
+    assert result.model == "fixture-requirement-extractor-v2"
     assert result.provider_calls == 2
     assert result.output.requirements[0].normalized_capability == "Python"
 

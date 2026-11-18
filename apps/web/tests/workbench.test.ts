@@ -69,3 +69,16 @@ test("recent changes render real timestamps in Beijing time, respecting offsets"
   assert.match(html, /dateTime="2026-10-28T02:15:00\+02:00"/);
   assert.doesNotMatch(html, /协调世界时/);
 });
+
+
+test("first-use steps reflect persisted facts, not button clicks", () => {
+  let html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: empty}));
+  assert.match(html, /首次使用三步/);
+  assert.match(html, /aria-current="step"><strong>1\. 确认资料/);
+  assert.match(html, /上传简历或手填经历/);
+  const profileReady = {...empty.snapshot, profileVersion: 1, searchIntentVersion: 1, inputIssueCodes: []};
+  html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: {...empty, snapshot: profileReady}}));
+  assert.match(html, /aria-current="step"><strong>2\. 添加岗位/);
+  html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: {...empty, snapshot: {...profileReady, jobCount: 3}}}));
+  assert.match(html, /aria-current="step"><strong>3\. 比较并准备/);
+});
