@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import {Button} from "./ui/button";
+import {ActionFeedback} from "./ui/patterns";
+import {Badge, Callout, Field} from "./ui/primitives";
 import {LinkFeedback} from "@/components/link-feedback";
 import {useExistingMatchStatus} from "@/components/existing-match-status";
 import {useRef, useState} from "react";
@@ -71,20 +74,18 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
 
   return <section className="detail-card stack-md pasted-jobs-form" aria-label="批量粘贴岗位">
     <h2>一次粘贴多条岗位</h2>
-    <p>第一行写岗位名称，下一行开始粘贴描述。没有公司名称时，用单独一行「---」分隔各条；也可以沿用「岗位名称｜公司名称」，以空行或编号区分。每批最多 20 条。</p>
-    <label className="file-field">
-      <span>岗位列表原文</span>
-      <textarea rows={9} maxLength={maxPastedCharacters} value={draft} readOnly={working !== null || hasReceipts}
+    <Field id="pasted-job-text" label="岗位列表原文" hint="第一行写岗位名，下一行粘贴描述。多条岗位用单独一行 --- 分隔，每批最多 20 条。">
+      <textarea id="pasted-job-text" aria-describedby="pasted-job-text-hint" rows={7} maxLength={maxPastedCharacters} value={draft} readOnly={working !== null || hasReceipts}
         onChange={event => {setDraft(event.target.value); setRows([]); setFeedback("");}}
         placeholder={"岗位名称\n岗位描述原文\n\n---\n\n另一个岗位\n岗位描述原文"} />
-    </label>
-    <div className="actions">
-      <button className="button" type="button" disabled={!draft.trim() || working !== null || hasReceipts} onClick={preview}>预览岗位清单</button>
+    </Field>
+    <div className="jl-inline">
+      <Button disabled={!draft.trim() || working !== null || hasReceipts} onClick={preview}>预览岗位清单</Button>
       {hasReceipts && !uncertain && <button className="button-secondary" type="button" disabled={working !== null} onClick={() => {
         setDraft(""); setRows([]); setFeedback("");
       }}>开始新一批</button>}
     </div>
-    {feedback && <p className="inline-error" role="alert">{feedback}</p>}
+    {feedback && <ActionFeedback tone="danger">{feedback}</ActionFeedback>}
     {rows.length > 0 && <section className="stack-md" aria-label="待保存岗位清单">
       <h3>核对清单 · {rows.length} 条记录{duplicates.size ? ` · 批内重复 ${duplicates.size} 条` : ""}</h3>
       <p>这里只保存招聘原文。短描述可以留作待补充，不会用于匹配；保存后还要核对提取出的岗位要求。</p>
@@ -96,7 +97,11 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
           const locked = working !== null || row.outcome?.kind === "unknown" || !!result;
           return <li key={row.key} className="paste-job-row">
             <strong>{row.job.title || "未命名岗位"} · {row.job.company || "公司待填"}</strong>
-            {!result && duplicates.has(index) && <p className="notice">与本批前面一条完全相同，不会新增一个岗位。</p>}
+            {!result && <div className="jl-inline">
+              {duplicates.has(index) ? <Badge tone="info">批内重复</Badge> : <Badge>待保存</Badge>}
+              {short && <Badge tone="warning">描述待补充</Badge>}
+            </div>}
+            {!result && duplicates.has(index) && <Callout tone="info">与本批前面一条完全相同，实际新增以保存结果为准。</Callout>}
             {working === index ? <p className="notice" role="status">正在保存这条岗位…</p>
             : result ? <div className="success-box" role="status">
               <p>{result.created ? "已添加" : "复用已有岗位，未新增"}{result.created && short ? " · 描述待补充，暂不能分析" : ""}</p>
@@ -120,11 +125,11 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
         })}
       </ol>
       <div className="actions">
-        {pending.length > 0 && <button className="button" type="button" disabled={working !== null || uncertain || hasInvalid}
+        {pending.length > 0 && <Button disabled={working !== null || uncertain || hasInvalid}
           onClick={() => void save(rows.flatMap((row, i) => row.outcome?.kind !== "saved" && row.outcome?.kind !== "unknown" ? [i] : []))}>
           {working !== null ? "正在保存岗位…" : `保存 ${pending.length} 条记录（重复不新增）`}
-        </button>}
-        {working === null && scope.length > 0 && <Link className="button-secondary" href={agentScopeHref(scope)}>检查这批已保存的 {scope.length} 个岗位<LinkFeedback /></Link>}
+        </Button>}
+        {working === null && scope.length > 0 && <Button asChild><Link href={agentScopeHref(scope)}>继续核对这批 {scope.length} 个岗位<LinkFeedback /></Link></Button>}
       </div>
     </section>}
   </section>;

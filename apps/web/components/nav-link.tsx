@@ -5,7 +5,9 @@ import {usePathname} from "next/navigation";
 
 export function NavLink({href, children}: {href: string; children: React.ReactNode}) {
   const pathname = usePathname();
-  const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+  const matches = (path: string) => pathname === path || pathname.startsWith(path + "/");
+  const active = pathname === href || (href !== "/" && matches(href)) ||
+    (href === "/jobs" && ["/import", "/imports", "/agent", "/recommendations"].some(matches));
   // Mutations can complete through route handlers while a previous workbench is cached in the router.
   if (href === "/") return <a href={href} aria-current={active ? "page" : undefined}>{children}</a>;
   return (

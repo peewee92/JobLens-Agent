@@ -11,6 +11,7 @@ import {JobAvailabilityControl} from "@/components/job-availability-control";
 import {validImportMatchInputs} from "@/lib/import-match-readiness";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
+import {Badge} from "@/components/ui/primitives";
 import {agentScopeHref, jobDetailWithAgentScope, parseAgentScope, profileWithAgentScope} from "@/lib/agent-job-scope";
 import {runHref, validThreadReference} from "@/lib/career-agent-commands";
 import {notFound} from "next/navigation";
@@ -191,7 +192,7 @@ export default async function JobDetailPage({
           查看投递与面试准备
         </Link>
       </div>
-      <section className="detail-grid">
+      <section className="detail-grid jl-job-detail">
         <article className="detail-card">
           <header className="detail-header">
             <div>
@@ -208,9 +209,15 @@ export default async function JobDetailPage({
             {job.remoteConfidence === "high" ? <span className="tag">远程信息较明确</span> : null}
           </div>
 
+          <nav className="jl-inline jl-job-outline" aria-label="岗位详情目录">
+            <a href="#job-description">岗位原文</a>
+            <a href="#job-requirements">岗位要求</a>
+            <a href="#job-match">匹配依据</a>
+          </nav>
+
           <section className="detail-section" id="job-description">
             <p className="eyebrow">第 1 步</p>
-            <h2>岗位描述</h2>
+            <h2>岗位原文</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
             {descriptionRevision && <JobDescriptionEditor jobId={job.id}
               description={job.description ?? ""} revision={descriptionRevision} saved={savedRevision === descriptionRevision} />}
@@ -398,7 +405,7 @@ export default async function JobDetailPage({
                       <section className="eligibility-group" key={status}>
                         <div className="eligibility-group-heading">
                           <h3>{requirementFitLabels[status]}</h3>
-                          <span>{items.length} 项</span>
+                          <Badge tone={status === "conditional" ? "warning" : status === "matched" ? "success" : "danger"}>{items.length} 项</Badge>
                         </div>
                         <div className="eligibility-result-list">
                           {items.map((item) => (
