@@ -7,7 +7,7 @@ import {RemoteStatusPill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {BackendApiError, fetchJobPage} from "@/lib/backend";
 import type {SearchParams} from "@/lib/contracts";
-import {formatDateTime, formatSalary} from "@/lib/format";
+import {formatDateTime, formatSalary, jobSourceLabels} from "@/lib/format";
 import {activeJobFilterLabels, buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
@@ -67,23 +67,26 @@ export default async function JobsPage({
           actions={<Button asChild><Link href="/import">添加第一个岗位</Link></Button>} />
       ) : (
         <section className="job-list jl-job-list" aria-label="岗位列表">
-          {page.items.map((job) => (
-            <article className="job-card" key={job.id}>
-              <div className="job-card-header">
-                <div>
-                  <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
-                  <p className="company">{job.company}</p>
+          {page.items.map((job) => {
+            const labels = jobSourceLabels(job.source);
+            return (
+              <article className="job-card" key={job.id}>
+                <div className="job-card-header">
+                  <div>
+                    <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
+                    <p className="company">{job.company}</p>
+                  </div>
+                  <span className="salary">{formatSalary(job.salaryMinK, job.salaryMaxK)}</span>
                 </div>
-                <span className="salary">{formatSalary(job.salaryMinK, job.salaryMaxK)}</span>
-              </div>
-              <div className="tags">
-                {job.area ? <span className="tag">{job.area}</span> : null}
-                <RemoteStatusPill status={job.remoteStatus} />
-                <span className="tag">来源：{job.source}</span>
-                <span className="tag">采集：{formatDateTime(job.collectedAt)}</span>
-              </div>
-            </article>
-          ))}
+                <div className="tags">
+                  {job.area ? <span className="tag">{job.area}</span> : null}
+                  <RemoteStatusPill status={job.remoteStatus} />
+                  <span className="tag">来源：{labels.source}</span>
+                  <span className="tag">{labels.recordedAt}：{formatDateTime(job.collectedAt)}</span>
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
 

@@ -37,7 +37,7 @@ import {
   groupEligibilityRequirements,
   requirementFitLabels,
 } from "@/lib/eligibility";
-import {formatDateTime, formatSalary} from "@/lib/format";
+import {formatDateTime, formatSalary, jobSourceLabels} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
@@ -454,8 +454,8 @@ export default async function JobDetailPage({
           <div className="meta-list">
             <div><span className="meta-label">经验</span><strong>{job.experience || "未说明"}</strong></div>
             <div><span className="meta-label">学历</span><strong>{job.education || "未说明"}</strong></div>
-            <div><span className="meta-label">来源</span><strong>{job.source === "manual" ? "手动粘贴" : job.source}</strong></div>
-            <div><span className="meta-label">{job.source === "manual" ? "保存时间" : "采集时间"}</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
+            <div><span className="meta-label">来源</span><strong>{jobSourceLabels(job.source).source}</strong></div>
+            <div><span className="meta-label">{jobSourceLabels(job.source).recordedAt}</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
             {job.source !== "manual" ? <div><span className="meta-label">该来源记录时间</span><strong>{formatDateTime(job.lastSeenAt ?? null)}</strong></div> : null}
           </div>
           <p className="muted-copy">{job.source === "manual" ? "此内容由用户手动粘贴，保存时间不代表岗位发布时间或仍在招聘，请自行核实岗位有效性。" : "该时间来自来源记录，缺失时可能使用报告时间或系统记录时间；不代表岗位仍在招聘，请打开原始岗位核实。"}</p>
