@@ -90,3 +90,33 @@ def test_semantic_rewrite_is_not_treated_as_formatting_alignment() -> None:
             resume,
             _output("负责 AI Agent 协作产品方案设计，并完成上线验证。"),
         )
+
+
+def test_local_recovery_drops_unanchored_experiences_and_dependent_skills() -> None:
+    from dataclasses import replace
+    from app.application.profile_extraction.validation import recover_partial_profile_output
+
+    span = "用 Python 将每周的报表流程自动化"
+    good = _output(span)
+    missing = replace(good.evidence[0], key="invented", evidence_span="主导上线智能客服")
+    tied = replace(good.skills[0], name="Agent 上线", evidence_keys=("ahoy_design", "invented"))
+    mixed = replace(good, evidence=(*good.evidence, missing), skills=(*good.skills, tied))
+
+    with pytest.raises(InvalidProfileExtractorOutputError, match="does not occur"):
+        validate_profile_extraction_output(span, mixed)
+    recovered, evidence_count, skill_count = recover_partial_profile_output(span, mixed)
+    assert (evidence_count, skill_count) == (1, 1)
+    assert [(item.key, item.summary, item.evidence_span) for item in recovered.evidence] == [
+        ("ahoy_design", span, span)
+    ]
+    assert recovered.skills == good.skills
+
+    without_skills, _, _ = recover_partial_profile_output(span, replace(mixed, skills=(tied,)))
+    assert without_skills.skills == ()
+
+    with pytest.raises(InvalidProfileExtractorOutputError, match="unknown Evidence"):
+        recover_partial_profile_output(span, replace(mixed, skills=(replace(tied, evidence_keys=("invented", "unknown")),)))
+    with pytest.raises(InvalidProfileExtractorOutputError, match="no evidenceSpan"):
+        recover_partial_profile_output("完全不同的原始简历", mixed)
+    with pytest.raises(InvalidProfileExtractorOutputError, match="duplicate Evidence key"):
+        recover_partial_profile_output(span, replace(mixed, evidence=(*mixed.evidence, missing)))

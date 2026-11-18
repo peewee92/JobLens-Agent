@@ -41,7 +41,6 @@
     },
     "skills": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["name", "level", "evidenceKeys"],
@@ -57,10 +56,22 @@
         "additionalProperties": false
       }
     },
+    "sourceRecovery": {
+      "description": "Only present on local drafts with source-mismatched evidence removed.",
+      "type": "object",
+      "required": ["omittedEvidenceCount", "omittedSkillCount"],
+      "properties": {
+        "omittedEvidenceCount": {"type": "integer", "minimum": 1},
+        "omittedSkillCount": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
     "warnings": {
       "type": "array",
       "items": {"type": "string"}
     }
   },
+  "if": {"not": {"required": ["sourceRecovery"]}},
+  "then": {"properties": {"skills": {"minItems": 1}}},
   "additionalProperties": false
 }

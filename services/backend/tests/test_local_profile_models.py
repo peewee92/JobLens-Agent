@@ -102,3 +102,42 @@ def test_profile_parser_returns_text_plan_without_model(client, monkeypatch):
     assert response.status_code == 200
     assert response.json()["inputCharacters"] == len(TEXT)
     assert not api.model_session().calls
+
+
+@pytest.mark.parametrize("grounded", [True, False])
+def test_local_resume_call_recovers_only_real_spans_and_never_resends(client, monkeypatch, grounded):
+    import json
+
+    valid = "负责 Python 和 FastAPI 服务开发"
+    def fake_provider(self, request):
+        self.record.update(attempts=1, responseStatus=200)
+        draft = {
+            "headline": "Python 工程师", "yearsOfExperience": None,
+            "evidence": [
+                {"key": "recoverable", "type": "work", "summary": "不可直接采信的改写",
+                 "source": "resume", "evidenceSpan": valid if grounded else "完全不在原文中的承诺"},
+                {"key": "omitted", "type": "project", "summary": "MCP 部署",
+                 "source": "resume", "evidenceSpan": "负责 MCP 大规模部署"},
+            ],
+            "skills": [{"name": "MCP", "level": "strong", "evidenceKeys": ["omitted"]}],
+            "warnings": [],
+        }
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(draft)}}]}, request=request)
+
+    send = Mock(side_effect=fake_provider)
+    monkeypatch.setattr(shared.RecordedTransport, "handle_request", lambda self, request: send(self, request))
+    plan = client.post("/api/v1/local/profile-model/plan", json={"resumeText": TEXT}).json()
+    body = {"actionId": "grounded-call", "planDigest": plan["planDigest"], "confirmed": True, "maxProviderCalls": 1}
+    r = client.post("/api/v1/local/profile-model/calls", json=body)
+    assert r.status_code == 200
+    result = r.json()
+    assert client.post("/api/v1/local/profile-model/calls", json=body).json() == result
+    assert send.call_count == 1
+    if grounded:
+        assert result["status"] == "completed"
+        assert result["result"]["sourceRecovery"] == {"omittedEvidenceCount": 1, "omittedSkillCount": 1}
+        assert result["result"]["skills"] == []
+        assert [item["summary"] for item in result["result"]["evidence"]] == [valid]
+    else:
+        assert result["status"] == "failed"
+        assert result["result"] is None

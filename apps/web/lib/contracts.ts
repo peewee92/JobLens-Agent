@@ -144,6 +144,7 @@ export interface ProfileExtractionProposal {
   evidence: ProposedProfileEvidence[];
   skills: ProposedProfileSkill[];
   warnings: string[];
+  sourceRecovery?: {omittedEvidenceCount: number; omittedSkillCount: number};
 }
 
 export interface SaveSearchIntentPayload {

@@ -1,7 +1,7 @@
 """HTTP contracts for resume-to-Profile proposals."""
 from __future__ import annotations
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from app.api.v1.schemas.common import CamelCaseModel
 from app.application.profile_extraction import ProfileExtractionProposal
@@ -32,6 +32,11 @@ class ProposedSkillResponse(CamelCaseModel):
     evidence_keys: list[str]
 
 
+class ProfileSourceRecovery(CamelCaseModel):
+    omitted_evidence_count: int = Field(gt=0)
+    omitted_skill_count: int = Field(ge=0)
+
+
 class ProfileExtractionProposalResponse(CamelCaseModel):
     run_id: str
     extractor_version: str
@@ -42,6 +47,7 @@ class ProfileExtractionProposalResponse(CamelCaseModel):
     evidence: list[ProposedEvidenceResponse]
     skills: list[ProposedSkillResponse]
     warnings: list[str]
+    source_recovery: ProfileSourceRecovery | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @classmethod
     def from_proposal(
@@ -73,4 +79,8 @@ class ProfileExtractionProposalResponse(CamelCaseModel):
                 for item in proposal.skills
             ],
             warnings=list(proposal.warnings),
+            source_recovery=ProfileSourceRecovery(
+                omitted_evidence_count=proposal.omitted_evidence_count,
+                omitted_skill_count=proposal.omitted_skill_count,
+            ) if proposal.omitted_evidence_count else None,
         )
