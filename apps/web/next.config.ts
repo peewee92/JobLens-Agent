@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import {hostingOrigin, isPrivateWorkspaceBuild, PRIVATE_WORKSPACE_PATH} from "./lib/workspace-path";
+import {hostingOrigin, isPrivateWorkspaceBuild, PRIVATE_WORKSPACE_PATH, privateWorkspaceRewrites} from "./lib/workspace-path";
 
 const localPort = process.env.JOBLENS_LOCAL_WEB_PORT;
 const privateBuild = isPrivateWorkspaceBuild();
@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   basePath: privateBuild ? PRIVATE_WORKSPACE_PATH : "",
   async rewrites() {
-    return privateUpstream ? {beforeFiles: [{source: "/private/:path*", destination: `${privateUpstream}/private/:path*`}]} : [];
+    return privateUpstream ? {beforeFiles: privateWorkspaceRewrites(privateUpstream)} : [];
   },
   distDir: cacheKey ? `.next-${cacheKey}` : ".next",
   typescript: {tsconfigPath: cacheKey ? `.tsconfig-${cacheKey}.json` : "tsconfig.json"},

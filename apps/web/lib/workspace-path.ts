@@ -27,3 +27,13 @@ export function publicDemoHref(origin = process.env.JOBLENS_PUBLIC_ENTRY_ORIGIN)
   const publicOrigin = hostingOrigin(origin);
   return publicOrigin ? `${publicOrigin}/demo` : "/demo";
 }
+
+export function privateWorkspaceRewrites(upstream: string) {
+  const root = PRIVATE_WORKSPACE_PATH;
+  return [
+    // An optional catch-all sometimes forwards the bare path as /private/ on Vercel.
+    // That upstream canonical redirect would point back to the original gateway URL.
+    {source: root, destination: `${upstream}${root}`},
+    {source: `${root}/:path+`, destination: `${upstream}${root}/:path+`},
+  ];
+}

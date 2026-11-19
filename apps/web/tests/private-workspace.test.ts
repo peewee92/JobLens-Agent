@@ -3,7 +3,7 @@ import test from "node:test";
 import {cloudIdentityHeaders} from "../lib/cloud-api-identity";
 import {privateRouteKind} from "../lib/private-routing";
 import {parseWorkspaceSignIn, workspaceCodeRecipients} from "../lib/private-sign-in";
-import {hostingOrigin, publicDemoHref, workspacePath} from "../lib/workspace-path";
+import {hostingOrigin, privateWorkspaceRewrites, publicDemoHref, workspacePath} from "../lib/workspace-path";
 
 test("the independent build preserves route, query and anchor without absorbing public or external links", () => {
   const previous = process.env.NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD;
@@ -22,6 +22,13 @@ test("the independent build preserves route, query and anchor without absorbing 
     if (previous === undefined) delete process.env.NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD;
     else process.env.NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD = previous;
   }
+});
+
+test("the gateway forwards the bare private root without a trailing slash and handles child paths separately", () => {
+  assert.deepEqual(privateWorkspaceRewrites("https://private.example.com"), [
+    {source: "/private", destination: "https://private.example.com/private"},
+    {source: "/private/:path+", destination: "https://private.example.com/private/:path+"},
+  ]);
 });
 
 test("individual work surfaces do not expose demo endpoints, model secrets or maintenance", () => {
