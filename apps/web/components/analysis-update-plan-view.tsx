@@ -1,3 +1,4 @@
+import {workspacePath} from "@/lib/workspace-path";
 import React from "react";
 import {AnalysisUpdateStart} from "./analysis-update-start";
 import Link from "next/link";
@@ -28,7 +29,7 @@ export function AnalysisUpdatePlanView({plan}: {plan: AnalysisUpdatePlan}) {
       <Link href={base}>返回原始保存结果</Link>
     </section>
     <section className="card stack-md"><h2>这次覆盖哪些岗位</h2>
-      <form className="form-grid" action={`${base}/update`} method="GET">
+      <form className="form-grid" action={workspacePath(`${base}/update`)} method="GET">
         <div className="field"><label htmlFor="analysis-update-scope">更新范围</label><select id="analysis-update-scope" name="scope" defaultValue={plan.scope}>
           <option value="targets">原确认目标岗位</option><option value="batch">原分析整批岗位</option>
         </select></div><div className="actions"><button className="button" type="submit">重新预检所选范围</button></div>

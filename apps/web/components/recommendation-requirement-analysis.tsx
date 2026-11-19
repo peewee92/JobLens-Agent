@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {useState} from "react";
@@ -73,7 +74,7 @@ export function RecommendationRequirementAnalysis({jobIds}: {jobIds: string[]}) 
     });
 
     try {
-      const response = await fetch("/api/requirement-batch", {
+      const response = await workspaceFetch("/api/requirement-batch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({jobIds, maxReadyJobs: 5, confirmLiveCost: true}),

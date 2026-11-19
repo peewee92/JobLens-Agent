@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
 
@@ -81,7 +82,7 @@ export function RecommendationRefresh({
     });
 
     try {
-      const response = await fetch("/api/match-batch", {
+      const response = await workspaceFetch("/api/match-batch", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({jobIds: pendingJobIds, maxReadyJobs: 5}),

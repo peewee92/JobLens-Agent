@@ -1,4 +1,5 @@
 "use client";
+import {workspaceFetch} from "@/lib/workspace-path";
 import {currentStateLabel, completionCriterionLabel, gapImportanceLabel, gapNextStep} from "@/lib/gap-language";
 
 import Link from "next/link";
@@ -212,7 +213,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
       setLoadingCandidates(true);
       setCandidateError(null);
       try {
-        const response = await fetch("/api/target-cohort/gaps", {method: "GET"});
+        const response = await workspaceFetch("/api/target-cohort/gaps", {method: "GET"});
         const payload = await response.json();
         if (!response.ok) {
           throw new Error(payload?.error?.message ?? "暂时无法读取可选岗位。");
@@ -321,7 +322,7 @@ export function TargetCohortGapPanel({initialJobIds = []}: {initialJobIds?: stri
     setError(null);
     setResult(null);
     try {
-      const response = await fetch("/api/target-cohort/gaps", {
+      const response = await workspaceFetch("/api/target-cohort/gaps", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({

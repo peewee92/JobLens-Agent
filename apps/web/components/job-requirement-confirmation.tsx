@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch, workspacePath} from "@/lib/workspace-path";
 import {useRef, useState} from "react";
 import {jobDocumentRoute, openSavedJobDocument, requirementsConfirmedHref} from "@/lib/authorized-model-results";
 
@@ -15,7 +16,7 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
   if (confirmed || saved) return <div className="success-box" role="status">
     <strong>你已核对这份岗位要求</strong>
     <p>这次确认只适用于当前岗位原文和这一版要求，不代表抽取模型已通过整体质量评审。个人匹配仍以已确认的职业资料和求职意向为依据。</p>
-    <a className="button-secondary" href={saved && confirmedHref ? confirmedHref : "#job-match-report"}>查看匹配与下一步</a>
+    <a className="button-secondary" href={saved && confirmedHref ? workspacePath(confirmedHref) : "#job-match-report"}>查看匹配与下一步</a>
   </div>;
 
   async function confirm() {
@@ -31,7 +32,7 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
         actionId = crypto.randomUUID();
         window.localStorage.setItem(key, actionId);
       }
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/requirement-confirmations`, {
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/requirement-confirmations`, {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({actionId, extractionId, inputHash, factsDigest, confirmed: true}),
       });

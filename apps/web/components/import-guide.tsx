@@ -1,3 +1,4 @@
+import {workspacePath} from "@/lib/workspace-path";
 import Link from "next/link";
 
 const armourInstallSteps = [
@@ -57,7 +58,7 @@ export function ImportGuide() {
         <article className="guide-flow-step">
           <span className="guide-flow-num">1</span>
           <h3>确认背景与偏好</h3>
-          <p>在<a href="/profile">我的背景</a>确认经历、技能和求职偏好，之后的判断都从这里出发。</p>
+          <p>在<a href={workspacePath("/profile")}>我的背景</a>确认经历、技能和求职偏好，之后的判断都从这里出发。</p>
         </article>
         <article className="guide-flow-step">
           <span className="guide-flow-num">2</span>
@@ -77,12 +78,12 @@ export function ImportGuide() {
         <article className="guide-flow-step">
           <span className="guide-flow-num">5</span>
           <h3>查看岗位与分析要求</h3>
-          <p>在<a href="/jobs">我的岗位</a>浏览岗位、核对 JD，系统会提取岗位的硬性要求。</p>
+          <p>在<a href={workspacePath("/jobs")}>我的岗位</a>浏览岗位、核对 JD，系统会提取岗位的硬性要求。</p>
         </article>
         <article className="guide-flow-step">
           <span className="guide-flow-num">6</span>
           <h3>看优先投递排序</h3>
-          <p>在<a href="/recommendations">优先投递</a>查看结合真实经历与岗位要求给出的排序和理由。</p>
+          <p>在<a href={workspacePath("/recommendations")}>优先投递</a>查看结合真实经历与岗位要求给出的排序和理由。</p>
         </article>
       </div>
 
@@ -159,8 +160,8 @@ export function ImportGuide() {
         <h3>接下来</h3>
         <p>
           岗位导入后，就可以按顺序浏览流程：先看
-          <a href="/jobs">我的岗位</a>核对数据，再回到
-          <a href="/recommendations">优先投递</a>看看哪些岗位最值得先投、以及为什么。
+          <a href={workspacePath("/jobs")}>我的岗位</a>核对数据，再回到
+          <a href={workspacePath("/recommendations")}>优先投递</a>看看哪些岗位最值得先投、以及为什么。
         </p>
       </div>
     </section>

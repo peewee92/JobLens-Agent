@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {type FormEvent, useRef, useState} from "react";
 import {PendingIndicator} from "./ui/pending-indicator";
 import {useRouter} from "next/navigation";
@@ -38,7 +39,7 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
     lock.current = true;
     setBusy(true);
     try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/manual-description`, {cache: "no-store"});
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/manual-description`, {cache: "no-store"});
       if (!response.ok) throw new Error();
       const value = await response.json();
       if (!isDescriptionRevision(value?.revision)) throw new Error();
@@ -69,7 +70,7 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
       setMessage({error: true, text: "还不能确认是否保存成功。请刷新核对上方原文；核对前不要重复提交。"});
     };
     try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/manual-description`, {
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/manual-description`, {
         method: "PUT", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({description: currentDraft, expectedSha256: revision}),
       });

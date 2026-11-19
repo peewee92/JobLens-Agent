@@ -1,4 +1,5 @@
 "use client";
+import {workspaceFetch} from "@/lib/workspace-path";
 import {MatchReason} from "@/components/match-reason";
 import React, {useEffect, useState} from "react";
 import type {MatchReportHistoryItem} from "@/lib/contracts";
@@ -17,7 +18,7 @@ export function RankedJobExplanation({jobId, reportId, position}: {
     setSaved(null);
     void (async () => {
       try {
-        const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/match-reports/${encodeURIComponent(reportId)}`, {cache: "no-store"});
+        const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/match-reports/${encodeURIComponent(reportId)}`, {cache: "no-store"});
         if (!response.ok) throw new Error("report unavailable");
         const body = await response.json() as MatchReportHistoryItem;
         if (body.reportId !== reportId || body.report.jobId !== jobId) throw new Error("report identity mismatch");

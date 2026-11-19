@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {OpenCatalogJob} from "./job-catalog-navigation";
 import {useEffect, useState} from "react";
 import {DetailDrawer} from "./ui/drawer";
@@ -18,7 +19,7 @@ function OriginalContent({jobId, href, rowId}: {jobId: string; href: string; row
     const request = new AbortController();
     async function read() {
       try {
-        const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/original`, {signal: request.signal});
+        const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/original`, {signal: request.signal});
         const body = await response.json();
         if (request.signal.aborted) return;
         if (!response.ok) setState({attempt, status: response.status, code: body?.error?.code});

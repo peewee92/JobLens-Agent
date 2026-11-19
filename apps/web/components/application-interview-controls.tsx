@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {FormEvent, useRef, useState} from "react";
 
 import {WorkspaceRecordBrowser} from "./workspace-record-browser";
@@ -27,7 +28,7 @@ export function ApplicationInterviewControls({workspaceId, actorId, questionSet,
     setPending(questionId);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await workspaceFetch(
         `/api/application-workspaces/${encodeURIComponent(workspaceId)}/interview/questions/${encodeURIComponent(questionId)}/review`,
         {
           method: "POST",

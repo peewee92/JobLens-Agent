@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {useState} from "react";
 import {useRouter} from "next/navigation";
 
@@ -14,7 +15,7 @@ export function JobAvailabilityControl({jobId, inactive, revision}: {
     if (!known || pending) return;
     setPending(true); setMessage("");
     try {
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/user-availability`, {
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/user-availability`, {
         method: "PUT", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({userMarkedInactive: !inactive, expectedRevision: revision}),
       });

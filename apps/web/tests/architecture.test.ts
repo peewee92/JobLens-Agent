@@ -43,14 +43,14 @@ test("browser-facing source never exposes the backend URL as NEXT_PUBLIC", async
 
 test("the import Client Component calls only the same-origin proxy", async () => {
   const source = await readFile(join(webRoot, "components/import-form.tsx"), "utf8");
-  assert.match(source, /fetch\("\/api\/job-imports"/);
+  assert.match(source, /workspaceFetch\("\/api\/job-imports"/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
 });
 
 test("the Profile Client Component calls only same-origin proxies", async () => {
   const source = await readFile(join(webRoot, "components/profile-editor.tsx"), "utf8");
-  assert.match(source, /fetch\("\/api\/profile"/);
-  assert.match(source, /fetch\("\/api\/search-intent"/);
+  assert.match(source, /workspaceFetch\("\/api\/profile"/);
+  assert.match(source, /workspaceFetch\("\/api\/search-intent"/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
 });
 
@@ -59,7 +59,7 @@ test("Profile page consumes Backend career-context release facts without impleme
   assert.match(source, /fetchCareerContextReleaseReadiness/);
   assert.match(source, /releaseReadiness\.releaseEligible/);
   assert.match(source, /releaseReadiness\.blockers/);
-  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
   assert.doesNotMatch(source, /profileEval|acceptedBaseline|OPENAI_API_KEY/);
   assert.doesNotMatch(
     source,
@@ -72,11 +72,11 @@ test("the Resume Proposal Client Component calls only the same-origin proxy", as
     join(webRoot, "components/resume-proposal-panel.tsx"),
     "utf8",
   );
-  assert.match(source, /fetch\("\/api\/profile-proposals"/);
+  assert.match(source, /workspaceFetch\("\/api\/profile-proposals"/);
   assert.match(source, /"\/api\/profile-proposals\/file"/);
   assert.match(source, /"\/api\/local\/profile-model\/file-plan"/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000/);
-  assert.doesNotMatch(source, /fetch\("\/api\/profile"/);
+  assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\("\/api\/profile"/);
 });
 
 test("the Resume Proposal file field keeps drag-and-drop wired to the same file validation path", async () => {
@@ -96,8 +96,8 @@ test("the Job Requirement action keeps a native POST fallback when hydration is 
     join(webRoot, "components/job-requirement-extract-button.tsx"),
     "utf8",
   );
-  assert.match(source, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/requirement-extractions`/);
-  assert.match(source, /<form action=\{fallbackAction\} method="post" onSubmit=\{extract\}>/);
+  assert.match(source, /workspaceFetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/requirement-extractions`/);
+  assert.match(source, /<form action=\{workspacePath\(fallbackAction\)\} method="post" onSubmit=\{extract\}>/);
   assert.match(source, /name="confirmLiveCost"/);
   assert.match(source, /required/);
   assert.match(source, /JSON\.stringify\(\{confirmLiveCost: true\}\)/);
@@ -143,7 +143,7 @@ test("the Match Report Client runs only after explicit user action through same-
   );
   const page = await readFile(join(webRoot, "app/jobs/[id]/page.tsx"), "utf8");
 
-  assert.match(client, /fetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/match-report`/);
+  assert.match(client, /workspaceFetch\(\s*`\/api\/jobs\/\$\{encodeURIComponent\(jobId\)\}\/match-report`/);
   assert.match(client, /method:\s*"POST"/);
   assert.match(route, /backendResponse/);
   assert.doesNotMatch(client, /JOBLENS_BACKEND_URL|127\.0\.0\.1:8000|OPENAI_API_KEY/);
@@ -176,7 +176,7 @@ test("Batch Match refresh stays explicit and proxies the bounded Backend command
     "utf8",
   );
 
-  assert.match(client, /fetch\("\/api\/match-batch"/);
+  assert.match(client, /workspaceFetch\("\/api\/match-batch"/);
   assert.match(client, /method:\s*"POST"/);
   assert.match(client, /maxReadyJobs:\s*5/);
   assert.match(route, /backendResponse/);
@@ -195,7 +195,7 @@ test("Requirement Analysis batch stays explicit and proxies only the bounded Bac
     "utf8",
   );
 
-  assert.match(client, /fetch\("\/api\/requirement-batch"/);
+  assert.match(client, /workspaceFetch\("\/api\/requirement-batch"/);
   assert.match(client, /method:\s*"POST"/);
   assert.match(client, /maxReadyJobs:\s*5/);
   assert.match(client, /confirmLiveCost:\s*true/);
@@ -247,7 +247,7 @@ test("Target Cohort Gap UI hides feedback IDs behind a human-readable Job select
     "utf8",
   );
 
-  assert.match(client, /fetch\("\/api\/target-cohort\/gaps", \{method: "GET"\}\)/);
+  assert.match(client, /workspaceFetch\("\/api\/target-cohort\/gaps", \{method: "GET"\}\)/);
   assert.match(client, /method:\s*"POST"/);
   assert.match(client, /item\.title/);
   assert.match(client, /item\.company/);
@@ -318,9 +318,9 @@ test("Job Preparation page consumes only the Backend fact bundle without reimple
   assert.match(checklist, /completionHref/);
   assert.match(checklist, /localStorage/);
   assert.match(backend, /\/api\/v1\/job-preparation\/\$\{encodeURIComponent\(jobId\)\}/);
-  assert.doesNotMatch(page, /fetch\(/);
-  assert.doesNotMatch(checklist, /fetch\(/);
-  assert.doesNotMatch(checklistBuilder, /fetch\(/);
+  assert.doesNotMatch(page, /(?:fetch|workspaceFetch)\(/);
+  assert.doesNotMatch(checklist, /(?:fetch|workspaceFetch)\(/);
+  assert.doesNotMatch(checklistBuilder, /(?:fetch|workspaceFetch)\(/);
   assert.doesNotMatch(page, /OPENAI_API_KEY|SEMANTIC_MATCH_PROVIDER|gapSeverity\s*=|mustHaveRatio\s*=/);
 });
 
@@ -359,7 +359,7 @@ test("Import detail revalidates local application checklist progress against cur
   assert.match(page, /Requirement 已达到 release \/ Match readiness/);
   assert.match(page, /Evidence action 精确命中/);
   assert.match(page, /当前批次没有其他可执行目标，导入下一批岗位/);
-  assert.doesNotMatch(summary, /fetch\(/);
+  assert.doesNotMatch(summary, /(?:fetch|workspaceFetch)\(/);
 });
 
 test("Job detail consumes Backend Requirement release facts without reimplementing policy", async () => {
@@ -373,7 +373,7 @@ test("Job detail consumes Backend Requirement release facts without reimplementi
   // Isolate independent optional read failures; do not let one rejection hide the entire detail.
   assert.match(source, /Promise\.allSettled/);
   assert.doesNotMatch(source, /Promise\.all\(/);
-  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
   assert.doesNotMatch(source, /acceptedCount\s*\/|rejectedCount\s*\/|0\.9/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
 });
@@ -396,7 +396,7 @@ test("Profile Eval pages consume review facts instead of implementing backend po
     "utf8",
   );
   for (const source of [listPage, detailPage]) {
-    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
     assert.doesNotMatch(source, /JOBLENS_BACKEND_URL/);
   }
 });
@@ -421,7 +421,7 @@ test("Requirement Eval pages consume review facts instead of implementing backen
     "utf8",
   );
   for (const source of [listPage, detailPage]) {
-    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
     assert.doesNotMatch(source, /JOBLENS_BACKEND_URL/);
   }
 });
@@ -459,7 +459,7 @@ test("Requirement manual review pages use server read models and no direct write
     "utf8",
   );
   for (const source of [listPage, detailPage]) {
-    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
     assert.doesNotMatch(source, /JOBLENS_BACKEND_URL/);
   }
   assert.match(detailPage, /description/);
@@ -515,7 +515,7 @@ test("Requirement Canary pages consume Backend facts and never start Provider wo
     "utf8",
   );
   for (const source of [listPage, detailPage]) {
-    assert.doesNotMatch(source, /fetch\(/);
+    assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
     assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
     assert.doesNotMatch(source, /maxNewExtractions|requirement-extractions\s*[,)]/);
   }
@@ -569,7 +569,7 @@ test("Requirement readiness page is read-only and cannot launch operational work
   assert.match(source, /method="get"/);
   assert.match(source, /dbWrites/);
   assert.match(source, /providerCalls/);
-  assert.doesNotMatch(source, /fetch\(/);
+  assert.doesNotMatch(source, /(?:fetch|workspaceFetch)\(/);
   assert.doesNotMatch(source, /JOBLENS_BACKEND_URL|OPENAI_API_KEY/);
   assert.doesNotMatch(
     source,

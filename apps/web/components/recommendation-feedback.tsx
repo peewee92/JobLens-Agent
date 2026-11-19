@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useState} from "react";
@@ -101,7 +102,7 @@ export function RecommendationFeedback({
     setPendingDecision(decision);
     setError(null);
     try {
-      const response = await fetch("/api/user-feedback", {
+      const response = await workspaceFetch("/api/user-feedback", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({

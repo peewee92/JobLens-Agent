@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
 import {useRouter} from "next/navigation";
@@ -567,7 +568,7 @@ export function ProfileEditor({
     };
 
     try {
-      const response = await fetch("/api/profile", {
+      const response = await workspaceFetch("/api/profile", {
         method: "PUT",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload),
@@ -738,7 +739,7 @@ export function ProfileEditor({
     };
 
     try {
-      const response = await fetch("/api/search-intent", {
+      const response = await workspaceFetch("/api/search-intent", {
         method: "PUT",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload),

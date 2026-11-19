@@ -20,7 +20,7 @@ test("original preview displays only the existing read-only description", () => 
 
 test("paid test and resume recovery query their saved receipt instead of resending", () => {
   assert.match(source("components/model-connection.tsx"), /fetch\(`\/api\/byok\/profile-calls\/\$\{encodeURIComponent\(action\)\}`/);
-  assert.match(source("components/resume-proposal-panel.tsx"), /fetch\(`\/api\/byok\/profile-calls\/\$\{encodeURIComponent\(pendingAction\)\}`/);
+  assert.match(source("components/resume-proposal-panel.tsx"), /workspaceFetch\(`\/api\/byok\/profile-calls\/\$\{encodeURIComponent\(pendingAction\)\}`/);
   assert.match(source("components/resume-proposal-panel.tsx"), /acknowledgedPriorRequestId/);
   assert.match(source("lib/backend.ts"), /reading && !init\?\.signal \? AbortSignal\.timeout/);
 });

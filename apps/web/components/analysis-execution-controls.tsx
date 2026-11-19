@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import Link from "next/link";
 import {Button} from "@/components/ui/button";
 import {ActionFeedback} from "@/components/ui/patterns";
@@ -25,7 +26,7 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}/execution`, {cache: "no-store"});
+      const response = await workspaceFetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}/execution`, {cache: "no-store"});
       if (!response.ok) throw new Error("暂时无法读取已保存工作区，请确认连接后再查看。");
       const body = await response.json() as {execution: AnalysisExecutionResult | null};
       setExecution(body.execution);

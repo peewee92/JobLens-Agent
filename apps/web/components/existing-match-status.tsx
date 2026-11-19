@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {useEffect, useState} from "react";
 import {existingMatchReportCopy, rankingPreflight, rankingScope} from "@/lib/agent-ranking-preflight";
 
@@ -17,7 +18,7 @@ export function useExistingMatchStatus(ids: readonly string[]) {
     const abort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 5000);
     let current = true;
-    void fetch(`/api/match-ranking/preflight?${query}`, {cache: "no-store", signal: abort.signal})
+    void workspaceFetch(`/api/match-ranking/preflight?${query}`, {cache: "no-store", signal: abort.signal})
       .then(async response => {
         if (!response.ok) throw new Error();
         const check = rankingPreflight(jobs, await response.json());

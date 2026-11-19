@@ -1,3 +1,4 @@
+import {workspacePath} from "@/lib/workspace-path";
 import {preparationFacts} from "@/lib/preparation-facts";
 import {completionCriterionLabel} from "@/lib/gap-language";
 import {formatDateTime} from "@/lib/format";
@@ -68,7 +69,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <ApplicationActionControls workspaceId={id} actorId="local-user" actions={[action]} /></article>)}
         {!actions.length && <p>尚无保存的行动，请返回已保存分析，明确开始执行。</p>}
         <p>公开演示不开放私人事实、简历上传、投递状态修改或模型调用。临时进度在会话过期或服务重启后重置。</p>
-        <Link href="/applications">查看我的准备</Link><a href="/">返回首页</a></section>;
+        <Link href="/applications">查看我的准备</Link><a href={workspacePath("/")}>返回首页</a></section>;
     }
 
     const [job, actions, proposals, timeline, resumeProposal, resumeVariants, interviewQuestions] = await Promise.all([
@@ -148,7 +149,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           </div>
           {savedPreparation && historicalPreparation ?
             <Button asChild><Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对并更新分析</Link></Button>
-            : <Button asChild><a href={overview.nextBestAction.href}>继续这一步 <span aria-hidden="true">→</span></a></Button>}
+            : <Button asChild><a href={workspacePath(overview.nextBestAction.href)}>继续这一步 <span aria-hidden="true">→</span></a></Button>}
         </Panel>
       </div>
 
@@ -214,7 +215,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         <div className="jl-inline"><Link href={`/jobs/${encodeURIComponent(job.id)}`}>查看岗位详情</Link></div>
         {savedPreparation && <section className="detail-section">
           <h2>已保存的准备材料</h2>
-          <div className="actions"><Link className="button-secondary" href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link><a href="/">返回求职工作台</a></div>
+          <div className="actions"><Link className="button-secondary" href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link><a href={workspacePath("/")}>返回求职工作台</a></div>
           <p>职业资料 v{savedPreparation.preparation.profileVersion} · 来自确认目标时保存的分析，不会在打开工作区时重算。</p>
           {!savedPreparation.isCurrent && <p className="notice">当前事实已变化。这些历史材料仍可查看，投递结果和行动进度仍可记录；请更新分析后再建立新材料。</p>}
           <Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}`}>打开原始分析、差距与完整准备材料</Link>

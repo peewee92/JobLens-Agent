@@ -1,3 +1,4 @@
+import {workspacePath} from "@/lib/workspace-path";
 import Link from "next/link";
 
 import {Button} from "./ui/button";
@@ -19,7 +20,7 @@ export function JobFilters({filters}: {filters: Filters}) {
   const hasConditions = labels.length > 0 || filters.sort !== "latest";
   return <div className="jl-job-filter">
     <div className="jl-job-filter-row">
-      <form className="jl-job-search" action="/jobs" key={jobsHref(filters)}>
+      <form className="jl-job-search" action={workspacePath("/jobs")} key={jobsHref(filters)}>
         <Field id="job-search" label="搜岗位、公司或技能"><input id="job-search" name="q" defaultValue={filters.q} placeholder="例如：Agent 工程师" type="search" /></Field>
         <Field id="job-city" label="城市"><input id="job-city" name="city" defaultValue={filters.city} placeholder="不限城市" type="search" /></Field>
         <input type="hidden" name="limit" value={filters.limit} />
@@ -32,7 +33,7 @@ export function JobFilters({filters}: {filters: Filters}) {
       <ActionDialog key={`advanced-${jobsHref(filters)}`} trigger={<Button variant="secondary">更多筛选</Button>}
         title="更多筛选" guardDraft description="按薪资、工作方式和来源缩小范围；应用后回到第一页。"
         action={<Button type="submit" form="advanced-job-filters">应用筛选</Button>}>
-        <form className="jl-filter-form" action="/jobs" id="advanced-job-filters">
+        <form className="jl-filter-form" action={workspacePath("/jobs")} id="advanced-job-filters">
           <input type="hidden" name="q" value={filters.q} /><input type="hidden" name="city" value={filters.city} />
           <Field id="minSalaryK" label="最低月薪（千元）">
             <input id="minSalaryK" name="minSalaryK" type="number" min="0" step="any" defaultValue={filters.minSalaryK} />

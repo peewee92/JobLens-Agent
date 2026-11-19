@@ -1,6 +1,8 @@
 /** Public deployment configuration is server-only; never serialize its secret. */
+import {isPrivateWorkspaceBuild} from "@/lib/workspace-path";
+
 export const DEMO_COOKIE = "joblens_demo_session";
-export const publicDemoEnabled = () => process.env.JOBLENS_PUBLIC_DEMO === "1";
+export const publicDemoEnabled = () => process.env.JOBLENS_PUBLIC_DEMO === "1" && !isPrivateWorkspaceBuild();
 
 export function demoOriginAllowed(origin: string | null, expected: string | undefined): boolean {
   return Boolean(origin && expected && origin === expected);
