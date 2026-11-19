@@ -90,6 +90,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
       preparationFacts(source ? [savedPreparation?.preparation, currentPreparation].find(candidate => candidate?.jobId === job.id
         && candidate.profileId === source.sourceProfileId && candidate.profileVersion === source.sourceProfileVersion
         && candidate.extractionId === source.requirementExtractionId) : null);
+    const historicalPreparation = savedPreparation?.isCurrent === false;
     const resumeFacts = attachFacts(resumeProposal);
     const interviewFacts = attachFacts(interviewQuestions);
     let legacyPlan: import("@/lib/contracts").LegacyWorkspaceAnalysisPlan | null = null;
@@ -130,14 +131,14 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           <PageHeading kicker="岗位准备工作区" title={job.title} description={job.company} />
           <div className="jl-inline">
             <Badge tone="info">{statusLabel[overview.workspace.status] ?? "状态待核实"}</Badge>
-            {savedPreparation && !savedPreparation.isCurrent && <Badge tone="warning">资料已变化</Badge>}
+            {savedPreparation && historicalPreparation && <Badge tone="warning">资料已变化</Badge>}
             <span className="muted-copy">系统不会替你投递或确认经历。</span>
           </div>
         </div>
         <Panel className="jl-workbench-focus jl-workspace-next" aria-labelledby="workspace-next-title">
           <div className="stack-sm">
             <p className="jl-kicker">建议下一步</p>
-            {savedPreparation && !savedPreparation.isCurrent ? <>
+            {savedPreparation && historicalPreparation ? <>
               <h2 id="workspace-next-title">先核对变化的事实</h2>
               <p>已有记录仍可查看。建立新材料前，请先更新依据。</p>
             </> : <>
@@ -145,7 +146,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
               <p>{overview.nextBestAction.reason}</p>
             </>}
           </div>
-          {savedPreparation && !savedPreparation.isCurrent ?
+          {savedPreparation && historicalPreparation ?
             <Button asChild><Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对并更新分析</Link></Button>
             : <Button asChild><a href={overview.nextBestAction.href}>继续这一步 <span aria-hidden="true">→</span></a></Button>}
         </Panel>
@@ -161,6 +162,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
             proposal={resumeProposal}
             currentVariant={currentResumeVariant}
             facts={resumeFacts}
+            historical={historicalPreparation}
           /> : <p className="notice">职业事实已变化，不能按旧版本生成新简历材料。已有简历状态：{currentResumeVariant ? (currentResumeVariant.status === "reviewed" ? "已人工审核" : "草稿待审核") : "尚未保存"}；历史记录仍保留，请更新或重新创建分析。</p>}
           {resumeVariants.length > 0 && <details>
             <summary>查看已保存的简历版本（{resumeVariants.length} 份）</summary>
@@ -179,8 +181,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         actions: <section className="detail-section" id="actions" tabIndex={-1} aria-labelledby="workspace-actions-heading">
           <h2 id="workspace-actions-heading">执行行动</h2>
           {actions.length === 0 ? <>
-            <p className="notice">尚未建立可跟踪行动，可以从已有准备材料建立清单。</p>
-            <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />
+            <p className="notice">{historicalPreparation ? "还没有行动。请先更新分析，再依据当前事实建立清单。" : "尚未建立可跟踪行动，可以从已有准备材料建立清单。"}</p>
+            {!historicalPreparation && <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />}
           </> : <>
             <p className="muted">当前分析关联的行动优先显示，可能复用较早行动及其进度；其余行动仍保留。完成行动不会自动改变职业事实。</p>
             {overview.workspace.currentAnalysisResultId && <h3>当前分析的行动</h3>}
@@ -202,7 +204,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         interview: <section className="detail-section" id="interview" tabIndex={-1} aria-labelledby="workspace-interview-heading">
           <h2 id="workspace-interview-heading">面试练习</h2>
           <p className="muted">问题来自已核对的岗位要求。回答只核对已确认的经历是否可引用，不打面试分，也不预测录用。</p>
-          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
+          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} historical={historicalPreparation} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
           <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的面试准备事实 →" : "按当前资料查看面试准备事实 →"}</Link></div>
         </section>,
       }} />
