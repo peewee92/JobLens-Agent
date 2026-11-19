@@ -22,9 +22,9 @@ function statusLabel(value: string | null): string {
   return value ? statusLabels[value] ?? "未知状态" : "未记录";
 }
 
-export function WorkspaceTimeline({events}: {events: ApplicationTimelineEvent[]}) {
-  return <section className="detail-section">
-    <h2>最近变化</h2>
+export function WorkspaceTimeline({events, inDrawer = false}: {events: ApplicationTimelineEvent[]; inDrawer?: boolean}) {
+  return <section className={inDrawer ? "stack-sm" : "detail-section"}>
+    {!inDrawer && <h2>最近变化</h2>}
     {events.length === 0 ? <p className="muted">还没有保存的变化。创建材料或更新进度后会出现在这里。</p> : <PagedRecords label="工作区时间线" limit={6}
       items={[...events].reverse().map(event => <div key={event.eventId}>
         {eventLabels[event.eventType] ?? "其他工作区记录"}

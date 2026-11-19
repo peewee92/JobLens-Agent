@@ -121,7 +121,7 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
         <div className="jl-inline">
           <Button variant="subtle" asChild><Link href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "原始分析" : "准备依据"}</Link></Button>
           <DetailDrawer trigger={<Button variant="subtle">最近变化</Button>} title="最近变化" description="这里显示已保存的进度，不会重新分析。">
-            <WorkspaceTimeline events={timeline} />
+            <WorkspaceTimeline events={timeline} inDrawer />
           </DetailDrawer>
         </div>
       </div>

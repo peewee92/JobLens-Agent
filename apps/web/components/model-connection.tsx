@@ -28,7 +28,8 @@ export function ModelConnection() {
       const r = await fetch("/api/byok/model-connection", {cache:"no-store"});
       const data = await r.json();
       if (r.ok) {setStatus(data as Status); if (data.connection) setConfig(data.connection);}
-      else if ([401, 403].includes(r.status) && data.error?.code === "byok_required") setStatus(null);
+      else if ((r.status === 403 && ["byok_required", "demo_route_disabled"].includes(data.error?.code)) ||
+        (r.status === 410 && data.error?.code === "demo_session_expired")) setStatus(null);
       else throw new Error();
     } catch {setReadError(true);}
     finally {setReading(false);}

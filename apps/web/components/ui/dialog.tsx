@@ -20,7 +20,6 @@ export function ActionDialog({trigger, title, description, children, action, gua
     if (value) {setOpen(true); return;}
     if (guardDraft && dirty) {
       if (confirmDiscard) return;
-      lastControl.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setConfirmDiscard(true);
       requestAnimationFrame(() => resume.current?.focus());
     } else close();
@@ -32,7 +31,9 @@ export function ActionDialog({trigger, title, description, children, action, gua
       <Dialog.Content className="jl-panel jl-dialog">
         <Dialog.Title>{title}</Dialog.Title>
         <Dialog.Description className="jl-dialog-description">{description}</Dialog.Description>
-        <div hidden={confirmDiscard} onChangeCapture={guardDraft ? () => setDirty(true) : undefined}>{children}</div>
+        <div hidden={confirmDiscard} onFocusCapture={event => {
+          if (event.target instanceof HTMLElement) lastControl.current = event.target;
+        }} onChangeCapture={guardDraft ? () => setDirty(true) : undefined}>{children}</div>
         {confirmDiscard ? <div className="stack-sm">
           <p className="jl-callout" data-tone="warning" role="status">有尚未应用的修改。放弃后，原有筛选仍保留。</p>
           <div className="jl-dialog-footer">

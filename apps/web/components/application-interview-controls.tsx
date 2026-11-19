@@ -53,7 +53,7 @@ export function ApplicationInterviewControls({workspaceId, actorId, questionSet,
   if (questionSet.questions.length === 0) return <div className="jl-callout"><p>当前没有可练习的问题。可以查看准备依据，核对该岗位是否有可用的要求。</p></div>;
   return <WorkspaceRecordBrowser label="面试问题列表" records={questionSet.questions.map((question, index) => {
       const review = reviews[question.questionId];
-      return {id: question.questionId, title: `问题 ${index + 1} · ${question.prompt}`, summary: question.requirementText,
+      return {id: question.questionId, title: `问题 ${index + 1} · ${question.allowedEvidenceIds.length ? "已有可引用经历" : "没有已确认的依据"}`, summary: question.requirementText,
         content: <form onSubmit={(event) => submit(event, question.questionId)} className="interview-practice-form">
         <span className="muted-copy">面试问题 {index + 1}</span>
         <strong>{question.prompt}</strong>

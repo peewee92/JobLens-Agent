@@ -348,7 +348,7 @@ try {
 
   const blockedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(blockedJobPage, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(blockedJobPage, /岗位分析版本与审核基线不一致/);
+  assert.match(blockedJobPage, /请核对当前岗位要求/);
 
   const unaffected = await responseJson(await fetch(`${backendUrl}/api/v1/jobs/job_manual_smoke_01/requirement-release-readiness`));
   assert.equal(unaffected.releaseEligible, true);
