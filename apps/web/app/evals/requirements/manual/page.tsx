@@ -1,3 +1,4 @@
+import {MaintenanceHeading} from "@/components/maintenance-heading";
 import Link from "next/link";
 import {Pagination} from "@/components/ui/pagination";
 import {parsePageOffset, readKnownPage} from "@/lib/pagination";
@@ -44,28 +45,18 @@ export default async function RequirementManualReviewPage({searchParams}: {searc
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">Requirement Manual Quality Evidence</p>
-        <h1>真实岗位人工验收批次</h1>
-        <p className="lede">
-          选择同一 Provider、Model、Extractor、Prompt 和语义策略的具体 Extraction 版本，逐岗位对照完整 JD、Requirements 与 Trace。系统不会替你生成人工判断。
-        </p>
-        <div className="actions">
-          <Link className="button" href="/evals/requirements/canary">
-            打开 Canary 人工放行
-          </Link>
-          <Link className="button-ghost" href="/evals/requirements">
-            返回自动 Eval 治理
-          </Link>
-        </div>
-      </section>
+      <MaintenanceHeading title="岗位要求人工验收" returnTo="jobs"
+        description="对照岗位原文，检查模型是否漏读、误读或补写了要求。验收由维护者逐条完成，和求职者核对自己的岗位不是同一件事。">
+        <Link className="button-ghost" href="/evals/requirements/canary">查看在线小批验证</Link>
+        <Link className="button-ghost" href="/evals/requirements">返回岗位要求评测</Link>
+      </MaintenanceHeading>
 
       <section className="detail-card">
         <div className="section-heading-row">
           <div>
             <h2>正式验收准备状态</h2>
             <p className="muted">
-              正式 Match baseline 必须由同一 Provider、Model、Extractor、Prompt 和语义策略的 20 个 current Extraction 组成；以下统计仅基于本页加载的候选。
+              建立正式验收批次需要 20 条当前有效、分析配置一致的岗位结果。以下只统计本页已载入的候选。
             </p>
           </div>
           <span className={`status-chip ${formalReadiness.formalReady ? "status-pass" : "status-fixture"}`}>
@@ -74,20 +65,20 @@ export default async function RequirementManualReviewPage({searchParams}: {searc
         </div>
 
         <div className="summary-grid eval-summary-grid">
-          <div className="summary-card"><span>Current 候选</span><strong>{candidates.total}</strong></div>
-          <div className="summary-card"><span>最大一致 Cohort</span><strong>{formalReadiness.targetCandidates.length} 条</strong></div>
-          <div className="summary-card"><span>版本 Cohort</span><strong>{formalReadiness.cohortCount}</strong></div>
+          <div className="summary-card"><span>当前有效候选</span><strong>{candidates.total}</strong></div>
+          <div className="summary-card"><span>最多的同配置候选</span><strong>{formalReadiness.targetCandidates.length} 条</strong></div>
+          <div className="summary-card"><span>配置组数</span><strong>{formalReadiness.cohortCount}</strong></div>
           <div className="summary-card"><span>其他版本</span><strong>{formalReadiness.outlierCandidates.length}</strong></div>
         </div>
 
         {formalReadiness.formalReady ? (
           <div className="review-result review-accepted">
             <strong>已可选取 20 条同版本候选</strong>
-            <p>下面可以从同一版本的候选中一键选择 20 个，创建人工验收批次。创建批次不会调用 Provider，也不会替你做人工判断；正式资格仍由服务端检查。</p>
+            <p>下面可以从同一版本的候选中一键选择 20 个，创建人工验收批次。创建批次不会调用在线模型，也不会替你做人工判断；正式资格仍由服务端检查。</p>
           </div>
         ) : (
           <div className="review-result review-pending">
-            <strong>当前还不能创建正式 20-case baseline</strong>
+            <strong>还没有凑齐 20 条同配置的候选</strong>
             <p>
               本页加载的 {candidates.items.length} 个候选被拆成 {formalReadiness.cohortCount} 个模型版本组；最大一致组有 {formalReadiness.targetCandidates.length}/20。
               请检查候选岗位和分析版本，确定如何补足同一版本的审核样本。当前离线分析不能保证生成目标版本；重新分析也可能使已有审核样本失效。不要用 {formalReadiness.targetCandidates.length} 条练习批次代替正式质量证据。
@@ -118,7 +109,7 @@ export default async function RequirementManualReviewPage({searchParams}: {searc
       <section className="detail-card">
         <div className="section-heading-row">
           <div>
-            <h2>创建版本冻结的审查批次</h2>
+            <h2>创建人工验收批次</h2>
             <p className="muted">
               共找到 {candidates.total} 个候选，本页加载 {candidates.items.length} 个。1～19 条可作为练习批次；20 条只是正式证据的必要条件之一。
             </p>

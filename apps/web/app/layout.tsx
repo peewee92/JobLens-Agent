@@ -52,7 +52,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
         </main>
         <footer className="shell site-footer">
           <span>JobLens · 基于真实经历和真实岗位做判断</span>
-          {!publicDemoEnabled() && <Link href="/quality">质量检查（高级）</Link>}
+          {!publicDemoEnabled() && <Link href="/quality">模型质量检查（维护用）</Link>}
           <span>版本：{process.env.JOBLENS_RELEASE_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "本地开发"}</span>
         </footer>
       </body>

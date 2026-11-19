@@ -63,7 +63,7 @@ test("fixture Requirement runs cannot be formally reviewed", () => {
   );
   assert.equal(actions.canAccept, false);
   assert.equal(actions.canReject, false);
-  assert.match(actions.reason ?? "", /Fixture/);
+  assert.match(actions.reason ?? "", /离线测试/);
 });
 
 test("failed live Requirement runs can be rejected but not accepted", () => {

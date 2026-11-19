@@ -1,3 +1,6 @@
+import {EvaluationReviewResult} from "@/components/evaluation-review-result";
+import {MaintenanceHeading} from "@/components/maintenance-heading";
+import {userFacingReadError} from "@/lib/user-facing-errors";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
@@ -24,11 +27,8 @@ export default async function RequirementEvalRunDetailPage({
     detail = await fetchRequirementEvalRun(id);
   } catch (caught) {
     if (caught instanceof BackendApiError && caught.status === 404) notFound();
-    const message =
-      caught instanceof BackendApiError
-        ? caught.message
-        : "读取 Requirement Eval 详情时发生未知错误。";
-    return <ServiceError message={message} />;
+    const failure = caught instanceof BackendApiError ? caught : null;
+    return <ServiceError message={userFacingReadError(failure?.status, failure?.code, "暂时无法读取这份评测。已保存的结果不受影响，可以重试。")} />;
   }
 
   const cases = sortRequirementEvalCases(detail.cases);
@@ -36,19 +36,15 @@ export default async function RequirementEvalRunDetailPage({
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">Requirement Eval Review</p>
-        <h1>逐案例审查</h1>
-        <p className="lede">
-          优先审查失败案例、importance 错误和 Trace。技术 Gate 通过只代表允许进入人工审核，不等于已经成为正式 baseline。
-        </p>
-        <p className="code">{detail.summary.id}</p>
-      </section>
+      <MaintenanceHeading title="岗位要求评测详情" returnTo="jobs"
+        description="先看未通过的案例，再核对出错的原因。系统通过自动检查，不代表维护者已审核通过。">
+        <Link className="button-ghost" href="/evals/requirements">返回评测记录</Link>
+      </MaintenanceHeading>
 
       <div className="summary-grid">
-        <div className="summary-card"><span>Mode</span><strong>{detail.summary.mode}</strong></div>
-        <div className="summary-card"><span>Gate</span><strong>{detail.summary.gatePassed ? "通过" : "失败"}</strong></div>
-        <div className="summary-card"><span>Case</span><strong>{detail.summary.passedCases}/{detail.summary.totalCases}</strong></div>
+        <div className="summary-card"><span>评测方式</span><strong>{detail.summary.mode === "live" ? "在线模型评测" : "离线测试"}</strong></div>
+        <div className="summary-card"><span>自动检查</span><strong>{detail.summary.gatePassed ? "通过" : "失败"}</strong></div>
+        <div className="summary-card"><span>通过案例</span><strong>{detail.summary.passedCases}/{detail.summary.totalCases}</strong></div>
         <div className="summary-card"><span>失败案例</span><strong>{failedCount}</strong></div>
       </div>
 
@@ -64,13 +60,12 @@ export default async function RequirementEvalRunDetailPage({
                   </span>
                   <strong>{item.caseId}</strong>
                 </div>
-                <span className="code">{item.traceRunId ?? "无 Trace"}</span>
               </div>
               {item.error ? <p className="inline-error">{item.error}</p> : null}
               <div className="case-grid">
                 <div><span className="meta-label">缺失要求</span><strong>{item.missingRequirements.join("、") || "无"}</strong></div>
-                <div><span className="meta-label">Importance 错误</span><strong>{item.wrongImportance.join("、") || "无"}</strong></div>
-                <div><span className="meta-label">禁止能力</span><strong>{item.observedForbiddenCapabilities.join("、") || "无"}</strong></div>
+                <div><span className="meta-label">要求等级错误</span><strong>{item.wrongImportance.join("、") || "无"}</strong></div>
+                <div><span className="meta-label">原文没有的能力</span><strong>{item.observedForbiddenCapabilities.join("、") || "无"}</strong></div>
                 <div><span className="meta-label">实际要求数</span><strong>{item.actualRequirements.length}</strong></div>
               </div>
               {item.actualRequirements.length > 0 ? (
@@ -83,51 +78,52 @@ export default async function RequirementEvalRunDetailPage({
                   </ul>
                 </details>
               ) : null}
+              {item.traceRunId && <details className="jl-quality-facts"><summary>查看运行记录编号</summary><p className="code">{item.traceRunId}</p></details>}
             </section>
           ))}
         </article>
 
         <aside className="detail-card">
-          <h2>运行上下文</h2>
-          <div className="meta-list">
-            <div><span className="meta-label">Provider / Model</span><strong>{detail.summary.provider} / {detail.summary.model}</strong></div>
-            <div><span className="meta-label">Extractor / Prompt</span><strong>{detail.summary.extractorVersion} / {detail.summary.promptVersion}</strong></div>
-            <div><span className="meta-label">Gate</span><strong>{detail.summary.gateVersion}</strong></div>
-            <div><span className="meta-label">运行时间</span><strong>{formatDateTime(detail.summary.createdAt)}</strong></div>
-          </div>
+          <h2>评测指标与人工审核</h2>
+          <details className="jl-quality-facts">
+            <summary>查看模型、版本与记录编号</summary>
+            <p className="code">{detail.summary.id}</p>
+            <div className="meta-list">
+              <div><span className="meta-label">服务商 / 模型</span><strong>{detail.summary.provider} / {detail.summary.model}</strong></div>
+              <div><span className="meta-label">解析版本 / 提示词版本</span><strong>{detail.summary.extractorVersion} / {detail.summary.promptVersion}</strong></div>
+              <div><span className="meta-label">检查规则版本</span><strong>{detail.summary.gateVersion}</strong></div>
+              <div><span className="meta-label">评测时间</span><strong>{formatDateTime(detail.summary.createdAt)}</strong></div>
+            </div>
+          </details>
 
           <section className="detail-section">
             <h3>质量指标</h3>
             <div className="meta-list">
-              <div><span className="meta-label">Case 通过率</span><strong>{formatRate(detail.summary.casePassRate)}</strong></div>
-              <div><span className="meta-label">Workflow 成功率</span><strong>{formatRate(detail.summary.workflowSuccessRate)}</strong></div>
-              <div><span className="meta-label">能力召回</span><strong>{formatRate(detail.summary.capabilityRecall)}</strong></div>
-              <div><span className="meta-label">Importance 准确率</span><strong>{formatRate(detail.summary.importanceAccuracy)}</strong></div>
-              <div><span className="meta-label">禁止能力率</span><strong>{formatRate(detail.summary.forbiddenCapabilityRate)}</strong></div>
+              <div><span className="meta-label">案例通过率</span><strong>{formatRate(detail.summary.casePassRate)}</strong></div>
+              <div><span className="meta-label">流程成功率</span><strong>{formatRate(detail.summary.workflowSuccessRate)}</strong></div>
+              <div><span className="meta-label">能力识别覆盖率</span><strong>{formatRate(detail.summary.capabilityRecall)}</strong></div>
+              <div><span className="meta-label">要求等级准确率</span><strong>{formatRate(detail.summary.importanceAccuracy)}</strong></div>
+              <div><span className="meta-label">原文没有的能力占比</span><strong>{formatRate(detail.summary.forbiddenCapabilityRate)}</strong></div>
             </div>
           </section>
 
           {detail.comparison ? (
             <section className="detail-section">
-              <h3>Baseline 差异</h3>
+              <h3>与参考评测的差异</h3>
               <p className="code">{detail.comparison.baselineRunId}</p>
               <div className="meta-list">
-                <div><span className="meta-label">Case</span><strong>{formatDelta(detail.comparison.casePassRateDelta)}</strong></div>
-                <div><span className="meta-label">能力召回</span><strong>{formatDelta(detail.comparison.capabilityRecallDelta)}</strong></div>
-                <div><span className="meta-label">Importance</span><strong>{formatDelta(detail.comparison.importanceAccuracyDelta)}</strong></div>
-                <div><span className="meta-label">禁止能力率</span><strong>{formatDelta(detail.comparison.forbiddenCapabilityRateDelta)}</strong></div>
+                <div><span className="meta-label">案例通过率</span><strong>{formatDelta(detail.comparison.casePassRateDelta)}</strong></div>
+                <div><span className="meta-label">能力识别覆盖率</span><strong>{formatDelta(detail.comparison.capabilityRecallDelta)}</strong></div>
+                <div><span className="meta-label">要求等级准确率</span><strong>{formatDelta(detail.comparison.importanceAccuracyDelta)}</strong></div>
+                <div><span className="meta-label">原文没有的能力占比</span><strong>{formatDelta(detail.comparison.forbiddenCapabilityRateDelta)}</strong></div>
               </div>
             </section>
           ) : null}
 
           <section className="detail-section">
-            <h3>人工 Review</h3>
+            <h3>人工审核</h3>
             {detail.review ? (
-              <div className={`review-result review-${detail.review.decision}`}>
-                <strong>{detail.review.decision}</strong>
-                <p>{detail.review.notes}</p>
-                <small>{detail.review.reviewer} · {formatDateTime(detail.review.reviewedAt)}</small>
-              </div>
+              <EvaluationReviewResult review={detail.review} />
             ) : (
               <RequirementEvalReviewForm
                 run={detail.summary}
@@ -135,10 +131,6 @@ export default async function RequirementEvalRunDetailPage({
               />
             )}
           </section>
-
-          <div className="actions">
-            <Link className="button-ghost" href="/evals/requirements">返回运行历史</Link>
-          </div>
         </aside>
       </section>
     </>

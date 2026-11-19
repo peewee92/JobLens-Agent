@@ -333,3 +333,30 @@ main details[open] > summary { background:var(--brand-soft); color:var(--brand-d
 .jl-task-detail .interview-practice-form > strong { display:block; }
 .jl-task-detail:focus-visible { outline-offset:4px; }
 .jl-task-detail .muted-copy { color:var(--ink-soft); }
+
+/* Independent maintenance panels use one rhythm instead of relying on their neighbors' margins. */
+.jl-maintenance { gap: var(--jl-space-6); }
+.jl-maintenance > :is(.page-heading, .summary-grid, .detail-grid, .detail-card, .product-step-grid, .readiness-overview, .readiness-advanced-details),
+.jl-maintenance-heading > .jl-page-heading { margin-block: 0; }
+.jl-maintenance > .detail-card { min-width: 0; }
+.jl-maintenance .code { overflow-wrap: anywhere; }
+.jl-maintenance .detail-card > h2:first-child { margin-block-start: 0; }
+.jl-maintenance .detail-card > :last-child { margin-block-end: 0; }
+.jl-maintenance .eval-run-card-heading > div { display: flex; flex-wrap: wrap; gap: var(--jl-space-2); }
+.jl-maintenance .eval-run-card-heading .status-chip { margin: 0; }
+.jl-maintenance .jl-quality-facts { margin-block-start: var(--jl-space-3); }
+.jl-maintenance .jl-quality-cards article { display: grid; align-content: start; gap: var(--jl-space-2); }
+.jl-maintenance .jl-quality-cards article > * { margin: 0; }
+.jl-maintenance .jl-quality-cards article a { justify-self: start; }
+@media (max-width: 768px) {
+  .jl-maintenance .jl-quality-cards { grid-template-columns: 1fr; }
+}
+.jl-maintenance-heading { display: grid; gap: var(--jl-space-3); }
+.jl-maintenance .compact-meta { min-width: 0; }
+.jl-maintenance .eval-case-heading { flex-wrap: wrap; overflow-wrap: anywhere; }
+.jl-job-maintenance { margin-block-start: var(--jl-space-4); }
+@media (max-width: 480px) {
+  .site-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--jl-space-2) var(--jl-space-3); }
+  .site-footer > :first-child { grid-column: 1 / -1; }
+  .site-footer > span:last-child { grid-column: 2; text-align: end; }
+}

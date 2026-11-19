@@ -1,3 +1,4 @@
+import {MaintenanceHeading} from "@/components/maintenance-heading";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
@@ -100,26 +101,11 @@ export default async function RequirementCanaryRunDetailPage({
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">质量验收</p>
-        <h1>Requirement 抽取结果人工抽查</h1>
-        <p className="lede">
-          请逐个对照岗位原文与抽取结果，重点判断是否有遗漏、误提取或重要程度判断错误。技术运行信息默认收起，只有排查问题时才需要查看。
-        </p>
-        <div className="actions">
-          <Link className="button-ghost" href="/evals/requirements/canary">
-            返回抽查列表
-          </Link>
-          {run.batchId ? (
-            <Link
-              className="button"
-              href={`/evals/requirements/manual/${run.batchId}`}
-            >
-              打开完整 20 条验收
-            </Link>
-          ) : null}
-        </div>
-      </section>
+      <MaintenanceHeading title="岗位要求在线抽查" returnTo="jobs"
+        description="对照岗位原文和分析结果，检查是否有遗漏、写错或分错重要程度。排查问题时再展开技术详情。">
+        <Link className="button-ghost" href="/evals/requirements/canary">返回抽查列表</Link>
+        {run.batchId && <Link className="button-ghost" href={`/evals/requirements/manual/${run.batchId}`}>打开完整 20 条验收</Link>}
+      </MaintenanceHeading>
 
       <div className="summary-grid">
         <div className="summary-card">

@@ -269,7 +269,7 @@ try {
 
   const detailHtml = await html(`/jobs/${jobMatch[1]}`);
   assert.match(detailHtml, /分析并核对岗位要求/);
-  assert.match(detailHtml, /当前要求由离线演示分析产生/);
+  assert.match(detailHtml, /这些要求来自离线演示，未调用在线模型/);
   assert.match(detailHtml, /Python/);
   assert.match(detailHtml, /FastAPI/);
   assert.match(detailHtml, /岗位原文依据/);

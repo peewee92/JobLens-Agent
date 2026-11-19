@@ -16,7 +16,7 @@ test("main navigation is organized around job seeker tasks instead of eval modul
   assert.match(layout, />我的岗位</);
   assert.match(layout, />我的准备</);
   assert.doesNotMatch(layout.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "", />添加岗位</);
-  assert.match(layout, /质量检查（高级）/);
+  assert.match(layout, /模型质量检查（维护用）/);
   const primaryNav = layout.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.doesNotMatch(primaryNav, /质量检查/);
   assert.doesNotMatch(layout, />画像评测</);
@@ -325,14 +325,14 @@ test("requirement eval overview exposes the lightweight offline MVP quality gate
   const page = await source("app/evals/requirements/page.tsx");
   const backend = await source("lib/backend.ts");
 
-  assert.match(page, /MVP 离线质量门/);
-  assert.match(page, /离线要求回放/);
-  assert.match(page, /离线 Top 5/);
-  assert.match(page, /最近 Provider 冒烟/);
+  assert.match(page, /离线检查结果/);
+  assert.match(page, /岗位要求离线回放/);
+  assert.match(page, /前 5 个推荐岗位/);
+  assert.match(page, /最近模型连接测试/);
   assert.match(page, /providerSmokeCheckedAt/);
   assert.match(page, /providerSmokePlainStatusCode/);
   assert.match(page, /providerSmokeStructuredStatusCode/);
-  assert.match(page, /不阻塞 MVP/);
+  assert.match(page, /不影响离线检查/);
   assert.match(page, /fetchMvpQualityStatus/);
   assert.match(backend, /\/api\/v1\/requirement-evals\/mvp-quality-status/);
 });
@@ -861,4 +861,25 @@ test("global dangling evidence issues offer explicit locate and remove actions",
   assert.match(editor, /focusSkillEditor\(issue\.skillIndex\)/);
   assert.match(editor, /removeDanglingEvidenceReferences/);
   assert.match(editor, /profile-skill-\$\{index\}/);
+});
+
+test("evaluation pages identify the maintainer audience and offer a job seeker exit", async () => {
+  const header = await source("components/maintenance-heading.tsx");
+  const intro = await source("app/quality/page.tsx");
+  const profile = await source("app/evals/profile/page.tsx");
+  const profileDetail = await source("app/evals/profile/[id]/page.tsx");
+  const requirements = await source("app/evals/requirements/page.tsx");
+  const layout = await source("app/evals/layout.tsx");
+  assert.match(layout, /jl-section-stack jl-maintenance/);
+  assert.match(header, /仅供维护与测试 · 求职流程无需操作/);
+  assert.match(header, /href="\/profile">去核对我的简历资料/);
+  assert.match(header, /href="\/jobs">返回我的岗位/);
+  assert.match(intro, /返回求职工作台/);
+  for (const page of [profile, requirements]) {
+    assert.match(page, /当前评测参考标准/);
+    assert.match(page, /离线测试通过不会更新此标准/);
+    assert.doesNotMatch(page, /(?:>|")\s*(?:Gate |Case |当前正式 baseline)/);
+  }
+  assert.match(profileDetail, /<details className="jl-quality-facts">[\s\S]*?<summary>查看模型、版本与记录编号<\/summary>/);
+  assert.doesNotMatch(profileDetail, /人工 Review/);
 });

@@ -264,11 +264,6 @@ export default async function JobDetailPage({
                 )}
               </p>
             ) : null}
-            {acceptedBaselineMissing ? (
-              <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
-                <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
-              </p><p>模型整体评审与单岗位核对不同；下方提供单岗位确认时，你可以先核对本岗位，不需要替维护者完成整批评审。</p></details>
-            ) : null}
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}
@@ -278,7 +273,7 @@ export default async function JobDetailPage({
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
                   <p>
-                    这份岗位要求符合当前匹配规则，可以用于后续匹配；这不代表已完成正式模型质量验收。
+                    这版岗位要求已可以和你确认的经历一起用于匹配。
                   </p>
                 ) : (
                   <>
@@ -288,7 +283,7 @@ export default async function JobDetailPage({
                     <div className="readiness-blocker-list">
                       {releaseReadiness.blockers.map((blocker, index) => {
                         const copy = (canConfirmRequirements || !extraction) && ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)
-                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "提取后对照原文检查全部要求，再确认这一版用于当前岗位匹配；不需要先替维护者完成整批模型质量评审。"}
+                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "请对照岗位原文检查每条要求，再确认是否用这版和你的经历做比较。"}
                           : requirementReleaseBlockerCopy(blocker.code, job.description);
                         return (
                           <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
@@ -309,7 +304,7 @@ export default async function JobDetailPage({
                 </div>
                 {extraction.provider === "fixture" ? (
                   <p className="notice">
-                    当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
+                    这些要求来自离线演示，未调用在线模型。请先对照原文核对，再决定是否用它们做本岗位的匹配。
                   </p>
                 ) : null}
                 <JobRequirementReviewList requirements={extraction.requirements} />
@@ -326,6 +321,11 @@ export default async function JobDetailPage({
                   jobId={job.id} detailHref={detailHref} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
+            {acceptedBaselineMissing && !publicDemoEnabled() && <details className="muted-copy jl-job-maintenance">
+              <summary>查看维护诊断（非求职步骤）</summary>
+              <p>这里显示模型整体质量检查的状态，不是让你审核模型。需要排查时由维护者查看。</p>
+              <Link href="/evals/requirements/manual">岗位要求人工验收记录</Link>
+            </details>}
           </section>
           <section className="detail-section eligibility-section" id="job-match" tabIndex={-1}>
             <div className="section-title-row">
@@ -358,7 +358,7 @@ export default async function JobDetailPage({
             })()}
             {careerReadiness && !careerReadiness.releaseEligible ? <section className="notice" aria-label="个人匹配输入准备">
               <h3>下一步：确认职业资料和求职偏好</h3>
-              <p>仍可查看岗位。个性化结论只使用你确认保存的事实，不需要先完成模型整体质量评审。</p>
+              <p>仍可查看岗位。确认资料和求职偏好后，系统才能用你保存的事实给出个人建议。</p>
               <ul>{careerReadiness.blockers.map(blocker => <li key={blocker.code}>
                 {careerContextReleaseBlockerCopy(blocker.code)?.title ?? "请核对职业资料和偏好"}
               </li>)}</ul>

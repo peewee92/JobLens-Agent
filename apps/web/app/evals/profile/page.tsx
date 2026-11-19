@@ -1,3 +1,5 @@
+import {MaintenanceHeading} from "@/components/maintenance-heading";
+import {userFacingReadError} from "@/lib/user-facing-errors";
 import Link from "next/link";
 import {Pagination} from "@/components/ui/pagination";
 import {parsePageOffset, readKnownPage} from "@/lib/pagination";
@@ -28,43 +30,34 @@ export default async function ProfileEvalRunsPage({searchParams}: {searchParams:
       fetchAcceptedProfileEvalBaseline(),
     ]);
   } catch (caught) {
-    const message =
-      caught instanceof BackendApiError
-        ? caught.message
-        : "读取 Profile Eval 历史时发生未知错误。";
-    return <ServiceError message={message} />;
+    const failure = caught instanceof BackendApiError ? caught : null;
+    return <ServiceError message={userFacingReadError(failure?.status, failure?.code, "暂时无法读取简历解析评测记录。已保存的评测不受影响，可以重试。")} />;
   }
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">Profile Eval Governance</p>
-        <h1>模型质量审查</h1>
-        <p className="lede">
-          技术 Gate、人工 Review 和正式 baseline 是三个不同事实。这里优先展示失败案例与可追溯 Trace，不把 Fixture 结果包装成真实模型质量。
-        </p>
-      </section>
+      <MaintenanceHeading title="简历解析评测" returnTo="profile"
+        description="检查模型是否正确读出了测试简历的技能和经历。系统先检查结果；符合条件的在线评测，才可经维护者审核选为今后的比较标准。" />
 
       <section className="detail-card">
-        <h2>当前正式 baseline</h2>
+        <h2>当前评测参考标准</h2>
         {baseline ? (
           <div className="baseline-card">
             <div>
               <strong>{baseline.run.model}</strong>
-              <p className="code">{baseline.run.id}</p>
             </div>
             <div className="meta-list compact-meta">
               <div><span className="meta-label">审查人</span><strong>{baseline.review.reviewer}</strong></div>
               <div><span className="meta-label">审查时间</span><strong>{formatDateTime(baseline.review.reviewedAt)}</strong></div>
-              <div><span className="meta-label">Case 通过率</span><strong>{formatRate(baseline.run.casePassRate)}</strong></div>
+              <div><span className="meta-label">案例通过率</span><strong>{formatRate(baseline.run.casePassRate)}</strong></div>
             </div>
             <Link className="button-ghost" href={`/evals/profile/${baseline.run.id}`}>
-              查看 baseline 详情
+              查看参考评测
             </Link>
           </div>
         ) : (
           <p className="notice">
-            尚无人工接受的 live baseline。Fixture 通过不会出现在这里。
+            还没有经过人工审核并选为参考标准的在线评测。离线测试通过不会更新此标准。
           </p>
         )}
       </section>
@@ -72,12 +65,12 @@ export default async function ProfileEvalRunsPage({searchParams}: {searchParams:
       <section className="detail-card">
         <div className="section-heading-row">
           <div>
-            <h2>运行历史</h2>
-            <p className="muted">共 {page.total} 次评测运行</p>
+            <h2>评测记录</h2>
+            {page.total > 0 && <p className="muted">共 {page.total} 次评测</p>}
           </div>
         </div>
         {page.items.length === 0 ? (
-          <p className="notice">尚无 Profile Eval Run。</p>
+          <p className="notice">还没有评测记录。本页只展示结果，不会替你启动评测。</p>
         ) : (
           <div className="eval-run-list">
             {page.items.map((run) => (
@@ -85,24 +78,24 @@ export default async function ProfileEvalRunsPage({searchParams}: {searchParams:
                 <div className="eval-run-card-heading">
                   <div>
                     <span className={`status-chip ${run.mode === "live" ? "status-live" : "status-fixture"}`}>
-                      {run.mode}
+                      {run.mode === "live" ? "在线模型评测" : "离线测试"}
                     </span>
                     <span className={`status-chip ${run.gatePassed ? "status-pass" : "status-fail"}`}>
-                      Gate {run.gatePassed ? "通过" : "失败"}
+                      自动检查{run.gatePassed ? "已通过" : "未通过"}
                     </span>
                   </div>
                   <time>{formatDateTime(run.createdAt)}</time>
                 </div>
                 <h3>{run.model || run.provider}</h3>
-                <p className="code">{run.id}</p>
+
                 <div className="summary-grid eval-summary-grid">
                   <div className="summary-card"><span>案例通过</span><strong>{run.passedCases}/{run.totalCases}</strong></div>
-                  <div className="summary-card"><span>技能召回</span><strong>{formatRate(run.skillRecall)}</strong></div>
-                  <div className="summary-card"><span>禁用事实率</span><strong>{formatRate(run.forbiddenFactRate)}</strong></div>
-                  <div className="summary-card"><span>可进入接受审核</span><strong>{run.releaseEligible ? "是" : "否"}</strong></div>
+                  <div className="summary-card"><span>技能识别覆盖率</span><strong>{formatRate(run.skillRecall)}</strong></div>
+                  <div className="summary-card"><span>不应出现的事实占比</span><strong>{formatRate(run.forbiddenFactRate)}</strong></div>
+                  <div className="summary-card"><span>符合审核通过条件</span><strong>{run.releaseEligible ? "是" : "否"}</strong></div>
                 </div>
                 <div className="actions">
-                  <Link className="button" href={`/evals/profile/${run.id}`}>逐案例审查</Link>
+                  <Link className="button" href={`/evals/profile/${run.id}`}>查看评测结果</Link>
                 </div>
               </article>
             ))}

@@ -1,3 +1,4 @@
+import {MaintenanceHeading} from "@/components/maintenance-heading";
 import Link from "next/link";
 
 import {ServiceError} from "@/components/service-error";
@@ -78,6 +79,7 @@ function actionCopy(action: RequirementAcceptanceReadinessNextAction): ActionCop
 
 function friendlyBlocker(code: string): string {
   const messages: Record<string, string> = {
+    formal_dataset_missing: "还没有用于正式验证的岗位样本，请由维护者补齐后重新检查。",
     database_unreachable: "暂时无法读取本地数据，请确认本地服务和数据库可以正常访问。",
     database_migration_not_current: "本地数据结构还没有更新到当前版本。",
     live_provider_not_configured: "真实 AI 分析服务还没有配置完成。",
@@ -127,22 +129,10 @@ export default async function RequirementAcceptanceReadinessPage({
 
   return (
     <>
-      <section className="page-heading readiness-page-heading">
-        <p className="eyebrow">Quality check</p>
-        <h1>岗位要求分析准备情况</h1>
-        <p className="lede">
-          这个页面只回答三个问题：现在能不能继续、为什么，以及下一步做什么。
-          系统检查本身不会开始真实 AI 分析，也不会修改你的岗位数据。
-        </p>
-        <div className="actions">
-          <Link className="button-ghost" href="/jobs">
-            返回我的岗位
-          </Link>
-          <Link className="button-ghost" href="/evals/requirements/canary">
-            查看历史测试
-          </Link>
-        </div>
-      </section>
+      <MaintenanceHeading title="岗位要求分析准备情况" returnTo="jobs"
+        description="这里检查现在能不能继续、为什么，以及下一步做什么。检查不会启动在线模型，也不会修改岗位资料。">
+        <Link className="button-ghost" href="/evals/requirements/canary">查看历史测试</Link>
+      </MaintenanceHeading>
 
       <section className="readiness-overview">
         <div className="readiness-overview-copy">
@@ -168,7 +158,6 @@ export default async function RequirementAcceptanceReadinessPage({
       <section className="detail-card">
         <div className="section-heading-row readiness-section-heading">
           <div>
-            <p className="eyebrow">Progress</p>
             <h2>目前进行到哪里</h2>
           </div>
         </div>
@@ -192,7 +181,6 @@ export default async function RequirementAcceptanceReadinessPage({
       </section>
 
       <section className="detail-card readiness-next-step-card">
-        <p className="eyebrow">Next step</p>
         <h2>下一步做什么</h2>
 
         {readiness.nextAction === "review_canary" && readiness.workbenchUrl ? (
@@ -237,7 +225,6 @@ export default async function RequirementAcceptanceReadinessPage({
       </section>
 
       <section className="detail-card">
-        <p className="eyebrow">Needs attention</p>
         <h2>需要处理的事项</h2>
         {readiness.blockers.length === 0 ? (
           <div className="success-box readiness-success-box">
@@ -372,7 +359,7 @@ export default async function RequirementAcceptanceReadinessPage({
             <div>
               <span>页面检查副作用</span>
               <strong>
-                DB writes {readiness.dbWrites} / Provider calls {readiness.providerCalls}
+                数据库写入 {readiness.dbWrites} 次 · 在线模型调用 {readiness.providerCalls} 次
               </strong>
             </div>
             <div>

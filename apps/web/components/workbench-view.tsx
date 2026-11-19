@@ -40,7 +40,7 @@ export function WorkbenchView({data}: {data: Workbench}) {
       <h2>当前分析</h2>
       <>
         <p>{run.partial && run.resultId ? "部分范围已保存" : runStatusLabels[run.status] ?? "状态待核实"} · 请求范围 {run.jobCount} 个岗位 · 已确认 {run.targetCount} 个目标</p>
-        <div className="actions"><Link href={`/agent?threadId=${encodeURIComponent(run.threadId)}`}>查看本次运行与阻断原因</Link>
+        <div className="actions"><Link href={`/agent?threadId=${encodeURIComponent(run.threadId)}`}>查看本次分析与待处理事项</Link>
           {run.resultId && <Link href={`/agent/results/${encodeURIComponent(run.threadId)}`}>打开本次保存的完整分析</Link>}
           {run.resultId && <Link href={`/agent/results/${encodeURIComponent(run.threadId)}/update`}>核对范围并更新分析</Link>}</div>
         {run.partial && <p className="notice">只完成或复用了 {run.completedReportCount ?? 0} 个岗位的匹配；其余岗位没有在本次完成，不代表已淘汰。请查看保存结果中的范围说明。</p>}
@@ -48,7 +48,7 @@ export function WorkbenchView({data}: {data: Workbench}) {
         {run.status === "completed" && !run.resultId && <p>此历史运行没有保存完整材料，不能用当前计算冒充原始结果；需要新建分析。</p>}
       </>
       <p>打开工作台只查看状态，不会启动分析或调用模型。</p>
-      <div className="actions"><Link href="/agent">选择岗位或找回其他运行</Link><Link href="/recommendations">查看同一匹配报告的优先级与分组</Link></div>
+      <div className="actions"><Link href="/agent">选择岗位或查看分析历史</Link><Link href="/recommendations">查看同一匹配报告的优先级与分组</Link></div>
     </Panel>}
     {view.workspaces.length > 0 && <Panel aria-label="目标岗位">
       <h2>目标岗位与执行</h2>

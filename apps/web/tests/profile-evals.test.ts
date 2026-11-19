@@ -57,7 +57,7 @@ test("fixture runs cannot be formally reviewed", () => {
   const actions = reviewActionsForRun(run({mode: "fixture", releaseEligible: false}), false);
   assert.equal(actions.canAccept, false);
   assert.equal(actions.canReject, false);
-  assert.match(actions.reason ?? "", /Fixture/);
+  assert.match(actions.reason ?? "", /离线测试/);
 });
 
 test("failed live runs can be rejected but not accepted", () => {
