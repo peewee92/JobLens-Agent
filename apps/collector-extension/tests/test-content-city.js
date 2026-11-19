@@ -10,7 +10,8 @@ vm.runInContext(fs.readFileSync(require.resolve('../content.js'), 'utf8'), conte
 const {
   findAreaInText,
   getElementText,
-  chooseDescriptionCandidate
+  chooseDescriptionCandidate,
+  isJobDetailHref
 } = context.BossAiContentInternals;
 
 const duplicateTextElement = {
@@ -63,4 +64,9 @@ assert.strictEqual(findAreaInText('AI应用工程师 20-40K 深圳·南山区', 
   scope: '深圳', scopeType: 'city', cityName: '深圳'
 }), '深圳·南山区');
 
-console.log('General city area fallback tests passed.');
+assert.strictEqual(isJobDetailHref('https://www.zhipin.com/job_detail/22b06b666202eedb0nx909q4EFVU.html'), true);
+assert.strictEqual(isJobDetailHref('https://www.zhipin.com/job_detail/22b06b666202eedb0nx909q4EFVU.html?lid=abc'), true);
+assert.strictEqual(isJobDetailHref('https://www.zhipin.com/job_detail/'), false, 'bare job_detail anchor is site chrome, not a job card');
+assert.strictEqual(isJobDetailHref(''), false);
+
+console.log('General city area, job anchor and requirement evidence tests passed.');

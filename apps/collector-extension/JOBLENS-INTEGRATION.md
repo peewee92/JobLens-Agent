@@ -1,6 +1,6 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.4.9, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.5.0, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
@@ -17,17 +17,17 @@ POST http://127.0.0.1:8000/api/v1/job-imports
 The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. On success the popup stores only the returned immutable `importId` and exposes **查看本次导入**, which opens the existing JobLens Web audit page at `http://127.0.0.1:3000/imports/{importId}`. Reopening the popup restores the most recent successful import link; a later failed sync does not erase that link. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
 
 ```text
-boss-job-filter-report-v1.4.9-*.json
+boss-job-filter-report-v1.5.0-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 through v1.4.9. Collector v1.4.9 keeps the v1.4.8 filter-guidance behavior and adds recruiter-activity freshness filtering. The report adds recruiter activity metadata (`recruiterActive`, parsed age bounds and diagnostics); the Backend import remains tolerant of those additive collector fields.
+The backend remains compatible with Collector v1.3.1 through v1.5.0. Collector v1.5.0 keeps the v1.4.9 recruiter-activity metadata but no longer drops jobs whose recruiter activity cannot be read: BOSS only renders the activity label for recruiters who are active right now, so treating "unknown" as stale emptied real runs. Unknown activity is kept and marked (`recruiterActivityStatus: unknown`), and only jobs whose activity is confirmed to be outside the requested window are filtered.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.4.9-*.json
+boss-job-filter-requirement-review-v1.5.0-*.json
 ```
 
 The dataset contains only jobs where:
@@ -44,7 +44,7 @@ The dataset contains only jobs where:
 
 `qualityGate.status` is `ready` only when 20 distinct eligible JD samples were selected. `eligibleCount` counts eligible postings; `distinctEligibleCount` removes near-duplicate JD bodies. Excluded duplicates are listed in `excludedNearDuplicates`. A dataset with fewer than 20 distinct jobs is diagnostic only and must not be presented as formal Requirement quality evidence.
 
-In `matched` detail mode, v1.4.9 gives jobs with unknown recruiter activity first priority when a recruiter-activity freshness window is enabled, then preserves the v1.4.3 accepted-job overfetch behavior and other pending detail candidates. Allocation is traceable through `detailTargetsPlannedRecruiterActivityCandidates`, `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`. A missing recruiter-activity signal is never treated as proof of staleness before the configured detail-enrichment opportunity; if it remains unknown after enrichment, the final filter reports `招聘者活跃状态未知`.
+In `matched` detail mode, v1.5.0 reserves the Requirement-review quota for already-accepted jobs first, then serves the recruiter-activity queue and other pending candidates, so a large unknown-activity queue cannot starve accepted jobs of JD enrichment. Remote-scope jobs whose card area names a concrete city are excluded as `卡片地点为线下城市（全国远程未命中）` before any detail budget is spent. Allocation is traceable through `detailTargetsPlannedRecruiterActivityCandidates`, `detailTargetsPlannedAccepted`, `detailTargetsPlannedRemoteCandidates` and `detailTargetsDeferredAccepted`; kept jobs with unreadable activity are counted by `recruiterActivityUnknown` / `recruiterActivityUnverifiedKept`.
 
 ## Runtime guard
 

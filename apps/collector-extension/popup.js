@@ -1,4 +1,4 @@
-const VERSION = '1.4.9';
+const VERSION = '1.5.0';
 const MAX_SELECTED_CITIES = 20;
 const DEFAULT_KEYWORDS = [
   'AI 应用开发工程师',
@@ -195,9 +195,9 @@ function updateSearchGuidance() {
   const remoteEnabled = el('remote').checked;
   const coverage = [];
   if (cityNames.length) coverage.push(`${cityNames.join('、')}的线下/本地岗位`);
-  if (remoteEnabled) coverage.push('全国明确支持远程的岗位');
+  if (remoteEnabled) coverage.push('全国远程岗位（用「关键词 + 远程」搜）');
   const coverageSuffix = remoteEnabled
-    ? '不会包含未选择城市的线下岗位；“全国远程”不等于“全国所有岗位”。'
+    ? '不会包含未选择城市的线下岗位；BOSS 没有“只看远程”的链接参数，所以远程是按搜索词补的，命中率低于城市搜索。'
     : '不会包含未选择城市的岗位。';
   el('coverageSummary').textContent = `${coverage.length ? `本次会搜索：${coverage.join(' + ')}。` : '当前没有可执行的搜索范围。'}${coverageSuffix}`;
 
@@ -225,11 +225,11 @@ function updateSearchGuidance() {
     hints.push(`搜索词匹配门槛 ${relevance} 分高于推荐值 20，结果会更少。`);
   }
   if (recruiterActivityMaxDays > 0) {
-    hints.push(`只保留能确认招聘者最近 ${recruiterActivityMaxDays} 天内活跃的岗位；活跃时间未知时会优先尝试详情确认。`);
+    hints.push(`只会排除能确认招聘者超过 ${recruiterActivityMaxDays} 天未活跃的岗位；活跃时间未知时会优先尝试详情确认，仍未知则保留并标注“未验证”。`);
     if (el('detailMode').value === 'off') {
-      hints.push('你关闭了详情补采；卡片没有招聘者活跃信息的岗位会因无法确认新鲜度而被过滤。');
+      hints.push('你关闭了详情补采；卡片没有招聘者活跃信息的岗位会直接保留为“未验证”，不再被过滤。');
     } else if (detailLimit < 20) {
-      hints.push(`详情页上限只有 ${detailLimit}，招聘者活跃待确认岗位可能来不及全部核实。`);
+      hints.push(`详情页上限只有 ${detailLimit}，招聘者活跃待确认岗位可能来不及全部核实，未核实的会保留为“未验证”。`);
     }
   }
   if (remoteEnabled && el('remotePolicy').value === 'cardOnly') {
@@ -237,7 +237,11 @@ function updateSearchGuidance() {
   }
   if (remoteEnabled && el('remotePolicy').value === 'cardOrDetail' && el('detailMode').value === 'off') {
     hints.push('你关闭了详情补采，卡片没写清远程的岗位无法继续确认。');
-  } else if (remoteEnabled && el('remotePolicy').value === 'cardOrDetail' && detailLimit < 20) {
+  }
+  if (remoteEnabled && el('remotePolicy').value !== 'loose') {
+    hints.push('全国远程会额外用「关键词 + 远程」搜一遍（BOSS 没有“只看远程”的链接参数），再按卡片/详情证据确认；结果通常明显少于城市搜索，不需要时关掉可省约一半采集时间。');
+  }
+  if (remoteEnabled && el('remotePolicy').value === 'cardOrDetail' && detailLimit < 20) {
     hints.push(`详情页上限只有 ${detailLimit}，较低时可能有远程候选来不及确认。`);
   }
   if (el('smartStop').value === 'true' && pages > 1) {
@@ -442,7 +446,7 @@ el('downloadDiagnostics').addEventListener('click', async () => {
 el('downloadRequirementReview').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.requirementReviewJson) {
-    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.4.9 重新采集。');
+    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.5.0 重新采集。');
   }
   await downloadData(
     lastRun.requirementReviewFilename || 'boss-job-filter-requirement-review.json',

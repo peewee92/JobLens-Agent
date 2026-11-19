@@ -162,6 +162,14 @@
     await new Promise(resolve => setTimeout(resolve, 700));
   }
 
+  // 页脚/导航里存在 href="/job_detail/" 的空锚点，它的最近祖先是整块站点导航，
+  // 会被当成一条岗位抓进来（实测导出了 title=职位搜索 的假卡片）。
+  const JOB_DETAIL_HREF = /\/job_detail\/[A-Za-z0-9~_-]{6,}\.html/;
+
+  function isJobDetailHref(href = '') {
+    return JOB_DETAIL_HREF.test(String(href ?? '').split('?')[0]);
+  }
+
   function getCardForAnchor(anchor) {
     return anchor.closest(
       '.job-card-wrapper, .job-card-box, .job-list-box, li, article, [class*="job-card"], [class*="job-list"]'
@@ -199,7 +207,7 @@
 
     for (const anchor of anchors) {
       const url = String(anchor.href || anchor.getAttribute('href') || '').split('?')[0];
-      if (!url || seen.has(url)) continue;
+      if (!url || seen.has(url) || !isJobDetailHref(url)) continue;
       const card = getCardForAnchor(anchor);
       if (!card) continue;
 
@@ -380,6 +388,7 @@
     findAreaInText,
     escapeRegExp,
     getElementText,
+    isJobDetailHref,
     chooseDescriptionCandidate
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;

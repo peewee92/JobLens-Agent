@@ -14,7 +14,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../runner.js'), 'utf8'), context);
 
-const { buildTasks, normalizeRuntimeConfig, normalizeJob, dedupe, classify, sortFinalJobs } = context.BossAiRunnerInternals;
+const { buildTasks, makeUrl, remoteQueryFor, normalizeRuntimeConfig, normalizeJob, dedupe, classify, sortFinalJobs } = context.BossAiRunnerInternals;
 const config = normalizeRuntimeConfig({
   keywords: ['AI Agent 工程师', 'RAG 开发工程师'],
   selectedCities: [
@@ -37,6 +37,31 @@ const tasks = buildTasks(config);
 assert.strictEqual(tasks.length, 6);
 assert.deepStrictEqual(Array.from(new Set(tasks.filter(t => t.scopeType === 'city').map(t => t.city))), ['101200100', '101270100']);
 assert.strictEqual(tasks.filter(t => t.scopeType === 'remote').length, 2);
+
+// BOSS 现役列表路由是 /web/geek/jobs（复数），旧 /web/geek/job 会 302 且追加
+// _security_check 参数；翻页只依赖 query/city/page 三个参数。
+const wuhanTask = tasks.find(t => t.scopeType === 'city' && t.city === '101200100');
+const pageUrl = makeUrl(wuhanTask, 2);
+assert.ok(pageUrl.startsWith('https://www.zhipin.com/web/geek/jobs?'), pageUrl);
+assert.ok(!pageUrl.includes('/web/geek/job?'), 'must not use the legacy singular route');
+assert.ok(!pageUrl.includes('_security_check'), 'collector must not replay BOSS security tokens');
+const parsed = new URL(pageUrl);
+assert.strictEqual(parsed.searchParams.get('query'), 'AI Agent 工程师');
+assert.strictEqual(parsed.searchParams.get('city'), '101200100');
+assert.strictEqual(parsed.searchParams.get('page'), '2');
+assert.strictEqual([...parsed.searchParams.keys()].sort().join(','), 'city,page,query');
+
+// BOSS 没有“只看远程”的链接参数，全国远程改用「关键词 + 远程」搜索：
+// keyword 保持原样（相关度打分仍按用户填的词），只有 query 追加后缀。
+const remoteTasks = tasks.filter(t => t.scopeType === 'remote');
+assert.ok(remoteTasks.every(task => task.query === `${task.keyword} 远程`), 'remote task must search "keyword 远程"');
+assert.deepStrictEqual(Array.from(remoteTasks, task => task.keyword), ['AI Agent 工程师', 'RAG 开发工程师']);
+const remoteUrl = new URL(makeUrl(remoteTasks[0], 1));
+assert.strictEqual(remoteUrl.searchParams.get('query'), 'AI Agent 工程师 远程');
+assert.strictEqual(remoteUrl.searchParams.get('city'), '100010000');
+assert.strictEqual(remoteQueryFor('AI 远程开发'), 'AI 远程开发', 'keyword already mentioning 远程 must not be suffixed twice');
+assert.strictEqual(remoteQueryFor('Remote Backend Engineer'), 'Remote Backend Engineer');
+assert.strictEqual(remoteQueryFor('AI Agent 工程师'), 'AI Agent 工程师 远程');
 
 const cityJob = normalizeJob({
   scope: '成都', scopeType: 'city', cityName: '成都', provinceName: '四川', cityCode: '101270100',

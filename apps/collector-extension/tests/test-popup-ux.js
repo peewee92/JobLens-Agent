@@ -21,7 +21,8 @@ for (const copy of [
   assert.ok(html.includes(copy), `popup should explain ${copy}`);
 }
 
-assert.ok(html.includes('不会包含其他城市的线下岗位'), 'remote scope copy should explain nationwide remote is not nationwide onsite search');
+assert.ok(html.includes('用「关键词 + 远程」全国搜'), 'remote scope copy should explain how nationwide remote is searched');
+assert.ok(html.includes('BOSS 不提供“只看远程”的链接参数'), 'remote scope copy should state the URL limitation');
 assert.ok(html.includes('data-tooltip='), 'advanced fields should expose hover/focus help');
 assert.ok(js.includes("el('coverageSummary')"), 'popup should render a live coverage summary');
 assert.ok(js.includes("el('scarcityHints')"), 'popup should render dynamic result scarcity hints');

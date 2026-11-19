@@ -22,6 +22,8 @@
 
   const REQUIREMENT_REVIEW_SAMPLE_SIZE = 20;
   const REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR = 1.5;
+  // 远程候选单独领的详情额度，避免被活跃待确认队列饿死，也避免反过来吃光全部额度。
+  const REMOTE_DETAIL_QUOTA = 10;
 
   const state = {
     aborted: false,
@@ -111,6 +113,16 @@
       || (!isRemoteJob(job) && Boolean(job.cityName || job.scope));
   }
 
+  // BOSS 不支持“只看远程”的链接参数（列表页是客户端路由，URL 不承载筛选项），
+  // 所以「全国远程」范围改用「关键词 + 远程」去搜：这样进入结果集的岗位至少在
+  // 标题/标签/正文里出现过“远程”，再交给 detectRemote 做证据判定。
+  // 关键词本身已经含“远程/remote”时不重复追加。
+  const REMOTE_QUERY_SUFFIX = ' 远程';
+
+  function remoteQueryFor(keyword) {
+    return /(远程|remote)/i.test(keyword) ? keyword : `${keyword}${REMOTE_QUERY_SUFFIX}`;
+  }
+
   function buildTasks(configRaw) {
     const config = normalizeRuntimeConfig(configRaw);
     const tasks = [];
@@ -135,7 +147,7 @@
           provinceName: '',
           cityOrder: 9999,
           keyword,
-          query: keyword,
+          query: remoteQueryFor(keyword),
           city: config.cityCodes.nationwide
         });
       }
@@ -143,13 +155,21 @@
     return tasks;
   }
 
+  // BOSS 的职位列表路由是 /web/geek/jobs（复数）。/web/geek/job 是旧地址，
+  // 每翻一页都会先 302 到 /jobs 再补一个 _security_check=1_<时间戳> 参数，
+  // 多一次跳转就多一次“页 2 拿回页 1 内容”的机会（实测 97 页里 32 页零新增）。
+  // 远程办公等筛选条件不会出现在 URL 里（/web/geek/jobs 是客户端路由，
+  // URL 参数不反映当前生效的筛选项），所以远程只能靠卡片/详情里的远程证据判断。
+  const JOB_SEARCH_PATH = '/web/geek/jobs';
+  const SEARCH_URL_TEMPLATE = `https://www.zhipin.com${JOB_SEARCH_PATH}?query={query}&city={city}&page={page}`;
+
   function makeUrl(task, pageNo) {
     const params = new URLSearchParams({
       query: task.query,
       city: task.city,
       page: String(pageNo)
     });
-    return `https://www.zhipin.com/web/geek/job?${params.toString()}`;
+    return `https://www.zhipin.com${JOB_SEARCH_PATH}?${params.toString()}`;
   }
 
   function mergeDigitMap(next = {}) {
@@ -398,6 +418,15 @@
     return [...map.values()];
   }
 
+  // 卡片地点出现“城市·区·商圈”或纯城市名，说明这是一个到岗岗位；
+  // 只有在完全没有远程正向证据时才会用到这个判断，用来解释“全国远程”范围为什么落空。
+  function isOnsiteArea(area = '') {
+    const text = clean(area);
+    if (!text) return false;
+    if (/(远程|全国|不限|线上|居家|在家|异地)/.test(text)) return false;
+    return /^[\u4e00-\u9fa5]{2,}(?:[\s·]|$)/.test(text);
+  }
+
   function classify(jobRaw, config, phase = 'final') {
     const job = normalizeJob(jobRaw);
     const salary = parseSalary(job.salary || job.rawText || job.detailText, state.digitMap);
@@ -425,47 +454,71 @@
 
     const recruiterActivityMaxDays = Math.max(0, Number(config.recruiterActivityMaxDays || 0));
     const recruiterActivity = recruiterActivityWithin(job.recruiterActive, recruiterActivityMaxDays);
-    if (recruiterActivityMaxDays > 0 && !recruiterActivity.matched) {
-      if (recruiterActivity.reason === 'unknown' && phase === 'initial' && config.detailMode !== 'off') {
-        return {
-          keep: false,
-          pendingDetail: true,
-          reason: '待详情页确认招聘者活跃',
-          job,
-          salary,
-          remote,
-          recruiterActivity
-        };
-      }
-      const reason = recruiterActivity.reason === 'unknown'
-        ? '招聘者活跃状态未知'
-        : recruiterActivity.reason === 'stale'
-          ? `招聘者超过${recruiterActivityMaxDays}天未活跃`
-          : `招聘者活跃无法确认在${recruiterActivityMaxDays}天内`;
+    // 1. 能确认已超期的才过滤（列表页/详情页读不到活跃文案时一律放行）。
+    if (recruiterActivityMaxDays > 0 && !recruiterActivity.matched && recruiterActivity.reason !== 'unknown') {
+      const reason = recruiterActivity.reason === 'stale'
+        ? `招聘者超过${recruiterActivityMaxDays}天未活跃`
+        : `招聘者活跃无法确认在${recruiterActivityMaxDays}天内`;
       return { keep: false, pendingDetail: false, reason, job, salary, remote, recruiterActivity };
+    }
+    const recruiterActivityUnverified = recruiterActivityMaxDays > 0 && recruiterActivity.reason === 'unknown';
+
+    // 2. 远程范围先于活跃度排队：活跃待确认队列动辄几百条，远程候选若混进去
+    //    永远排不到详情名额（v1.4.9 实测 40/40 被远程和活跃队列互相挤占）；
+    //    卡片地点是线下城市只说明“要看 JD 才能确认”，不再一票否决。
+    if (isRemoteJob(job) && config.remotePolicy === 'cardOrDetail' && !remote.matched && remote.status !== 'rejected'
+      && phase === 'initial' && config.detailMode !== 'off') {
+      return {
+        keep: false,
+        pendingDetail: true,
+        reason: isOnsiteArea(job.area) ? '待详情页确认远程（卡片为线下城市）' : '待详情页确认远程',
+        job,
+        salary,
+        remote,
+        recruiterActivity
+      };
+    }
+
+    // 3. 活跃状态未知时优先补详情，但只作为待确认，不再当成僵尸岗位丢弃。
+    if (recruiterActivityUnverified && phase === 'initial' && config.detailMode !== 'off') {
+      return {
+        keep: false,
+        pendingDetail: true,
+        reason: '待详情页确认招聘者活跃',
+        job,
+        salary,
+        remote,
+        recruiterActivity
+      };
     }
 
     if (isCityJob(job) && !isRemoteJob(job)) {
-      return { keep: true, pendingDetail: false, reason: '通过', job, salary, remote };
+      return { keep: true, pendingDetail: false, reason: '通过', job, salary, remote, recruiterActivity, recruiterActivityUnverified };
     }
 
     if (isRemoteJob(job)) {
       if (config.remotePolicy === 'loose') {
-        return { keep: true, pendingDetail: false, reason: remote.matched ? '通过' : '宽松保留待人工确认', job, salary, remote };
+        return {
+          keep: true,
+          pendingDetail: false,
+          reason: remote.matched ? '通过' : '宽松保留待人工确认',
+          job,
+          salary,
+          remote,
+          recruiterActivity,
+          recruiterActivityUnverified
+        };
       }
       if (remote.matched) {
-        return { keep: true, pendingDetail: false, reason: '通过', job, salary, remote };
+        return { keep: true, pendingDetail: false, reason: '通过', job, salary, remote, recruiterActivity, recruiterActivityUnverified };
       }
       if (remote.status === 'rejected') {
-        return { keep: false, pendingDetail: false, reason: '明确不支持远程', job, salary, remote };
-      }
-      if (config.remotePolicy === 'cardOrDetail' && phase === 'initial' && config.detailMode !== 'off') {
-        return { keep: false, pendingDetail: true, reason: '待详情页确认远程', job, salary, remote };
+        return { keep: false, pendingDetail: false, reason: '明确不支持远程', job, salary, remote, recruiterActivity };
       }
       if (config.remotePolicy === 'cardOrDetail' && !job.detailAttempted) {
-        return { keep: false, pendingDetail: false, reason: '未识别远程标记（详情未补采）', job, salary, remote };
+        return { keep: false, pendingDetail: false, reason: '未识别远程标记（详情未补采）', job, salary, remote, recruiterActivity };
       }
-      return { keep: false, pendingDetail: false, reason: '未识别到远程标记', job, salary, remote };
+      return { keep: false, pendingDetail: false, reason: '未识别到远程标记', job, salary, remote, recruiterActivity };
     }
 
     return { keep: false, pendingDetail: false, reason: '未知搜索范围', job, salary, remote };
@@ -568,6 +621,7 @@
         wuhan: finalJobs.filter(job => job.searchCities?.includes('武汉') || job.scope.split('/').includes('武汉')).length,
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
         recruiterActivityKnown: finalJobs.filter(job => job.recruiterActivityStatus === 'known').length,
+        recruiterActivityUnknown: finalJobs.filter(job => job.recruiterActivityStatus !== 'known').length,
         puaSalaryDecoded: candidates.filter(job => job.salaryHadPua && job.salaryMinK != null).length,
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
@@ -671,6 +725,7 @@
       version: VERSION,
       generatedAt: new Date().toISOString(),
       config,
+      searchUrlTemplate: SEARCH_URL_TEMPLATE,
       learnedDigitMap: serializeDigitMap(state.digitMap),
       counts: {
         rawCards: rawJobs.length,
@@ -686,6 +741,8 @@
         remoteConfirmed: finalJobs.filter(job => job.remoteMatched).length,
         candidateRemoteConfirmed: classified.filter(item => item.remote.matched).length,
         recruiterActivityKnownBeforeFinalFilter: uniqueJobs.filter(job => job.recruiterActivityStatus === 'known').length,
+        recruiterActivityUnknown: classified.filter(item => item.job.recruiterActivityStatus !== 'known').length,
+        recruiterActivityUnverifiedKept: finalJobs.filter(job => job.recruiterActivityStatus !== 'known').length,
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
         detailTargetsPlannedRecruiterActivityCandidates: state.detailStats.plannedRecruiterActivityCandidates,
@@ -931,9 +988,11 @@
           provinceName: task.provinceName,
           cityCode: task.city,
           keyword: task.keyword,
+          query: task.query,
           page: pageNo,
           cards: jobs.length,
           newWithinQuery: newUrls.length,
+          sameAsPreviousPage: pageNo > 1 && newUrls.length === 0,
           puaCards: extraction.puaCards || 0,
           decodedCharacters: extraction.decodedCharacters || 0,
           durationMs: Date.now() - startedAt,
@@ -949,7 +1008,7 @@
 
         consecutiveNoNew = newUrls.length === 0 ? consecutiveNoNew + 1 : 0;
         if (config.smartStop && pageNo >= 2 && consecutiveNoNew >= 1) {
-          log(`该关键词第 ${pageNo} 页没有新增岗位，智能停止后续页。`);
+          log(`该关键词第 ${pageNo} 页与上一页完全相同（${jobs.length} 条全部已抓过），智能停止后续页；若这不是关键词本身结果太少，说明 BOSS 没有真正翻页。`);
           break;
         }
         await delay(randomDelay(config));
@@ -960,7 +1019,10 @@
   function detailPriority(job, initialClass) {
     let score = Number(job.relevanceScore || 0);
     if (initialClass.reason === '待详情页确认招聘者活跃') score += 2000;
-    if (isRemoteJob(job) && initialClass.pendingDetail) score += 1000;
+    if (isRemoteJob(job) && initialClass.pendingDetail) {
+      // “关键词 + 远程”搜出来的卡片若还标着线下城市，先让地点本身就是全国/远程的候选进额度。
+      score += initialClass.reason === '待详情页确认远程（卡片为线下城市）' ? 300 : 1000;
+    }
     if (job.remoteMatched) score += 100;
     score += Number(job.salaryMinK || 0);
     return score;
@@ -1009,16 +1071,24 @@
     const pendingOtherTargets = uniqueTargets.filter(target => (
       target.initialClass.pendingDetail && target.initialClass.reason !== '待详情页确认招聘者活跃'
     ));
+    const pendingRemoteTargets = pendingOtherTargets.filter(target => isRemoteJob(target.job));
+    const pendingRestTargets = pendingOtherTargets.filter(target => !isRemoteJob(target.job));
     const reviewQuota = Math.min(
       Math.ceil(REQUIREMENT_REVIEW_SAMPLE_SIZE * REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR),
       limit,
       acceptedTargets.length
     );
+    const remoteQuota = Math.min(REMOTE_DETAIL_QUOTA, limit);
+    // 顺序 = 已通过岗位（Requirement 验收）→ 远程候选（固定小额度）→ 活跃待确认 → 其他。
+    // 活跃待确认队列动辄几百条，远程候选必须有自己的份额，否则永远排不到；
+    // 反过来远程也只拿 REMOTE_DETAIL_QUOTA，不能像 v1.4.9 那样把 40 个额度吃光。
     const ordered = [
-      ...pendingRecruiterActivityTargets,
       ...acceptedTargets.slice(0, reviewQuota),
-      ...pendingOtherTargets,
-      ...acceptedTargets.slice(reviewQuota)
+      ...pendingRemoteTargets.slice(0, remoteQuota),
+      ...pendingRecruiterActivityTargets,
+      ...pendingRestTargets,
+      ...acceptedTargets.slice(reviewQuota),
+      ...pendingRemoteTargets.slice(remoteQuota)
     ];
     const selected = [];
     const seenUrls = new Set();
@@ -1162,8 +1232,27 @@
     const c = diagnostics.counts;
     log(`过滤诊断：原始 ${c.rawCards}，按范围去重 ${c.uniqueCardsBeforeFilter}，薪资可解析 ${c.salaryParsed}，其中字体解码 ${c.salaryDecodedFromPua}，最终 ${c.finalAfterCrossScopeDedupe}。`);
     log(`详情补采：尝试 ${c.detailAttempted}，页面读取成功 ${c.detailSucceeded}，失败 ${c.detailFailed}；完整 JD ${c.fullJd}，可用于 Requirement 验收 ${c.requirementReviewEligible}。`);
+    log(`招聘者活跃：卡片/详情已知 ${c.recruiterActivityKnownBeforeFinalFilter}，未知 ${c.recruiterActivityUnknown}（未知不再当作僵尸岗，保留 ${c.recruiterActivityUnverifiedKept}）。`);
     const reasons = Object.entries(diagnostics.rejectedReasons).map(([reason, count]) => `${reason} ${count}`).join('；');
     if (reasons) log(`过滤原因：${reasons}`);
+  }
+
+  function logZeroResultHint(diagnostics) {
+    const reasons = Object.entries(diagnostics.rejectedReasons).sort((a, b) => b[1] - a[1]);
+    const dominant = reasons[0];
+    log(`本轮最终 0 条。占位最多的过滤原因：${dominant ? `${dominant[0]} ${dominant[1]} 条` : '无'}。`);
+    if (dominant) {
+      const hints = {
+        薪资低于阈值: '可下调“月薪下限”或用“上限达标”薪资模式。',
+        '薪资无法解析': '面议和按天结算的岗位不参与比较，属预期行为。',
+        '岗位相关度低于阈值': '可下调“岗位与搜索词最低匹配分”，或换更贴近岗位名的搜索词。',
+        '招聘者超过': '可把“招聘者最近多久活跃”改成不限制，扩大召回。',
+        '未识别远程标记': '“全国远程”是用“关键词 + 远程”搜的，命中要求卡片或详情里出现远程证据；不需要远程可以关掉它。',
+        待详情页确认远程: '远程候选的详情额度只有 10 个，可调大“详情页补采上限”。'
+      };
+      const hint = Object.entries(hints).find(([prefix]) => dominant[0].startsWith(prefix));
+      if (hint) log(`建议：${hint[1]}`);
+    }
   }
 
   async function run() {
@@ -1187,6 +1276,7 @@
     const statistics = buildStatistics(finalJobs, uniqueScopedJobs);
     const diagnostics = buildDiagnostics(state.jobs, uniqueScopedJobs, classified, finalJobs, state.config, statistics);
     renderDiagnostics(diagnostics);
+    if (!finalJobs.length) logZeroResultHint(diagnostics);
 
     const candidateRecords = classified.map(item => ({
       ...item.job,
@@ -1251,6 +1341,8 @@
   globalThis.BossAiRunnerInternals = {
     normalizeRuntimeConfig,
     buildTasks,
+    makeUrl,
+    remoteQueryFor,
     normalizeJob,
     mergeJobs,
     dedupe,
