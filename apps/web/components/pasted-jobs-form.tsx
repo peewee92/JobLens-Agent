@@ -13,7 +13,7 @@ import {useRef, useState} from "react";
 import type {ManualJobInput, ManualJobImportResult} from "@/lib/contracts";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
 import {agentScopeHref, jobDetailWithAgentScope} from "@/lib/agent-job-scope";
-import {duplicatePastedJobIndices, hasPastedJobDividers, manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
+import {duplicatePastedJobIndices, hasPastedJobDividers, isUnlistedPastedCompany, manualJobValidation, maxPastedCharacters, parsePastedJobs, submitManualJob} from "@/lib/manual-job-import";
 
 import {savePastedJobScope} from "@/lib/pasted-job-session";
 
@@ -42,6 +42,7 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
   const duplicates = duplicatePastedJobIndices(rows.map(row => row.job));
   const validPending = pending.filter(row => !manualJobValidation(row.job));
   const invalidCount = pending.length - validPending.length;
+  const companyUnlistedCount = pending.filter(row => isUnlistedPastedCompany(row.job.company)).length;
   const saved = rows.filter(row => row.outcome?.kind === "saved").length;
   const created = rows.filter(row => row.outcome?.kind === "saved" && row.outcome.result.created > 0).length;
   const failed = rows.filter(row => row.outcome?.kind === "error").length;
@@ -128,6 +129,7 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
         {uncertain && <p>已确认的结果保留在清单里。剩余条目暂停，请先核对结果未确认的一条。</p>}
       </div>}
       {working !== null && <PendingIndicator label={`正在保存第 ${working + 1} 条岗位…`} slowLabel="还在等待本次回执；已保存的条目不会丢失，请不要重复提交。" />}
+      {companyUnlistedCount > 0 && <p className="jl-callout" data-tone="warning" role="status">有 {companyUnlistedCount} 条没有公司名。知道的话，可在「查看或修改原文」里补上；不确定也可以先按「公司未公开」保存。</p>}
       {invalidCount > 0 && <div className="jl-callout" data-tone="warning" role="status">还有 {invalidCount} 条需要补充，可先保存内容完整的岗位。</div>}
       {offset !== requestedOffset && <p className="jl-callout" role="status">清单刚刚有变化，已显示最后一个有效页面。</p>}
       <ol className="paste-job-list" start={offset + 1}>
@@ -136,12 +138,14 @@ export function PastedJobsForm({onSaved}: {onSaved: (ids: string[]) => void}) {
           const result = row.outcome?.kind === "saved" ? row.outcome.result : null;
           const validation = manualJobValidation(row.job);
           const short = !validation && !!jobDescriptionIssue(row.job.description);
+          const companyUnlisted = isUnlistedPastedCompany(row.job.company);
           const locked = working !== null || row.outcome?.kind === "unknown" || !!result;
           return <li key={row.key} className="paste-job-row" data-row={index}>
             <strong>{row.job.title || "未命名岗位"} · {row.job.company || "公司待填"}</strong>
-            {!result && <div className="jl-inline">
-              {duplicates.has(index) ? <Badge tone="info">批内重复</Badge> : <Badge>待保存</Badge>}
-              {short && <Badge tone="warning">描述待补充</Badge>}
+            {(!result || companyUnlisted) && <div className="jl-inline">
+              {!result && (duplicates.has(index) ? <Badge tone="info">批内重复</Badge> : <Badge>待保存</Badge>)}
+              {companyUnlisted && <Badge tone="warning">公司名待核实</Badge>}
+              {!result && short && <Badge tone="warning">描述待补充</Badge>}
             </div>}
             {!result && duplicates.has(index) && <Callout tone="info">与本批前面一条完全相同，实际新增以保存结果为准。</Callout>}
             {working === index ? <p className="muted">这条正在保存。</p>

@@ -9,6 +9,10 @@ type Result =
 export const maxPastedJobs = 20;
 export const maxPastedCharacters = 1_020_000;
 const unknownCompany = "公司未公开";
+
+export function isUnlistedPastedCompany(company: string): boolean {
+  return company.trim() === unknownCompany;
+}
 const companyHeader = /^(?:(\d{1,2})\s*[.、）)]\s*)?([^｜|]{1,255})[｜|]([^｜|]{1,255})$/u;
 const separator = /^\s*---\s*$/u;
 

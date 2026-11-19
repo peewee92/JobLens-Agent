@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {duplicatePastedJobIndices, manualJobValidation, parsePastedJobs} from "../lib/manual-job-import";
+import {duplicatePastedJobIndices, isUnlistedPastedCompany, manualJobValidation, parsePastedJobs} from "../lib/manual-job-import";
 
 test("numbered, copied job list keeps the original internal lines", () => {
   const jobs = parsePastedJobs("【样本｜非真实招聘】\r\n\r\n1. 甲｜公司甲\r\n要求：了解 Python。\r\n表格列一 | 表格列二\r\n  保留缩进\r\n\r\n2、乙 | 公司乙\r\n待补充");
@@ -40,4 +40,11 @@ test("explicit dividers never absorb a company-less posting into a named company
     ["丙", "公司未公开", "待补充"], ["甲", "公司甲", "第一条原文"],
   ]);
   assert.deepEqual([...duplicatePastedJobIndices(jobs)], [3]);
+});
+
+test("company-less postings are visibly unverified but not rejected by the importer", () => {
+  const [missing, named] = parsePastedJobs("甲\n岗位原文\n---\n乙｜真实公司\n岗位原文");
+  assert.ok(isUnlistedPastedCompany(missing.company));
+  assert.equal(isUnlistedPastedCompany(named.company), false);
+  assert.equal(manualJobValidation(missing), null);
 });
