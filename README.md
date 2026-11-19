@@ -15,15 +15,15 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 
 ## 线上访问与故障排查
 
-**公开体验：[https://joblens-agent.vercel.app/demo](https://joblens-agent.vercel.app/demo)**。无需登录，也不需要上传简历、配置模型或付费。点击「开始／重新开始样本体验」，可用三条合成岗位完成**比较 → 确认目标 → 建立准备工作区 → 开始行动**。
+**公开体验：[https://joblens-agent.vercel.app/demo](https://joblens-agent.vercel.app/demo)**。无需登录、上传简历、配置模型或付费。可以先浏览[首页](https://joblens-agent.vercel.app/)、[我的背景](https://joblens-agent.vercel.app/profile)、[我的岗位](https://joblens-agent.vercel.app/jobs)和[我的准备](https://joblens-agent.vercel.app/applications)；不必先启用样本。点击「开始样本体验」或当前页的样本按钮，即可用三条合成岗位完成**比较 → 确认目标 → 建立准备工作区 → 开始行动**。
 
-页面由 Vercel 提供，演示后端运行在 Render 免费实例。每位访客使用独立的临时会话。允许本站 Cookie 并在同一浏览器内操作，刷新通常保留进度；**闲置 30 分钟、会话满 2 小时或后端休眠、重启后，进度可能重置**。这不是可长期保存简历的云端账户版；用真实资料并长期保留，请走下方的本地正式版。
+页面由 Vercel 提供，样本操作依赖 Render 免费后端。每位访客使用独立的临时会话：允许本站 Cookie 并在同一浏览器内操作，刷新通常保留进度；**会话闲置 30 分钟、创建满 2 小时或后端休眠、重启后，进度可能丢失**。公开体验只用合成数据，不用于长期保存个人资料。要使用自己的简历并保留进度，请使用下方的[本地正式版](#本地正式使用从自己的资料开始)。
 
 | 遇到的情况 | 可以怎么做 |
 | --- | --- |
-| 页面能打开，但点击开始后提示服务正在唤醒或暂时不可用 | 免费后端闲置后会休眠。等待约 1 分钟，再手动点一次；不要连续点击。如果仍无法开始，可运行下方的本地离线演示。 |
-| 页面提示会话已结束，或原来的工作区打不开 | 回到[公开体验入口](https://joblens-agent.vercel.app/demo)重新开始。换浏览器或无痕窗口不会沿用原会话，已过期记录不会恢复。 |
-| 页面本身打不开、要求登录 Vercel，或停在浏览器网络错误页 | 先确认使用上面的公开网址，而非部署预览链接。国内不同网络的访问情况可能不同，尚未完成多网络验收；也可以看[操作录屏](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)或使用本地离线演示。 |
+| 页面能打开，但点击开始后提示服务正在唤醒或暂时不可用 | [Render 免费后端会在闲置时休眠](https://render.com/docs/free#spinning-down-on-idle)。在当前页等约 1 分钟，再手动点一次，不要连续点击。如果仍无法开始，可运行[本地离线演示](#先体验本地零模型演示)。 |
+| 页面提示会话已结束，或原来的工作区打不开 | 在当前页面重新打开样本，或回到[公开体验入口](https://joblens-agent.vercel.app/demo)重新开始。允许本站 Cookie；换浏览器或无痕窗口不会沿用原会话，已过期的进度不能恢复。 |
+| 页面本身打不开、要求登录 Vercel，或浏览器提示网络错误 | 先确认使用上面的公开网址，而不是部署预览链接；有条件可换一个网络再试。未验证国内不同网络的可用性。仍打不开时，可看[操作录屏](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)，或者按[本地离线演示](#先体验本地零模型演示)安装后运行 `python3 scripts/demo.py`。 |
 
 - [部署与回滚步骤](docs/release/DEPLOY.md)：Vercel 网页、Render 后端和独立临时会话。
 - [真实模型与用户验收](docs/release/QUALITY-AND-USER-STUDY.md)：合成演示不是实时模型效果验证。另见[真实模型小样本结果](docs/release/REAL-MODEL-RESULTS.md)。
