@@ -7,6 +7,7 @@ const {a, b} = JSON.parse(await readFile(process.env.JOBLENS_CLOUD_SMOKE_ACCOUNT
 const marker = "JobLens Synthetic Workspace B";
 const syntheticJob = `${marker} — 岗位隔离验收`;
 const afterRestart = process.argv.includes("--after-restart");
+const privateOnly = process.argv.includes("--private-only");
 
 function browser() {
   const jar = new Map();
@@ -35,7 +36,7 @@ function browser() {
 
 const start = (request, account) => request("/private/api/workspace-session", {method: "POST", body: {email: account.email, password: account.password}});
 const guest = browser(), alpha = browser(), beta = browser();
-assert.equal((await guest("/demo")).status, 200);
+if (!privateOnly) assert.equal((await guest("/demo")).status, 200);
 const redirect = await guest("/private", {headers: {"x-joblens-private-sign-in-page": "1", "X-Joblens-Owner": a.id}});
 assert.equal(redirect.status, 307);
 assert.equal(new URL(redirect.location, origin).pathname, "/private/sign-in");
@@ -43,6 +44,12 @@ assert.equal((await guest("/private/sign-in")).status, 200);
 assert.equal((await guest("/private/api/jobs")).status, 401);
 assert.equal((await guest("/private/quality")).status, 404);
 assert.equal((await guest("/private/api/workspace-session", {method: "POST", originOverride: "https://example.com", body: {}})).status, 403);
+const unknownEmail = "uninvited-smoke@example.invalid";
+const codeRequest = await guest("/private/api/workspace-session", {method: "POST", body: {mode: "send-code", email: unknownEmail}});
+assert.equal(codeRequest.status, 202);
+assert.ok(codeRequest.data.message.includes("如果这个邮箱已受邀"));
+assert.equal((await guest("/private/api/workspace-session", {method: "POST", body: {mode: "verify-code", email: unknownEmail, code: "000001"}})).status, 401);
+assert.equal((await guest("/private/api/jobs")).status, 401);
 assert.equal((await start(alpha, a)).status, 204);
 assert.equal((await start(beta, b)).status, 204);
 for (const entry of ["/private", "/private/profile", "/private/jobs", "/private/applications", "/private/import"]) {
@@ -79,12 +86,15 @@ assert.equal(savedJobs.data.items[0].title, syntheticJob);
 assert.equal((await alpha(`/private/api/jobs/${encodeURIComponent(savedJobs.data.items[0].id)}/original`)).status, 404);
 assert.ok((await beta("/private/profile")).text.includes(marker));
 assert.ok(!(await alpha("/private/profile")).text.includes(marker));
-assert.ok(!(await beta("/demo")).text.includes(marker));
-assert.equal((await beta("/api/demo/session", {method: "POST"})).status, 200);
-assert.ok(!(await beta("/jobs")).text.includes(marker));
+if (!privateOnly) {
+  assert.ok(!(await beta("/demo")).text.includes(marker));
+  assert.equal((await beta("/api/demo/session", {method: "POST"})).status, 200);
+  assert.ok(!(await beta("/jobs")).text.includes(marker));
+}
 assert.equal((await beta("/private/api/jobs")).data.total, 1);
 assert.equal((await beta("/private/api/workspace-session", {method: "DELETE"})).status, 204);
 assert.equal((await beta("/private/api/jobs")).status, 401);
 assert.equal((await start(beta, b)).status, 204);
 assert.equal((await beta("/private/api/jobs")).data.total, 1);
-console.log(afterRestart ? "PASS — both isolated accounts retain their records after backend restart" : "PASS — guest, two hosted identities, writes, demo isolation, sign-out and sign-in");
+console.log(afterRestart ? "PASS — both isolated accounts retain their records after backend restart"
+  : `PASS — guest, uninvited code requests, two hosted identities, writes, sign-out and sign-in${privateOnly ? "" : ", demo isolation"}`);

@@ -3,7 +3,22 @@ import {createAuthServer, extractNeonAuthCookies, resolveNeonAuthLogging} from "
 import {cookies, headers} from "next/headers";
 import {cache} from "react";
 import {validCloudOwner, WORKSPACE_SESSION_COOKIE} from "@/lib/cloud-api-identity";
+import {normalizeSignInEmail, workspaceCodeRecipients} from "@/lib/private-sign-in";
 import {hostingOrigin, isPrivateWorkspaceBuild, PRIVATE_WORKSPACE_PATH} from "@/lib/workspace-path";
+
+type NeonCodeMethods = {
+  emailOtp: {
+    sendVerificationOtp(input: {email: string; type: "sign-in"}): Promise<{error: unknown}>;
+  };
+  signIn: {
+    emailOtp(input: {email: string; otp: string}): Promise<{error: {status?: number} | null}>;
+  };
+};
+
+export function workspaceCodeAuth() {
+  // The server SDK mounts both managed endpoints, but 0.8.2's client type omits the OTP plugin.
+  return workspaceAuth() as unknown as NeonCodeMethods;
+}
 
 export function workspaceAuth() {
   const baseUrl = process.env.NEON_AUTH_BASE_URL;
@@ -39,5 +54,8 @@ export const readWorkspaceOwner = cache(async (): Promise<string | null> => {
   type SessionOptions = NonNullable<Parameters<typeof auth.getSession>[0]>;
   const {data, error} = await auth.getSession({query: {disableCookieCache: "true"}} as unknown as SessionOptions);
   if (error && ![401, 403].includes(error.status ?? 0)) throw new Error("Private sign-in is unavailable");
-  return data?.session && validCloudOwner(data.user?.id) ? data.user.id : null;
+  if (!data?.session || !validCloudOwner(data.user?.id)) return null;
+  const email = normalizeSignInEmail(data.user.email);
+  if (email && workspaceCodeRecipients(process.env.JOBLENS_CLOUD_CODE_EMAILS).has(email) && data.user.emailVerified !== true) return null;
+  return data.user.id;
 });

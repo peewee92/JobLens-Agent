@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {cloudIdentityHeaders} from "../lib/cloud-api-identity";
 import {privateRouteKind} from "../lib/private-routing";
+import {parseWorkspaceSignIn, workspaceCodeRecipients} from "../lib/private-sign-in";
 import {hostingOrigin, workspacePath} from "../lib/workspace-path";
 
 test("the independent build preserves route, query and anchor without absorbing public or external links", () => {
@@ -45,4 +46,18 @@ test("tenant forwarding matches the FastAPI HMAC and binds method and query", ()
   assert.notEqual(make("POST", path)["X-Joblens-Workspace-Signature"], expected);
   assert.notEqual(make("GET", path + "&owner=another")["X-Joblens-Workspace-Signature"], expected);
   assert.throws(() => make("GET", "/api/v1/jobs\ntest"));
+});
+
+test("the invited email-code path accepts fixed length text with leading zeros and does not parse registration", () => {
+  const email = "pilot@example.com";
+  const recipients = workspaceCodeRecipients(" , PILOT@example.com ,invalid,pilot@example.com, next@example.com");
+  assert.deepEqual([...recipients], [email, "next@example.com"]);
+  assert.deepEqual([...workspaceCodeRecipients(undefined)], []);
+  assert.deepEqual(parseWorkspaceSignIn({mode: "send-code", email: "  PILOT@example.com", ownerId: "not-trusted"}), {mode: "send-code", email});
+  assert.deepEqual(parseWorkspaceSignIn({mode: "verify-code", email, code: "009912"}), {mode: "verify-code", email, code: "009912"});
+  assert.deepEqual(parseWorkspaceSignIn({email, password: "unchanged secret"}), {mode: "password", email, password: "unchanged secret"});
+  for (const input of [{mode: "sign-up", email}, {mode: "verify-code", email, code: 123456},
+    {mode: "verify-code", email, code: "A23456"}, {mode: "send-code", email: "a@@example.com"}, null]) {
+    assert.equal(parseWorkspaceSignIn(input), null);
+  }
 });
