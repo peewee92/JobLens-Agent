@@ -1,5 +1,5 @@
+import {demoEntryPreview, PublicDemoPreview} from "@/components/public-demo-preview";
 import {publicSession} from "@/lib/model-session";
-import {redirect} from "next/navigation";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import {EvidenceActionProgress} from "@/components/evidence-action-progress";
 import {PageHeading} from "@/components/ui/patterns";
@@ -81,14 +81,23 @@ export default async function ProfilePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  if ((await publicSession())?.mode === "byok") redirect("/my-analysis");
+  const preview = await demoEntryPreview("/profile");
+  if (preview) return preview;
   if (publicDemoEnabled()) {
     try {
       const profile = await fetchCurrentProfile();
-      return <section className="detail-card"><h1>合成样本背景</h1><p>这是两年工作经验、掌握 Python 的合成资料，不是真实职业经历。公开演示不接收私人简历或资料修改。</p>
+      if ((await publicSession())?.mode === "byok") return <section className="detail-card stack-md">
+        <PageHeading title="我的背景" description="当前使用你自己的模型进行临时分析。" />
+        {profile?.evidence.length ? <ul>{profile.evidence.map(item => <li key={item.id}>{item.summary}</li>)}</ul>
+          : <p>这次会话还没有已确认的经历。</p>}
+        <Link className="button" href="/my-analysis">前往分析页核对职业资料</Link>
+      </section>;
+      return <section className="detail-card"><h1>我的背景 · 合成样本</h1><p>这是两年工作经验、掌握 Python 的合成资料，不是真实职业经历。公开演示不接收私人简历或资料修改。</p>
         <ul>{profile?.evidence.map(item => <li key={item.id}>{item.summary}</li>)}</ul>
         <Link className="button" href="/agent">比较三个样本岗位</Link></section>;
-    } catch {return <section className="error-panel"><h1>演示会话暂时不可用</h1><Link href="/demo">重新开始样本体验</Link></section>;}
+    } catch (error) {
+      return <PublicDemoPreview destination="/profile" status={error instanceof BackendApiError && error.status === 410 ? "expired" : "unavailable"} />;
+    }
   }
   const [params, localProfileModel] = await Promise.all([
     searchParams,

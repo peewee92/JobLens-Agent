@@ -1,9 +1,12 @@
+import {cookies} from "next/headers";
 import Link from "next/link";
 import {DemoStart} from "@/components/demo-start";
-import {publicDemoEnabled} from "@/lib/public-demo";
+import {DEMO_COOKIE, publicDemoEnabled} from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
-export default function DemoPage() {
+export default async function DemoPage() {
+  const canStart = publicDemoEnabled();
+  const hasCookie = canStart && Boolean((await cookies()).get(DEMO_COOKIE)?.value);
   return <section className="hero product-hero"><p className="eyebrow">JobLens · 公开合成演示</p>
     <h1>三个岗位，先准备哪个？</h1>
     <p className="lede">用一份合成背景，比较有证据支持、证据不足和明确冲突的三个岗位，再确认目标并开始一项准备行动。</p>
@@ -11,6 +14,6 @@ export default function DemoPage() {
     <p>不需要私人简历或模型密钥。所有资料和岗位均为合成样本，在线模型已禁用；这不是实时模型效果展示。</p>
     <p>每位访客独立体验；刷新保留当前进度。闲置 30 分钟、最长两小时或服务重启后重置，不用于长期保存求职资料。</p>
     {publicDemoEnabled() && <p><Link className="button-secondary" href="/connect">连接我的模型，进行真实分析</Link></p>}
-    {publicDemoEnabled() ? <DemoStart/> : <p>本地演示请运行仓库根目录的 <code>python3 scripts/demo.py</code>。</p>}
+    {canStart ? <DemoStart label={hasCookie ? "重新开始样本（会替换当前会话）" : "开始样本体验"} /> : <p>本地演示请运行仓库根目录的 <code>python3 scripts/demo.py</code>。</p>}
   </section>;
 }

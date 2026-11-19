@@ -1,3 +1,6 @@
+import {publicSession} from "@/lib/model-session";
+import {publicDemoEnabled} from "@/lib/public-demo";
+import {demoEntryPreview, PublicDemoPreview} from "@/components/public-demo-preview";
 import Link from "next/link";
 
 import {JobFilters} from "@/components/job-filters";
@@ -19,6 +22,9 @@ import {userFacingReadError} from "@/lib/user-facing-errors";
 export const dynamic = "force-dynamic";
 
 export default async function JobsPage({searchParams}: {searchParams: Promise<SearchParams>}) {
+  const preview = await demoEntryPreview("/jobs");
+  if (preview) return preview;
+  const demoSession = await publicSession();
   const filters = parseJobFilters(await searchParams);
   let page;
   let pageAdjusted = false;
@@ -30,6 +36,9 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
       pageAdjusted = true;
     }
   } catch (caught) {
+    if (publicDemoEnabled() && caught instanceof BackendApiError && [410, 503, 504].includes(caught.status)) {
+      return <PublicDemoPreview destination="/jobs" status={caught.status === 410 ? "expired" : "unavailable"} />;
+    }
     const failure = caught instanceof BackendApiError ? caught : null;
     return <>
       <PageHeading title="我的岗位" />
@@ -39,7 +48,8 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
   }
 
   const activeFilters = activeJobFilterLabels(filters).length > 0 || filters.sort !== "latest";
-  const compareHref = "/agent";
+  const compareHref = demoSession?.mode === "byok" ? "/my-analysis" : "/agent";
+  const addJobHref = !demoSession ? "/import" : demoSession.mode === "byok" ? "/my-analysis" : null;
   return <>
     <PageHeading kicker="求职工作台" title="我的岗位" description="浏览收藏的岗位，核对招聘原文，再比较哪些值得准备。" />
 
@@ -49,7 +59,7 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
         <div><h2 id="job-list-heading" tabIndex={-1}>岗位列表</h2><p>打开岗位看要求，或快速查看原文。</p></div>
         <div className="jl-inline">
           {page.total > 0 && <Button variant="secondary" asChild><Link href={compareHref}>比较岗位</Link></Button>}
-          <Button asChild><Link href="/import">添加岗位</Link></Button>
+          {addJobHref && <Button asChild><Link href={addJobHref}>添加岗位</Link></Button>}
         </div>
       </div>
       <JobFilters filters={filters} />
@@ -61,7 +71,7 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
       activeFilters ? <EmptyState title="没有符合当前条件的岗位" description="可以清空或调整条件；已添加的岗位还在。"
         actions={<Button variant="secondary" asChild><Link href="/jobs">清空筛选</Link></Button>} />
       : <EmptyState title="还没添加岗位" description="粘贴一条招聘描述就能开始，现在不必先上传简历。"
-        actions={<Button asChild><Link href="/import">添加第一个岗位</Link></Button>} />
+        actions={addJobHref && <Button asChild><Link href={addJobHref}>添加第一个岗位</Link></Button>} />
     ) : (
       <section className="jl-panel jl-job-results" aria-label="岗位搜索结果">
         <ul className="jl-job-table">

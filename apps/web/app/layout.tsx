@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({children}: {children: ReactNode}) {
   const session = await publicSession();
+  const isPublicDemo = publicDemoEnabled();
   return (
     <html lang="zh-CN">
       <body>
@@ -32,11 +33,11 @@ export default async function RootLayout({children}: {children: ReactNode}) {
               </span>
             </a>
             <nav className="site-nav" aria-label="主导航">
-              <NavLink href="/">首页</NavLink>
-              <NavLink href="/profile">我的背景</NavLink>
-              <NavLink href="/jobs">我的岗位</NavLink>
-              <NavLink href="/applications">我的准备</NavLink>
-              {publicDemoEnabled() && <NavLink href="/connect">模型设置</NavLink>}
+              <NavLink fresh={isPublicDemo} href="/">首页</NavLink>
+              <NavLink fresh={isPublicDemo} href="/profile">我的背景</NavLink>
+              <NavLink fresh={isPublicDemo} href="/jobs">我的岗位</NavLink>
+              <NavLink fresh={isPublicDemo} href="/applications">我的准备</NavLink>
+              {publicDemoEnabled() && <NavLink fresh={isPublicDemo} href="/connect">模型设置</NavLink>}
             </nav>
             <ThemeChoice />
           </div>
@@ -44,7 +45,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
         <main id="main" tabIndex={-1} className="shell page-shell">
           {session?.mode === "byok" && <aside className="jl-root-notice"><strong>自带模型真实分析</strong>：资料来源为{session.synthetic ? "合成样本" : "用户填写"}，模型费用由你的账户承担。进度临时保存，闲置 30 分钟、最长两小时或服务重启后失效。<Link href="/my-analysis">继续分析</Link> · <Link href="/connect">设置与导出</Link></aside>}
           {(process.env.JOBLENS_DEMO === "1" || publicDemoEnabled()) && session?.mode !== "byok" && <aside className="jl-root-notice" role="note" aria-label="隔离合成演示">
-            <strong>离线合成演示</strong>：这里的资料、公司和岗位均为合成样本，不是真实求职结论。已禁用在线模型；数据保存在独立演示库，不会修改你的真实记录。{publicDemoEnabled() && <>临时进度可能随服务休眠或重启丢失。<Link href="/demo">重新开始样本体验</Link></>}
+            <strong>离线合成演示</strong>：这里的资料、公司和岗位均为合成样本，不是真实求职结论。已禁用在线模型；数据保存在独立演示库，不会修改你的真实记录。{publicDemoEnabled() && <>临时进度可能随服务休眠或重启丢失。<Link href="/demo">样本体验说明</Link></>}
           </aside>}
           {process.env.JOBLENS_LOCAL_PRODUCT === "1" && !publicDemoEnabled() &&
             <aside className="jl-root-notice" role="note" aria-label="本地正式使用"><strong>本地正式使用</strong>：使用你录入的资料与岗位，进度保存在本机。只有授权的模型步骤才会把指定文本发送给模型服务。</aside>}
