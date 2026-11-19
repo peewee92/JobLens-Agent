@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import {OpenCatalogJob} from "./job-catalog-navigation";
 import {useEffect, useState} from "react";
 import {DetailDrawer} from "./ui/drawer";
 import {Button} from "./ui/button";
@@ -10,7 +10,7 @@ import {userFacingReadError} from "@/lib/user-facing-errors";
 type ReadState = {attempt: number; description: string | null} |
   {attempt: number; status: number; code?: string};
 
-function OriginalContent({jobId, href}: {jobId: string; href: string}) {
+function OriginalContent({jobId, href, rowId}: {jobId: string; href: string; rowId: string}) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<ReadState | null>(null);
   const current = state?.attempt === attempt ? state : null;
@@ -41,13 +41,13 @@ function OriginalContent({jobId, href}: {jobId: string; href: string}) {
         </section>
       : current.description?.trim() ? <div className="jl-source-text" tabIndex={0}>{current.description}</div>
       : <section className="jl-callout stack-sm"><h3>还没有岗位原文</h3><p>可以打开岗位详情，补充招聘描述后再核对要求。</p></section>}
-    <div><Button variant="secondary" asChild><Link href={href}>打开完整岗位详情</Link></Button></div>
+    <div><Button variant="secondary" asChild><OpenCatalogJob href={href} rowId={rowId} fromOriginal>打开完整岗位详情</OpenCatalogJob></Button></div>
   </div>;
 }
 
-export function JobOriginal({jobId, title, company, href}: {jobId: string; title: string; company: string; href: string}) {
-  return <DetailDrawer trigger={<Button variant="subtle" aria-label={`查看 ${title} 的岗位原文`}>查看原文</Button>}
+export function JobOriginal({jobId, title, company, href, rowId}: {jobId: string; title: string; company: string; href: string; rowId: string}) {
+  return <DetailDrawer trigger={<Button variant="subtle" id={`${rowId}-original`} aria-label={`查看 ${title} 的岗位原文`}>查看原文</Button>}
     title={title} description={`${company} · 岗位原文，不会重新分析`}>
-    <OriginalContent jobId={jobId} href={href} />
+    <OriginalContent jobId={jobId} href={href} rowId={rowId} />
   </DetailDrawer>;
 }

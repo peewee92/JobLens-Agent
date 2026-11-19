@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import {JobFilters} from "@/components/job-filters";
+import {OpenCatalogJob, RestoreCatalogPosition} from "@/components/job-catalog-navigation";
+import {jobCatalogRowId, withJobCatalogReturn} from "@/lib/job-catalog-return";
 import {JobOriginal} from "@/components/job-original";
 import {Button} from "@/components/ui/button";
 import {EmptyState, PageHeading} from "@/components/ui/patterns";
@@ -41,9 +43,10 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
   return <>
     <PageHeading kicker="求职工作台" title="我的岗位" description="浏览收藏的岗位，核对招聘原文，再比较哪些值得准备。" />
 
+    <RestoreCatalogPosition />
     {(page.total > 0 || activeFilters || filters.offset > 0) && <section className="jl-panel jl-job-catalog" aria-labelledby="job-list-heading">
       <div className="jl-list-heading">
-        <div><h2 id="job-list-heading">岗位列表</h2><p>打开岗位看要求，或快速查看原文。</p></div>
+        <div><h2 id="job-list-heading" tabIndex={-1}>岗位列表</h2><p>打开岗位看要求，或快速查看原文。</p></div>
         <div className="jl-inline">
           {page.total > 0 && <Button variant="secondary" asChild><Link href={compareHref}>比较岗位</Link></Button>}
           <Button asChild><Link href="/import">添加岗位</Link></Button>
@@ -64,10 +67,11 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
         <ul className="jl-job-table">
           {page.items.map((job) => {
             const labels = jobSourceLabels(job.source);
-            const href = `/jobs/${encodeURIComponent(job.id)}`;
+            const rowId = jobCatalogRowId(job.id);
+            const href = withJobCatalogReturn(`/jobs/${encodeURIComponent(job.id)}`, jobsHref(filters, page.offset));
             return <li key={job.id} className="jl-job-row">
               <div className="jl-job-name">
-                <h3><Link href={href}>{job.title}</Link></h3>
+                <h3><OpenCatalogJob id={rowId} rowId={rowId} href={href}>{job.title}</OpenCatalogJob></h3>
                 <p>{job.company}{job.area && ` · ${job.area}`}</p>
               </div>
               <div className="jl-job-meta">
@@ -75,7 +79,7 @@ export default async function JobsPage({searchParams}: {searchParams: Promise<Se
                 <RemoteStatusPill status={job.remoteStatus} />
               </div>
               <p className="jl-job-source">{labels.source}<span>{labels.recordedAt}：{formatDateTime(job.collectedAt)}</span></p>
-              <JobOriginal jobId={job.id} title={job.title} company={job.company} href={href} />
+              <JobOriginal jobId={job.id} title={job.title} company={job.company} href={href} rowId={rowId} />
             </li>;
           })}
         </ul>

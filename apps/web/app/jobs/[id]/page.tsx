@@ -1,3 +1,4 @@
+import {jobCatalogPath, jobCatalogRowId, withJobCatalogReturn} from "@/lib/job-catalog-return";
 import {gapScope, gapScopeHref, withGapReturn} from "@/lib/gap-scope";
 import {createHash} from "node:crypto";
 import {JobDescriptionEditor} from "@/components/job-description-editor";
@@ -57,15 +58,16 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; gapJobId?: string | string[]; scopeJobId?: string | string[]; returnThreadId?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; gapJobId?: string | string[]; scopeJobId?: string | string[]; returnThreadId?: string | string[]; returnJobs?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError, reportId, gapJobId, scopeJobId, returnThreadId, [descriptionSavedQuery]: savedRevision} = await searchParams;
+  const {requirementExtractionError, reportId, gapJobId, scopeJobId, returnThreadId, returnJobs, [descriptionSavedQuery]: savedRevision} = await searchParams;
   const agentScope = parseAgentScope(scopeJobId);
   const retainedScope = agentScope?.includes(id) ? agentScope : null;
   const gapIds = gapScope(gapJobId);
   const detailPath = withGapReturn(retainedScope ? jobDetailWithAgentScope(id, retainedScope) : `/jobs/${encodeURIComponent(id)}`, gapIds);
-  const detailHref = validThreadReference(returnThreadId) ? `${detailPath}${detailPath.includes("?") ? "&" : "?"}${new URLSearchParams({returnThreadId})}` : detailPath;
+  const catalogPath = jobCatalogPath(returnJobs);
+  const detailHref = withJobCatalogReturn(validThreadReference(returnThreadId) ? `${detailPath}${detailPath.includes("?") ? "&" : "?"}${new URLSearchParams({returnThreadId})}` : detailPath, catalogPath);
   function reportHref(report: string) {
     return `${detailHref}${detailHref.includes("?") ? "&" : "?"}${new URLSearchParams({reportId: report})}`;
   }
@@ -185,7 +187,7 @@ export default async function JobDetailPage({
   return (
     <>
       <div className="actions" style={{marginBottom: 18}}>
-        <Link className="button-ghost" href="/jobs">← 返回我的岗位</Link>
+        <Link className="button-ghost" href={catalogPath ? `${catalogPath}#${jobCatalogRowId(id)}` : "/jobs"}>← 返回我的岗位</Link>
         {gapIds.length > 0 && <Link className="button-ghost" href={gapScopeHref(gapIds)}>← 返回原目标岗位差距</Link>}
         {retainedScope && <Link className="button-ghost" href={agentScopeHref(retainedScope)}>← 返回所选岗位分析</Link>}
         {validThreadReference(returnThreadId) && <Link className="button-ghost" href={runHref(returnThreadId)}>← 返回本次分析</Link>}
