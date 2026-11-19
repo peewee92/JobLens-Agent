@@ -237,7 +237,9 @@ try {
 
   const jobBeforeFinalDecision = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(jobBeforeFinalDecision, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(jobBeforeFinalDecision, /当前没有有效的岗位要求审核基线/);
+  // The product exposes the per-job review path; the actual release blocker was checked above.
+  assert.match(jobBeforeFinalDecision, /请核对当前岗位要求/);
+  assert.match(jobBeforeFinalDecision, /模型整体质量评审（高级）/);
 
   const completedPage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,

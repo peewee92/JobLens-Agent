@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import {publicDemoEnabled} from "@/lib/public-demo";
+import {ThemeChoice} from "@/components/theme-choice";
 import {NavLink} from "@/components/nav-link";
 import "@/app/globals.css";
 import "@/app/design.css";
@@ -24,7 +25,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
         <header className="site-header">
           <div className="shell header-inner">
             <a className="brand" href="/" aria-label="JobLens 首页">
-              <span className="brand-mark">JL</span>
+              <span className="brand-mark" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"><path d="M4 7.5h5.5l3 4.5-3 4.5H4l3-4.5L4 7.5Z"/><path d="M14 7.5h5.5l-3 4.5 3 4.5H14"/></svg></span>
               <span>
                 <strong>JobLens</strong>
                 <small>看懂岗位 · 做更稳的求职选择</small>
@@ -37,6 +38,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
               <NavLink href="/applications">我的准备</NavLink>
               {publicDemoEnabled() && <NavLink href="/connect">模型设置</NavLink>}
             </nav>
+            <ThemeChoice />
           </div>
         </header>
         <main id="main" tabIndex={-1} className="shell page-shell">

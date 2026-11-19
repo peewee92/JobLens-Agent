@@ -311,15 +311,14 @@ test("job detail keeps internal requirement metadata out of the ordinary user ex
 
 test("requirement extraction gives a clear live processing state for long requests", async () => {
   const button = await source("components/job-requirement-extract-button.tsx");
-  const css = await source("app/globals.css");
+  const pending = await source("components/ui/pending-indicator.tsx");
 
-  assert.match(button, /正在分析岗位要求…/);
-  assert.match(button, /请保持页面打开/);
-  assert.match(button, /role="status"/);
-  assert.match(button, /aria-live="polite"/);
-  assert.match(button, /requirement-processing-indicator/);
-  assert.match(css, /\.requirement-processing-indicator/);
-  assert.match(css, /\.loading-spinner/);
+  assert.match(button, /正在分析岗位要求并打开结果/);
+  assert.match(button, /不需要重复提交/);
+  assert.match(button, /<PendingIndicator/);
+  assert.match(pending, /role="status"/);
+  assert.match(pending, /3000/);
+  assert.match(button, /savedModelExtractionHref/);
 });
 
 test("requirement eval overview exposes the lightweight offline MVP quality gate", async () => {

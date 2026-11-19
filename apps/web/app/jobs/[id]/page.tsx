@@ -11,6 +11,7 @@ import {JobAvailabilityControl} from "@/components/job-availability-control";
 import {validImportMatchInputs} from "@/lib/import-match-readiness";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
+import {PagedRecords} from "@/components/paged-records";
 import {Badge} from "@/components/ui/primitives";
 import {agentScopeHref, jobDetailWithAgentScope, parseAgentScope, profileWithAgentScope} from "@/lib/agent-job-scope";
 import {runHref, validThreadReference} from "@/lib/career-agent-commands";
@@ -340,14 +341,12 @@ export default async function JobDetailPage({
             {history && history.items.length > 0 ? (
               <details>
                 <summary>查看保存的匹配历史（{history.count} 份）</summary>
-                <ul>{history.items.map((item) => (
-                  <li key={item.reportId}>
-                    <Link href={reportHref(item.reportId)}>
-                      {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
-                      {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
-                    </Link>
-                  </li>
-                ))}</ul>
+                <PagedRecords label="匹配报告历史" limit={10} items={history.items.map(item => (
+                  <Link key={item.reportId} href={reportHref(item.reportId)}>
+                    {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
+                    {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
+                  </Link>
+                ))} />
               </details>
             ) : null}
             {savedResult && history && (() => {

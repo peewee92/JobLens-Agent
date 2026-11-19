@@ -1,4 +1,6 @@
 import Link from "next/link";
+import {Pagination} from "@/components/ui/pagination";
+import {parsePageOffset, readKnownPage} from "@/lib/pagination";
 
 import {ServiceError} from "@/components/service-error";
 import {
@@ -12,13 +14,19 @@ import {formatRate} from "@/lib/requirement-evals";
 
 export const dynamic = "force-dynamic";
 
-export default async function RequirementEvalRunsPage() {
+export default async function RequirementEvalRunsPage({searchParams}: {searchParams: Promise<{offset?: string | string[]}>}) {
+  const requestedOffset = parsePageOffset((await searchParams).offset);
+  const limit = 20;
+  let offset = requestedOffset;
+  let adjusted = false;
   let page;
   let baseline;
   let mvpQuality;
   try {
     [page, baseline, mvpQuality] = await Promise.all([
-      fetchRequirementEvalRuns(),
+      readKnownPage(requestedOffset, limit, next => fetchRequirementEvalRuns(limit, next)).then(result => {
+        offset = result.offset; adjusted = result.adjusted; return result.page;
+      }),
       fetchAcceptedRequirementEvalBaseline(),
       fetchMvpQualityStatus(),
     ]);
@@ -151,6 +159,9 @@ export default async function RequirementEvalRunsPage() {
             ))}
           </div>
         )}
+        {adjusted && <p role="status" className="jl-callout">列表已更新，已显示最后一个有效页面。</p>}
+        <Pagination label="质量记录分页" offset={offset} limit={limit} count={page.items.length} total={page.total}
+          href={next => next === 0 ? "/evals/requirements" : `/evals/requirements?offset=${next}`} />
       </section>
     </>
   );

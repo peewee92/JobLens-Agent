@@ -1,12 +1,13 @@
 "use client";
 
-import {useRouter} from "next/navigation";
 import {useEffect, useRef, useState, type FormEvent} from "react";
 
 import type {RequirementCallPlan} from "@/lib/contracts";
 import {requirementExtractionOutcome} from "@/lib/requirement-extraction-outcome";
 import {shortJobDescriptionGuidance} from "@/lib/job-requirements";
 import {AuthorizedRequirementExtraction} from "@/components/authorized-requirement-extraction";
+import {jobDocumentRoute, openSavedJobDocument, savedModelExtractionHref} from "@/lib/authorized-model-results";
+import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {BatchMatchUncertainNotice} from "@/components/batch-match-uncertain-notice";
 
 export function JobRequirementExtractButton({
@@ -28,7 +29,6 @@ export function JobRequirementExtractButton({
   localProduct?: boolean;
   detailHref?: string;
 }) {
-  const router = useRouter();
   const [planLoaded, setPlanLoaded] = useState(false);
   const [plan, setPlan] = useState<RequirementCallPlan | null>(null);
   useEffect(() => {
@@ -53,6 +53,7 @@ export function JobRequirementExtractButton({
       setMessage("请先确认本次离线岗位要求分析。");
       return;
     }
+    const startedOn = jobDocumentRoute(window.location);
     requestLocked.current = true;
     setStatus("submitting");
     setMessage("");
@@ -75,8 +76,7 @@ export function JobRequirementExtractButton({
         setStatus("error");
         setMessage(outcome.message);
       } else {
-        setStatus("idle");
-        router.refresh();
+        openSavedJobDocument(window.location, savedModelExtractionHref(detailHref ?? `/jobs/${encodeURIComponent(jobId)}`, outcome.extractionId), startedOn);
       }
       requestLocked.current = false;
     } catch {
@@ -121,19 +121,7 @@ export function JobRequirementExtractButton({
         </button>
       </form>
       {status === "uncertain" ? <BatchMatchUncertainNotice kind="requirements" /> : null}
-      {status === "submitting" ? (
-        <div
-          aria-live="polite"
-          className="requirement-processing-indicator"
-          role="status"
-        >
-          <span aria-hidden="true" className="loading-spinner" />
-          <div>
-            <strong>正在分析岗位要求…</strong>
-            <p>这可能需要一点时间，请保持页面打开。</p>
-          </div>
-        </div>
-      ) : null}
+      {status === "submitting" && <PendingIndicator label="正在分析岗位要求并打开结果…" slowLabel="还在等待本次结果，不需要重复提交。" />}
       {disabled ? (
         <p className="notice">{disabledReason ?? shortJobDescriptionGuidance}</p>
       ) : null}

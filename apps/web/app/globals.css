@@ -1,28 +1,28 @@
 :root {
   color-scheme: light;
 
-  /* Neutrals - one cool slate family */
-  --ink: #1a2333;
-  --ink-soft: #465268;
-  --muted: #647084;
-  --line: #e4e9f0;
-  --line-strong: #cdd6e3;
-  --soft: #f4f6fa;
-  --surface: #f8fafc;
-  --panel: #ffffff;
+  /* Warm paper surfaces and ink */
+  --ink: #222d26;
+  --ink-soft: #535e55;
+  --muted: #535e55;
+  --line: #e0ddd1;
+  --line-strong: #7c8476;
+  --soft: #f0eee6;
+  --surface: #f6f4ed;
+  --panel: #fffdf8;
 
   /* Brand - single accent, used everywhere */
-  --brand: #2557d6;
-  --brand-dark: #1a3f9e;
-  --brand-soft: #eaf0fc;
+  --brand: #28513d;
+  --brand-dark: #1b3e2e;
+  --brand-soft: #e8eee4;
 
   /* Status - desaturated, semantic only */
-  --success: #137a4b;
-  --success-soft: #e9f7f0;
-  --warning: #8a6408;
-  --warning-soft: #fff6df;
-  --danger: #b42318;
-  --danger-soft: #fdf0ef;
+  --success: var(--brand);
+  --success-soft: var(--brand-soft);
+  --warning: #69400f;
+  --warning-soft: #fbefdc;
+  --danger: #8b3936;
+  --danger-soft: #faece8;
 
   /* Shape - one scale, pill reserved for tags/badges */
   --radius-s: 10px;
@@ -31,14 +31,28 @@
   --radius-pill: 999px;
 
   /* Elevation - tinted to the slate base, never pure black */
-  --shadow-sm: 0 1px 2px rgba(23, 32, 51, 0.05);
-  --shadow: 0 8px 24px rgba(23, 32, 51, 0.06);
-  --shadow-lg: 0 18px 40px rgba(23, 32, 51, 0.1);
+  --shadow-sm: 0 1px 2px rgba(34, 45, 38, 0.05);
+  --shadow: 0 8px 24px rgba(34, 45, 38, 0.06);
+  --shadow-lg: 0 18px 40px rgba(34, 45, 38, 0.1);
 
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+}
+
+:root[data-theme="berry"] {
+  --surface: #f8f2e9;
+  --panel: #fffbf6;
+  --soft: #f2e9e0;
+  --line: #e4d7cc;
+  --line-strong: #8e786e;
+  --ink: #34292b;
+  --ink-soft: #655456;
+  --muted: #655456;
+  --brand: #78394d;
+  --brand-dark: #592638;
+  --brand-soft: #f4e6e9;
 }
 
 * {
@@ -97,7 +111,7 @@ textarea {
 }
 
 .shell {
-  width: min(1120px, calc(100% - 32px));
+  width: min(1216px, calc(100% - 64px));
   margin-inline: auto;
 }
 
@@ -106,8 +120,7 @@ textarea {
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(14px);
+  background: var(--panel);
 }
 
 .skip-link {
@@ -394,8 +407,8 @@ h3 {
 }
 
 .button-secondary:hover {
-  background: #dfe9ff;
-  border-color: #b8ccf5;
+  background: var(--brand-soft);
+  border-color: var(--line-strong);
 }
 
 .button-ghost:hover {
@@ -528,13 +541,13 @@ h3 {
 .error-panel {
   color: var(--danger);
   background: var(--danger-soft);
-  border-color: #f2c0bb;
+  border-color: #e8c3ba;
 }
 
 .success-box {
   color: var(--success);
   background: var(--success-soft);
-  border: 1px solid #bfe6cf;
+  border: 1px solid var(--line);
 }
 
 .summary-grid {
@@ -984,7 +997,7 @@ h3 {
 .recommendation-blocker-facts {
   margin-top: 14px;
   padding: 14px 16px;
-  border: 1px solid #ead8a5;
+  border: 1px solid #e0c89e;
   border-radius: var(--radius-s);
   background: var(--warning-soft);
 }
@@ -1307,7 +1320,7 @@ h3 {
   display: flex;
   gap: 12px;
   padding: 16px;
-  border: 1px solid #ead8a5;
+  border: 1px solid #e0c89e;
   border-radius: var(--radius-s);
   background: var(--warning-soft);
 }
@@ -1558,7 +1571,7 @@ h3 {
 }
 
 .eval-case-pass {
-  border-color: #cce7d7;
+  border-color: var(--line);
 }
 
 .eval-case-heading strong {
@@ -1705,7 +1718,7 @@ h3 {
 .review-accepted {
   color: var(--success);
   background: var(--success-soft);
-  border-color: #bfe6cf;
+  border-color: var(--line);
 }
 
 .review-rejected {
@@ -1717,7 +1730,7 @@ h3 {
 .review-pending {
   color: var(--warning);
   background: var(--warning-soft);
-  border-color: #ead8a5;
+  border-color: #e0c89e;
 }
 
 .eligibility-section,
@@ -1741,12 +1754,12 @@ h3 {
 }
 
 .eligibility-conditional {
-  border-color: #ead8a5;
+  border-color: #e0c89e;
   background: var(--warning-soft);
 }
 
 .eligibility-eligible {
-  border-color: #bfe6cf;
+  border-color: var(--line);
   background: var(--success-soft);
 }
 
@@ -1884,12 +1897,12 @@ h3 {
 
 .match-recommendation-strong,
 .match-recommendation-good {
-  border-color: #bfe6cf;
+  border-color: var(--line);
   background: var(--success-soft);
 }
 
 .match-recommendation-stretch {
-  border-color: #ead8a5;
+  border-color: #e0c89e;
   background: var(--warning-soft);
 }
 
@@ -2138,7 +2151,7 @@ h3 {
 .importance-bonus {
   color: var(--success);
   background: var(--success-soft);
-  border-color: #bfe6cf;
+  border-color: var(--line);
 }
 
 .sr-only {
@@ -2435,7 +2448,7 @@ h3 {
 
 .gap-match-snapshot {
   padding: 10px 12px;
-  border-left: 3px solid #9ab1e9;
+  border-left: 3px solid var(--brand);
   border-radius: 0 9px 9px 0;
   background: var(--soft);
 }
@@ -2464,7 +2477,7 @@ h3 {
   align-items: center;
   margin-top: 18px;
   padding: 15px 16px;
-  border: 1px solid #cfdaef;
+  border: 1px solid var(--line);
   border-radius: var(--radius-m);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 12px 28px rgba(31, 45, 72, 0.14);
@@ -2735,7 +2748,7 @@ h3 {
 
 .gap-result-section {
   padding: 14px 0;
-  border-top: 1px solid #edf0f4;
+  border-top: 1px solid var(--line);
 }
 
 .gap-result-label {
@@ -2778,7 +2791,7 @@ h3 {
 .gap-technical-details {
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px dashed #dbe0e8;
+  border-top: 1px dashed var(--line);
   color: var(--muted);
   font-size: 12px;
 }
@@ -3120,7 +3133,7 @@ h3 {
 .guide-note {
   margin-top: 14px;
   padding: 12px 14px;
-  border: 1px solid #ead8a5;
+  border: 1px solid #e0c89e;
   border-radius: var(--radius-s);
   background: var(--warning-soft);
   color: var(--warning);
@@ -3216,12 +3229,12 @@ h3 {
 .link-feedback { font-size: 0.85em; }
 .saved-analysis { display: grid; gap: 18px; }
 .saved-analysis > .card, .saved-analysis #start-preparation > .card {
-  padding: 20px; border: 1px solid #dde6f2; border-radius: 14px; background: #fff;
+  padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
 }
 .saved-analysis h2, .saved-analysis h3 { margin-bottom: 10px; }
 .saved-analysis nav.actions { margin: 16px 0; }
 .interview-practice-form { margin-top: 12px; }
 .interview-practice-form textarea {
   display: block; box-sizing: border-box; width: 100%; padding: 10px; margin: 6px 0 10px;
-  border: 1px solid #bdcce1; border-radius: 8px; font: inherit; resize: vertical;
+  border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; resize: vertical;
 }

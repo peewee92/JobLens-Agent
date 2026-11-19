@@ -52,3 +52,12 @@ export function userFacingApiError(
 ): string {
   return userFacingErrorCode(body?.error?.code, fallback);
 }
+
+/** Reading and submitting have different recovery semantics. This helper is read-only. */
+export function userFacingReadError(status: number | undefined, code: string | undefined, fallback: string): string {
+  if (status === 401 || status === 403) return "当前无法访问这份记录。可以返回有权限的页面，已保存数据没有改变。";
+  if (status === 404) return "找不到这份记录。可以返回列表查看现有内容。";
+  if (status === 504 || code === "backend_read_timeout") return "读取时间比预期长，未收到结果。可以重新读取，筛选和已保存数据不会改变。";
+  if (code === "backend_unavailable") return "暂时连不上 JobLens 服务。恢复后可重新读取，已保存数据没有改变。";
+  return userFacingErrorCode(code, fallback);
+}

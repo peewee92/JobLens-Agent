@@ -1,4 +1,7 @@
 import Link from "next/link";
+import {Pagination} from "@/components/ui/pagination";
+import {ServiceError} from "@/components/service-error";
+import {userFacingReadError} from "@/lib/user-facing-errors";
 import {Button} from "@/components/ui/button";
 import {EmptyState, PageHeading} from "@/components/ui/patterns";
 import {Badge, Panel} from "@/components/ui/primitives";
@@ -28,15 +31,16 @@ export default async function ApplicationsPage({searchParams}: {searchParams: Pr
           actions={<Button variant="secondary" asChild><Link href="/applications">返回第一页</Link></Button>} />
         : <EmptyState title="还没有准备工作区" description="先比较岗位并确认目标，就能为它建立准备工作区。"
           actions={<Button asChild><Link href="/agent">去比较岗位</Link></Button>} />}
-      <nav className="jl-inline jl-comparison-scope" aria-label="工作区分页与导航">{offset > 0 && <Link href={`/applications?offset=${Math.max(0, offset - 20)}`}>上一页</Link>}
-        {page.hasMore && <Link href={`/applications?offset=${offset + 20}`}>下一页</Link>}
-        <Link className="jl-text-link" href="/">返回求职工作台</Link></nav>
+      {page.items.length > 0 && <Pagination label="工作区分页" offset={page.offset} limit={20} count={page.items.length}
+        hasMore={page.hasMore} href={next => next === 0 ? "/applications" : `/applications?offset=${next}`} />}
+      <Link className="jl-text-link" href="/">返回求职工作台</Link>
     </>;
   } catch (error) {
+    const failure = error instanceof BackendApiError ? error : null;
     return <>
-      <PageHeading title="暂时无法读取工作区" />
-      <p>{error instanceof BackendApiError ? "请检查本地服务和数据库后重试，已有记录不会因此丢失。" : "请稍后重试。"}</p>
-      <Link className="jl-text-link" href={`/applications?offset=${offset}`}>重试</Link>
+      <PageHeading title="我的准备" />
+      <ServiceError message={userFacingReadError(failure?.status, failure?.code, "请稍后重试读取工作区。")}
+        recovery={failure && [401, 403].includes(failure.status) ? "home" : "retry"} />
     </>;
   }
 }

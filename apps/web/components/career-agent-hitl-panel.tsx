@@ -1,4 +1,6 @@
 "use client";
+import {Pagination} from "@/components/ui/pagination";
+import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {Button} from "@/components/ui/button";
 import {ActionFeedback} from "@/components/ui/patterns";
 import {Callout, Panel} from "@/components/ui/primitives";
@@ -34,6 +36,7 @@ const RUN_STATUS_LABELS: Record<string, string> = {
   created: "已保存输入", running: "分析待继续", interrupted: "等待确认", resuming: "分析待继续",
   completed: "已完成", cancelled: "已结束", blocked: "需要补齐输入", failed: "执行失败", stale: "分析依据已变化",
 };
+const PAGE_SIZE = 20;
 const STORAGE_KEY = "joblens.careerAgent.pendingThread";
 
 function newId(prefix: string): string {
@@ -56,9 +59,12 @@ export function RankedJobLabel({job, label}: {job?: JobListItem; label?: string;
 }
 
 export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialScope, initialPageOffset = 0, initialHasMore = false}: {jobs: JobListItem[]; initialJobId?: string; initialScope?: string[]; initialPageOffset?: number; initialHasMore?: boolean}) {
+  const pageLock = useRef(false);
   const commandLock = useRef(false);
   const checkLock = useRef(false);
   const [jobs, setJobs] = useState(initialJobs);
+  const [visibleOffset, setVisibleOffset] = useState(0);
+  const pageJobs = jobs.slice(visibleOffset, visibleOffset + PAGE_SIZE);
   const [pageOffset, setPageOffset] = useState(initialPageOffset);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingJobs, setLoadingJobs] = useState(false);
@@ -209,8 +215,11 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     } finally { commandLock.current = false; setBusy(false); }
   }
 
-  async function loadMoreJobs() {
-    if (loadingJobs || !hasMore) return;
+  async function showJobPage(offset: number) {
+    if (pageLock.current) return;
+    if (offset < jobs.length) { setVisibleOffset(offset); setJobPageError(null); return; }
+    if (!hasMore) return;
+    pageLock.current = true;
     setLoadingJobs(true); setJobPageError(null);
     try {
       const response = await fetch(`/api/jobs?offset=${pageOffset}`);
@@ -218,8 +227,10 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
       const page = await response.json();
       const next = appendAgentJobPage(jobs, page, pageOffset);
       setJobs(next.jobs); setPageOffset(next.offset); setHasMore(next.hasMore);
+      if (next.jobs.length > offset) setVisibleOffset(offset);
+      else setJobPageError("岗位列表刚刚有变化，已保留当前页和此前选中的岗位。");
     } catch (error) { setJobPageError(error instanceof Error ? error.message : "暂时无法读取更多岗位，请稍后重试。"); }
-    finally { setLoadingJobs(false); }
+    finally { pageLock.current = false; setLoadingJobs(false); }
   }
 
   async function checkRanking() {
@@ -369,8 +380,18 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               ? "已带回你刚才指定的岗位；可以更改勾选，或先检查本批有哪些岗位需要补充。"
               : "请勾选你想比较的岗位；不会替你选入无关或待补充的岗位。"}一次最多比较 50 个岗位，只读取已有匹配报告，不会调用模型。</p>
           </div>
+          <div className="jl-inline">
+            <Button variant="secondary" disabled={checking || busy || loadingJobs || pageJobs.every(job => selected.includes(job.id)) || selected.length >= 50}
+              onClick={() => {
+                setPreflight(null); setPreflightError(null);
+                setSelected(current => Array.from(new Set([...current, ...pageJobs.map(job => job.id)])).slice(0, 50));
+              }}>本页全选（最多共选 50 个）</Button>
+            {selected.length > 0 && <Button variant="subtle" disabled={checking || busy} onClick={() => {
+              setSelected([]); setPreflight(null); setPreflightError(null);
+            }}>清除全部已选</Button>}
+          </div>
           <div className="stack-sm">
-            {jobs.map((job) => (
+            {pageJobs.map((job) => (
               <label className="check-row" key={job.id}>
                 <input
                   type="checkbox"
@@ -389,9 +410,11 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
               </label>
             ))}
           </div>
-          {hasMore && <button className="button" disabled={loadingJobs} onClick={() => void loadMoreJobs()} type="button">{loadingJobs ? "正在读取岗位…" : "加载更多岗位"}</button>}
-          {jobPageError && <p role="alert">{jobPageError}</p>}
-          <p className="muted">已选择 {selected.length} / 50 个岗位；加载更多不会清除已选岗位。</p>
+          <Pagination label="可比较岗位分页" count={pageJobs.length} offset={visibleOffset} limit={PAGE_SIZE}
+            hasMore={visibleOffset + PAGE_SIZE < jobs.length || hasMore} onChange={offset => void showJobPage(offset)} />
+          {loadingJobs && <PendingIndicator label="正在读取下一页；已选岗位不会丢失。" />}
+          {jobPageError && <ActionFeedback tone="danger">{jobPageError}</ActionFeedback>}
+          <p className="muted" role="status">跨页已选 {selected.length} / 50 个岗位 · 本页已选 {pageJobs.filter(job => selected.includes(job.id)).length} 个。</p>
           <div className="jl-inline"><Button variant={currentPreflight ? "secondary" : "primary"} aria-busy={checking} disabled={busy || checking || selected.length === 0}
             onClick={() => void checkRanking()} type="button">{checking ? "正在检查…" : currentPreflight ? "重新检查所选岗位" : "检查所选岗位"}</Button></div>
           {preflightError?.scope === currentScope && <ActionFeedback tone="danger">{preflightError.message}</ActionFeedback>}

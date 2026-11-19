@@ -1,5 +1,7 @@
 import {preparationFacts} from "@/lib/preparation-facts";
 import {completionCriterionLabel} from "@/lib/gap-language";
+import {formatDateTime} from "@/lib/format";
+import {WorkspaceRecordBrowser} from "@/components/workspace-record-browser";
 import {publicDemoEnabled} from "@/lib/public-demo";
 import Link from "next/link";
 import {Button} from "@/components/ui/button";
@@ -14,6 +16,9 @@ import {ApplicationInterviewControls} from "@/components/application-interview-c
 import {ApplicationResumeControls} from "@/components/application-resume-controls";
 import {ApplicationStatusControls} from "@/components/application-status-controls";
 import {ServiceError} from "@/components/service-error";
+import {WorkspaceSections} from "@/components/workspace-sections";
+import {WorkspaceTaskList} from "@/components/workspace-task-list";
+import {DetailDrawer} from "@/components/ui/drawer";
 import {WorkspaceTimeline} from "@/components/workspace-timeline";
 import {systemReadinessNotice} from "@/components/system-readiness-notice";
 import {
@@ -101,43 +106,110 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
       } catch { /* Keep actions usable even when their current association cannot be read. */ }
     }
     const groupedActions = groupWorkspaceActions(actions, overview.workspace.currentAnalysisResultId, currentActionIds);
-    const renderAction = (action: ApplicationExecutionAction) => <article className="eligibility-result-card" key={action.actionId}>
-      <strong>{action.sourceGapCapability ?? action.description}</strong>
-      <p>{action.description}</p>
+    const actionDetail = (action: ApplicationExecutionAction) => <>
       <p>目的：{actionPurposeLabels[action.actionType] ?? "岗位准备"} · 状态：{actionStatusLabels[action.status] ?? "待核实"}</p>
-      <ul>{action.completionCriteria.map((criterion, index) => <li key={index}>{completionCriterionLabel(criterion)}</li>)}</ul>
+      {action.completionCriteria.length > 0 && <details><summary>查看完成标准</summary><ul>{action.completionCriteria.map((criterion, index) => <li key={index}>{completionCriterionLabel(criterion)}</li>)}</ul></details>}
       {action.sourceRequirementIds.length > 0 && <p className="muted-copy">关联 {action.sourceRequirementIds.length} 条岗位要求。{!action.sourceAnalysisThreadId && <Link href={`/jobs/${encodeURIComponent(job.id)}/prepare`}>核对岗位准备依据</Link>}</p>}
       {currentActionIds?.includes(action.actionId) && action.sourceAnalysisResultId !== overview.workspace.currentAnalysisResultId && <p>本次分析复用了这项行动；原有进度与创建来源保留。</p>}
       {action.sourceAnalysisThreadId && <p><Link href={`/agent/results/${encodeURIComponent(action.sourceAnalysisThreadId)}`}>查看行动创建时的分析与事实</Link></p>}
-      <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={[action]} />
-    </article>;
+    </>;
 
 
     return <>
-      <div className="actions" style={{marginBottom: 18}}>
-        <Link className="button-ghost" href={`/jobs/${encodeURIComponent(job.id)}`}>← 返回岗位</Link>
-        <Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的准备依据" : "按当前资料查看准备依据"}</Link>
+      <div className="jl-workspace-breadcrumb">
+        <Button variant="subtle" asChild><Link href="/applications">我的准备 <span aria-hidden="true">›</span></Link></Button>
+        <div className="jl-inline">
+          <Button variant="subtle" asChild><Link href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "原始分析" : "准备依据"}</Link></Button>
+          <DetailDrawer trigger={<Button variant="subtle">最近变化</Button>} title="最近变化" description="这里显示已保存的进度，不会重新分析。">
+            <WorkspaceTimeline events={timeline} />
+          </DetailDrawer>
+        </div>
+      </div>
+      <div className="jl-workspace-hero">
+        <div>
+          <PageHeading kicker="岗位准备工作区" title={job.title} description={job.company} />
+          <div className="jl-inline">
+            <Badge tone="info">{statusLabel[overview.workspace.status] ?? "状态待核实"}</Badge>
+            {savedPreparation && !savedPreparation.isCurrent && <Badge tone="warning">资料已变化</Badge>}
+            <span className="muted-copy">系统不会替你投递或确认经历。</span>
+          </div>
+        </div>
+        <Panel className="jl-workbench-focus jl-workspace-next" aria-labelledby="workspace-next-title">
+          <div className="stack-sm">
+            <p className="jl-kicker">建议下一步</p>
+            {savedPreparation && !savedPreparation.isCurrent ? <>
+              <h2 id="workspace-next-title">先核对变化的事实</h2>
+              <p>已有记录仍可查看。建立新材料前，请先更新依据。</p>
+            </> : <>
+              <h2 id="workspace-next-title">{overview.nextBestAction.label}</h2>
+              <p>{overview.nextBestAction.reason}</p>
+            </>}
+          </div>
+          {savedPreparation && !savedPreparation.isCurrent ?
+            <Button asChild><Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对并更新分析</Link></Button>
+            : <Button asChild><a href={overview.nextBestAction.href}>继续这一步 <span aria-hidden="true">→</span></a></Button>}
+        </Panel>
       </div>
 
-      <PageHeading kicker="岗位准备工作区" title={job.title}
-        description={`${job.company} · 准备岗位简历与面试、跟踪行动和投递进度。系统不会替你投递或确认经历。`} />
-      <Panel className="jl-workbench-focus jl-workspace-next stack-sm" aria-labelledby="workspace-next-title">
-        <Badge tone="info">{statusLabel[overview.workspace.status] ?? "状态待核实"}</Badge>
-        {savedPreparation && !savedPreparation.isCurrent ? <>
-          <h2 id="workspace-next-title">下一步：先核对变化的事实</h2>
-          <p>已有记录仍可查看和更新进度；建立新材料前，请先核对本次分析的范围和已确认资料。</p>
-          <Button asChild><Link href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link></Button>
-        </> : <>
-          <h2 id="workspace-next-title">下一步：{overview.nextBestAction.label}</h2>
-          <p>{overview.nextBestAction.reason}</p>
-          <Button asChild><a href={overview.nextBestAction.href}>继续这一步</a></Button>
-        </>}
-      </Panel>
+      <WorkspaceSections recommended={overview.nextBestAction.href.split("#")[1]} panels={{
+        resume: <section className="detail-section" id="resume" tabIndex={-1} aria-labelledby="workspace-resume-heading">
+          <h2 id="workspace-resume-heading">岗位简历</h2>
+          <p className="muted">只把已确认的经历与对应岗位要求组织成专用草稿，不允许用改写掩盖真实能力缺口。</p>
+          {resumeProposal ? <ApplicationResumeControls
+            workspaceId={id}
+            actorId={overview.workspace.actorId}
+            proposal={resumeProposal}
+            currentVariant={currentResumeVariant}
+            facts={resumeFacts}
+          /> : <p className="notice">职业事实已变化，不能按旧版本生成新简历材料。已有简历状态：{currentResumeVariant ? (currentResumeVariant.status === "reviewed" ? "已人工审核" : "草稿待审核") : "尚未保存"}；历史记录仍保留，请更新或重新创建分析。</p>}
+          {resumeVariants.length > 0 && <details>
+            <summary>查看已保存的简历版本（{resumeVariants.length} 份）</summary>
+            <p>以下是当时保存的事实，不会变成当前建议。只有最新有效的资料可以建立新材料。</p>
+            <WorkspaceRecordBrowser label="简历版本列表" records={[...resumeVariants].reverse().map(variant => ({
+              id: variant.variantId,
+              title: formatDateTime(variant.createdAt),
+              summary: `职业背景第 ${variant.sourceProfileVersion} 版 · ${variant.status === "reviewed" ? "已人工核对" : "已保存草稿"}`,
+              content: <div className="stack-sm"><Badge>已保存版本</Badge><h3>{formatDateTime(variant.createdAt)}</h3>
+                <ul>{variant.highlights.map(item => <li key={item.requirementId}>{item.capability} · 当时关联 {item.evidenceIds.length} 条经历</li>)}</ul>
+              </div>,
+            }))} />
+          </details>}
+          <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的简历事实依据 →" : "按当前资料查看简历调整依据 →"}</Link></div>
+        </section>,
+        actions: <section className="detail-section" id="actions" tabIndex={-1} aria-labelledby="workspace-actions-heading">
+          <h2 id="workspace-actions-heading">执行行动</h2>
+          {actions.length === 0 ? <>
+            <p className="notice">尚未建立可跟踪行动，可以从已有准备材料建立清单。</p>
+            <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />
+          </> : <>
+            <p className="muted">当前分析关联的行动优先显示，可能复用较早行动及其进度；其余行动仍保留。完成行动不会自动改变职业事实。</p>
+            {overview.workspace.currentAnalysisResultId && <h3>当前分析的行动</h3>}
+            {overview.workspace.currentAnalysisResultId && currentActionIds === null && <p className="notice">暂时无法核对本次分析复用的行动，以下按创建来源分组；所有行动和进度仍可查看。</p>}
+            {groupedActions.current.length === 0 && <p>当前分析没有关联行动；可查看下方已有行动。</p>}
+            {groupedActions.current.length > 0 && <WorkspaceTaskList items={groupedActions.current.map(action => ({action, detail: actionDetail(action)}))} workspaceId={id} actorId={overview.workspace.actorId} />}
+            {groupedActions.earlier.length > 0 && <details><summary>查看较早分析或未标明来源的行动（{groupedActions.earlier.length}）</summary>
+              <p>这些行动有独立的来源和进度，不代表本次分析得出了同样结论。</p>
+              <WorkspaceTaskList items={groupedActions.earlier.map(action => ({action, detail: actionDetail(action)}))} workspaceId={id} actorId={overview.workspace.actorId} />
+            </details>}
+          </>}
+        </section>,
+        evidence: <section className="detail-section" id="evidence" tabIndex={-1} aria-labelledby="workspace-evidence-heading">
+          <h2 id="workspace-evidence-heading">补充真实经历</h2>
+          <p className="muted">行动完成不等于获得能力。只有你提交真实经历并显式确认，再更新分析，才能核对判断变化；结论可能改善、未变或变弱。</p>
+          <p>待确认 {overview.evidencePendingConfirmation} 项 · 已确认 {overview.evidenceConfirmed} 项</p>
+          <ApplicationEvidenceControls workspaceId={id} jobId={job.id} actorId={overview.workspace.actorId} actions={actions} proposals={proposals} context={evidenceContext} analysisThreadId={overview.workspace.currentAnalysisThreadId} analysisProfileVersion={savedPreparation?.preparation.profileVersion} />
+        </section>,
+        interview: <section className="detail-section" id="interview" tabIndex={-1} aria-labelledby="workspace-interview-heading">
+          <h2 id="workspace-interview-heading">面试练习</h2>
+          <p className="muted">问题来自已核对的岗位要求。回答只核对已确认的经历是否可引用，不打面试分，也不预测录用。</p>
+          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
+          <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的面试准备事实 →" : "按当前资料查看面试准备事实 →"}</Link></div>
+        </section>,
+      }} />
 
-      <section className="detail-card jl-workspace-body">
-        <nav className="jl-inline jl-job-outline" aria-label="跳到岗位准备项目">
-          <a href="#resume">岗位简历</a><a href="#interview">面试练习</a><a href="#actions">执行行动</a><a href="#evidence">补充真实经历</a>
-        </nav>
+      <details className="jl-panel jl-workspace-management">
+        <summary>管理投递状态与历史分析</summary>
+        <div className="jl-inline"><Link href={`/jobs/${encodeURIComponent(job.id)}`}>查看岗位详情</Link></div>
         {savedPreparation && <section className="detail-section">
           <h2>已保存的准备材料</h2>
           <div className="actions"><Link className="button-secondary" href={`/agent/results/${encodeURIComponent(savedPreparation.threadId)}/update`}>核对范围并更新分析</Link><a href="/">返回求职工作台</a></div>
@@ -171,56 +243,8 @@ export default async function ApplicationWorkspacePage({params}: {params: Promis
           />
         </section>
 
-        <section className="detail-section" id="resume" tabIndex={-1} aria-labelledby="workspace-resume-heading">
-          <h2 id="workspace-resume-heading">岗位简历</h2>
-          <p className="muted">只把已确认的经历与对应岗位要求组织成专用草稿，不允许用改写掩盖真实能力缺口。</p>
-          {resumeProposal ? <ApplicationResumeControls
-            workspaceId={id}
-            actorId={overview.workspace.actorId}
-            proposal={resumeProposal}
-            currentVariant={currentResumeVariant}
-            facts={resumeFacts}
-          /> : <p className="notice">职业事实已变化，不能按旧版本生成新简历材料。已有简历状态：{currentResumeVariant ? (currentResumeVariant.status === "reviewed" ? "已人工审核" : "草稿待审核") : "尚未保存"}；历史记录仍保留，请更新或重新创建分析。</p>}
-          <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的简历事实依据 →" : "按当前资料查看简历调整依据 →"}</Link></div>
-        </section>
+      </details>
 
-        <section className="detail-section" id="actions" tabIndex={-1} aria-labelledby="workspace-actions-heading">
-          <h2 id="workspace-actions-heading">执行行动</h2>
-          {actions.length === 0 ? <>
-            <p className="notice">尚未建立可跟踪行动，可以从已有准备材料建立清单。</p>
-            <ApplicationActionControls workspaceId={id} actorId={overview.workspace.actorId} actions={actions} />
-          </> : <>
-            <p className="muted">当前分析关联的行动优先显示，可能复用较早行动及其进度；其余行动仍保留。完成行动不会自动改变职业事实。</p>
-            {overview.workspace.currentAnalysisResultId && <h3>当前分析的行动</h3>}
-            {overview.workspace.currentAnalysisResultId && currentActionIds === null && <p className="notice">暂时无法核对本次分析复用的行动，以下按创建来源分组；所有行动和进度仍可查看。</p>}
-            {groupedActions.current.length === 0 && <p>当前分析没有关联行动；可查看下方已有行动。</p>}
-            <div className="eligibility-groups">{groupedActions.current.slice(0, 3).map(renderAction)}</div>
-            {groupedActions.current.length > 3 && <details><summary>展开其余 {groupedActions.current.length - 3} 项行动</summary>
-              <div className="eligibility-groups">{groupedActions.current.slice(3).map(renderAction)}</div>
-            </details>}
-            {groupedActions.earlier.length > 0 && <details><summary>查看较早分析或未标明来源的行动（{groupedActions.earlier.length}）</summary>
-              <p>这些行动可能与当前建议相似，但有独立的来源和进度，仍可操作。</p>
-              <div className="eligibility-groups">{groupedActions.earlier.map(renderAction)}</div>
-            </details>}
-          </>}
-        </section>
-
-        <section className="detail-section" id="evidence" tabIndex={-1} aria-labelledby="workspace-evidence-heading">
-          <h2 id="workspace-evidence-heading">补充真实经历</h2>
-          <p className="muted">行动完成不等于获得能力。只有你提交真实经历并显式确认，再更新分析，才能核对判断变化；结论可能改善、未变或变弱。</p>
-          <p>待确认 {overview.evidencePendingConfirmation} 项 · 已确认 {overview.evidenceConfirmed} 项</p>
-          <ApplicationEvidenceControls workspaceId={id} jobId={job.id} actorId={overview.workspace.actorId} actions={actions} proposals={proposals} context={evidenceContext} analysisThreadId={overview.workspace.currentAnalysisThreadId} analysisProfileVersion={savedPreparation?.preparation.profileVersion} />
-        </section>
-
-        <section className="detail-section" id="interview" tabIndex={-1} aria-labelledby="workspace-interview-heading">
-          <h2 id="workspace-interview-heading">面试练习</h2>
-          <p className="muted">问题来自已核对的岗位要求。回答只核对已确认的经历是否可引用，不打面试分，也不预测录用。</p>
-          {interviewQuestions ? <ApplicationInterviewControls workspaceId={id} actorId={overview.workspace.actorId} questionSet={interviewQuestions} evidenceSummaries={interviewFacts.evidenceSummaries} /> : <p className="notice">职业事实已变化，暂不生成新的面试练习；请更新或重新创建分析。</p>}
-          <div className="actions"><Link className="button-ghost" href={savedPreparation ? `/agent/results/${encodeURIComponent(savedPreparation.threadId)}` : `/jobs/${encodeURIComponent(job.id)}/prepare`}>{savedPreparation ? "查看本次保存的面试准备事实 →" : "按当前资料查看面试准备事实 →"}</Link></div>
-        </section>
-
-        <WorkspaceTimeline events={timeline} />
-      </section>
     </>;
   } catch (error) {
     const message = error instanceof BackendApiError

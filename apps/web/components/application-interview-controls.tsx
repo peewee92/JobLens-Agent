@@ -2,6 +2,8 @@
 
 import {FormEvent, useRef, useState} from "react";
 
+import {WorkspaceRecordBrowser} from "./workspace-record-browser";
+import {PendingIndicator} from "./ui/pending-indicator";
 import type {ApplicationInterviewAnswerReview, ApplicationInterviewQuestionSet} from "@/lib/contracts";
 
 export function ApplicationInterviewControls({workspaceId, actorId, questionSet, evidenceSummaries}: {
@@ -48,11 +50,12 @@ export function ApplicationInterviewControls({workspaceId, actorId, questionSet,
     }
   }
 
-  return <div>
-    {questionSet.questions.length === 0 ? <p className="muted">当前没有可练习的问题。</p> : null}
-    {questionSet.questions.map((question) => {
+  if (questionSet.questions.length === 0) return <div className="jl-callout"><p>当前没有可练习的问题。可以查看准备依据，核对该岗位是否有可用的要求。</p></div>;
+  return <WorkspaceRecordBrowser label="面试问题列表" records={questionSet.questions.map((question, index) => {
       const review = reviews[question.questionId];
-      return <form key={question.questionId} onSubmit={(event) => submit(event, question.questionId)} className="eligibility-result-card interview-practice-form">
+      return {id: question.questionId, title: `问题 ${index + 1} · ${question.prompt}`, summary: question.requirementText,
+        content: <form onSubmit={(event) => submit(event, question.questionId)} className="interview-practice-form">
+        <span className="muted-copy">面试问题 {index + 1}</span>
         <strong>{question.prompt}</strong>
         <p className="muted">对应岗位要求：{question.requirementText}</p>
         <label>你的真实回答<textarea name="answerText" required rows={5} minLength={1} maxLength={12000} /></label>
@@ -64,13 +67,13 @@ export function ApplicationInterviewControls({workspaceId, actorId, questionSet,
           </div>)}
         </fieldset> : <p className="muted">这项要求当前没有可引用的已确认经历；可以练习回答，但审核不会把未确认事实当作依据。</p>}
         <div className="actions"><button className="button-secondary" disabled={pending !== null}>{pending === question.questionId ? "正在审核…" : review?.retryRecommended ? "修改后重新审核" : "按真实经历核对回答"}</button></div>
+        {pending === question.questionId && <PendingIndicator label="正在核对回答与已确认的经历…" />}
         {review ? <div className="notice" role="status" style={{marginTop: 10}}>
           <strong>{review.retryRecommended ? "建议补充真实依据后重试" : "回答中的经历引用已核对"}</strong>
           <p>{review.feedback.join("；")}</p>
           <small>核对通过 {review.acceptedEvidenceIds.length} 项经历 · 未通过 {review.rejectedEvidenceIds.length} 项</small>
         </div> : null}
         {error?.questionId === question.questionId && <p role="alert" className="error-copy">{error.text}</p>}
-      </form>;
-    })}
-  </div>;
+      </form>};
+  })} />;
 }

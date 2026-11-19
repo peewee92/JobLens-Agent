@@ -3,7 +3,8 @@
 import Link from "next/link";
 import {Button} from "@/components/ui/button";
 import {ActionFeedback} from "@/components/ui/patterns";
-import {Panel, Skeleton} from "@/components/ui/primitives";
+import {PendingIndicator} from "@/components/ui/pending-indicator";
+import {Panel} from "@/components/ui/primitives";
 import React, {useEffect, useRef, useState} from "react";
 import type {AnalysisExecutionResult} from "@/lib/contracts";
 import {readPendingExecution, clearPendingExecution, sendAnalysisExecution, isTerminalStaleExecution, readExecutionResponse, type PendingAnalysisExecution} from "@/lib/analysis-execution";
@@ -22,6 +23,7 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
       const response = await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}/execution`, {cache: "no-store"});
       if (!response.ok) throw new Error("暂时无法读取已保存工作区，请确认连接后再查看。");
@@ -57,8 +59,8 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
           clearPendingExecution(window.localStorage, command);
           setPending(readPendingExecution(window.localStorage, threadId));
           setStaleRejected(true);
-          setError("这份分析使用的事实已变化，原请求未建立新材料。请更新分析后再继续。");
           await load();
+          setError("这份分析使用的事实已变化，原请求未建立新材料。请更新分析后再继续。");
           return;
         }
         throw new Error(body.error?.message ?? "执行结果尚未确认，请先查看工作区，再重试原请求。");
@@ -85,7 +87,8 @@ export function AnalysisExecutionControls({threadId, resultId, jobIds, isCurrent
       <span className="muted"> · {item.actionIds.length} 项来源行动 · {item.resumeVariantId ? "已保存简历事实草稿" : "证据不足，未制造简历草稿"}</span>
     </li>)}</ul>}
     {pending && !busy && <p className="notice">有一个待核实的原请求。网络重试会沿用同一请求标识和岗位范围，不会重新创建一批工作区。</p>}
-    {loading && !busy && <ActionFeedback><Skeleton className="jl-workspace-skeleton" />正在读取已保存的工作区…</ActionFeedback>}
+    {loading && !busy && <PendingIndicator label={execution ? "正在刷新。已显示的工作区仍保留。" : "正在读取已保存的工作区…"} skeleton={!execution} />}
+    {busy && <PendingIndicator label="正在处理本次工作区请求…" slowLabel="仍在等待回执；请不要重复创建。" />}
     <div className="jl-inline">
       {(pending || (isCurrent && !staleRejected && remainingJobs.length > 0)) && <Button aria-busy={busy}
         disabled={busy || loading || storageError || (!pending && (!isCurrent || staleRejected))} onClick={() => void start()}>

@@ -29,7 +29,7 @@ test("ambiguous errors and incomplete success require checking saved results fir
   }
 });
 test("success requires a usable extraction for the requested job; 4xx rejections remain explicit", () => {
-  assert.deepEqual(requirementExtractionOutcome(201, {jobId, extractionId: "req-1", requirements: [{}]}, jobId), {kind: "saved"});
+  assert.deepEqual(requirementExtractionOutcome(201, {jobId, extractionId: "req-1", requirements: [{}]}, jobId), {kind: "saved", extractionId: "req-1"});
   const blocked = requirementExtractionOutcome(409, errorBody("requirement_model_authorization_required"), jobId);
   assert.equal(blocked.kind, "rejected");
   assert.match(blocked.message, /授权/);

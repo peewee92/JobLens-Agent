@@ -1,4 +1,5 @@
 import type {ApplicationTimelineEvent} from "@/lib/contracts";
+import {PagedRecords} from "./paged-records";
 import {formatDateTime} from "@/lib/format";
 
 const eventLabels: Record<string, string> = {
@@ -24,13 +25,12 @@ function statusLabel(value: string | null): string {
 export function WorkspaceTimeline({events}: {events: ApplicationTimelineEvent[]}) {
   return <section className="detail-section">
     <h2>最近变化</h2>
-    {events.length === 0 ? <p className="muted">暂无时间线事件。</p> : <ul>
-      {events.slice(-6).reverse().map(event => <li key={event.eventId}>
+    {events.length === 0 ? <p className="muted">还没有保存的变化。创建材料或更新进度后会出现在这里。</p> : <PagedRecords label="工作区时间线" limit={6}
+      items={[...events].reverse().map(event => <div key={event.eventId}>
         {eventLabels[event.eventType] ?? "其他工作区记录"}
         {event.eventType === "status_changed" && <>：{statusLabel(event.fromStatus)} → {statusLabel(event.toStatus)}</>}
         {event.eventType === "workspace_created" && event.toStatus && <>：初始状态为{statusLabel(event.toStatus)}</>}
         {" · "}<time dateTime={event.createdAt}>{formatDateTime(event.createdAt)}</time>
-      </li>)}
-    </ul>}
+      </div>)} />}
   </section>;
 }

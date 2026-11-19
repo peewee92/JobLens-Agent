@@ -1,4 +1,6 @@
 import Link from "next/link";
+import {Pagination} from "@/components/ui/pagination";
+import {parsePageOffset, readKnownPage} from "@/lib/pagination";
 
 import {RequirementReviewBatchForm} from "@/components/requirement-review-batch-form";
 import {ServiceError} from "@/components/service-error";
@@ -15,13 +17,19 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function RequirementManualReviewPage() {
+export default async function RequirementManualReviewPage({searchParams}: {searchParams: Promise<{offset?: string | string[]}>}) {
+  const requestedOffset = parsePageOffset((await searchParams).offset);
+  const limit = 20;
+  let offset = requestedOffset;
+  let adjusted = false;
   let candidates;
   let batches;
   try {
     [candidates, batches] = await Promise.all([
       fetchRequirementReviewCandidates(),
-      fetchRequirementReviewBatches(),
+      readKnownPage(requestedOffset, limit, next => fetchRequirementReviewBatches(limit, next)).then(result => {
+        offset = result.offset; adjusted = result.adjusted; return result.page;
+      }),
     ]);
   } catch (caught) {
     const message =
@@ -168,6 +176,9 @@ export default async function RequirementManualReviewPage() {
             ))}
           </div>
         )}
+        {adjusted && <p role="status" className="jl-callout">列表已更新，已显示最后一个有效页面。</p>}
+        <Pagination label="质量记录分页" offset={offset} limit={limit} count={batches.items.length} total={batches.total}
+          href={next => next === 0 ? "/evals/requirements/manual" : `/evals/requirements/manual?offset=${next}`} />
       </section>
     </>
   );

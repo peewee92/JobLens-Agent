@@ -9,6 +9,8 @@ import type {
   SkillLevel,
 } from "@/lib/contracts";
 import {Button} from "@/components/ui/button";
+import {FilePicker} from "@/components/ui/file-picker";
+import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {ActionFeedback} from "@/components/ui/patterns";
 import {validateResumeFile} from "@/lib/resume-files";
 import {userFacingApiError} from "@/lib/user-facing-errors";
@@ -33,9 +35,12 @@ const skillLevelLabels: Record<SkillLevel, string> = {
   unknown: "待确认",
 };
 
-async function apiMessage(response: Response): Promise<string> {
+async function apiMessage(response: Response, selectedFile = false): Promise<string> {
   try {
     const body = (await response.json()) as Partial<ApiErrorBody>;
+    if (selectedFile && body.error?.code === "unsupported_resume_document") {
+      return "文件内容无法识别为 PDF 或 DOCX。请确认文件没有损坏或被改了后缀，或者直接粘贴简历文字。";
+    }
     return userFacingApiError(body, `简历整理失败（${response.status}），请稍后重试。`);
   } catch {
     return `简历整理失败（${response.status}）。`;
@@ -70,6 +75,7 @@ export function ResumeProposalPanel({
   } | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const acknowledgedPrior = useRef<string | null>(null);
   const [source, setSource] = useState<"file" | "text">(byok ? "text" : "file");
   const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -79,7 +85,7 @@ export function ResumeProposalPanel({
   const [state, setState] = useState<ProposalState>({kind: "idle", message: ""});
 
   function selectResumeFile(file: File | null) {
-    if (inFlight.current || disabled) return;
+    if (inFlight.current || disabled || pendingAction) return;
     setSource("file");
     setCallPlan(null); setPendingAction(null);
     setProposal(null);
@@ -102,7 +108,7 @@ export function ResumeProposalPanel({
   function dropResumeFile(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDraggingFile(false);
-    if (inFlight.current || disabled) return;
+    if (inFlight.current || disabled || pendingAction) return;
     setSource("file");
     const files = event.dataTransfer.files;
     if (files.length !== 1) {
@@ -116,9 +122,9 @@ export function ResumeProposalPanel({
     selectResumeFile(files[0] ?? null);
   }
 
-  async function acceptResponse(response: Response) {
+  async function acceptResponse(response: Response, selectedFile = false) {
     if (!response.ok) {
-      setState({kind: "error", message: await apiMessage(response)});
+      setState({kind: "error", message: await apiMessage(response, selectedFile)});
       return;
     }
     const result = (await response.json()) as ProfileExtractionProposal;
@@ -135,7 +141,7 @@ export function ResumeProposalPanel({
 
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (inFlight.current || disabled || unavailable || resumeText.trim().length < 50) return;
+    if (inFlight.current || disabled || unavailable || pendingAction || resumeText.trim().length < 50) return;
     inFlight.current = true;
     setSource("text");
     setCallPlan(null); setPendingAction(null);
@@ -162,34 +168,54 @@ export function ResumeProposalPanel({
     }
   }
 
+  async function finishModelResponse(response: Response) {
+    const record = await response.json();
+    if (response.ok && record.status === "failed") {
+      setState({kind: "error", message: record.errorCode === "provider_payment_required"
+        ? "模型服务余额或计费不可用，没有得到草稿。可手填经历，或解决计费后重新授权。"
+        : record.errorCode === "provider_auth_failed" || record.errorCode === "provider_forbidden"
+          ? "模型服务拒绝了授权，请检查配置，或手填经历。"
+          : "没能从这次模型结果整理出可核对的草稿。没有保存或改动职业背景；可以先快速填写一段经历。"});
+      setCallPlan(null); setPendingAction(null);
+      return;
+    }
+    if (!response.ok || record.status !== "completed" || !record.result) throw new Error();
+    await acceptResponse(new Response(JSON.stringify(record.result), {status:200}));
+    setCallPlan(null); setPendingAction(null);
+  }
+
+  function unknownResult() {
+    setState({kind:"error", message: byok
+      ? "还未确认这次请求的结果。可以只查看处理结果，不会再发送简历或重复扣费；也可以先手动填写。"
+      : "还未确认这次请求的结果。本地简历服务暂不提供结果查询，无法确定是否已计费。没有自动重试，也没有自动保存职业背景。"});
+  }
+
   async function executePlan() {
-    if (!callPlan || disabled || inFlight.current) return;
+    if (!callPlan || pendingAction || disabled || inFlight.current) return;
     inFlight.current = true;
-    const id = pendingAction ?? crypto.randomUUID(); setPendingAction(id);
-    setState({kind:"submitting", message:"正在使用你的模型整理背景……"});
+    const id = crypto.randomUUID();
+    setPendingAction(id);
+    setState({kind:"submitting", message:"正在使用你的模型整理背景…"});
     try {
-      const response = await fetch(byok ? "/api/byok/profile-calls" : "/api/local/profile-model/calls", {method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({actionId:id, planDigest:callPlan.planDigest, confirmed:true, maxProviderCalls:1})});
-      const record = await response.json();
-      if (response.ok && record.status === "failed") {
-        setState({kind: "error", message: record.errorCode === "provider_payment_required"
-          ? "模型服务余额或计费不可用，没有得到草稿。可手填经历，或解决计费后重新授权。"
-          : record.errorCode === "provider_auth_failed" || record.errorCode === "provider_forbidden"
-            ? "模型服务拒绝了授权，请检查配置，或手填经历。"
-            : "没能从这次模型结果整理出可核对的草稿。没有保存或改动职业背景；可以先快速填写一段经历。"});
-        setCallPlan(null);
-        return;
-      }
-      if (!response.ok || record.status !== "completed" || !record.result) throw new Error();
-      await acceptResponse(new Response(JSON.stringify(record.result), {status:200}));
-      setCallPlan(null);
-    } catch {setState({kind:"error", message:"未取得可用草稿。结果可能未知；再次点击只查询／重放同一请求，不会自动重新付费。也可以先手动填写。"});}
+      await finishModelResponse(await fetch(byok ? "/api/byok/profile-calls" : "/api/local/profile-model/calls", {method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({actionId:id, planDigest:callPlan.planDigest, confirmed:true, maxProviderCalls:1,
+          ...(acknowledgedPrior.current ? {acknowledgedPriorRequestId: acknowledgedPrior.current} : {})})}));
+    } catch { unknownResult(); }
+    finally { inFlight.current = false; }
+  }
+
+  async function checkResult() {
+    if (!byok || !pendingAction || inFlight.current) return;
+    inFlight.current = true;
+    setState({kind:"submitting", message:"正在查看结果；不会重新发送简历…"});
+    try { await finishModelResponse(await fetch(`/api/byok/profile-calls/${encodeURIComponent(pendingAction)}`)); }
+    catch { unknownResult(); }
     finally { inFlight.current = false; }
   }
 
   async function proposeFile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!resumeFile || disabled || unavailable || inFlight.current) return;
+    if (!resumeFile || disabled || unavailable || inFlight.current || pendingAction) return;
     inFlight.current = true;
     setSource("file");
     setCallPlan(null); setPendingAction(null);
@@ -208,7 +234,7 @@ export function ResumeProposalPanel({
         setState({kind: "idle", message: "已在本机读取文件；尚未发送给模型。"});
         return;
       }
-      await acceptResponse(response);
+      await acceptResponse(response, true);
     } catch {
       setState({kind: "error", message: "暂时无法整理简历，可重试或手动填写。职业资料没有自动保存。"});
     } finally {
@@ -217,7 +243,9 @@ export function ResumeProposalPanel({
   }
 
   const busy = state.kind === "submitting";
-  const feedback = state.message && <ActionFeedback tone={state.kind === "error" ? "danger" : "info"}>{state.message}</ActionFeedback>;
+  const feedback = state.kind === "submitting"
+    ? <PendingIndicator label={state.message} slowLabel="比平时慢一些，仍在等待本次处理结果。请不要重复提交。" />
+    : state.message && <ActionFeedback tone={state.kind === "error" ? "danger" : "info"}>{state.message}</ActionFeedback>;
 
   return (
     <section className="panel proposal-panel" aria-labelledby="resume-proposal-title">
@@ -235,7 +263,7 @@ export function ResumeProposalPanel({
             ? "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。文件在本机读取；只有确认调用后，提取出的文本才会发送给模型服务。"
             : unavailable
               ? "现在没有可用的简历模型。手动填写两项就能开始。"
-              : "支持 5 MiB 内、可选中文字的 PDF 或 DOCX。离线演示使用样本规则。"}
+              : "先读取文件生成待核对的草稿，不会直接保存到职业资料。"}
       </p>
 
       {!byok && !unavailable && <form className="proposal-file-form" method="post" onSubmit={proposeFile}>
@@ -253,29 +281,19 @@ export function ResumeProposalPanel({
           onDragLeave={() => setIsDraggingFile(false)}
           onDrop={dropResumeFile}
         >
-          <span>上传 PDF 或 DOCX</span>
-          <p className="muted-copy file-drop-hint">
-            {isDraggingFile ? "松开即可添加文件" : "拖拽文件到这里，或点击下方选择文件"}
-          </p>
-          <input
-            type="file"
-            aria-label="选择简历 PDF 或 DOCX"
-            disabled={busy || disabled}
+          <FilePicker title="上传 PDF 或 DOCX" hint={isDraggingFile ? "松开即可添加文件" : "拖到这里或选择文件 · 最大 5 MiB · 需要可选中的文字"}
             accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => selectResumeFile(event.target.files?.[0] ?? null)}
-          />
+            disabled={busy || disabled || !!pendingAction} invalid={source === "file" && state.kind === "error" && !resumeFile}
+            file={resumeFile} onSelect={selectResumeFile} />
         </div>
         <div className="actions">
           <button
             className="button-secondary"
             type="submit"
-            disabled={busy || disabled || !resumeFile}
+            disabled={busy || disabled || !!pendingAction || !resumeFile}
           >
             {state.kind === "submitting" ? "处理中…" : authorizeModel ? "读取文件，查看模型调用计划" : "整理这份简历"}
           </button>
-          <span className="muted-copy" aria-live="polite">
-            {resumeFile ? `${resumeFile.name} · ${Math.ceil(resumeFile.size / 1024)} KiB` : "未选择文件"}
-          </span>
         </div>
         {source === "file" && !(callPlan && pendingAction) ? feedback : null}
       </form>}
@@ -287,7 +305,7 @@ export function ResumeProposalPanel({
           <label htmlFor="resumeText">简历纯文本</label>
           <textarea
             id="resumeText"
-            readOnly={busy || disabled}
+            readOnly={busy || disabled || !!pendingAction}
             value={resumeText}
             onChange={(event) => {setResumeText(event.target.value); setCallPlan(null); setPendingAction(null);}}
             rows={10}
@@ -299,7 +317,7 @@ export function ResumeProposalPanel({
           <button
             className="button"
             type="submit"
-            disabled={busy || disabled || resumeText.trim().length < 50}
+            disabled={busy || disabled || !!pendingAction || resumeText.trim().length < 50}
           >
             {state.kind === "submitting" ? "整理中…" : (authorizeModel ? "查看模型调用计划" : "整理这段简历文本")}
           </button>
@@ -312,15 +330,35 @@ export function ResumeProposalPanel({
       {callPlan && <section className="notice" aria-label="确认本次模型调用">
         <h3>确认本次模型调用</h3>
         <p>简历文本将发给 {callPlan.destination ? `${callPlan.destination} 的 ` : ""}{callPlan.model}。最多发送 {callPlan.maxProviderCalls} 次，最多输出 {callPlan.maxOutputTokens} 个模型计量单位；费用由模型账户承担，此处不估价。</p>
-        <button className="button" type="button" disabled={busy || disabled} onClick={executePlan}>{pendingAction ? "检查同一请求" : "确认发送简历文字并生成草稿"}</button>
-        {pendingAction && feedback}
+        {acknowledgedPrior.current && !pendingAction && <p>上一次请求结果仍未确认，可能已产生费用；以下授权仅用于新请求。</p>}
+        {!pendingAction ? <div className="jl-inline">
+          <Button disabled={busy || disabled} onClick={executePlan}>确认发送简历文字并生成草稿</Button>
+          <Button variant="secondary" disabled={busy} onClick={() => {
+            setCallPlan(null);
+            setState({kind: "idle", message: "已取消授权，没有发送简历；输入仍保留。"});
+          }}>取消授权</Button>
+        </div> : <>
+          {feedback}
+          {!busy && <div className="jl-inline">
+            {byok && <Button onClick={checkResult}>查看处理结果</Button>}
+            <details>
+              <summary>准备发起新请求</summary>
+              <p>上次请求可能已产生费用。新请求需要重新查看内容和次数，再明确授权。</p>
+              <Button variant="secondary" onClick={() => {
+                acknowledgedPrior.current = pendingAction;
+                setCallPlan(null); setPendingAction(null);
+                setState({kind: "idle", message: "上次结果仍未确认。本次尚未发送；请重新查看调用计划。"});
+              }}>了解，返回制定新计划</Button>
+            </details>
+          </div>}
+        </>}
       </section>}
 
       {onManualEntry && !hideManualEntry && !proposal && <div className="actions">
         <Button variant={unavailable || state.kind === "error" ? "primary" : "secondary"}
           disabled={busy || disabled} onClick={onManualEntry}>{manualEntryLabel}</Button>
         {state.kind === "error" && <span className="muted-copy">
-          {callPlan && pendingAction ? "手动填写不影响查询刚才的请求。" : "想重试解析，可修改输入后重新查看调用计划；不会自动发送。"}
+          {callPlan && pendingAction ? "手动填写不会重新发起刚才的请求。" : authorizeModel ? "想重新解析，请核对输入后重新查看调用计划；不会自动发送。" : "可以更换文件、粘贴文字，或快速手填一段经历。"}
         </span>}
       </div>}
 

@@ -1,14 +1,19 @@
 import Link from "next/link";
+import {ReadRetry} from "./ui/read-retry";
 
-export function ServiceError({message}: {message: string}) {
+export function ServiceError({message, heading = "暂时无法读取内容", recovery = "retry"}: {
+  message: string; heading?: string; recovery?: "retry" | "home";
+}) {
   return (
-    <section className="error-panel">
-      <p className="eyebrow">Service error</p>
-      <h2>暂时无法读取 JobLens 数据</h2>
-      <p>{message}</p>
-      <div className="actions">
-        <Link className="button-ghost" href="/jobs">重新加载岗位池</Link>
-        <Link className="button-secondary" href="/import">检查导入入口</Link>
+    <section className="jl-callout jl-status-panel" data-tone="warning" aria-labelledby="service-error-heading">
+      <div role="alert">
+        <h2 id="service-error-heading">{heading}</h2>
+        <p>{message}</p>
+        <p>已保存的数据不会因读取失败而改变。</p>
+      </div>
+      <div className="jl-inline">
+        {recovery === "retry" && <ReadRetry />}
+        <Link className={recovery === "home" ? "button" : "button-ghost"} href="/">返回首页</Link>
       </div>
     </section>
   );

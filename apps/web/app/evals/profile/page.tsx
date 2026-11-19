@@ -1,4 +1,6 @@
 import Link from "next/link";
+import {Pagination} from "@/components/ui/pagination";
+import {parsePageOffset, readKnownPage} from "@/lib/pagination";
 
 import {ServiceError} from "@/components/service-error";
 import {
@@ -11,12 +13,18 @@ import {formatRate} from "@/lib/profile-evals";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfileEvalRunsPage() {
+export default async function ProfileEvalRunsPage({searchParams}: {searchParams: Promise<{offset?: string | string[]}>}) {
+  const requestedOffset = parsePageOffset((await searchParams).offset);
+  const limit = 20;
+  let offset = requestedOffset;
+  let adjusted = false;
   let page;
   let baseline;
   try {
     [page, baseline] = await Promise.all([
-      fetchProfileEvalRuns(),
+      readKnownPage(requestedOffset, limit, next => fetchProfileEvalRuns(limit, next)).then(result => {
+        offset = result.offset; adjusted = result.adjusted; return result.page;
+      }),
       fetchAcceptedProfileEvalBaseline(),
     ]);
   } catch (caught) {
@@ -100,6 +108,9 @@ export default async function ProfileEvalRunsPage() {
             ))}
           </div>
         )}
+        {adjusted && <p role="status" className="jl-callout">列表已更新，已显示最后一个有效页面。</p>}
+        <Pagination label="质量记录分页" offset={offset} limit={limit} count={page.items.length} total={page.total}
+          href={next => next === 0 ? "/evals/profile" : `/evals/profile?offset=${next}`} />
       </section>
     </>
   );
