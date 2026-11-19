@@ -22,3 +22,8 @@ export function hostingOrigin(value: string | undefined): string | null {
       ? url.origin : null;
   } catch { return null; }
 }
+
+export function publicDemoHref(origin = process.env.JOBLENS_PUBLIC_ENTRY_ORIGIN): string {
+  const publicOrigin = hostingOrigin(origin);
+  return publicOrigin ? `${publicOrigin}/demo` : "/demo";
+}

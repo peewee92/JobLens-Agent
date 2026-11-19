@@ -3,7 +3,7 @@ import test from "node:test";
 import {cloudIdentityHeaders} from "../lib/cloud-api-identity";
 import {privateRouteKind} from "../lib/private-routing";
 import {parseWorkspaceSignIn, workspaceCodeRecipients} from "../lib/private-sign-in";
-import {hostingOrigin, workspacePath} from "../lib/workspace-path";
+import {hostingOrigin, publicDemoHref, workspacePath} from "../lib/workspace-path";
 
 test("the independent build preserves route, query and anchor without absorbing public or external links", () => {
   const previous = process.env.NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD;
@@ -34,6 +34,8 @@ test("individual work surfaces do not expose demo endpoints, model secrets or ma
   assert.equal(hostingOrigin("http://cloud.example.com"), null);
   assert.equal(hostingOrigin("https://cloud.example.com/private"), null);
   assert.equal(hostingOrigin("http://localhost:3230"), "http://localhost:3230");
+  assert.equal(publicDemoHref("https://joblens.example.com"), "https://joblens.example.com/demo");
+  assert.equal(publicDemoHref("https://joblens.example.com/not-a-site-root"), "/demo");
 });
 
 test("tenant forwarding matches the FastAPI HMAC and binds method and query", () => {
