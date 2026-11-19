@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import Link from "next/link";
 import {useRef, useState, type FormEvent} from "react";
 import type {ApiErrorBody, JobImportResult} from "@/lib/contracts";
@@ -35,7 +36,7 @@ export function ImportForm() {
         return;
       }
       setState({status: "submitting"});
-      const response = await fetch("/api/job-imports", {
+      const response = await workspaceFetch("/api/job-imports", {
         method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload),
       });
       if (response.status >= 500 || response.status === 408) { setState({status: "unknown"}); return; }

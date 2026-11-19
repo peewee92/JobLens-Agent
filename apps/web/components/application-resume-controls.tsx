@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {useRef, useState, useTransition} from "react";
 import {useRouter} from "next/navigation";
 
@@ -34,7 +35,7 @@ export function ApplicationResumeControls({
     setPending(true);
     setError(null);
     try {
-      const response = await fetch(path, {
+      const response = await workspaceFetch(path, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(body),

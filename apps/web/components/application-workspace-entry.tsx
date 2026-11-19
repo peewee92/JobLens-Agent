@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch, workspacePath} from "@/lib/workspace-path";
 import {useState} from "react";
 
 export function ApplicationWorkspaceEntry({jobId}: {jobId: string}) {
@@ -10,7 +11,7 @@ export function ApplicationWorkspaceEntry({jobId}: {jobId: string}) {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/application-workspaces", {
+      const response = await workspaceFetch("/api/application-workspaces", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
@@ -23,7 +24,7 @@ export function ApplicationWorkspaceEntry({jobId}: {jobId: string}) {
       if (!response.ok || typeof body.workspaceId !== "string") {
         throw new Error(typeof body.detail === "string" ? body.detail : "当前岗位还不能建立求职工作区");
       }
-      window.location.assign(`/applications/${encodeURIComponent(body.workspaceId)}`);
+      window.location.assign(workspacePath(`/applications/${encodeURIComponent(body.workspaceId)}`));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "当前岗位还不能建立求职工作区");
       setBusy(false);

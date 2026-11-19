@@ -18,6 +18,12 @@ dependencies = [
     "mcp>=2,<3",
 ]
 
+[project.optional-dependencies]
+cloud = [
+    "certifi>=2025.1.31",
+    "psycopg[binary]>=3.2,<4",
+]
+
 [dependency-groups]
 dev = [
     "pytest",

@@ -1,3 +1,4 @@
+import {hostingOrigin, workspacePath} from "@/lib/workspace-path";
 import {NextResponse} from "next/server";
 
 import {backendResponse} from "@/lib/backend";
@@ -46,7 +47,7 @@ export async function POST(
     : null;
 
   if (safeReturnTo) {
-    const target = new URL(safeReturnTo, request.url);
+    const target = new URL(workspacePath(safeReturnTo), hostingOrigin(process.env.JOBLENS_CLOUD_FRONTEND_ORIGIN) ?? request.url);
     if (!response.ok) {
       let errorCode = "requirement_extraction_failed";
       try {

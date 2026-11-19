@@ -1,3 +1,5 @@
+import {publicDemoEnabled} from "@/lib/public-demo";
+import {demoEntryPreview, PublicDemoPreview} from "@/components/public-demo-preview";
 import Link from "next/link";
 import {Pagination} from "@/components/ui/pagination";
 import {ServiceError} from "@/components/service-error";
@@ -11,6 +13,8 @@ import {workspaceStatusLabels} from "@/lib/workbench";
 export const dynamic = "force-dynamic";
 
 export default async function ApplicationsPage({searchParams}: {searchParams: Promise<{offset?: string}>}) {
+  const preview = await demoEntryPreview("/applications");
+  if (preview) return preview;
   const raw = (await searchParams).offset ?? "0";
   if (!/^\d{1,6}$/.test(raw) || Number(raw) > 100000) return <>
     <PageHeading title="工作区页码无效" />
@@ -36,6 +40,9 @@ export default async function ApplicationsPage({searchParams}: {searchParams: Pr
       <Link className="jl-text-link" href="/">返回求职工作台</Link>
     </>;
   } catch (error) {
+    if (publicDemoEnabled() && error instanceof BackendApiError && [410, 503, 504].includes(error.status)) {
+      return <PublicDemoPreview destination="/applications" status={error.status === 410 ? "expired" : "unavailable"} />;
+    }
     const failure = error instanceof BackendApiError ? error : null;
     return <>
       <PageHeading title="我的准备" />

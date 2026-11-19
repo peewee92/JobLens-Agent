@@ -1,3 +1,4 @@
+import {workspaceFetch} from "@/lib/workspace-path";
 import type {ApiErrorBody, ManualJobImportResult, ManualJobInput} from "@/lib/contracts";
 import {userFacingApiError} from "@/lib/user-facing-errors";
 
@@ -91,7 +92,7 @@ export async function submitManualJob(job: ManualJobInput): Promise<Result> {
   if (issue) return {kind: "error", message: issue};
   const unknown: Result = {kind: "unknown", message: "暂时不能确认是否已保存。请先到我的岗位核对，不要连续提交。"};
   try {
-    const response = await fetch("/api/job-imports/manual", {
+    const response = await workspaceFetch("/api/job-imports/manual", {
       method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(job),
     });
     if (response.status >= 500 || response.status === 408) return unknown;

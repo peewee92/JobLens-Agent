@@ -1,3 +1,4 @@
+import {workspacePath} from "@/lib/workspace-path";
 import Link from 'next/link';
 import {backendJson, BackendApiError} from '@/lib/backend';
 import type {InitialScopePlan} from '@/lib/contracts';
@@ -22,7 +23,7 @@ export default async function InitialScopePage({searchParams}: {searchParams: Pr
       <section className="page-heading"><p className="eyebrow">当前事实 · 分析预检</p><h1>先核对这批岗位，再启动分析</h1>
         <p>当前职业资料 {plan.profileVersion ? `v${plan.profileVersion}` : '尚未确认'}、求职意向 {plan.searchIntentVersion ? `v${plan.searchIntentVersion}` : '尚未确认'}。</p>
         <Link href={agentScopeHref(ids)}>返回原岗位范围</Link>
-        <a href={initialScopeAnalysisHref(ids)}>重新预检原范围</a>
+        <a href={workspacePath(initialScopeAnalysisHref(ids))}>重新预检原范围</a>
       </section>
       <section className="card stack-md"><h2>这次处理范围</h2>
         <p>{plan.items.length} 个岗位：{plan.reusableJobIds.length} 个可复用，{plan.nextJobIds.length} 个进入首批重算候选；每次最多新增分析 {plan.maxNewAnalyses} 个岗位。</p>

@@ -57,7 +57,7 @@ class RequirementEvalRunORM(Base):
             name="ck_requirement_eval_runs_mode",
         ),
         CheckConstraint(
-            "release_eligible = 0 OR (mode = 'live' AND gate_passed = 1)",
+            "NOT release_eligible OR (mode = 'live' AND gate_passed)",
             name="ck_requirement_eval_runs_release_eligibility",
         ),
         Index("ix_requirement_eval_runs_created_at", "created_at"),

@@ -1,4 +1,5 @@
 "use client";
+import {workspaceFetch, workspacePath} from "@/lib/workspace-path";
 import {Pagination} from "@/components/ui/pagination";
 import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {Button} from "@/components/ui/button";
@@ -121,7 +122,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     ids.forEach(id => query.append("jobId", id));
     let cancelled = false;
     setRunLabels({});
-    void fetch(`/api/jobs/labels?${query}`, {cache: "no-store"})
+    void workspaceFetch(`/api/jobs/labels?${query}`, {cache: "no-store"})
       .then(response => response.ok ? response.json() : null)
       .then(body => { if (!cancelled) setRunLabels(validatedRunLabels(ids, body)); })
       .catch(() => {});
@@ -130,7 +131,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
 
   async function loadRecentRuns() {
     try {
-      const response = await fetch("/api/career-agent/runs?limit=10", {cache: "no-store"});
+      const response = await workspaceFetch("/api/career-agent/runs?limit=10", {cache: "no-store"});
       if (!response.ok) throw new Error("暂时无法读取最近分析，请重试。已有分析不会因此丢失。");
       const body = await response.json() as {items: RunState[]};
       setRecentRuns(body.items);
@@ -170,7 +171,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     setMessage("正在恢复上次比较…");
     try {
       const state = await parseResponse(
-        await fetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"}),
+        await workspaceFetch(`/api/career-agent/runs/${encodeURIComponent(threadId)}`, {cache: "no-store"}),
       );
       const resolution = displayState(state);
       setMessage(resolution === "superseded" ? "另一个页面已提交不同决定，当前显示服务端已接受的结果，原请求不会再重试。" : state.pendingApproval ? "已恢复上次等待你确认的 比较。" : targetSelectionBlockMessage(state.currentStep) ?? "已恢复上次比较。");
@@ -222,7 +223,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     pageLock.current = true;
     setLoadingJobs(true); setJobPageError(null);
     try {
-      const response = await fetch(`/api/jobs?offset=${pageOffset}`);
+      const response = await workspaceFetch(`/api/jobs?offset=${pageOffset}`);
       if (!response.ok) throw new Error("暂时无法读取更多岗位，请稍后重试。");
       const page = await response.json();
       const next = appendAgentJobPage(jobs, page, pageOffset);
@@ -242,7 +243,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     try {
       const params = new URLSearchParams();
       ids.forEach(id => params.append("jobId", id));
-      const response = await fetch(`/api/match-ranking/preflight?${params}`, {cache: "no-store"});
+      const response = await workspaceFetch(`/api/match-ranking/preflight?${params}`, {cache: "no-store"});
       if (!response.ok) throw new Error("暂时无法检查排序，请确认服务可用后重试。");
       setPreflight(rankingPreflight(ids, await response.json()));
     } catch (error) {
@@ -272,7 +273,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
     setBusy(true);
     setMessage("正在继续已保存的分析，不会重新提交人工决定…");
     try {
-      const state = await parseResponse(await fetch(
+      const state = await parseResponse(await workspaceFetch(
         `/api/career-agent/runs/${encodeURIComponent(run.threadId)}/continue`,
         {method: "POST"},
       ));
@@ -502,7 +503,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
           <h2>{run.status === "completed" ? run.updatePartial ? "已保存部分范围的能力差距分析" : "目标与准备材料已保存" : "本次比较已结束或暂停"}</h2>
           {run.status === "stale" && <div className="notice">
             <p>{careerAgentStepSummary(run.currentStep)}</p>
-            <a href={run.requestedJobIds.length ? agentScopeHref(run.requestedJobIds) : "/agent"}>检查原岗位范围并重新分析</a>
+            <a href={workspacePath(run.requestedJobIds.length ? agentScopeHref(run.requestedJobIds) : "/agent")}>检查原岗位范围并重新分析</a>
           </div>}
           <UnrankedJobs ids={unrankedJobIds} labels={jobLabels} scope={run.requestedJobIds} currentOmissions={currentPreflight?.scope === rankingScope(run.requestedJobIds) ? currentPreflight.omissions : undefined} />
           {run.currentStep === "analysis_facts_changed" ? <p className="notice">分析期间资料、意向或岗位事实发生变化。本次材料如已保存，仅供历史查看；请使用当前事实新建分析。</p> : null}
@@ -534,7 +535,7 @@ export function CareerAgentHitlPanel({jobs: initialJobs, initialJobId, initialSc
         <button className="button" disabled={busy} onClick={() => void loadRecentRuns()} type="button">刷新最近分析</button>
         {recentRuns.length === 0 && !recentError ? <p>暂无已保存分析。</p> : null}
         <ul>{recentRuns.map((item) => <li key={item.threadId}>
-          <a href={runHref(item.threadId)}>{item.requestedJobIds.length} 个岗位 · {item.updatePartial ? "部分范围已保存" : RUN_STATUS_LABELS[item.status] ?? "已保存"}</a>
+          <a href={workspacePath(runHref(item.threadId))}>{item.requestedJobIds.length} 个岗位 · {item.updatePartial ? "部分范围已保存" : RUN_STATUS_LABELS[item.status] ?? "已保存"}</a>
         </li>)}</ul>
       </section>
 

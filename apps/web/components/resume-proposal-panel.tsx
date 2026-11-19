@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch} from "@/lib/workspace-path";
 import {DragEvent, FormEvent, useRef, useState} from "react";
 
 import type {
@@ -150,12 +151,12 @@ export function ResumeProposalPanel({
     setState({kind: "submitting", message: "正在整理你的简历…"});
     try {
       if (authorizeModel) {
-        const r = await fetch(byok ? "/api/byok/profile-call-plan" : "/api/local/profile-model/plan", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({resumeText})});
+        const r = await workspaceFetch(byok ? "/api/byok/profile-call-plan" : "/api/local/profile-model/plan", {method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({resumeText})});
         if (!r.ok) { setState({kind: "error", message: await apiMessage(r)}); return; }
         setCallPlan(await r.json()); setPendingAction(null);
         setState({kind: "idle", message: "请核对下方调用计划；尚未发送模型请求。"}); return;
       }
-      const response = await fetch("/api/profile-proposals", {
+      const response = await workspaceFetch("/api/profile-proposals", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({resumeText}),
@@ -197,7 +198,7 @@ export function ResumeProposalPanel({
     setPendingAction(id);
     setState({kind:"submitting", message:"正在使用你的模型整理背景…"});
     try {
-      await finishModelResponse(await fetch(byok ? "/api/byok/profile-calls" : "/api/local/profile-model/calls", {method:"POST", headers:{"Content-Type":"application/json"},
+      await finishModelResponse(await workspaceFetch(byok ? "/api/byok/profile-calls" : "/api/local/profile-model/calls", {method:"POST", headers:{"Content-Type":"application/json"},
         body:JSON.stringify({actionId:id, planDigest:callPlan.planDigest, confirmed:true, maxProviderCalls:1,
           ...(acknowledgedPrior.current ? {acknowledgedPriorRequestId: acknowledgedPrior.current} : {})})}));
     } catch { unknownResult(); }
@@ -208,7 +209,7 @@ export function ResumeProposalPanel({
     if (!byok || !pendingAction || inFlight.current) return;
     inFlight.current = true;
     setState({kind:"submitting", message:"正在查看结果；不会重新发送简历…"});
-    try { await finishModelResponse(await fetch(`/api/byok/profile-calls/${encodeURIComponent(pendingAction)}`)); }
+    try { await finishModelResponse(await workspaceFetch(`/api/byok/profile-calls/${encodeURIComponent(pendingAction)}`)); }
     catch { unknownResult(); }
     finally { inFlight.current = false; }
   }
@@ -225,7 +226,7 @@ export function ResumeProposalPanel({
     const form = new FormData();
     form.set("file", resumeFile, resumeFile.name);
     try {
-      const response = await fetch(authorizeModel ? "/api/local/profile-model/file-plan" : "/api/profile-proposals/file", {
+      const response = await workspaceFetch(authorizeModel ? "/api/local/profile-model/file-plan" : "/api/profile-proposals/file", {
         method: "POST",
         body: form,
       });

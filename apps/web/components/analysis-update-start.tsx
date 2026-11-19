@@ -1,4 +1,5 @@
 'use client';
+import {workspacePath} from "@/lib/workspace-path";
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import type {AnalysisUpdatePlan, CareerAgentRunState} from '@/lib/contracts';
@@ -29,7 +30,7 @@ export function AnalysisUpdateStart({plan}: {plan: AnalysisUpdatePlan}) {
       const state = await response.json() as CareerAgentRunState;
       if (state.threadId !== original.body.threadId) throw new Error('响应与请求不一致，请核对运行状态。');
       // Keep the receipt through navigation: refresh or a lost response never creates another run.
-      window.location.assign(runHref(state.threadId));
+      window.location.assign(workspacePath(runHref(state.threadId)));
     } catch (e) {setMessage(e instanceof Error ? e.message : '网络未返回结果，请查看运行或重试原请求。');}
     finally {setBusy(false);}
   }

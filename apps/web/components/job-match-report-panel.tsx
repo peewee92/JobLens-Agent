@@ -1,4 +1,5 @@
 "use client";
+import {workspaceFetch} from "@/lib/workspace-path";
 import {MatchReason} from "@/components/match-reason";
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
@@ -55,7 +56,7 @@ export function JobMatchReportPanel({
     setStatus("submitting");
     setMessage("");
     try {
-      const preview = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/semantic-call-plan`, {cache: "no-store"});
+      const preview = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/semantic-call-plan`, {cache: "no-store"});
       if (!preview.ok) throw new Error("暂时无法核对匹配输入，请检查资料和岗位要求后重新操作；本次没有授权模型调用。");
       const plan = await preview.json() as SemanticCallPlan;
       if (plan.executionMode === "authorized" && plan.requirements.length > 0) {
@@ -64,7 +65,7 @@ export function JobMatchReportPanel({
         return;
       }
       setSemanticPlan(null);
-      const response = await fetch(
+      const response = await workspaceFetch(
         `/api/jobs/${encodeURIComponent(jobId)}/match-report`,
         {method: "POST"},
       );

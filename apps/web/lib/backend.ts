@@ -2,6 +2,9 @@ import "server-only";
 import {forwardBackendResponse} from "@/lib/proxy-response";
 import {cookies} from "next/headers";
 import {DEMO_COOKIE, demoBackendHeaders, publicDemoEnabled} from "@/lib/public-demo";
+import {cloudIdentityHeaders} from "@/lib/cloud-api-identity";
+import {readWorkspaceOwner} from "@/lib/cloud-auth";
+import {hostingOrigin, isPrivateWorkspaceBuild} from "@/lib/workspace-path";
 import {isSystemReadiness, type SystemReadiness} from "@/lib/system-readiness";
 
 import type {
@@ -61,6 +64,11 @@ export class BackendApiError extends Error {
 }
 
 export function backendBaseUrl(): string {
+  if (isPrivateWorkspaceBuild()) {
+    const origin = hostingOrigin(process.env.JOBLENS_CLOUD_BACKEND_URL);
+    if (!origin) throw new BackendApiError(503, "workspace_unavailable", "个人工作台暂时不可用，请稍后再打开。");
+    return origin;
+  }
   return (process.env.JOBLENS_BACKEND_URL ?? "http://127.0.0.1:8000").replace(
     /\/$/,
     "",
@@ -93,25 +101,38 @@ export async function backendResponse(
   // Never impose a UI timeout or retry on mutations: a missing reply cannot establish that nothing was saved.
   const readDeadline = reading && !init?.signal ? AbortSignal.timeout(15000) : undefined;
   try {
-    const demoHeaders = publicDemoEnabled() ? demoBackendHeaders((await cookies()).get(DEMO_COOKIE)?.value) : {};
-    return await fetch(`${backendBaseUrl()}${path}`, {
+    const privateBuild = isPrivateWorkspaceBuild();
+    const base = backendBaseUrl();
+    const headers = new Headers(init?.headers);
+    if (!headers.has("accept")) headers.set("Accept", "application/json");
+    let target = `${base}${path}`;
+    if (privateBuild) {
+      const owner = await readWorkspaceOwner();
+      if (!owner) throw new BackendApiError(401, "workspace_sign_in_required", "登录已结束，请重新登录个人工作台。");
+      const url = new URL(path, base);
+      if (url.origin !== base || url.hash) throw new Error("Invalid workspace path");
+      for (const [name, value] of Object.entries(cloudIdentityHeaders(process.env.JOBLENS_CLOUD_PROXY_SECRET ?? "", owner, method, url.pathname + url.search))) headers.set(name, value);
+      target = url.href;
+    } else if (publicDemoEnabled()) {
+      for (const [name, value] of Object.entries(demoBackendHeaders((await cookies()).get(DEMO_COOKIE)?.value))) headers.set(name, value);
+    }
+    return await fetch(target, {
       ...init,
       signal: init?.signal ?? readDeadline,
       cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        ...init?.headers,
-        ...demoHeaders,
-      },
+      headers,
+      ...(privateBuild && {redirect: "error"}),
     });
   } catch (error) {
+    if (error instanceof BackendApiError) throw error;
     if (reading && (readDeadline?.aborted || (error instanceof Error && error.name === "TimeoutError"))) {
       throw new BackendApiError(504, "backend_read_timeout", "未能及时读取内容；可以重新读取。");
     }
     throw new BackendApiError(
       503,
       "backend_unavailable",
-      publicDemoEnabled() ? "演示服务可能正在唤醒，请稍后重新检查；不会自动重跑分析。" : "JobLens Backend 暂时不可用，请确认 FastAPI 已启动。",
+      isPrivateWorkspaceBuild() ? "个人工作台暂时无法连接。请稍后重新查看处理结果，不会自动重复提交。" :
+        publicDemoEnabled() ? "演示服务可能正在唤醒，请稍后重新检查；不会自动重跑分析。" : "JobLens Backend 暂时不可用，请确认 FastAPI 已启动。",
     );
   }
 }

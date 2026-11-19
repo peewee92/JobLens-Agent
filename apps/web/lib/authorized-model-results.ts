@@ -1,3 +1,5 @@
+import {workspacePath} from "@/lib/workspace-path";
+
 function withSavedResult(detailHref: string, param: string, id: string, anchor: string): string {
   const [pathAndQuery] = detailHref.split("#", 1);
   const [pathname, query] = pathAndQuery.split("?", 2);
@@ -33,6 +35,7 @@ export function openSavedJobDocument(
   // A response may arrive after the user moves to another job or changes comparison scope.
   if (current !== startedOn) return;
   // A client-router refresh alone can leave the pre-save job content visible.
-  if (current + location.hash === href) location.reload();
-  else location.replace(href);
+  const target = workspacePath(href);
+  if (current + location.hash === target) location.reload();
+  else location.replace(target);
 }

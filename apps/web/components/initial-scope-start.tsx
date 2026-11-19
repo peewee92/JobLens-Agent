@@ -1,4 +1,5 @@
 'use client';
+import {workspacePath} from "@/lib/workspace-path";
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import type {InitialScopePlan, CareerAgentRunState} from '@/lib/contracts';
@@ -25,7 +26,7 @@ export function InitialScopeStart({plan}: {plan: InitialScopePlan}) {
       if (!response.ok) throw new Error(body.error?.message ?? '无法确认结果，请查看这次运行或重试原请求。');
       const state = body as CareerAgentRunState;
       if (state.threadId !== original.body.threadId) throw new Error('响应与原请求不一致，请核对运行。');
-      window.location.assign(runHref(state.threadId));
+      window.location.assign(workspacePath(runHref(state.threadId)));
     } catch (e) {setMessage(e instanceof Error ? e.message : '网络未返回结果，请查看运行或重试原请求。');}
     finally {setBusy(false);}
   }

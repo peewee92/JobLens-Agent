@@ -1,4 +1,5 @@
 "use client";
+import {workspaceFetch, workspacePath} from "@/lib/workspace-path";
 import {useEffect, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
 import {jobDocumentRoute, openSavedJobDocument} from "@/lib/authorized-model-results";
@@ -59,7 +60,7 @@ function ModelCallForPlan({jobId, plan: initialPlan, disabled, kind, reportHref,
   }
 
   async function reloadPlan() {
-    const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-call-plan`, {cache: "no-store"});
+    const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-call-plan`, {cache: "no-store"});
     if (response.ok) {
       const current = await response.json() as RequirementCallPlan | SemanticCallPlan;
       if (current.jobId !== jobId) return;
@@ -78,7 +79,7 @@ function ModelCallForPlan({jobId, plan: initialPlan, disabled, kind, reportHref,
     try {
       const body = window.localStorage.getItem(`${key}:command`);
       if (!body) { setMessage("原授权内容不可用，请保留请求标识并检查服务端记录。"); return; }
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls`, {
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls`, {
         method: "POST", headers: {"Content-Type": "application/json"}, body,
       });
       if (!response.ok) {
@@ -106,7 +107,7 @@ function ModelCallForPlan({jobId, plan: initialPlan, disabled, kind, reportHref,
     try {
       const actionId = window.localStorage.getItem(key) ?? record?.actionId;
       if (!actionId) { setMessage("未找到已发送的请求标识，请刷新查看最近记录。"); return; }
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls/${encodeURIComponent(actionId)}`);
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls/${encodeURIComponent(actionId)}`);
       if (!response.ok) {
         setMessage("暂未查询到原请求。可稍后查询，或重发相同授权；不会生成新的请求标识。");
         return;
@@ -135,7 +136,7 @@ function ModelCallForPlan({jobId, plan: initialPlan, disabled, kind, reportHref,
       window.localStorage.setItem(`${key}:command`, JSON.stringify(command));
       window.localStorage.setItem(key, actionId);
       sent = true;
-      const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls`, {
+      const response = await workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/${endpoint}-calls`, {
         method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(command),
       });
       if (!response.ok) {
@@ -175,7 +176,7 @@ function ModelCallForPlan({jobId, plan: initialPlan, disabled, kind, reportHref,
     {record ? <div role="status">
       <p>最近请求：{record.status === "completed" ? (semantic ? "匹配结果已保存" : "结果已保存，请核对下方提取要求") : record.status === "running" ? "正在执行；超过两分钟未完成时请重新查询" : record.status === "uncertain" ? "调用结果不确定，可能已产生费用" : "未保存可用结果，不会自动重试"}。</p>
       <p>请求尝试：{record.attempts}；输入用量：{record.inputTokens ?? "未知"}；输出用量：{record.outputTokens ?? "未知"}。</p>
-      {completedHref && <a href={completedHref}>{semantic ? "查看刚保存的匹配结果" : "查看已保存的岗位要求（不调用模型）"}</a>}
+      {completedHref && <a href={workspacePath(completedHref)}>{semantic ? "查看刚保存的匹配结果" : "查看已保存的岗位要求（不调用模型）"}</a>}
       {record.errorCode === "semantic_output_not_grounded" && <p role="alert" className="notice">模型返回的说明未通过经历证据核对，没有保存完整匹配建议。下方仍可查看规则判断。重新授权会再发起一次请求，可能再次收费。</p>}
       {record.responseStatus === 402 ? <p role="alert" className="notice">模型服务返回 HTTP 402，账户或计费条件未满足，尚未获得可用分析结果。请先到已配置的模型服务商核对余额、额度或账户状态，再回来明确授权新的一次调用。修改岗位描述不能解决此问题；系统不会自动充值、重试或切换模型。当前用量未知，不代表费用为零。</p> : null}
     </div> : null}

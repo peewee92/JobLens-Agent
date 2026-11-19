@@ -269,7 +269,7 @@ test("import evidence continuation returns to the batch only after explicit rema
 test("import batch matching is explicit, bounded, and never auto-resumes", async () => {
   const component = await source("components/import-batch-match.tsx");
 
-  assert.match(component, /fetch\("\/api\/match-batch"/);
+  assert.match(component, /workspaceFetch\("\/api\/match-batch"/);
   assert.match(component, /maxReadyJobs: 5/);
   assert.match(component, /onClick=\{run\}/);
   assert.match(component, /只有你点击后才会执行/);

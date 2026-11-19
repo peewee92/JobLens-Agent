@@ -1,5 +1,6 @@
 "use client";
 
+import {workspaceFetch, workspacePath} from "@/lib/workspace-path";
 import {useEffect, useRef, useState, type FormEvent} from "react";
 
 import type {RequirementCallPlan} from "@/lib/contracts";
@@ -33,7 +34,7 @@ export function JobRequirementExtractButton({
   const [plan, setPlan] = useState<RequirementCallPlan | null>(null);
   useEffect(() => {
     let active = true;
-    fetch(`/api/jobs/${encodeURIComponent(jobId)}/requirement-call-plan`)
+    workspaceFetch(`/api/jobs/${encodeURIComponent(jobId)}/requirement-call-plan`)
       .then(async response => response.ok ? response.json() as Promise<RequirementCallPlan> : null)
       .then(value => { if (active) setPlan(value); })
       .catch(() => { /* Legacy offline endpoint stays zero-budget when this query fails. */ })
@@ -58,7 +59,7 @@ export function JobRequirementExtractButton({
     setStatus("submitting");
     setMessage("");
     try {
-      const response = await fetch(
+      const response = await workspaceFetch(
         `/api/jobs/${encodeURIComponent(jobId)}/requirement-extractions`,
         {
           method: "POST",
@@ -94,7 +95,7 @@ export function JobRequirementExtractButton({
 
   return (
     <div>
-      <form action={fallbackAction} method="post" onSubmit={extract}>
+      <form action={workspacePath(fallbackAction)} method="post" onSubmit={extract}>
         <label className="requirement-live-cost-consent">
           <input
             checked={confirmLiveCost}

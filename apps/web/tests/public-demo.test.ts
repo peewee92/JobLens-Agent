@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {resolve} from "node:path";
 import test from "node:test";
-import {demoBackendHeaders, demoOriginAllowed} from "../lib/public-demo";
+import {canStartAfterExpiredReset, demoBackendHeaders, demoOriginAllowed, demoSessionStateFromResponse, isDemoDestination} from "../lib/public-demo";
 
 const root = resolve(import.meta.dirname, "..");
 test("public demo write origins are exact and fail closed", () => {
@@ -22,8 +22,31 @@ test("public demo credentials are server configuration and missing settings fail
 });
 test("session is HttpOnly, reset is explicit and token is never returned to client JavaScript", async () => {
   const source = await readFile(resolve(root, "app/api/demo/session/route.ts"), "utf8");
-  for (const text of ["httpOnly: true", 'sameSite: "lax"', 'process.env.NODE_ENV === "production"', 'token ? "DELETE" : "POST"']) assert.ok(source.includes(text));
+  for (const text of ["httpOnly: true", 'sameSite: "lax"', 'process.env.NODE_ENV === "production"', 'current ? "DELETE" : "POST"']) assert.ok(source.includes(text));
   assert.doesNotMatch(source, /NextResponse\.json\(\{[^}]*sessionToken/);
   const start = await readFile(resolve(root, "components/demo-start.tsx"), "utf8");
   assert.doesNotMatch(start, /JOBLENS_DEMO_PROXY_SECRET|setInterval|sessionToken/);
+});
+
+test("only top-level previews are available without a demo session", () => {
+  for (const path of ["/", "/profile", "/jobs", "/applications"]) assert.equal(isDemoDestination(path), true, path);
+  for (const path of ["/api/jobs", "/jobs/private-id", "/applications/private-id", "/evals/profile", "/profile/"]) {
+    assert.equal(isDemoDestination(path), false, path);
+  }
+});
+
+test("expired sessions are distinct from temporary read errors and invalid replies", () => {
+  assert.deepEqual(demoSessionStateFromResponse(410), {status: "expired"});
+  for (const status of [429, 500, 503, 504]) assert.deepEqual(demoSessionStateFromResponse(status), {status: "unavailable"});
+  assert.deepEqual(demoSessionStateFromResponse(200, {active: true, mode: "unknown"}), {status: "unavailable"});
+  assert.deepEqual(demoSessionStateFromResponse(200, {active: true, mode: "sample", synthetic: true}),
+    {status: "active", session: {mode: "sample", synthetic: true}});
+});
+
+test("start can replace an expired cookie only after definitive no-write evidence", () => {
+  const expired = {error: {code: "demo_session_expired"}};
+  assert.equal(canStartAfterExpiredReset(true, 410, expired), true);
+  assert.equal(canStartAfterExpiredReset(false, 410, expired), false);
+  assert.equal(canStartAfterExpiredReset(true, 410, {error: {code: "different"}}), false);
+  for (const status of [408, 429, 500, 502, 503, 504]) assert.equal(canStartAfterExpiredReset(true, status, expired), false);
 });
