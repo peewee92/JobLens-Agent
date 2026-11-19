@@ -1,3 +1,4 @@
+import {jobCatalogPath, jobCatalogRowId, withJobCatalogReturn} from "@/lib/job-catalog-return";
 import {gapScope, gapScopeHref, withGapReturn} from "@/lib/gap-scope";
 import {createHash} from "node:crypto";
 import {JobDescriptionEditor} from "@/components/job-description-editor";
@@ -11,6 +12,8 @@ import {JobAvailabilityControl} from "@/components/job-availability-control";
 import {validImportMatchInputs} from "@/lib/import-match-readiness";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import Link from "next/link";
+import {PagedRecords} from "@/components/paged-records";
+import {Badge} from "@/components/ui/primitives";
 import {agentScopeHref, jobDetailWithAgentScope, parseAgentScope, profileWithAgentScope} from "@/lib/agent-job-scope";
 import {runHref, validThreadReference} from "@/lib/career-agent-commands";
 import {notFound} from "next/navigation";
@@ -36,7 +39,7 @@ import {
   groupEligibilityRequirements,
   requirementFitLabels,
 } from "@/lib/eligibility";
-import {formatDateTime, formatSalary} from "@/lib/format";
+import {formatDateTime, formatSalary, jobSourceLabels} from "@/lib/format";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
@@ -55,15 +58,16 @@ export default async function JobDetailPage({
   searchParams,
 }: {
   params: Promise<{id: string}>;
-  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; gapJobId?: string | string[]; scopeJobId?: string | string[]; returnThreadId?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
+  searchParams: Promise<{requirementExtractionError?: string; reportId?: string; gapJobId?: string | string[]; scopeJobId?: string | string[]; returnThreadId?: string | string[]; returnJobs?: string | string[]; [descriptionSavedQuery]?: string | string[]}>;
 }) {
   const {id} = await params;
-  const {requirementExtractionError, reportId, gapJobId, scopeJobId, returnThreadId, [descriptionSavedQuery]: savedRevision} = await searchParams;
+  const {requirementExtractionError, reportId, gapJobId, scopeJobId, returnThreadId, returnJobs, [descriptionSavedQuery]: savedRevision} = await searchParams;
   const agentScope = parseAgentScope(scopeJobId);
   const retainedScope = agentScope?.includes(id) ? agentScope : null;
   const gapIds = gapScope(gapJobId);
   const detailPath = withGapReturn(retainedScope ? jobDetailWithAgentScope(id, retainedScope) : `/jobs/${encodeURIComponent(id)}`, gapIds);
-  const detailHref = validThreadReference(returnThreadId) ? `${detailPath}${detailPath.includes("?") ? "&" : "?"}${new URLSearchParams({returnThreadId})}` : detailPath;
+  const catalogPath = jobCatalogPath(returnJobs);
+  const detailHref = withJobCatalogReturn(validThreadReference(returnThreadId) ? `${detailPath}${detailPath.includes("?") ? "&" : "?"}${new URLSearchParams({returnThreadId})}` : detailPath, catalogPath);
   function reportHref(report: string) {
     return `${detailHref}${detailHref.includes("?") ? "&" : "?"}${new URLSearchParams({reportId: report})}`;
   }
@@ -183,7 +187,7 @@ export default async function JobDetailPage({
   return (
     <>
       <div className="actions" style={{marginBottom: 18}}>
-        <Link className="button-ghost" href="/jobs">← 返回我的岗位</Link>
+        <Link className="button-ghost" href={catalogPath ? `${catalogPath}#${jobCatalogRowId(id)}` : "/jobs"}>← 返回我的岗位</Link>
         {gapIds.length > 0 && <Link className="button-ghost" href={gapScopeHref(gapIds)}>← 返回原目标岗位差距</Link>}
         {retainedScope && <Link className="button-ghost" href={agentScopeHref(retainedScope)}>← 返回所选岗位分析</Link>}
         {validThreadReference(returnThreadId) && <Link className="button-ghost" href={runHref(returnThreadId)}>← 返回本次分析</Link>}
@@ -191,7 +195,7 @@ export default async function JobDetailPage({
           查看投递与面试准备
         </Link>
       </div>
-      <section className="detail-grid">
+      <section className="detail-grid jl-job-detail">
         <article className="detail-card">
           <header className="detail-header">
             <div>
@@ -208,9 +212,15 @@ export default async function JobDetailPage({
             {job.remoteConfidence === "high" ? <span className="tag">远程信息较明确</span> : null}
           </div>
 
-          <section className="detail-section" id="job-description">
+          <nav className="jl-inline jl-job-outline" aria-label="岗位详情目录">
+            <a href="#job-description">岗位原文</a>
+            <a href="#job-requirements">岗位要求</a>
+            <a href="#job-match">匹配依据</a>
+          </nav>
+
+          <section className="detail-section" id="job-description" tabIndex={-1}>
             <p className="eyebrow">第 1 步</p>
-            <h2>岗位描述</h2>
+            <h2>岗位原文</h2>
             <p className="description">{job.description || "该来源暂未提供完整岗位描述。"}</p>
             {descriptionRevision && <JobDescriptionEditor jobId={job.id}
               description={job.description ?? ""} revision={descriptionRevision} saved={savedRevision === descriptionRevision} />}
@@ -226,7 +236,7 @@ export default async function JobDetailPage({
             </div>
           </section>}
 
-          <section className="detail-section requirement-section" id="job-requirements">
+          <section className="detail-section requirement-section" id="job-requirements" tabIndex={-1}>
             <div className="section-title-row">
               <div>
                 <p className="eyebrow">第 2 步</p>
@@ -254,11 +264,6 @@ export default async function JobDetailPage({
                 )}
               </p>
             ) : null}
-            {acceptedBaselineMissing ? (
-              <details className="muted-copy"><summary>模型整体质量评审（高级）</summary><p>
-                <Link href="/evals/requirements/manual">查看岗位要求人工审核状态 →</Link>
-              </p><p>模型整体评审与单岗位核对不同；下方提供单岗位确认时，你可以先核对本岗位，不需要替维护者完成整批评审。</p></details>
-            ) : null}
             {releaseReadinessError ? (
               <p className="inline-error">岗位匹配准备状态暂时不可用：{releaseReadinessError}</p>
             ) : null}
@@ -268,7 +273,7 @@ export default async function JobDetailPage({
                 <strong>{requirementReleaseLabel(releaseReadiness)}</strong>
                 {releaseReadiness.releaseEligible ? (
                   <p>
-                    这份岗位要求符合当前匹配规则，可以用于后续匹配；这不代表已完成正式模型质量验收。
+                    这版岗位要求已可以和你确认的经历一起用于匹配。
                   </p>
                 ) : (
                   <>
@@ -278,7 +283,7 @@ export default async function JobDetailPage({
                     <div className="readiness-blocker-list">
                       {releaseReadiness.blockers.map((blocker, index) => {
                         const copy = (canConfirmRequirements || !extraction) && ["accepted_baseline_missing", "extraction_cohort_mismatch"].includes(blocker.code)
-                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "提取后对照原文检查全部要求，再确认这一版用于当前岗位匹配；不需要先替维护者完成整批模型质量评审。"}
+                          ? {title: extraction ? "请核对当前岗位要求" : "先提取，再核对当前岗位要求", description: "请对照岗位原文检查每条要求，再确认是否用这版和你的经历做比较。"}
                           : requirementReleaseBlockerCopy(blocker.code, job.description);
                         return (
                           <div className="readiness-blocker-item" key={`${copy.title}-${index}`}>
@@ -299,7 +304,7 @@ export default async function JobDetailPage({
                 </div>
                 {extraction.provider === "fixture" ? (
                   <p className="notice">
-                    当前要求由离线演示分析产生，不代表真实模型质量。核对确认后可用于当前岗位的个人匹配验证，不代表模型整体质量评审通过。
+                    这些要求来自离线演示，未调用在线模型。请先对照原文核对，再决定是否用它们做本岗位的匹配。
                   </p>
                 ) : null}
                 <JobRequirementReviewList requirements={extraction.requirements} />
@@ -316,8 +321,13 @@ export default async function JobDetailPage({
                   jobId={job.id} detailHref={detailHref} extractionId={extraction.extractionId} inputHash={extraction.inputHash}
                   factsDigest={extraction.factsDigest} confirmed={!!releaseReadiness.userConfirmationId} />
               ) : null}
+            {acceptedBaselineMissing && !publicDemoEnabled() && <details className="muted-copy jl-job-maintenance">
+              <summary>查看维护诊断（非求职步骤）</summary>
+              <p>这里显示模型整体质量检查的状态，不是让你审核模型。需要排查时由维护者查看。</p>
+              <Link href="/evals/requirements/manual">岗位要求人工验收记录</Link>
+            </details>}
           </section>
-          <section className="detail-section eligibility-section" id="job-match">
+          <section className="detail-section eligibility-section" id="job-match" tabIndex={-1}>
             <div className="section-title-row">
               <div>
                 <p className="eyebrow">第 3 步 · 结合我的职业背景</p>
@@ -333,14 +343,12 @@ export default async function JobDetailPage({
             {history && history.items.length > 0 ? (
               <details>
                 <summary>查看保存的匹配历史（{history.count} 份）</summary>
-                <ul>{history.items.map((item) => (
-                  <li key={item.reportId}>
-                    <Link href={reportHref(item.reportId)}>
-                      {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
-                      {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
-                    </Link>
-                  </li>
-                ))}</ul>
+                <PagedRecords label="匹配报告历史" limit={10} items={history.items.map(item => (
+                  <Link key={item.reportId} href={reportHref(item.reportId)}>
+                    {formatDateTime(item.createdAt)} · {item.isCurrent ? "当前" : "历史"}
+                    {savedResult?.reportId === item.reportId ? " · 正在查看" : ""}
+                  </Link>
+                ))} />
               </details>
             ) : null}
             {savedResult && history && (() => {
@@ -350,7 +358,7 @@ export default async function JobDetailPage({
             })()}
             {careerReadiness && !careerReadiness.releaseEligible ? <section className="notice" aria-label="个人匹配输入准备">
               <h3>下一步：确认职业资料和求职偏好</h3>
-              <p>仍可查看岗位。个性化结论只使用你确认保存的事实，不需要先完成模型整体质量评审。</p>
+              <p>仍可查看岗位。确认资料和求职偏好后，系统才能用你保存的事实给出个人建议。</p>
               <ul>{careerReadiness.blockers.map(blocker => <li key={blocker.code}>
                 {careerContextReleaseBlockerCopy(blocker.code)?.title ?? "请核对职业资料和偏好"}
               </li>)}</ul>
@@ -398,7 +406,7 @@ export default async function JobDetailPage({
                       <section className="eligibility-group" key={status}>
                         <div className="eligibility-group-heading">
                           <h3>{requirementFitLabels[status]}</h3>
-                          <span>{items.length} 项</span>
+                          <Badge tone={status === "conditional" ? "warning" : status === "matched" ? "success" : "danger"}>{items.length} 项</Badge>
                         </div>
                         <div className="eligibility-result-list">
                           {items.map((item) => (
@@ -447,8 +455,8 @@ export default async function JobDetailPage({
           <div className="meta-list">
             <div><span className="meta-label">经验</span><strong>{job.experience || "未说明"}</strong></div>
             <div><span className="meta-label">学历</span><strong>{job.education || "未说明"}</strong></div>
-            <div><span className="meta-label">来源</span><strong>{job.source === "manual" ? "手动粘贴" : job.source}</strong></div>
-            <div><span className="meta-label">{job.source === "manual" ? "保存时间" : "采集时间"}</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
+            <div><span className="meta-label">来源</span><strong>{jobSourceLabels(job.source).source}</strong></div>
+            <div><span className="meta-label">{jobSourceLabels(job.source).recordedAt}</span><strong>{formatDateTime(job.collectedAt)}</strong></div>
             {job.source !== "manual" ? <div><span className="meta-label">该来源记录时间</span><strong>{formatDateTime(job.lastSeenAt ?? null)}</strong></div> : null}
           </div>
           <p className="muted-copy">{job.source === "manual" ? "此内容由用户手动粘贴，保存时间不代表岗位发布时间或仍在招聘，请自行核实岗位有效性。" : "该时间来自来源记录，缺失时可能使用报告时间或系统记录时间；不代表岗位仍在招聘，请打开原始岗位核实。"}</p>

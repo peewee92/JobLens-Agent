@@ -11,11 +11,12 @@ export function FirstUseSteps({snapshot}: {snapshot: Workbench["snapshot"]}) {
     {title: "添加岗位", hint: "先粘贴招聘描述；比较前，在对应岗位核对要求。", done: jobsAdded},
     {title: "比较并准备", hint: "查看有依据的诊断，确认目标并开始准备。", done: prepared},
   ];
-  return <nav aria-label="首次使用三步" className="first-use-guide">
-    <ol>{steps.map((step, index) =>
+  return <nav aria-label="首次使用三步" className="jl-first-use">
+    <ol className="jl-phase">{steps.map((step, index) =>
       <li key={step.title} aria-current={index === current ? "step" : undefined}>
-        <strong>{index + 1}. {step.title}</strong>
-        <span>{index === current ? "当前步骤" : step.done ? "已完成" : "待开始"}</span>
+        <span className="jl-phase-number" aria-hidden="true">{index + 1}</span>
+        <div><strong>{step.title}</strong>
+        <small>{index === current ? "当前步骤" : step.done ? "已完成" : "待开始"}</small></div>
         <p>{step.hint}</p>
       </li>
     )}</ol>

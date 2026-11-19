@@ -9,13 +9,12 @@ const empty: Workbench = {snapshot: {profileVersion: null, searchIntentVersion: 
   inputIssueCodes: ["profile_missing", "search_intent_missing"], jobCount: 0, currentRun: null,
   workspaces: [], changes: []}, nextAction: {code: "confirm_inputs", label: "确认我的资料和意向", reason: "只用已确认事实", href: "/profile"}};
 
-test("workbench renders four real task areas and one primary action, including browse when facts missing", () => {
+test("empty workbench shows one clear start, lets people browse, and hides empty history", () => {
   const html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: empty}));
-  for (const name of ["当前准备情况", "当前分析", "目标岗位与执行", "最近变化", "尚未确认职业资料", "尚未确认求职意向"]) assert.ok(html.includes(name));
-  assert.equal((html.match(/class="button"/g) ?? []).length, 1);
-  assert.ok(html.includes('href="/jobs"'));
-  assert.match(html, /不会启动分析或调用模型/);
-  assert.doesNotMatch(html, /匹配概率|已满足全部/);
+  assert.match(html, /先确认你的求职资料/);
+  assert.match(html, /href="\/profile"[^>]*>上传简历或手填经历<\/a>/);
+  assert.match(html, /href="\/jobs"[^>]*>先浏览岗位<\/a>/);
+  assert.doesNotMatch(html, /当前准备情况|当前分析|目标岗位与执行|最近变化|匹配概率/);
 });
 
 test("workbench uses canonical historical analysis and workspace links, never a live gap page as old result", () => {
@@ -74,11 +73,11 @@ test("recent changes render real timestamps in Beijing time, respecting offsets"
 test("first-use steps reflect persisted facts, not button clicks", () => {
   let html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: empty}));
   assert.match(html, /首次使用三步/);
-  assert.match(html, /aria-current="step"><strong>1\. 确认资料/);
+  assert.match(html, /aria-current="step">[^]*?<strong>确认资料<\/strong>[^]*?当前步骤/);
   assert.match(html, /上传简历或手填经历/);
   const profileReady = {...empty.snapshot, profileVersion: 1, searchIntentVersion: 1, inputIssueCodes: []};
   html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: {...empty, snapshot: profileReady}}));
-  assert.match(html, /aria-current="step"><strong>2\. 添加岗位/);
+  assert.match(html, /aria-current="step">[^]*?<strong>添加岗位<\/strong>[^]*?当前步骤/);
   html = renderToStaticMarkup(React.createElement(WorkbenchView, {data: {...empty, snapshot: {...profileReady, jobCount: 3}}}));
-  assert.match(html, /aria-current="step"><strong>3\. 比较并准备/);
+  assert.match(html, /aria-current="step">[^]*?<strong>比较并准备<\/strong>[^]*?当前步骤/);
 });

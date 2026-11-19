@@ -1,15 +1,10 @@
 import Link from "next/link";
+import {PageHeading, EmptyState} from "@/components/ui/patterns";
 
 export default function NotFoundPage() {
-  return (
-    <section className="empty-state">
-      <p className="eyebrow">404</p>
-      <h1>没有找到这条记录</h1>
-      <p className="lede">它可能不存在、已经被删除，或者这个链接已经失效。</p>
-      <div className="actions">
-        <Link className="button" href="/jobs">返回我的岗位</Link>
-        <Link className="button-ghost" href="/import">添加岗位</Link>
-      </div>
-    </section>
-  );
+  return <>
+    <PageHeading kicker="页面不可用" title="找不到这个页面" description="链接可能已失效，或这条记录已不在当前列表中。" />
+    <EmptyState title="可以从工作台继续" description="此页面没有改动你的资料或岗位。"
+      actions={<><Link className="button" href="/">返回首页</Link><Link className="button-ghost" href="/jobs">查看我的岗位</Link></>} />
+  </>;
 }

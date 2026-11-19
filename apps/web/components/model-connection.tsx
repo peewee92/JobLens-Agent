@@ -1,11 +1,19 @@
 "use client";
 import Link from "next/link";
-import {useEffect, useState, type FormEvent} from "react";
+import {useEffect, useRef, useState, type FormEvent} from "react";
+import {Button} from "./ui/button";
+import {PendingIndicator} from "./ui/pending-indicator";
+import {ActionFeedback} from "./ui/patterns";
 
 type Connection = {enableThinking?: boolean | null; name: string; baseUrl: string; model: string; apiStyle: string; profileModel?: string; requirementModel?: string; semanticModel?: string};
 type Status = {recentCalls: {actionId:string; kind:string; status:string; model:string; attempts:number; inputTokens:number | null; outputTokens:number | null}[]; connected: boolean; version: number; connection: Connection | null; seed: string};
 export function ModelConnection() {
   const [status, setStatus] = useState<Status | null>(null);
+  const [reading, setReading] = useState(true);
+  const [readError, setReadError] = useState(false);
+  const requestLock = useRef(false);
+  const [priorTest, setPriorTest] = useState<string | null>(null);
+  const [testDone, setTestDone] = useState(false);
   const [seed, setSeed] = useState("blank");
   const [key, setKey] = useState("");
   const [config, setConfig] = useState<Connection>({name:"我的模型", baseUrl:"", model:"", apiStyle:"chat_completions"});
@@ -15,13 +23,28 @@ export function ModelConnection() {
   const [action, setAction] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   async function read() {
-    const r = await fetch("/api/byok/model-connection", {cache:"no-store"});
-    if (r.ok) {const data: Status = await r.json(); setStatus(data); if (data.connection) setConfig(data.connection);}
+    setReading(true); setReadError(false);
+    try {
+      const r = await fetch("/api/byok/model-connection", {cache:"no-store"});
+      const data = await r.json();
+      if (r.ok) {setStatus(data as Status); if (data.connection) setConfig(data.connection);}
+      else if ((r.status === 403 && ["byok_required", "demo_route_disabled"].includes(data.error?.code)) ||
+        (r.status === 410 && data.error?.code === "demo_session_expired")) setStatus(null);
+      else throw new Error();
+    } catch {setReadError(true);}
+    finally {setReading(false);}
   }
-  useEffect(() => {void read().catch(() => {});}, []);
+  useEffect(() => {void read();}, []);
   async function perform(fn: () => Promise<void>) {
-    if (busy) return; setBusy(true); setMessage("");
-    try {await fn();} catch {setMessage("网络暂时不可用，请检查状态；不会自动重新调用模型。");} finally {setBusy(false);}
+    if (requestLock.current) return;
+    requestLock.current = true; setBusy(true); setMessage("");
+    try {await fn();} catch {setMessage("未收到处理结果。请先查看已保存状态；不会自动重新调用模型。");}
+    finally {requestLock.current = false; setBusy(false);}
+  }
+  function describeTest(data: {status: string; attempts: number; inputTokens?: number | null; outputTokens?: number | null}) {
+    const completed = data.status === "completed" || data.status === "failed";
+    setTestDone(completed);
+    setMessage(`测试${data.status === "completed" ? "已完成" : data.status === "failed" ? "未成功" : "结果未确认"} · 请求 ${data.attempts} 次 · 输入 ${data.inputTokens ?? "未知"} / 输出 ${data.outputTokens ?? "未知"} 个模型计量单位。${completed ? "这不代表所有任务的效果。" : "请先查看处理结果；不会重新发送。"}`);
   }
   async function check(r: Response) {
     const data = await r.json();
@@ -30,6 +53,7 @@ export function ModelConnection() {
   }
   function save(e: FormEvent) {
     e.preventDefault();
+    if (action && !testDone) return;
     const apiKey = key; setKey(""); setPlan(null); setAction(null);
     void perform(async () => {
       const data = await check(await fetch("/api/byok/model-connection", {method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...config, apiKey})}));
@@ -40,7 +64,12 @@ export function ModelConnection() {
     <h1>连接我的模型</h1>
     <p>API Key 用于服务器代你请求所选模型服务，调用费用由你的模型账户承担。密钥仅保存在当前后端会话内存，不提供长期保存。</p>
     <p>背景和岗位文本会发送给你选择的服务。闲置 30 分钟、最长两小时或服务重启后，会话、密钥和进度失效；完成后请导出资料。</p>
-    {!status ? <section className="detail-card"><h2>创建独立真实使用会话</h2>
+    {reading && <PendingIndicator label={status ? "正在刷新模型设置，保留已有连接信息。" : "正在读取模型设置…"} skeleton={!status} />}
+    {readError && <div className="stack-sm">
+      <ActionFeedback tone="danger">暂时无法读取连接状态。尚不能确认是否已有会话；不会新建或清除资料。</ActionFeedback>
+      <div><Button variant="secondary" onClick={() => void read()}>重新读取模型设置</Button></div>
+    </div>}
+    {reading || readError ? null : !status ? <section className="detail-card"><h2>创建独立真实使用会话</h2>
       <p>这会清除当前样本或旧会话的进度；不调用模型。公开功能未开启时会明确拒绝。</p>
       <label className="field">初始资料 <select value={seed} onChange={e => setSeed(e.target.value)}><option value="blank">空白：填写自己的资料</option><option value="sample">样本：合成资料＋我的真实模型</option></select></label>
       <button className="button-secondary" disabled={busy} onClick={() => void perform(async () => {
@@ -58,24 +87,49 @@ export function ModelConnection() {
           <label className="field">接口类型<select value={config.apiStyle} onChange={e => setConfig({...config, apiStyle:e.target.value})}><option value="chat_completions">chat_completions</option><option value="responses">responses</option></select></label>
           {([['profileModel','背景提取'],['requirementModel','岗位提取'],['semanticModel','语义匹配']] as const).map(([field,label]) => <label className="field" key={field}>{label}模型（留空沿用默认）<input maxLength={160} value={config[field] ?? ""} onChange={e => setConfig({...config, [field]:e.target.value || undefined})}/></label>)}
         </details>
-        <button className="button-secondary" disabled={busy} type="submit">保存连接（不调用模型）</button>
+        <button className="button-secondary" disabled={busy || (!!action && !testDone)} type="submit">保存连接（不调用模型）</button>
       </form>
       {status.connected && <section className="detail-card">
-        <button className="button-secondary" disabled={busy} onClick={() => void perform(async () => {const d = await check(await fetch('/api/byok/model-connection/test-plan')); if (d) {setPlan(d); setAction(null); setConsent(false);}})}>查看连接测试计划</button>
+        {!action && !plan && <Button variant="secondary" disabled={busy} onClick={() => void perform(async () => {
+          const d = await check(await fetch('/api/byok/model-connection/test-plan'));
+          if (d) {setPlan(d); setConsent(false); setTestDone(false);}
+        })}>查看连接测试计划</Button>}
         {plan && <div><p>使用 {plan.model} 发送一次短结构化请求，最多输出 {plan.maxOutputTokens} Token，超时 60 秒。费用未知，不自动重试。</p>
-          <label className="field"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}/>我确认使用自己的模型账户支付本次测试费用</label>
-          <button className="button-secondary" disabled={busy || !consent} onClick={() => void perform(async () => {
-            const id = action ?? crypto.randomUUID(); setAction(id);
-            const d = await check(await fetch('/api/byok/model-connection/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({actionId:id, planDigest:plan.planDigest, confirmed:true, maxProviderCalls:1})}));
-            if (d) setMessage(`测试状态：${d.status}；请求 ${d.attempts} 次；输入 Token ${d.inputTokens ?? '未知'}，输出 Token ${d.outputTokens ?? '未知'}；${d.errorCode ?? '仅证明本次接口请求可用，不代表所有任务效果合格。'}`);
-          })}>{action ? '检查同一测试请求' : '确认并测试连接'}</button></div>}
+          {!action ? <>
+            {priorTest && <p className="notice">上一次测试可能已产生费用。以下确认只授权一次新的测试。</p>}
+            <label className="check-row"><input type="checkbox" checked={consent} disabled={busy} onChange={e => setConsent(e.target.checked)}/>我确认使用自己的模型账户支付本次测试费用</label>
+            <div className="jl-inline">
+              <Button disabled={busy || !consent} onClick={() => void perform(async () => {
+                const id = crypto.randomUUID(); setAction(id); setConsent(false);
+                const d = await check(await fetch('/api/byok/model-connection/test', {method:'POST', headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({actionId:id, planDigest:plan.planDigest, confirmed:true, maxProviderCalls:1,
+                    ...(priorTest ? {acknowledgedPriorRequestId: priorTest} : {})})}));
+                if (d) describeTest(d);
+              })}>确认并测试连接</Button>
+              <Button variant="secondary" disabled={busy} onClick={() => {setPlan(null); setConsent(false); setMessage("已取消授权，没有发送测试请求。");}}>取消授权</Button>
+            </div>
+          </> : <div className="stack-sm">
+            <div><Button variant="secondary" disabled={busy} onClick={() => void perform(async () => {
+              const response = await fetch(`/api/byok/profile-calls/${encodeURIComponent(action)}`, {cache: "no-store"});
+              if (response.status === 404) {setMessage("未查到该测试回执，仍无法确认是否计费；没有重新发送。"); return;}
+              const data = await check(response);
+              if (data) describeTest(data);
+            })}>查看处理结果</Button></div>
+            {testDone ? <div><Button variant="subtle" disabled={busy} onClick={() => {setAction(null); setPlan(null); setTestDone(false);}}>返回，制定新计划</Button></div>
+              : <details><summary>准备重新测试</summary>
+                  <p>上次请求可能已产生费用。先确认这一点，再查看新的发送范围和次数。</p>
+                  <Button variant="secondary" disabled={busy} onClick={() => {
+                    setPriorTest(action); setAction(null); setPlan(null); setConsent(false);
+                  }}>了解，返回制定新计划</Button>
+                </details>}
+          </div>}</div>}
         <p><Link className="button" href="/my-analysis">继续：填写背景与添加岗位</Link></p>
         <p><a href="/api/byok/session-export" download>导出当前资料与结果（不含密钥）</a></p>
-        <button className="button-secondary" disabled={busy} onClick={() => void perform(async () => {const d = await check(await fetch('/api/byok/model-connection', {method:'DELETE'})); if (d) {setStatus(d); setPlan(null); setMessage('已断开连接，后续不会发送请求；此前已发送的请求无法撤回。');}})}>断开连接</button>
+        <button className="button-secondary" disabled={busy || (!!action && !testDone)} onClick={() => void perform(async () => {const d = await check(await fetch('/api/byok/model-connection', {method:'DELETE'})); if (d) {setStatus(d); setPlan(null); setMessage('已断开连接，后续不会发送请求；此前已发送的请求无法撤回。');}})}>断开连接</button>
       </section>}
       {status.recentCalls?.length > 0 && <section className="detail-card"><h2>最近调用记录</h2><p>查看记录不会调用模型。结果未知时先检查原请求，不要另发新的付费请求。</p><ul>{status.recentCalls.map(r => <li key={r.actionId}>{r.kind === 'profile' ? '背景提取' : '连接测试'} · {r.model} · {r.status} · 请求 {r.attempts} 次 · 输入 {r.inputTokens ?? '未知'} / 输出 {r.outputTokens ?? '未知'} Token · <a href={`/api/byok/profile-calls/${encodeURIComponent(r.actionId)}`}>查看原请求</a></li>)}</ul></section>}
     </>}
-    {busy && <p role="status">正在处理，请勿重复提交。免费后端唤醒可能需要约一分钟。</p>}
+    {busy && <PendingIndicator label="正在处理本次操作，请不要重复提交。" slowLabel="仍在等待结果。关闭页面不会撤销已发出的请求。" />}
     {message && <p role="status">{message}</p>}
     <Link href="/demo">返回免配置样本体验</Link>
   </div>;

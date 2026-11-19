@@ -1,6 +1,7 @@
 "use client";
 
 import {type FormEvent, useRef, useState} from "react";
+import {PendingIndicator} from "./ui/pending-indicator";
 import {useRouter} from "next/navigation";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
 import {confirmedDescriptionHref, isDescriptionRevision} from "@/lib/job-description-save";
@@ -13,6 +14,9 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
   const router = useRouter();
   const lock = useRef(false);
   const [editing, setEditing] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const editTrigger = useRef<HTMLButtonElement>(null);
+  const draftField = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [unverifiedRevision, setUnverifiedRevision] = useState("");
@@ -23,6 +27,11 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
   const issue = jobDescriptionIssue(currentDraft);
   const waitingOnSavedView = savedRevision === revision;
   const mustCheck = unverifiedRevision === revision || waitingOnSavedView;
+
+  function closeEditor() {
+    setEditing(false); setDraft(null); setConfirmDiscard(false);
+    requestAnimationFrame(() => editTrigger.current?.focus());
+  }
 
   async function verify() {
     if (lock.current) return;
@@ -51,7 +60,7 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (lock.current || mustCheck || issue || description === currentDraft) return;
+    if (lock.current || confirmDiscard || mustCheck || issue || description === currentDraft) return;
     lock.current = true;
     setBusy(true);
     setMessage(undefined);
@@ -99,18 +108,25 @@ export function JobDescriptionEditor({jobId, description, revision, saved = fals
 
   return <div className="job-description-editor">
     {jobDescriptionIssue(description) && <p className="notice">描述还不够完整。补上原文里的岗位职责和任职要求，才能继续分析；不要为了通过检查而编写要求。</p>}
-    {!editing ? <button type="button" className="button-secondary" disabled={mustCheck} onClick={() => {setMessage(undefined); setEditing(true);}}>补充或更正岗位描述</button> :
+    {!editing ? <button ref={editTrigger} type="button" className="button-secondary" disabled={mustCheck} onClick={() => {setMessage(undefined); setEditing(true);}}>补充或更正岗位描述</button> :
       <form className="vertical-form" onSubmit={save}>
         <label htmlFor="updated-job-description">更新后的完整岗位原文</label>
-        <textarea id="updated-job-description" rows={8} autoFocus value={currentDraft} readOnly={busy}
+        <textarea ref={draftField} id="updated-job-description" rows={8} autoFocus value={currentDraft} readOnly={busy}
           onChange={event => setDraft(event.target.value)} aria-describedby="job-description-edit-hint" />
         <p className="muted-copy" id="job-description-edit-hint">{issue ? "请贴入至少 40 字符的完整岗位原文（最多 50,000 字符），包含实际职责与任职要求。" : "保存会保留旧原文。基于旧描述的记录仍能查看，但需要重新分析才能用于当前比较。"}</p>
-        <div className="actions">
+        {confirmDiscard ? <div className="jl-callout stack-sm" data-tone="warning">
+          <p role="status">这段原文有未保存的更改。放弃后，系统中已保存的岗位原文不会改变。</p>
+          <div className="actions">
+            <button type="button" className="button" autoFocus onClick={() => {setConfirmDiscard(false); draftField.current?.focus();}}>继续编辑</button>
+            <button type="button" className="button-secondary" onClick={closeEditor}>放弃修改</button>
+          </div>
+        </div> : <div className="actions">
           <button type="submit" className="button" disabled={busy || mustCheck || !!issue || currentDraft === description}>
             {busy ? "正在保存描述…" : "保存描述"}
           </button>
-          <button type="button" className="button-ghost" disabled={busy} onClick={() => {setEditing(false); setDraft(null);}}>取消</button>
-        </div>
+          <button type="button" className="button-ghost" disabled={busy} onClick={() => currentDraft === description ? closeEditor() : setConfirmDiscard(true)}>取消</button>
+        </div>}
+        {busy && <PendingIndicator label="正在处理岗位原文…"/>}
       </form>}
     {waitingOnSavedView && <p className="notice" role="status">已保存，正在读取更新后的原文…</p>}
     {!waitingOnSavedView && message && <p className={message.error ? "inline-error" : "success-box"} role={message.error ? "alert" : "status"}>{message.text}</p>}

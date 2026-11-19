@@ -187,7 +187,7 @@ try {
   const profileHtml = await html("/profile");
   assert.match(profileHtml, /8 年前端经验，正在转向 AI 应用工程/);
   assert.match(profileHtml, /Agent/);
-  assert.match(profileHtml, /从简历快速填充职业背景/);
+  assert.match(profileHtml, /从新的简历整理草稿/);
   assert.match(profileHtml, /上传 PDF 或 DOCX/);
   assert.match(profileHtml, /不接受长期驻场/);
   assert.match(profileHtml, /已保存/);
@@ -268,12 +268,13 @@ try {
   assert.equal(new URL(nativeRequirementRun.headers.get("location")).pathname, returnTo);
 
   const detailHtml = await html(`/jobs/${jobMatch[1]}`);
-  assert.match(detailHtml, /岗位要求分析/);
-  assert.match(detailHtml, /演示分析结果/);
+  assert.match(detailHtml, /分析并核对岗位要求/);
+  assert.match(detailHtml, /这些要求来自离线演示，未调用在线模型/);
   assert.match(detailHtml, /Python/);
   assert.match(detailHtml, /FastAPI/);
   assert.match(detailHtml, /岗位原文依据/);
-  assert.match(detailHtml, /重新分析岗位要求/);
+  // The offline/authorized action is selected after hydration; SSR shows its readiness check.
+  assert.match(detailHtml, /正在核对可用分析方式/);
   assert.match(detailHtml, /生成完整匹配建议/);
   assert.match(detailHtml, /AI 只会判断已确认经历与岗位要求之间的语义关系/);
   const blockedMatchReport = await fetch(

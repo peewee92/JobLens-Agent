@@ -106,3 +106,11 @@ test("workspace creation uses a stable per-job idempotency key", () => {
   assert.match(component, /web-application-workspace:\$\{jobId\}/);
   assert.match(component, /actorId: "local-user"/);
 });
+
+test("workspace destinations receive focus and have a name without adding another tab stop", () => {
+  const page = source("app/applications/[id]/page.tsx");
+  for (const section of ["resume", "actions", "evidence", "interview"]) {
+    assert.ok(page.includes(`id="${section}" tabIndex={-1} aria-labelledby="workspace-${section}-heading"`));
+    assert.ok(page.includes(`<h2 id="workspace-${section}-heading">`));
+  }
+});

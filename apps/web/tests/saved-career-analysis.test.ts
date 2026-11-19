@@ -12,6 +12,7 @@ test("saved analysis renders the shared nonempty workflow result with exact evid
   const html = renderToStaticMarkup(React.createElement(SavedCareerAnalysisView, {result, backHref: "/agent?threadId=thread_example"}));
   assert.match(html, /本次目标岗位的差距与准备材料/);
   assert.match(html, /不会在打开时重新生成/);
+  assert.match(html, /href="#start-preparation"[^>]*>开始准备行动/);
   assert.match(html, /reportId=report_1/);
   assert.match(html, /extract_1/);
   assert.match(html, /Python/);
@@ -29,7 +30,8 @@ test("changed facts show the same historical materials, never a silently refresh
   assert.match(html, /不要将它当作当前建议/);
   assert.match(html, /ev_react/);
   assert.match(html, /profile_changed/); // Reason code is in the explicit technical disclosure.
-  assert.doesNotMatch(html, /这些材料仍适用于当前资料/);
+  assert.doesNotMatch(html, /这些材料仍适用于当前资料|href="#start-preparation"[^>]*>开始准备行动/);
+  assert.match(html, /先核对更新范围/);
 });
 
 test("saved gap guidance translates known internal codes and folds evidence identifiers", () => {

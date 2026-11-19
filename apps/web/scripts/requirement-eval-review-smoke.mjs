@@ -92,7 +92,7 @@ try {
 
   console.log("[requirement-smoke] checking history and failed-case detail");
   const initialList = await html("/evals/requirements");
-  assert.match(initialList, /尚无人工接受的 live Requirement baseline/);
+  assert.match(initialList, /还没有经过人工审核并选为参考标准的在线评测/);
   assert.match(initialList, /fixture-requirement-extractor/);
   assert.match(initialList, /simulated-live-failed/);
   assert.match(initialList, /simulated-live-eligible/);
@@ -102,7 +102,7 @@ try {
   );
   assert.match(failedDetail, /skill:Python:must_have/);
   assert.match(failedDetail, /run_req_live_failed_smoke/);
-  assert.match(failedDetail, /记录为 rejected/);
+  assert.match(failedDetail, /记录为未通过/);
 
   console.log("[requirement-smoke] enforcing review governance through Next proxy");
   const fixtureReview = await review(
@@ -143,19 +143,19 @@ try {
   assert.equal(baseline.review.decision, "accepted");
 
   const finalList = await html("/evals/requirements");
-  assert.match(finalList, /当前正式 baseline/);
+  assert.match(finalList, /当前评测参考标准/);
   assert.match(finalList, /reqeval_live_eligible_smoke/);
 
   const acceptedDetail = await html(
     "/evals/requirements/reqeval_live_eligible_smoke",
   );
-  assert.match(acceptedDetail, /accepted/);
+  assert.match(acceptedDetail, /已通过人工审核/);
   assert.match(acceptedDetail, /Reviewed every Requirement case and Trace/);
 
   const rejectedDetail = await html(
     "/evals/requirements/reqeval_live_failed_smoke",
   );
-  assert.match(rejectedDetail, /rejected/);
+  assert.match(rejectedDetail, /人工审核未通过/);
   assert.match(rejectedDetail, /wrong importance/);
 
   console.log(

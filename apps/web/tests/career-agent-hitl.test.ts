@@ -20,11 +20,11 @@ test("career agent page exposes the minimal durable HITL flow", () => {
   assert.match(panel, /reject/);
   assert.match(panel, /pendingApproval/);
   assert.match(panel, /gapResultFingerprint/);
-  assert.match(panel, /Career Agent Chat/);
-  assert.match(panel, /你的请求/);
-  assert.match(panel, /当前计划/);
-  assert.match(panel, /执行状态/);
-  assert.match(panel, /查看依据/);
+  assert.match(panel, /本次比较详情/);
+  assert.match(panel, /查看本次范围与依据/);
+  assert.match(panel, /实际比较/);
+  assert.match(panel, /未进入排序不等于你不具备相关能力/);
+  assert.match(panel, /ActionFeedback/);
 });
 
 test("web proxy keeps durable run start, load and resume behind same-origin routes", () => {
@@ -35,4 +35,11 @@ test("web proxy keeps durable run start, load and resume behind same-origin rout
   assert.match(collectionRoute, /\/api\/v1\/career-agent\/runs/);
   assert.match(threadRoute, /career-agent\/runs\/\$\{encodeURIComponent\(threadId\)\}/);
   assert.match(resumeRoute, /career-agent\/runs\/\$\{encodeURIComponent\(threadId\)\}\/resume/);
+});
+
+test("in-flight comparison does not ask users to retry or abandon the current request", () => {
+  const panel = read("components/career-agent-hitl-panel.tsx");
+  assert.match(panel, /pendingCommand && !busy/);
+  assert.match(panel, /recoverableThreadId && !pendingCommand && !busy/);
+  assert.match(panel, /确认这些目标并继续/);
 });

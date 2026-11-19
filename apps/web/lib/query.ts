@@ -76,3 +76,16 @@ export function jobsHref(filters: JobFilters, offset = filters.offset): string {
   const serialized = query.toString();
   return serialized ? `/jobs?${serialized}` : "/jobs";
 }
+
+export function activeJobFilterLabels(filters: JobFilters): string[] {
+  const remoteLabels: Record<RemoteStatus, string> = {
+    confirmed: "支持远程", rejected: "不支持远程", unknown: "未说明是否远程",
+  };
+  return [
+    filters.q ? `关键词：${filters.q}` : "",
+    filters.city ? `城市：${filters.city}` : "",
+    filters.minSalaryK ? `月薪至少 ${filters.minSalaryK} 千元` : "",
+    filters.remoteStatus ? remoteLabels[filters.remoteStatus] : "",
+    filters.source ? `来源：${filters.source === "manual" ? "手动添加" : filters.source}` : "",
+  ].filter(Boolean);
+}

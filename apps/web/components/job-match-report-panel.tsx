@@ -92,7 +92,7 @@ export function JobMatchReportPanel({
   const coverage = report ? matchCoverage(report) : null;
 
   return (
-    <div className="match-report-panel" id="job-match-report">
+    <div className="match-report-panel" id="job-match-report" tabIndex={-1}>
       <div className="match-report-panel-header">
         <div>
           <span className="review-label">完整匹配建议</span>

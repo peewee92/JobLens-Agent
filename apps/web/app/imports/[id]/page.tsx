@@ -3,6 +3,8 @@ import {ImportAnalysisScopes} from "@/components/import-analysis-scopes";
 import {ImportUpdatedNotice} from "@/components/import-updated-notice";
 import {fetchImportFeedbackBatches} from "@/lib/import-feedback-batches";
 import Link from "next/link";
+import {PagedRecords} from "@/components/paged-records";
+import {Badge} from "@/components/ui/primitives";
 import {notFound} from "next/navigation";
 
 import {ApplicationChecklistSummary} from "@/components/application-checklist-summary";
@@ -1617,37 +1619,19 @@ export default async function ImportDetailPage({
         <article className="detail-card">
           <h2>逐条处理结果</h2>
           {detail.items.length === 0 ? (
-            <p className="notice">本批次没有最终 Job 输入项，可能只包含候选诊断数据。</p>
-          ) : (
-            <div style={{overflowX: "auto"}}>
-              <table className="audit-table">
-                <thead>
-                  <tr>
-                    <th>序号</th>
-                    <th>结果</th>
-                    <th>岗位</th>
-                    <th>当前来源记录时间</th>
-                    <th>错误</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.items.map((item) => (
-                    <tr key={item.inputIndex}>
-                      <td>{item.inputIndex}</td>
-                      <td><ImportOutcomePill outcome={item.outcome} /></td>
-                      <td>
-                        {item.jobId ? (
-                          <Link href={`/jobs/${encodeURIComponent(item.jobId)}`}>{jobLabel(item.jobId)}</Link>
-                        ) : "—"}
-                      </td>
-                      <td>{item.jobId ? formatDateTime(jobDetailById.get(item.jobId)?.lastSeenAt ?? null) : "—"}</td>
-                      <td>{item.errorMessage || item.errorCode || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            <p className="notice">本批没有处理条目，可能只包含候选诊断数据。</p>
+          ) : <PagedRecords label="逐条处理结果" limit={20} ordered items={detail.items.map(item =>
+            <article className="jl-receipt-row" key={item.inputIndex}>
+              <div>
+                <p>第 {item.inputIndex} 条 <ImportOutcomePill outcome={item.outcome} /></p>
+                {item.jobId ? <Link className="jl-text-link" href={`/jobs/${encodeURIComponent(item.jobId)}`}>{jobLabel(item.jobId)}</Link> : <strong>未关联岗位</strong>}
+                {item.jobId && <p>当前记录：{formatDateTime(jobDetailById.get(item.jobId)?.lastSeenAt ?? null)}</p>}
+              </div>
+              {item.errorMessage || item.errorCode ? <div className="jl-callout" data-tone="warning">
+                <Badge tone="warning">需要核对</Badge>
+                <p>{userFacingErrorCode(item.errorCode, "这条暂未处理，请核对浏览器插件的原始导出文件。")}</p>
+              </div> : null}
+            </article>)} />}
           <p className="muted-copy">岗位名称及时间来自当前记录，不一定是本批次的历史内容；时间缺失时可能使用报告时间或系统记录时间，不能据此判断岗位是否仍在招聘。</p>
 
           {detail.errors.length > 0 ? (

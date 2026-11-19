@@ -1,4 +1,7 @@
 import Link from "next/link";
+import {Button} from "@/components/ui/button";
+import {EmptyState, PageHeading} from "@/components/ui/patterns";
+import {Callout} from "@/components/ui/primitives";
 import {CareerAgentHitlPanel} from "@/components/career-agent-hitl-panel";
 import {systemReadinessNotice} from "@/components/system-readiness-notice";
 import {BackendApiError, fetchJobPage, fetchJobDetail} from "@/lib/backend";
@@ -38,25 +41,18 @@ export default async function AgentPage({searchParams}: {searchParams: Promise<{
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">岗位比较与准备</p>
-        <h1>比较岗位，确认目标并开始准备</h1>
-        <p>先看哪些岗位值得投入，以及理由和未知条件；确认目标后保存差距、准备材料与行动。刷新后能继续查看本次分析，不会自动重算或投递。</p>
-      </section>
+      <PageHeading kicker="第 3 步 · 比较并准备" title="比较岗位"
+        description="先看哪些岗位值得投入、为什么、还有什么要核实；确认目标后，再准备简历与面试。" />
       {error ? (
-        <section className="card"><p>{error}</p></section>
+        <Callout tone="danger" role="alert"><p>{error}</p><Link className="jl-text-link" href="/jobs">返回我的岗位</Link></Callout>
       ) : jobs.length === 0 ? (
-        <section className="card stack-sm">
-          <h2>还没有岗位可以比较</h2>
-          <p>先确认简历里的经历，再添加岗位并生成匹配报告。完成后，回到这里比较岗位。</p>
-          <div className="actions">
-            <Link href="/profile">导入简历或确认职业资料</Link>
-            <Link href="/import">添加岗位</Link>
-          </div>
-        </section>
+        <EmptyState title="还没有岗位可以比较"
+          description="添加岗位并核对要求后，再用已确认的经历比较。你可以先添加岗位，也可以先确认职业资料。"
+          actions={<><Button asChild><Link href="/import">添加岗位</Link></Button>
+            <Link className="jl-text-link" href="/profile">确认职业资料</Link></>} />
       ) : null}
-      {initialJobId && !error && <section className="card"><p>已保留原工作区的岗位范围。此处只读取已有匹配报告；资料变化后，旧报告可能不再适用，不会自动重算或调用模型。</p><a href={`/jobs/${encodeURIComponent(initialJobId)}`}>核对该岗位及已保存的匹配报告</a></section>}
-      {scope && !error && <section className="card"><p>已带回原来选择的 {scope.length} 个岗位。岗位或资料可能已变化，请重新检查后再分析。</p></section>}
+      {initialJobId && !error && <Callout className="jl-comparison-scope"><p>已保留原工作区的岗位范围。这里只读取已有匹配报告，不会自动重算或调用模型。</p><Link className="jl-text-link" href={`/jobs/${encodeURIComponent(initialJobId)}`}>核对该岗位及已保存的匹配报告</Link></Callout>}
+      {scope && !error && <Callout className="jl-comparison-scope">已带回原来选择的 {scope.length} 个岗位。请检查当前输入和可用报告。</Callout>}
       <CareerAgentHitlPanel jobs={jobs} initialJobId={initialJobId} initialScope={scope ?? undefined} initialPageOffset={pageOffset} initialHasMore={hasMore} />
     </>
   );

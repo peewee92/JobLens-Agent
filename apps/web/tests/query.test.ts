@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
+import {activeJobFilterLabels, buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
 
 test("parseJobFilters sanitizes unsupported values", () => {
   const filters = parseJobFilters({
@@ -50,4 +50,11 @@ test("default filters produce a clean /jobs URL", () => {
   const filters = parseJobFilters({});
   assert.equal(buildJobQuery(filters).toString(), "");
   assert.equal(jobsHref(filters), "/jobs");
+});
+
+
+test("filter summary explains active values without counting pagination or sorting as a filter", () => {
+  assert.deepEqual(activeJobFilterLabels(parseJobFilters({offset: "20", sort: "salaryDesc"})), []);
+  assert.deepEqual(activeJobFilterLabels(parseJobFilters({q: " 研发 ", minSalaryK: "0", remoteStatus: "unknown", source: "manual"})),
+    ["关键词：研发", "月薪至少 0 千元", "未说明是否远程", "来源：手动添加"]);
 });

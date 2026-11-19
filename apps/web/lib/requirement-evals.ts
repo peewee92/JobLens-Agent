@@ -17,14 +17,14 @@ export function reviewActionsForRequirementRun(
     return {
       canAccept: false,
       canReject: false,
-      reason: "该运行已经有不可变审查记录。",
+      reason: "这次评测已有人工审核结论，不能重复提交。",
     };
   }
   if (run.mode !== "live") {
     return {
       canAccept: false,
       canReject: false,
-      reason: "Fixture 运行只用于验证评测管线，不能进行正式人工审查。",
+      reason: "离线测试只检查流程是否正常，不能用于正式人工审核。",
     };
   }
   return {
@@ -33,7 +33,7 @@ export function reviewActionsForRequirementRun(
     reason:
       run.gatePassed && run.releaseEligible
         ? null
-        : "该 live 运行未达到接受条件，但仍可记录 rejected 审查。",
+        : "这次在线评测不符合通过条件，仍可以记录未通过的原因。",
   };
 }
 

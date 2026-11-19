@@ -21,11 +21,13 @@ test("recent changes explain actual events and show timestamps", () => {
   assert.doesNotMatch(html, /action_completed|evidence_confirmed/);
 });
 
-test("only six latest entries are shown, without guessing unknown events or statuses", () => {
+test("first page shows six entries with navigation and safe unknown labels", () => {
   const html = render([event("0", "workspace_created"), ...Array.from({length: 5}, (_, i) => event(String(i + 1), "resume_variant_saved")), event("6", "unknown_event", "untrusted", "untrusted"), event("7", "status_changed", null, "untrusted")]);
   assert.doesNotMatch(html, /已创建求职工作区|unknown_event|untrusted/);
   assert.match(html, /其他工作区记录/);
   assert.match(html, /求职状态已更新：未记录 → 未知状态/);
   assert.equal((html.match(/<li>/g) ?? []).length, 6);
-  assert.match(render([]), /暂无时间线事件/);
+  assert.match(html, /下一页/);
+  assert.match(html, /共 8 条/);
+  assert.match(render([]), /还没有保存的变化/);
 });

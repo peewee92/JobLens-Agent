@@ -9,8 +9,16 @@ type Result =
 export const maxPastedJobs = 20;
 export const maxPastedCharacters = 1_020_000;
 const unknownCompany = "公司未公开";
+
+export function isUnlistedPastedCompany(company: string): boolean {
+  return company.trim() === unknownCompany;
+}
 const companyHeader = /^(?:(\d{1,2})\s*[.、）)]\s*)?([^｜|]{1,255})[｜|]([^｜|]{1,255})$/u;
 const separator = /^\s*---\s*$/u;
+
+export function hasPastedJobDividers(text: string) {
+  return text.split(/\r?\n/).some(line => separator.test(line));
+}
 
 function parseSeparatedJobs(lines: string[]): ManualJobInput[] {
   const sections: string[][] = [[]];
@@ -44,12 +52,13 @@ export function duplicatePastedJobIndices(jobs: readonly ManualJobInput[]): Set<
   return duplicates;
 }
 
-export function parsePastedJobs(text: string): ManualJobInput[] {
+export function parsePastedJobs(text: string, {dividersAreDescription = false}: {dividersAreDescription?: boolean} = {}): ManualJobInput[] {
   if (text.length > maxPastedCharacters) throw new Error("文本太长，请拆成几批，每批最多 20 条。");
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
   const firstHeading = lines.findIndex(line => line.trim() && !/^【[^】]+】$/u.test(line.trim()));
-  // Keep legacy lists with company headers intact, including Markdown dividers inside descriptions.
-  if (firstHeading >= 0 && !companyHeader.test(lines[firstHeading].trim()) && lines.some(line => separator.test(line))) {
+  // An explicit divider is independent of the company field. A separate opt-in preserves legacy
+  // company-header lists that use the same marker as a Markdown line in the description.
+  if (firstHeading >= 0 && !dividersAreDescription && lines.some(line => separator.test(line))) {
     return parseSeparatedJobs(lines.slice(firstHeading));
   }
   const jobs: Array<{title: string; company: string; lines: string[]}> = [];

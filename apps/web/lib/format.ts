@@ -33,6 +33,12 @@ export function formatImportOutcome(outcome: ImportOutcome): string {
   }[outcome];
 }
 
+export function jobSourceLabels(source: string) {
+  return source === "manual"
+    ? {source: "手动粘贴", recordedAt: "保存时间"}
+    : {source, recordedAt: "采集时间"};
+}
+
 export function formatDateTime(value: string | null): string {
   if (!value) return "时间未知";
   const date = new Date(value);

@@ -146,7 +146,7 @@ try {
   assert.match(initialPage, /正式验收准备状态/);
   assert.match(initialPage, /已可选取 20 条同版本候选/);
   assert.match(initialPage, /simulated-live-requirement-model/);
-  assert.match(initialPage, /系统不会替你生成人工判断/);
+  assert.match(initialPage, /不会替你做人工判断/);
 
   const candidates = await responseJson(
     await fetch(`${backendUrl}/api/v1/requirement-review-batches/candidates?limit=100`),
@@ -237,7 +237,9 @@ try {
 
   const jobBeforeFinalDecision = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(jobBeforeFinalDecision, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(jobBeforeFinalDecision, /当前没有有效的岗位要求审核基线/);
+  // The product exposes the per-job review path; the actual release blocker was checked above.
+  assert.match(jobBeforeFinalDecision, /请核对当前岗位要求/);
+  assert.match(jobBeforeFinalDecision, /查看维护诊断（非求职步骤）/);
 
   const completedPage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,
@@ -301,7 +303,7 @@ try {
 
   const releasedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(releasedJobPage, /岗位要求已准备好，可用于后续匹配/);
-  assert.match(releasedJobPage, /这份岗位要求符合当前匹配规则/);
+  assert.match(releasedJobPage, /这版岗位要求已可以和你确认的经历一起用于匹配/);
 
   const finalizedPage = await pageHtml(
     `/evals/requirements/manual/${encodeURIComponent(batchId)}`,
@@ -346,7 +348,7 @@ try {
 
   const blockedJobPage = await pageHtml("/jobs/job_manual_smoke_00");
   assert.match(blockedJobPage, /岗位要求还在准备中，暂时不会用于匹配/);
-  assert.match(blockedJobPage, /岗位分析版本与审核基线不一致/);
+  assert.match(blockedJobPage, /请核对当前岗位要求/);
 
   const unaffected = await responseJson(await fetch(`${backendUrl}/api/v1/jobs/job_manual_smoke_01/requirement-release-readiness`));
   assert.equal(unaffected.releaseEligible, true);

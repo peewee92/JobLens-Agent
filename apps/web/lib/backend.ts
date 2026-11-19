@@ -88,10 +88,15 @@ export async function backendResponse(
   path: string,
   init?: RequestInit,
 ): Promise<Response> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const reading = method === "GET" || method === "HEAD";
+  // Never impose a UI timeout or retry on mutations: a missing reply cannot establish that nothing was saved.
+  const readDeadline = reading && !init?.signal ? AbortSignal.timeout(15000) : undefined;
   try {
     const demoHeaders = publicDemoEnabled() ? demoBackendHeaders((await cookies()).get(DEMO_COOKIE)?.value) : {};
     return await fetch(`${backendBaseUrl()}${path}`, {
       ...init,
+      signal: init?.signal ?? readDeadline,
       cache: "no-store",
       headers: {
         Accept: "application/json",
@@ -99,7 +104,10 @@ export async function backendResponse(
         ...demoHeaders,
       },
     });
-  } catch {
+  } catch (error) {
+    if (reading && (readDeadline?.aborted || (error instanceof Error && error.name === "TimeoutError"))) {
+      throw new BackendApiError(504, "backend_read_timeout", "未能及时读取内容；可以重新读取。");
+    }
     throw new BackendApiError(
       503,
       "backend_unavailable",

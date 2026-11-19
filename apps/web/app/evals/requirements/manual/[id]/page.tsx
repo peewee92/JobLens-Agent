@@ -1,3 +1,4 @@
+import {MaintenanceHeading} from "@/components/maintenance-heading";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 
@@ -45,24 +46,15 @@ export default async function RequirementManualReviewDetailPage({
 
   return (
     <>
-      <section className="page-heading">
-        <p className="eyebrow">Requirement Manual Review</p>
-        <h1>{detail.summary.title}</h1>
-        <p className="lede">
-          每个 Case 都绑定一个不可变 Extraction。请亲自比较完整 JD、Requirement 类型、importance、归一化能力和 evidenceSpan；不要让 Agent 替你给出 accepted/rejected。
-        </p>
-        <p className="code">{detail.summary.id}</p>
-        <div className="actions">
-          <Link className="button-ghost" href="/evals/requirements/manual">
-            返回批次列表
-          </Link>
-        </div>
-      </section>
+      <MaintenanceHeading title={detail.summary.title} returnTo="jobs"
+        description="逐条对照岗位原文，核对要求类型、重要程度和引用。每条保留当时的分析版本，系统不会代替你提交审核结论。">
+        <Link className="button-ghost" href="/evals/requirements/manual">返回批次列表</Link>
+      </MaintenanceHeading>
 
       <div className="summary-grid">
         <div className="summary-card"><span>进度</span><strong>{detail.summary.reviewedCount}/{detail.summary.sampleSize}</strong></div>
-        <div className="summary-card"><span>Accepted</span><strong>{detail.summary.acceptedCount}</strong></div>
-        <div className="summary-card"><span>Rejected</span><strong>{detail.summary.rejectedCount}</strong></div>
+        <div className="summary-card"><span>已通过</span><strong>{detail.summary.acceptedCount}</strong></div>
+        <div className="summary-card"><span>未通过</span><strong>{detail.summary.rejectedCount}</strong></div>
         <div className="summary-card"><span>Stale</span><strong>{detail.summary.staleCaseCount}</strong></div>
         <div className="summary-card"><span>Match Gate</span><strong>{detail.summary.matchReleaseEligible ? "Allowed" : "Blocked"}</strong></div>
       </div>
@@ -225,7 +217,7 @@ export default async function RequirementManualReviewDetailPage({
               />
             ) : (
               <p className="notice">
-                只有正好 20 条、全部完成、当前版本且非 Fixture 的证据，才能提交批次级最终结论。
+                只有正好 20 条、全部完成、当前版本且来自在线模型的证据，才能提交批次级最终结论。
               </p>
             )}
           </section>

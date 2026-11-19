@@ -146,12 +146,12 @@ try {
   );
   assert.equal(pageResponse.status, 200);
   const html = await pageResponse.text();
-  assert.match(html, /Requirement 真实验收准备看板/);
+  assert.match(html, /岗位要求分析准备情况/);
   assert.match(html, /formal_dataset_missing/);
   assert.match(html, /live_provider_not_configured/);
-  assert.match(html, /DB writes/);
-  assert.match(html, /Provider calls/);
-  assert.match(html, /先修复准备阻塞/);
+  assert.match(html, /数据库写入/);
+  assert.match(html, /在线模型调用/);
+  assert.match(html, /先处理下面的准备事项/);
   assert.doesNotMatch(html, /execute-canary|confirm-live-cost|sk-/);
 
   const after = databaseCounts(backendEnv);

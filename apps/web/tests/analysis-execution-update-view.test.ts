@@ -17,7 +17,7 @@ test("update results explain explicit application and preservation of history", 
 });
 
 test("initial and stale results retain their distinct actions", () => {
-  assert.match(render(false), /开始执行（1 个岗位）/);
+  assert.match(render(false), /创建准备工作区（1 个岗位）/);
   assert.doesNotMatch(render(false), /保存新分析不会自动更改工作区/);
   const stale = render(true, false);
   assert.match(stale, /这份分析已过期/);

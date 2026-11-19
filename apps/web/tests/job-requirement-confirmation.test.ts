@@ -15,8 +15,8 @@ function render(confirmed: boolean) {
 test("confirmation is opt-in and limited to the current extraction", () => {
   const html = render(false);
   assert.match(html, /核对这一个岗位/);
-  assert.match(html, /不替维护者签署模型质量评审/);
-  assert.match(html, /不调用模型/);
+  assert.match(html, /只记录你对此岗位的核对/);
+  assert.match(html, /不会调用模型/);
   assert.match(html, /<button[^>]*disabled/);
 });
 

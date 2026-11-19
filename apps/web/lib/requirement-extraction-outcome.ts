@@ -2,7 +2,7 @@ import {isUncertainMatchResponse} from "@/lib/import-match-batching";
 import {userFacingErrorCode} from "@/lib/user-facing-errors";
 
 type ExtractionOutcome =
-  | {kind: "saved"}
+  | {kind: "saved"; extractionId: string}
   | {kind: "rejected"; message: string}
   | {kind: "uncertain"};
 
@@ -26,7 +26,7 @@ export function requirementExtractionOutcome(status: number, body: unknown, jobI
   if (isUncertainMatchResponse(status)) return {kind: "uncertain"};
   if (status >= 200 && status < 300) {
     return payload?.jobId === jobId && typeof payload.extractionId === "string" && payload.extractionId.length > 0 && Array.isArray(payload.requirements)
-      ? {kind: "saved"} : {kind: "uncertain"};
+      ? {kind: "saved", extractionId: payload.extractionId} : {kind: "uncertain"};
   }
   return {kind: "rejected", message: userFacingErrorCode(typeof code === "string" ? code : null,
     "岗位要求分析没有完成。请核对页面上的岗位描述和分析条件，确认后再试。")};

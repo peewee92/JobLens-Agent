@@ -1,151 +1,90 @@
 import Link from "next/link";
 
+import {JobFilters} from "@/components/job-filters";
+import {OpenCatalogJob, RestoreCatalogPosition} from "@/components/job-catalog-navigation";
+import {jobCatalogRowId, withJobCatalogReturn} from "@/lib/job-catalog-return";
+import {JobOriginal} from "@/components/job-original";
+import {Button} from "@/components/ui/button";
+import {EmptyState, PageHeading} from "@/components/ui/patterns";
+import {Pagination} from "@/components/ui/pagination";
 import {RemoteStatusPill} from "@/components/status-pill";
 import {ServiceError} from "@/components/service-error";
 import {BackendApiError, fetchJobPage} from "@/lib/backend";
 import type {SearchParams} from "@/lib/contracts";
-import {formatDateTime, formatSalary} from "@/lib/format";
-import {buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
-import {userFacingErrorCode} from "@/lib/user-facing-errors";
+import {formatDateTime, formatSalary, jobSourceLabels} from "@/lib/format";
+import {lastPageOffset} from "@/lib/pagination";
+import {activeJobFilterLabels, buildJobQuery, jobsHref, parseJobFilters} from "@/lib/query";
+import {userFacingReadError} from "@/lib/user-facing-errors";
 
 export const dynamic = "force-dynamic";
 
-export default async function JobsPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
+export default async function JobsPage({searchParams}: {searchParams: Promise<SearchParams>}) {
   const filters = parseJobFilters(await searchParams);
   let page;
+  let pageAdjusted = false;
   try {
     page = await fetchJobPage(buildJobQuery(filters));
+    if (page.offset > 0 && page.items.length === 0 && page.total > 0) {
+      const offset = lastPageOffset(page.total, page.limit);
+      page = await fetchJobPage(buildJobQuery({...filters, offset}));
+      pageAdjusted = true;
+    }
   } catch (caught) {
-    const message =
-      caught instanceof BackendApiError
-        ? userFacingErrorCode(caught.code, "暂时无法读取岗位列表，请稍后重试。")
-        : "暂时无法读取岗位列表，请稍后重试。";
-    return (
-      <>
-        <section className="page-heading">
-          <p className="eyebrow">我的岗位</p>
-          <h1>我的岗位</h1>
-        </section>
-        <ServiceError message={message} />
-      </>
-    );
+    const failure = caught instanceof BackendApiError ? caught : null;
+    return <>
+      <PageHeading title="我的岗位" />
+      <ServiceError message={userFacingReadError(failure?.status, failure?.code, "暂时无法读取岗位列表。你可以保留筛选条件并重试。")}
+        recovery={failure && [401, 403].includes(failure.status) ? "home" : "retry"} />
+    </>;
   }
 
-  const hasPrevious = page.offset > 0;
-  const hasNext = page.offset + page.items.length < page.total;
+  const activeFilters = activeJobFilterLabels(filters).length > 0 || filters.sort !== "latest";
+  const compareHref = "/agent";
+  return <>
+    <PageHeading kicker="求职工作台" title="我的岗位" description="浏览收藏的岗位，核对招聘原文，再比较哪些值得准备。" />
 
-  return (
-    <>
-      <section className="page-heading">
-        <p className="eyebrow">我的岗位</p>
-        <h1>集中查看你感兴趣的岗位</h1>
-        <p className="lede">
-          按关键词、城市、薪资和远程方式筛选，点进岗位后可以查看完整 JD 和岗位要求分析。
-        </p>
-      </section>
-
-      <form className="panel filter-form" action="/jobs" method="get">
-        <div className="field">
-          <label htmlFor="q">关键词</label>
-          <input id="q" name="q" defaultValue={filters.q} placeholder="Agent、RAG、公司名…" />
+    <RestoreCatalogPosition />
+    {(page.total > 0 || activeFilters || filters.offset > 0) && <section className="jl-panel jl-job-catalog" aria-labelledby="job-list-heading">
+      <div className="jl-list-heading">
+        <div><h2 id="job-list-heading" tabIndex={-1}>岗位列表</h2><p>打开岗位看要求，或快速查看原文。</p></div>
+        <div className="jl-inline">
+          {page.total > 0 && <Button variant="secondary" asChild><Link href={compareHref}>比较岗位</Link></Button>}
+          <Button asChild><Link href="/import">添加岗位</Link></Button>
         </div>
-        <div className="field">
-          <label htmlFor="city">城市</label>
-          <input id="city" name="city" defaultValue={filters.city} placeholder="武汉" />
-        </div>
-        <div className="field">
-          <label htmlFor="minSalaryK">最低可接受 K/月</label>
-          <input
-            id="minSalaryK"
-            name="minSalaryK"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={filters.minSalaryK}
-            placeholder="20"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="remoteStatus">远程状态</label>
-          <select id="remoteStatus" name="remoteStatus" defaultValue={filters.remoteStatus}>
-            <option value="">全部</option>
-            <option value="confirmed">支持远程</option>
-            <option value="rejected">不支持远程</option>
-            <option value="unknown">未说明是否远程</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="source">来源</label>
-          <input id="source" name="source" defaultValue={filters.source} placeholder="boss" />
-        </div>
-        <div className="field">
-          <label htmlFor="sort">排序</label>
-          <select id="sort" name="sort" defaultValue={filters.sort}>
-            <option value="latest">最近采集</option>
-            <option value="salaryDesc">薪资从高到低</option>
-            <option value="salaryAsc">薪资从低到高</option>
-          </select>
-        </div>
-        <input type="hidden" name="limit" value={filters.limit} />
-        <div className="filter-actions">
-          <button className="button" type="submit">应用筛选</button>
-          <Link className="button-ghost" href="/jobs">清空条件</Link>
-          <Link className="button-secondary" href="/import">添加更多岗位</Link>
-        </div>
-      </form>
-
-      <div className="result-bar">
-        <span>共 {page.total} 个岗位，本页 {page.items.length} 个</span>
-        <span>第 {Math.floor(page.offset / page.limit) + 1} 页</span>
       </div>
+      <JobFilters filters={filters} />
+    </section>}
 
-      {page.items.length === 0 ? (
-        <section className="empty-state">
-          <h2>没有符合当前条件的岗位</h2>
-          <p>可以尝试放宽筛选条件，或者先添加更多感兴趣的岗位。</p>
-          <div className="actions">
-            <Link className="button" href="/jobs">清空筛选</Link>
-            <Link className="button-ghost" href="/import">添加岗位</Link>
-          </div>
-        </section>
-      ) : (
-        <section className="job-list" aria-label="岗位列表">
-          {page.items.map((job) => (
-            <article className="job-card" key={job.id}>
-              <div className="job-card-header">
-                <div>
-                  <h2><Link href={`/jobs/${job.id}`}>{job.title}</Link></h2>
-                  <p className="company">{job.company}</p>
-                </div>
-                <span className="salary">{formatSalary(job.salaryMinK, job.salaryMaxK)}</span>
+    {pageAdjusted && <p className="jl-callout" role="status">列表刚刚有变化，已显示最后一个有结果的页面。筛选条件没有改变。</p>}
+
+    {page.items.length === 0 ? (
+      activeFilters ? <EmptyState title="没有符合当前条件的岗位" description="可以清空或调整条件；已添加的岗位还在。"
+        actions={<Button variant="secondary" asChild><Link href="/jobs">清空筛选</Link></Button>} />
+      : <EmptyState title="还没添加岗位" description="粘贴一条招聘描述就能开始，现在不必先上传简历。"
+        actions={<Button asChild><Link href="/import">添加第一个岗位</Link></Button>} />
+    ) : (
+      <section className="jl-panel jl-job-results" aria-label="岗位搜索结果">
+        <ul className="jl-job-table">
+          {page.items.map((job) => {
+            const labels = jobSourceLabels(job.source);
+            const rowId = jobCatalogRowId(job.id);
+            const href = withJobCatalogReturn(`/jobs/${encodeURIComponent(job.id)}`, jobsHref(filters, page.offset));
+            return <li key={job.id} className="jl-job-row">
+              <div className="jl-job-name">
+                <h3><OpenCatalogJob id={rowId} rowId={rowId} href={href}>{job.title}</OpenCatalogJob></h3>
+                <p>{job.company}{job.area && ` · ${job.area}`}</p>
               </div>
-              <div className="tags">
-                {job.area ? <span className="tag">{job.area}</span> : null}
+              <div className="jl-job-meta">
+                <strong>{formatSalary(job.salaryMinK, job.salaryMaxK)}</strong>
                 <RemoteStatusPill status={job.remoteStatus} />
-                <span className="tag">来源：{job.source}</span>
-                <span className="tag">采集：{formatDateTime(job.collectedAt)}</span>
               </div>
-            </article>
-          ))}
-        </section>
-      )}
-
-      <nav className="pagination" aria-label="分页">
-        {hasPrevious ? (
-          <Link className="button-ghost" href={jobsHref(filters, Math.max(0, page.offset - page.limit))}>
-            ← 上一页
-          </Link>
-        ) : <span />}
-        {hasNext ? (
-          <Link className="button-ghost" href={jobsHref(filters, page.offset + page.limit)}>
-            下一页 →
-          </Link>
-        ) : null}
-      </nav>
-    </>
-  );
+              <p className="jl-job-source">{labels.source}<span>{labels.recordedAt}：{formatDateTime(job.collectedAt)}</span></p>
+              <JobOriginal jobId={job.id} title={job.title} company={job.company} href={href} rowId={rowId} />
+            </li>;
+          })}
+        </ul>
+        <Pagination offset={page.offset} limit={page.limit} count={page.items.length} total={page.total} href={offset => jobsHref(filters, offset)} />
+      </section>
+    )}
+  </>;
 }

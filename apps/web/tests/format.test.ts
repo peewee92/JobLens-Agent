@@ -5,6 +5,7 @@ import {
   formatImportOutcome,
   formatRemoteStatus,
   formatSalary,
+  jobSourceLabels,
 } from "@/lib/format";
 
 test("formatSalary covers complete and partial ranges", () => {
@@ -25,4 +26,9 @@ test("import outcomes remain distinct", () => {
   assert.equal(formatImportOutcome("updated"), "已更新");
   assert.equal(formatImportOutcome("skipped"), "未添加");
   assert.equal(formatImportOutcome("error"), "处理失败");
+});
+
+test("distinguishes a pasted job's save time from a collected job's source time", () => {
+  assert.deepEqual(jobSourceLabels("manual"), {source: "手动粘贴", recordedAt: "保存时间"});
+  assert.deepEqual(jobSourceLabels("example"), {source: "example", recordedAt: "采集时间"});
 });

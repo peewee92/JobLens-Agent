@@ -5,6 +5,7 @@ import {LinkFeedback} from "@/components/link-feedback";
 import {useRouter} from "next/navigation";
 import {FormEvent, useEffect, useMemo, useRef, useState} from "react";
 
+import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {ResumeProposalPanel} from "@/components/resume-proposal-panel";
 import {
   isBlankProfileDraft,
@@ -36,7 +37,7 @@ import type {
 
 type EvidenceDraft = SaveProfilePayload["evidence"][number];
 type SkillDraft = SaveProfilePayload["skills"][number];
-type SaveState = {kind: "idle" | "saving" | "success" | "error"; message: string};
+type SaveState = {kind: "idle" | "saving" | "success" | "error"; message: string; verify?: boolean};
 
 const EMPTY_EVIDENCE: EvidenceDraft = {
   key: "",
@@ -572,7 +573,11 @@ export function ProfileEditor({
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        setProfileState({kind: "error", message: await apiMessage(response)});
+        if (response.status === 409) {
+          setProfileState({kind: "error", verify: true, message: "另一处刚刚更新了职业背景，这次没有覆盖。当前草稿仍保留，请先在新标签核对已保存的资料。"});
+        } else if (response.status >= 500 || response.status === 408) {
+          setProfileState({kind: "error", verify: true, message: "还不能确认职业背景是否保存。草稿仍保留，请先查看已保存结果；页面不会重发。"});
+        } else setProfileState({kind: "error", message: await apiMessage(response)});
         return;
       }
       const saved = (await response.json()) as UserProfile;
@@ -595,7 +600,7 @@ export function ProfileEditor({
         router.refresh();
       }
     } catch {
-      setProfileState({kind: "error", message: "暂时无法确认资料是否已保存。请先核对已保存的职业背景，再重试。"});
+      setProfileState({kind: "error", verify: true, message: "暂时无法确认资料是否已保存。草稿仍保留，请在新标签核对已保存结果，再决定下一步。"});
     } finally {
       savingProfile.current = false;
     }
@@ -776,7 +781,7 @@ export function ProfileEditor({
     <div className="profile-layout">
       {profileVersion === 0 ? <div className="stack-sm">
         <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft}
-          onManualEntry={beginManualEntry} manualEntryLabel={profileDraftBlank || isQuickEntryOpen ? "不用简历，快速填写" : "继续填写或核对背景"} disabled={saving} />
+          onManualEntry={beginManualEntry} manualEntryLabel="手动填写经历" hideManualEntry={isQuickEntryOpen || isProfileEditorOpen} disabled={saving} />
       </div> : <details className="detail-card">
         <summary>从新的简历整理草稿</summary>
         <ResumeProposalPanel byok={byok} localProfileModel={localProfileModel} onProposalReady={handleProposalReady} onApply={applyProposal} onReviewDraft={focusProfileDraft} disabled={saving} />
@@ -970,20 +975,11 @@ export function ProfileEditor({
             </div>
           </section>
         ) : profileDraftBlank ? (
-          <section className="profile-review-empty">
+          <section className="profile-review-empty" aria-label="尚无职业背景">
             <div>
               <h3>还没有可确认的职业背景</h3>
-              <p>
-                可以快速添加一段真实经历，不需要调用模型。
-              </p>
+              <p>从上方上传简历或手动填写；核对后再保存。</p>
             </div>
-            <button
-              className="button-secondary"
-              type="button"
-              onClick={beginManualEntry}
-            >
-              快速填写职业背景
-            </button>
           </section>
         ) : (
           <div className="profile-review">
@@ -1555,10 +1551,12 @@ export function ProfileEditor({
           </section>
         ) : null}
 
-        {profileState.kind !== "idle" && !(starterMode && profileState.kind === "success") ? (
-          <p role={profileState.kind === "error" ? "alert" : "status"} className={profileState.kind === "error" ? "inline-error" : "notice"}>
-            {profileState.message}
-          </p>
+        {profileState.kind === "saving" ? <PendingIndicator label={profileState.message} slowLabel="还没收到保存结果。请先等待，不要重复提交。" /> : null}
+        {profileState.kind !== "idle" && profileState.kind !== "saving" && !(starterMode && profileState.kind === "success") ? (
+          <div className={profileState.kind === "error" ? "inline-error" : "notice"}>
+            <p role={profileState.kind === "error" ? "alert" : "status"}>{profileState.message}</p>
+            {profileState.verify && <Link className="button-secondary" href="/profile" target="_blank" rel="noopener">在新标签查看已保存资料</Link>}
+          </div>
         ) : null}
       </form>
 

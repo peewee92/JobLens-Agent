@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {LinkFeedback} from "@/components/link-feedback";
 import {useExistingMatchStatus} from "@/components/existing-match-status";
 import {type FormEvent, useRef, useState, useSyncExternalStore} from "react";
@@ -59,9 +60,9 @@ export function ManualJobForm() {
     <label className="file-field"><span>原始岗位链接（可选）</span><input name="sourceUrl" type="url" maxLength={2048} placeholder="https://…" disabled={busy || !!result} /></label>
     <p className="muted-copy">系统会注明“手动粘贴”，不会把保存时间当成岗位仍在招聘的证明。未提供链接时，相同内容可复用；内容不同会作为另一个岗位保存。</p>
     <button className="button" disabled={!ready || busy || uncertain || !!result} type="submit">{!ready ? "正在准备表单…" : busy ? "正在保存岗位…" : result ? "岗位已保存" : "保存岗位，继续分析"}</button>
-    {busy && <p className="notice" role="status">正在保存岗位原文…</p>}
+    {busy && <PendingIndicator label="正在保存岗位原文…" slowLabel="还没收到回执，页面会继续等待。请不要重复提交。" />}
     {message ? <div className="inline-error" role="alert">{message}</div> : null}
-    {uncertain ? <Link className="button-secondary" href="/jobs">先核对我的岗位</Link> : null}
+    {uncertain ? <Link className="button-secondary" href="/jobs" target="_blank" rel="noopener">在新标签核对我的岗位</Link> : null}
     {result ? <section className="success-box" aria-live="polite">
       <h3>{result.created ? "岗位已保存" : "复用已有岗位，未新增"}</h3>
       <p>{pendingDescription ? "描述信息不足，已保存为待补充，暂不能生成匹配。"

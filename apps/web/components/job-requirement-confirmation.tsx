@@ -53,7 +53,7 @@ export function JobRequirementConfirmation({jobId, extractionId, inputHash, fact
     <h3>核对这一个岗位的要求</h3>
     <p>请对照上方岗位原文，检查全部要求是否准确、是否遗漏关键条件，以及哪些是必需、优先或加分项。不准确时不要确认，应先重新分析或核实原文。</p>
     <label><input type="checkbox" checked={checked} disabled={busy} onChange={event => setChecked(event.target.checked)} />我已逐项核对，愿意用这一版要求分析当前岗位。</label>
-    <p className="muted-copy">只记录你的核对，不改写要求、不替维护者签署模型质量评审，也不调用模型。</p>
+    <p className="muted-copy">这一步只记录你对此岗位的核对，不改写要求，也不会调用模型。</p>
     <button type="button" className="button" disabled={busy || !checked} onClick={confirm}>{busy ? "正在保存确认…" : "确认这份要求，继续匹配"}</button>
     {message ? <p role="alert" className="inline-error">{message}</p> : null}
   </section>;
