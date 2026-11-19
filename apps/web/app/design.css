@@ -74,6 +74,26 @@
 .jl-field input:not([type=checkbox]), .jl-field textarea, .jl-field select { width: 100%; min-height: 44px; background: var(--panel); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-s); padding: var(--jl-space-2) var(--jl-space-3); box-sizing: border-box; }
 .jl-field [aria-invalid=true] { border-color: var(--danger); }
 .jl-field .jl-field-error { color: var(--danger); }
+.jl-private-sign-in {
+  box-sizing: border-box;
+  width: min(100%, 40rem);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--jl-space-6);
+}
+.jl-private-sign-in > .jl-page-heading { margin-block: 0; }
+.jl-private-sign-in-form { display: grid; gap: var(--jl-space-4); min-width: 0; }
+.jl-private-sign-in-alternative {
+  margin: 0;
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--jl-space-4);
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+@media (max-width: 480px) {
+  .jl-private-sign-in-actions { display: grid; justify-items: start; }
+  .jl-private-sign-in-actions button[type=submit] { width: 100%; }
+}
 .jl-skeleton { display: block; background: var(--soft); border-radius: var(--radius-s); }
 .jl-dialog-backdrop { position: fixed; inset: 0; z-index: 49; background: #20282072; }
 .jl-dialog { position: fixed; z-index: 50; inset-inline: 0; top: 8vh; margin-inline: auto; width: min(34rem, calc(100% - 2rem)); max-height: 84dvh; overflow: auto; box-shadow: var(--shadow-lg); }

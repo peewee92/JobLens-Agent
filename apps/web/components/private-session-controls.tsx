@@ -65,13 +65,13 @@ export function PrivateSignInForm({codeEnabled}: {codeEnabled: boolean}) {
     }
   }
   const action = mode === "password" || codeStep ? "登录个人工作台" : "获取邮箱验证码";
-  return <form className="stack-md" method="post" onSubmit={submit}>
+  return <form className="jl-private-sign-in-form" method="post" onSubmit={submit}>
     <Field id="workspace-email" label="受邀邮箱"><input ref={emailField} id="workspace-email" name="email" type="email" autoComplete="username" maxLength={254} required readOnly={pending || codeStep} /></Field>
     {mode === "password" && <Field id="workspace-password" label="密码"><input ref={passwordField} id="workspace-password" name="password" type="password" autoComplete="current-password" maxLength={128} required /></Field>}
     {codeStep && <Field id="workspace-code" label="邮件中的 6 位验证码"><input ref={codeField} id="workspace-code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required /></Field>}
     {notice && <p className="jl-callout" role="status">{notice}</p>}
     {message && <p className="jl-callout" data-tone="danger" role="alert">{message}</p>}
-    <div className="jl-inline">
+    <div className="jl-inline jl-private-sign-in-actions">
       <Button type="submit" disabled={pending}>{pending ? "正在处理…" : action}</Button>
       {codeStep && <Button type="button" variant="subtle" disabled={pending} onClick={() => resetMode("code")}>修改邮箱或重新获取验证码</Button>}
       {codeEnabled && <Button type="button" variant="subtle" disabled={pending} onClick={() => resetMode(mode === "code" ? "password" : "code")}>
