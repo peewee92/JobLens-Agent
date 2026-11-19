@@ -13,16 +13,21 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 
 *实际运行截图，使用公开合成样本；不是生成的界面设计图或真实求职结论。*
 
-## 公开演示交付状态
+## 线上访问与故障排查
 
-**已发布 Vercel＋Render 免费合成演示**，不需要登录或私人简历，不调用在线模型。已验证比较 → 确认 → 建立工作区 → 开始行动 → 刷新保留。免费后端会休眠，唤醒失败时请稍后手动重试；进度在会话到期或重启后重置。
+**公开体验：[https://joblens-agent.vercel.app/demo](https://joblens-agent.vercel.app/demo)**。无需登录，也不需要上传简历、配置模型或付费。点击「开始／重新开始样本体验」，可用三条合成岗位完成**比较 → 确认目标 → 建立准备工作区 → 开始行动**。
 
-访问验证使用本机已有代理；**尚未通过两个国内普通网络验收，不承诺国内直连稳定**。真实模型小样本提取报告与在线演示分开，[查看五个岗位的真实模型结果与失败点](docs/release/REAL-MODEL-RESULTS.md)。录屏约 39 秒，无配音，不是完整三分钟介绍视频。
+页面由 Vercel 提供，演示后端运行在 Render 免费实例。每位访客使用独立的临时会话。允许本站 Cookie 并在同一浏览器内操作，刷新通常保留进度；**闲置 30 分钟、会话满 2 小时或后端休眠、重启后，进度可能重置**。这不是可长期保存简历的云端账户版；用真实资料并长期保留，请走下方的本地正式版。
 
-- [免费部署与回滚步骤](docs/release/DEPLOY.md)：Vercel 网页＋Render 单进程后端，独立临时合成会话，禁止在线模型与私人上传。
-- [真实模型与用户验收](docs/release/QUALITY-AND-USER-STUDY.md)：真实效果与合成演示分开；三人试用仍待执行。
-- [一页架构与 Agent 边界](docs/architecture/PUBLIC-PROJECT-EVIDENCE.md)：围绕证据、恢复与行动解释设计，不以框架数量证明价值。
-- [本轮交付证据](docs/release/STATUS.md)：已验证、未核实与账户依赖分别记录。
+| 遇到的情况 | 可以怎么做 |
+| --- | --- |
+| 页面能打开，但点击开始后提示服务正在唤醒或暂时不可用 | 免费后端闲置后会休眠。等待约 1 分钟，再手动点一次；不要连续点击。如果仍无法开始，可运行下方的本地离线演示。 |
+| 页面提示会话已结束，或原来的工作区打不开 | 回到[公开体验入口](https://joblens-agent.vercel.app/demo)重新开始。换浏览器或无痕窗口不会沿用原会话，已过期记录不会恢复。 |
+| 页面本身打不开、要求登录 Vercel，或停在浏览器网络错误页 | 先确认使用上面的公开网址，而非部署预览链接。国内不同网络的访问情况可能不同，尚未完成多网络验收；也可以看[操作录屏](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)或使用本地离线演示。 |
+
+- [部署与回滚步骤](docs/release/DEPLOY.md)：Vercel 网页、Render 后端和独立临时会话。
+- [真实模型与用户验收](docs/release/QUALITY-AND-USER-STUDY.md)：合成演示不是实时模型效果验证。另见[真实模型小样本结果](docs/release/REAL-MODEL-RESULTS.md)。
+- [一页架构与 Agent 边界](docs/architecture/PUBLIC-PROJECT-EVIDENCE.md) · [交付与验证记录](docs/release/STATUS.md)。
 
 ## 本地正式使用：从自己的资料开始
 
