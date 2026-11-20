@@ -7,9 +7,10 @@ from fastapi import FastAPI
 
 from app.api.error_handlers import register_exception_handlers
 from app.api.v1.router import api_router
+from app.api.v1.url_capture import router as url_capture_router
 
 
-def create_app() -> FastAPI:
+def create_app(*, enable_local_capture: bool = True) -> FastAPI:
     app = FastAPI(
         title="JobLens Backend",
         version="0.1.0",
@@ -17,6 +18,8 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api/v1")
+    if enable_local_capture:
+        app.include_router(url_capture_router, prefix="/api/v1", tags=["job-imports"])
 
     return app
 

@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/contracts/url-job-capture-response.schema.json",
+  "title": "UrlJobCaptureResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "captureId",
+    "status",
+    "requestedUrl",
+    "finalUrl",
+    "capturedAt",
+    "extractionMethod",
+    "qualityGrade",
+    "draft",
+    "diagnostics",
+    "blockers",
+    "interventionReason",
+    "providerCalls"
+  ],
+  "properties": {
+    "captureId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "captured",
+        "needs_human_intervention",
+        "blocked",
+        "failed"
+      ],
+      "description": "captured: usable draft extracted; needs_human_intervention: login wall / captcha / anti-bot detected; blocked: SSRF / policy / unsupported site; failed: network or timeout error."
+    },
+    "requestedUrl": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "finalUrl": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2048
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "extractionMethod": {
+      "type": "string",
+      "enum": [
+        "none",
+        "json_ld",
+        "static_html",
+        "playwright_dom",
+        "playwright_a11y"
+      ]
+    },
+    "qualityGrade": {
+      "type": "string",
+      "enum": [
+        "full_jd",
+        "partial_jd",
+        "card_only",
+        "unavailable"
+      ]
+    },
+    "draft": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CapturedJobDraft"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Read-only preview draft compatible with ManualJobInput. Never persisted until explicit user confirmation via POST /api/v1/job-imports/manual."
+    },
+    "diagnostics": {
+      "$ref": "#/$defs/CaptureDiagnostics"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "interventionReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "login_required",
+            "captcha_detected",
+            "anti_bot_challenge",
+            "unsupported_spa_shell"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "providerCalls": {
+      "type": "integer",
+      "const": 0,
+      "description": "This minimal slice strictly forbids live LLM calls during URL capture."
+    }
+  },
+  "$defs": {
+    "CapturedJobDraft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "company",
+        "description",
+        "sourceUrl"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "company": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "sourceUrl": {
+          "type": "string",
+          "maxLength": 2048
+        }
+      }
+    },
+    "CaptureDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "httpStatus",
+        "elapsedMs",
+        "descriptionLength",
+        "rawTextLength",
+        "a11yNodeCount",
+        "adapterUsed",
+        "truncationApplied"
+      ],
+      "properties": {
+        "httpStatus": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elapsedMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "descriptionLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rawTextLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "a11yNodeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "adapterUsed": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "truncationApplied": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

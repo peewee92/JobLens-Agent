@@ -4,9 +4,10 @@ import Link from "next/link";
 import {PendingIndicator} from "@/components/ui/pending-indicator";
 import {LinkFeedback} from "@/components/link-feedback";
 import {useExistingMatchStatus} from "@/components/existing-match-status";
-import {type FormEvent, useRef, useState, useSyncExternalStore} from "react";
+import {type FormEvent, type Ref, useImperativeHandle, useRef, useState, useSyncExternalStore} from "react";
 import type {ManualJobImportResult, ManualJobInput} from "@/lib/contracts";
 import {submitManualJob} from "@/lib/manual-job-import";
+import {applyCaptureDraft, type CapturedJobDraft, type CaptureDraftApplication} from "@/lib/url-job-capture";
 import {jobDescriptionIssue} from "@/lib/job-requirements";
 
 // Keep the native form from submitting until React can intercept it.
@@ -14,7 +15,9 @@ const subscribeToHydration = () => () => {};
 const clientReady = () => true;
 const serverReady = () => false;
 
-export function ManualJobForm() {
+export type ManualDraftTarget = {apply: (draft: CapturedJobDraft, overwrite: boolean) => CaptureDraftApplication};
+
+export function ManualJobForm({draftTarget}: {draftTarget?: Ref<ManualDraftTarget>}) {
   const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const form = useRef<HTMLFormElement>(null);
   const sending = useRef(false);
@@ -24,6 +27,25 @@ export function ManualJobForm() {
   const [uncertain, setUncertain] = useState(false);
   const [result, setResult] = useState<ManualJobImportResult | null>(null);
   const existingMatchStatus = useExistingMatchStatus(result && !result.created ? [result.jobId] : []);
+
+  useImperativeHandle(draftTarget, () => ({
+    apply(draft, overwrite) {
+      if (!form.current || sending.current || uncertain || result) return "locked";
+      const fields = form.current.elements;
+      const title = fields.namedItem("title");
+      const company = fields.namedItem("company");
+      const description = fields.namedItem("description");
+      const sourceUrl = fields.namedItem("sourceUrl");
+      if (!(title instanceof HTMLInputElement) || !(company instanceof HTMLInputElement) ||
+          !(description instanceof HTMLTextAreaElement) || !(sourceUrl instanceof HTMLInputElement)) return "locked";
+      const applied = applyCaptureDraft({title, company, description, sourceUrl}, draft, overwrite);
+      if (applied === "applied") {
+        setMessage("");
+        requestAnimationFrame(() => title.focus());
+      }
+      return applied;
+    },
+  }), [uncertain, result]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

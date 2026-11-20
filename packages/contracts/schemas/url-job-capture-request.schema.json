@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://joblens.local/contracts/url-job-capture-request.schema.json",
+  "title": "UrlJobCaptureRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "url"
+  ],
+  "properties": {
+    "url": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^https?://",
+      "description": "Public HTTP(S) URL of a single job posting page. Private/loopback/link-local hosts are rejected by backend SSRF guards."
+    },
+    "renderMode": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "playwright"
+      ],
+      "default": "auto",
+      "description": "auto tries static HTML/JSON-LD extraction first and falls back to Playwright only when needed; playwright forces headless browser rendering."
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "minimum": 3000,
+      "maximum": 25000,
+      "default": 15000,
+      "description": "Hard wall-clock budget for page load and DOM/Accessibility extraction."
+    }
+  }
+}

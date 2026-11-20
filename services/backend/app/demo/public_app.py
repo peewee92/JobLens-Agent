@@ -2,6 +2,7 @@
 import json
 from contextlib import nullcontext
 from app.byok.context import current_model
+from app.api.v1.url_capture import CAPTURE_PATH
 import hmac
 import re
 from starlette.concurrency import run_in_threadpool
@@ -65,6 +66,8 @@ class PublicBoundary:
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
         path, method = scope['path'], scope['method']
+        if path.rstrip('/') == CAPTURE_PATH:
+            return await error('url_capture_forbidden', 403, '公开演示不开放岗位链接抓取。')(scope, receive, send)
         if path == '/api/v1/health' and method == 'GET':
             return await self.app(scope, receive, send)
         if len(scope.get('query_string', b'')) > 8192:
@@ -151,7 +154,7 @@ class PublicBoundary:
 def create_public_app(sessions: DemoSessions, *, secret: str, origin: str, byok_enabled: bool = False):
     if len(secret) < 32 or not origin.startswith(('https://', 'http://localhost:', 'http://127.0.0.1:')) or origin.endswith('/'):
         raise RuntimeError('公开演示需要至少 32 字符代理密钥与无尾斜线的前端来源。')
-    app = create_app()
+    app = create_app(enable_local_capture=False)
     from app.byok.api import router as byok_router
     from fastapi.exceptions import RequestValidationError
     app.include_router(byok_router, prefix='/api/v1')

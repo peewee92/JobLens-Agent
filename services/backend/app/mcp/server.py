@@ -7,16 +7,17 @@ from mcp.server import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from app.application.url_capture.models import CaptureTimeout, CaptureUrl, RenderMode, UrlJobCaptureRequest
 from app.mcp.adapter import JobLensMcpAdapter
 from app.mcp.schemas import JobPreparationInput, RankMatchReportsInput, TargetCohortGapsInput
 
 
-def _annotations() -> ToolAnnotations:
+def _annotations(*, open_world: bool = False) -> ToolAnnotations:
     return ToolAnnotations(
         read_only_hint=True,
         destructive_hint=False,
         idempotent_hint=True,
-        open_world_hint=False,
+        open_world_hint=open_world,
     )
 
 
@@ -34,7 +35,7 @@ def _metadata(*, requires_current_job: bool = False, requires_explicit_selection
 
 
 def create_mcp_server(adapter: JobLensMcpAdapter) -> MCPServer:
-    """Register the three externally supported tools and nothing else."""
+    """Register the local JobLens tools; no write workflows."""
     server = MCPServer(
         "JobLens",
         instructions=(
@@ -84,5 +85,22 @@ def create_mcp_server(adapter: JobLensMcpAdapter) -> MCPServer:
         return adapter.job_preparation(JobPreparationInput(job_id=job_id)).model_dump(
             by_alias=True, mode="json"
         )
+
+    @server.tool(
+        name="capture_job_url",
+        description=(
+            "Preview one public job posting URL using bounded, anonymous GET requests. "
+            "Does not save the job into JobLens; user must review and import explicitly."
+        ),
+        annotations=_annotations(open_world=True),
+        meta={"joblens": {
+            **_metadata()["joblens"],
+            "humanGateRequirement": "confirm_before_import",
+            "timeoutClass": "local_browser_capture",
+        }},
+    )
+    async def capture_job_url(url: CaptureUrl, renderMode: RenderMode = "auto", timeoutMs: CaptureTimeout = 15_000) -> dict[str, Any]:
+        result = await adapter.capture_job_url(UrlJobCaptureRequest(url=url, renderMode=renderMode, timeoutMs=timeoutMs))
+        return result.model_dump(mode="json")
 
     return server

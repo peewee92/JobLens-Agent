@@ -1,0 +1,27 @@
+{
+  "captureId": "cap_20261119_a1b2c3d4",
+  "status": "captured",
+  "requestedUrl": "https://boards.greenhouse.io/examplecorp/jobs/1234567",
+  "finalUrl": "https://boards.greenhouse.io/examplecorp/jobs/1234567",
+  "capturedAt": "2026-11-19T12:00:00Z",
+  "extractionMethod": "playwright_a11y",
+  "qualityGrade": "full_jd",
+  "draft": {
+    "title": "Senior AI Agent Engineer",
+    "company": "ExampleCorp",
+    "description": "Responsibilities:\n- Build and maintain reliable services for the ExampleCorp hiring platform.\n- Write tests and investigate incidents with the wider engineering team.\n\nRequirements:\n- At least three years of Python or TypeScript experience.\n- Ability to explain trade-offs in plain language.",
+    "sourceUrl": "https://boards.greenhouse.io/examplecorp/jobs/1234567"
+  },
+  "diagnostics": {
+    "httpStatus": 200,
+    "elapsedMs": 1840,
+    "descriptionLength": 291,
+    "rawTextLength": 6890,
+    "a11yNodeCount": 94,
+    "adapterUsed": "local_chromium",
+    "truncationApplied": false
+  },
+  "blockers": [],
+  "interventionReason": null,
+  "providerCalls": 0
+}

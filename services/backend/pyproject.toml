@@ -12,6 +12,8 @@ dependencies = [
     "sqlalchemy>=2,<3",
     "alembic",
     "httpx>=0.28,<1",
+    "httpcore>=1.0.9,<2",
+    "beautifulsoup4>=4.13,<5",
     "pypdf>=6,<7",
     "python-multipart>=0.0.20,<1",
     "langgraph>=1.2.11",
@@ -19,6 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+browser = [
+    "playwright>=1.60,<2",
+]
 cloud = [
     "certifi>=2025.1.31",
     "psycopg[binary]>=3.2,<4",
@@ -27,6 +32,7 @@ cloud = [
 [dependency-groups]
 dev = [
     "pytest",
+    "jsonschema>=4,<5",
 ]
 
 [tool.fastapi]

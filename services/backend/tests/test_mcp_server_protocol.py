@@ -69,7 +69,7 @@ class _SuccessfulAdapter:
         )
 
 
-def test_sdk_discovery_exposes_only_three_flat_read_only_tools() -> None:
+def test_sdk_discovery_exposes_only_four_flat_read_only_tools() -> None:
     adapter = JobLensMcpAdapter(
         context_builder=_ContextBuilder(),
         tool_registry=_Registry(),
@@ -84,15 +84,20 @@ def test_sdk_discovery_exposes_only_three_flat_read_only_tools() -> None:
         "rank_match_reports",
         "target_cohort_gaps",
         "job_preparation",
+        "capture_job_url",
     }
     assert "job_ids" in by_name["rank_match_reports"].input_schema["properties"]
     assert "selected_job_ids" in by_name["target_cohort_gaps"].input_schema["properties"]
     assert "cohort_id" not in by_name["target_cohort_gaps"].input_schema["properties"]
     assert by_name["job_preparation"].annotations.read_only_hint is True
     assert by_name["job_preparation"].meta["joblens"]["requiresCurrentJob"] is True
+    capture = by_name["capture_job_url"]
+    assert set(capture.input_schema["properties"]) == {"url", "renderMode", "timeoutMs"}
+    assert capture.annotations.read_only_hint is True and capture.annotations.open_world_hint is True
+    assert capture.meta["joblens"]["humanGateRequirement"] == "confirm_before_import"
 
 
-def test_in_memory_sdk_client_discovers_and_calls_all_three_tools() -> None:
+def test_in_memory_sdk_client_preserves_existing_tool_envelopes() -> None:
     async def exercise_protocol() -> dict[str, dict]:
         async with Client(create_mcp_server(_SuccessfulAdapter())) as client:
             tools = await client.list_tools()
@@ -100,6 +105,7 @@ def test_in_memory_sdk_client_discovers_and_calls_all_three_tools() -> None:
                 "rank_match_reports",
                 "target_cohort_gaps",
                 "job_preparation",
+                "capture_job_url",
             }
             ranking = await client.call_tool(
                 "rank_match_reports", {"job_ids": ["job_1"], "top_n": 1}
@@ -228,6 +234,7 @@ def test_stdio_sdk_client_calls_all_tools_and_reconnects_after_restart(tmp_path:
                 "rank_match_reports",
                 "target_cohort_gaps",
                 "job_preparation",
+                "capture_job_url",
             }
             ranking = await client.call_tool(
                 "rank_match_reports",
@@ -280,3 +287,33 @@ def test_stdio_sdk_client_calls_all_tools_and_reconnects_after_restart(tmp_path:
 
     for result in (*first.values(), *second.values()):
         assert not (public_keys(result["data"]) & forbidden_fields)
+
+def test_capture_sdk_returns_preview_without_context_or_write():
+    from app.application.url_capture.ssrf_guard import PageResponse
+    from app.application.url_capture.use_case import CaptureJobUrlUseCase
+
+    class NeverCallContext:
+        def build(self):
+            pytest.fail("capture must not read career context")
+
+    class FixtureHttp:
+        async def fetch(self, url, _budget):
+            return PageResponse(url, 200, {"content-type": "text/html"},
+                b'<h1>Engineer</h1><span data-company-name="Example"></span><div class="job-description">Build tools.</div>')
+
+    adapter = JobLensMcpAdapter(
+        context_builder=NeverCallContext(), tool_registry=_Registry(), url_capture=CaptureJobUrlUseCase(FixtureHttp()),
+    )
+
+    async def exercise():
+        async with Client(create_mcp_server(adapter)) as client:
+            result = await client.call_tool("capture_job_url", {"url": "https://jobs.test/1", "timeoutMs": 3000})
+            assert not result.is_error
+            assert result.structured_content["status"] == "captured"
+            assert result.structured_content["draft"]["title"] == "Engineer"
+            assert result.structured_content["providerCalls"] == 0
+            assert "ok" not in result.structured_content
+            rejected = await client.call_tool("capture_job_url", {"url": "file:///no"})
+            assert rejected.is_error
+
+    asyncio.run(exercise())

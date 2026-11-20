@@ -19,6 +19,8 @@ from app.api.v1.schemas.target_cohort_gaps import TargetCohortGapResponse
 from app.application.create_target_cohort import TargetCohortSelectionError
 from app.application.job_queries.errors import JobNotFoundError
 from app.application.match_report import MatchReportPersistenceNotReadyError
+from app.application.url_capture.models import UrlJobCaptureRequest, UrlJobCaptureResponse
+from app.application.url_capture.use_case import CaptureJobUrlUseCase
 from app.mcp.schemas import (
     JobPreparationInput,
     McpToolEnvelope,
@@ -41,10 +43,16 @@ class JobLensMcpAdapter:
         context_builder: CareerAgentContextBuilder,
         tool_registry: CareerAgentToolRegistry,
         trace_id_factory: Callable[[], str] | None = None,
+        url_capture: CaptureJobUrlUseCase | None = None,
     ) -> None:
         self._context_builder = context_builder
         self._tool_registry = tool_registry
+        self._url_capture = url_capture if url_capture is not None else CaptureJobUrlUseCase()
         self._trace_id_factory = trace_id_factory or (lambda: f"mcp_{uuid4().hex}")
+
+    async def capture_job_url(self, request: UrlJobCaptureRequest) -> UrlJobCaptureResponse:
+        # There is no career context or registry lookup on this path.
+        return await self._url_capture.execute(request)
 
     def rank_match_reports(self, request: RankMatchReportsInput) -> McpToolEnvelope:
         tool = CareerAgentToolName.RANK_MATCH_REPORTS
