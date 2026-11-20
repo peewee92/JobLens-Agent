@@ -130,6 +130,8 @@ def test_greenhouse_preserves_explicit_and_structured_employer_evidence():
     ('<main>为了更好的访问体验，请进行验证</main><script src="/widget.js"></script>',
      200, "https://jobs.51job.com/example/123.html", "anti_bot_challenge"),
     (SHELL, 200, "https://safe.liepin.com/page/liepin/captchaPage_ip_PC", "captcha_detected"),
+    (SHELL, 200, "https://m.zhipin.com/web/passport/zp/security.html", "anti_bot_challenge"),
+    (SHELL, 200, "https://www.zhipin.com/web/passport/zp/security.html", "anti_bot_challenge"),
 ])
 def test_intervention_stops_before_browser(page, status, final, reason):
     browser = Browser(AssertionError("must not try a restricted page again"))
@@ -162,6 +164,7 @@ def test_liepin_paused_posting_never_captures_recommendations_or_stale_metadata(
     (URL, '<span class="apply-stop-title">该职位已暂停招聘</span>'),
     ("https://www.liepin.com/company/123.shtml", '<span class="apply-stop-title">该职位已暂停招聘</span>'),
     ("https://safe.liepin.com.example.test/page/liepin/captchaPage_ip_PC", ""),
+    ("https://m.zhipin.com.example.test/web/passport/zp/security.html", ""),
     ("https://jobs.51job.com/example/123.html", '<div id="renderData"></div>'),
     ("https://jobs.51job.com/example/123.html", "为了更好的访问体验，请进行验证"),
     ("https://jobs.51job.com.example.test/example/123.html", '<meta name="aliyun_waf_aa"><div id="renderData"></div>'),
@@ -175,6 +178,52 @@ def test_domestic_public_job_is_not_mistaken_for_an_interstitial_or_paused_listi
     assert (result.status, result.extractionMethod, result.qualityGrade) == ("captured", "json_ld", "full_jd")
     assert (result.draft.title, result.draft.company) == ("应用开发工程师", "示例软件公司")
     assert result.draft.sourceUrl == url and browser.called == 0
+
+
+NOWCODER_URL = "https://www.nowcoder.com/jobs/detail/123"
+NOWCODER_EMPLOYER = '<a href="/jobs/hr/456"><span class="tw-whitespace-pre-wrap">示例软件公司·HR</span></a>'
+
+
+def nowcoder_html(employer=NOWCODER_EMPLOYER, *, ended="", body=True):
+    region = f'<div class="job-detail-word"><div class="job-detail-infos"><p>{CHINESE_JD}</p></div></div>' if body else ""
+    return (
+        '<title>应用开发实习_牛客实习_牛客网</title>'
+        '<main><div class="job-detail-wrap"><h1>应用开发实习</h1>'
+        f'<a class="recruiter-name">不属于正文的联系人</a>{employer}{ended}</div>'
+        f'{region}<section>不属于正文的推荐岗位</section></main>'
+        '<footer>牛客网</footer>'
+    )
+
+
+def test_nowcoder_uses_posting_company_label_and_only_the_description_region():
+    browser = Browser(AssertionError("a public posting should not need Chromium"))
+    r = capture(Http(nowcoder_html(), url=NOWCODER_URL), browser)
+    assert (r.status, r.extractionMethod, r.qualityGrade) == ("captured", "static_html", "full_jd")
+    assert r.draft.title == "应用开发实习" and r.draft.company == "示例软件公司"
+    assert r.draft.description == CHINESE_JD.strip()
+    assert r.draft.sourceUrl == NOWCODER_URL and r.providerCalls == browser.called == 0
+
+
+@pytest.mark.parametrize(("url", "employer", "body"), [
+    (NOWCODER_URL, "", True),
+    (NOWCODER_URL, NOWCODER_EMPLOYER.replace("示例软件公司·HR", "招聘同事"), True),
+    (NOWCODER_URL, NOWCODER_EMPLOYER + NOWCODER_EMPLOYER.replace("示例软件公司", "另一家雇主"), True),
+    (NOWCODER_URL, NOWCODER_EMPLOYER, False),
+    (NOWCODER_URL.replace("nowcoder.com", "nowcoder.com.example.test"), NOWCODER_EMPLOYER, True),
+    (NOWCODER_URL.replace("/jobs/detail/", "/careers/"), NOWCODER_EMPLOYER, True),
+])
+def test_nowcoder_refuses_missing_ambiguous_or_unscoped_posting_fields(url, employer, body):
+    r = capture(Http(nowcoder_html(employer, body=body), url=url), Browser(AssertionError))
+    assert r.status == "failed" and r.draft is None
+
+
+@pytest.mark.parametrize("rendered", [False, True])
+def test_nowcoder_ended_job_is_rejected_even_when_full_description_remains(rendered):
+    html = nowcoder_html(ended='<button><span>已结束</span></button>') + CHINESE_POSTING
+    browser = Browser(RenderedPage(html, "") if rendered else AssertionError("do not render an ended job"))
+    r = capture(Http(SHELL if rendered else html, url=NOWCODER_URL), browser)
+    assert (r.status, r.blockers, r.draft) == ("failed", ["posting_inactive"], None)
+    assert browser.called == int(rendered) and r.providerCalls == 0
 
 
 def test_spa_falls_back_to_dom_and_forced_mode_skips_fast_result():

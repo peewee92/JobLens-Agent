@@ -52,7 +52,7 @@ test("a site's verification page or paused listing does not produce a draft", ()
   assert.deepEqual(decodeCapture(200, {status: "needs_human_intervention", interventionReason: "anti_bot_challenge", draft}),
     {kind: "error", message: "目标页面限制了访问或触发了验证。请改用浏览器插件或手动粘贴正文。"});
   assert.deepEqual(decodeCapture(200, {status: "failed", blockers: ["posting_inactive"], draft}),
-    {kind: "error", message: "招聘网站显示此岗位已暂停招聘。请核对原链接或换一个岗位。"});
+    {kind: "error", message: "招聘网站显示此岗位已结束或暂停招聘。请核对原链接或换一个岗位。"});
 });
 
 test("local proxy is off by default and does not open in either cloud mode", () => {

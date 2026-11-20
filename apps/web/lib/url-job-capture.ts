@@ -29,7 +29,7 @@ const blockers: Record<string, string> = {
   playwright_not_installed: "这个页面需要浏览器渲染，但本机未安装 Playwright 或 Chromium。请手动粘贴，或按本地安装说明启用浏览器抓取。",
   browser_isolation_unavailable: "未能建立浏览器的网络限制，已停止渲染。",
   browser_render_failed: "浏览器没能取得岗位正文。",
-  posting_inactive: "招聘网站显示此岗位已暂停招聘。请核对原链接或换一个岗位。",
+  posting_inactive: "招聘网站显示此岗位已结束或暂停招聘。请核对原链接或换一个岗位。",
   posting_not_found: "页面中没有找到可核对的岗位名称、公司和描述。",
   unsupported_content_type: "链接没有返回 HTML 岗位页面。",
   http_error: "目标页面不可用，岗位可能已下架或链接已变更。",

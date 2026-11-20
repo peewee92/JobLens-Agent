@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import re
-from urllib.parse import unquote, urlsplit
+from urllib.parse import SplitResult, unquote, urlsplit
 
 from bs4 import BeautifulSoup, Tag
 
@@ -35,6 +35,7 @@ _BLOCK_BOUNDARIES = ("p", "li", "br", "div", "section", "h1", "h2", "h3", "h4", 
 _GREENHOUSE_HOSTS = {"boards.greenhouse.io", "job-boards.greenhouse.io"}
 _GREENHOUSE_POSTING = re.compile(r"/[^/]+/jobs/[0-9]+(?:-[0-9]+)?/?")
 _LIEPIN_POSTING = re.compile(r"/job/[0-9]+\.shtml")
+_NOWCODER_POSTING = re.compile(r"/jobs/detail/[0-9]+/?")
 _51JOB_HOSTS = {"jobs.51job.com", "msearch.51job.com"}
 
 
@@ -93,6 +94,8 @@ def grade_description(text: str) -> QualityGrade:
 def url_intervention(url: str) -> InterventionReason | None:
     target = urlsplit(url)
     path = unquote(target.path)
+    if target.hostname in {"www.zhipin.com", "m.zhipin.com"} and path == "/web/passport/zp/security.html":
+        return "anti_bot_challenge"
     if target.hostname == "safe.liepin.com" and path.rstrip("/").casefold() == "/page/liepin/captchapage_ip_pc":
         return "captcha_detected"
     if _LOGIN_PATH.search(path):
@@ -100,6 +103,10 @@ def url_intervention(url: str) -> InterventionReason | None:
     if _CHALLENGE_PATH.search(path):
         return "captcha_detected" if "captcha" in path.casefold() else "anti_bot_challenge"
     return None
+
+
+def _is_nowcoder_posting(target: SplitResult) -> bool:
+    return target.hostname == "www.nowcoder.com" and _NOWCODER_POSTING.fullmatch(target.path) is not None
 
 
 class HtmlPosting:
@@ -147,6 +154,9 @@ class HtmlPosting:
 
     def posting_inactive(self, url: str) -> bool:
         target = urlsplit(url)
+        if _is_nowcoder_posting(target):
+            return any(label(button.get_text(" ", strip=True)) == "已结束"
+                       for button in self.soup.select("main .job-detail-wrap button"))
         return (
             target.hostname == "www.liepin.com"
             and _LIEPIN_POSTING.fullmatch(target.path) is not None
@@ -194,6 +204,18 @@ class HtmlPosting:
         for node in self.soup.select(_NOISE):
             node.decompose()
         raw = len(normalize_text(self.soup.get_text(" ")))
+        if _is_nowcoder_posting(source):
+            # Read employer and title from the posting card, not recruiter names, site branding or related jobs.
+            title = self._field("main .job-detail-wrap h1")
+            employers = set()
+            for node in self.soup.select('main .job-detail-wrap a[href^="/jobs/hr/"] .tw-whitespace-pre-wrap'):
+                employer, separator, role = label(node.get_text(" ", strip=True)).rpartition("·")
+                if separator and employer.strip() and role.strip():
+                    employers.add(employer.strip())
+            regions = self.soup.select("main .job-detail-word .job-detail-infos")
+            if title and len(employers) == len(regions) == 1 and (text := description_text(regions[0])):
+                return ExtractedJob(title, employers.pop(), text), raw
+            return ExtractedJob("", "", ""), raw
         region = self.soup.select_one(".job__description") if greenhouse else None
         if region is None:
             region = self.soup.select_one(_DESCRIPTION)
