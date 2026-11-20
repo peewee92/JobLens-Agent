@@ -34,6 +34,8 @@ _MAIN = "main, [role=main], article, .posting-page, #content"
 _BLOCK_BOUNDARIES = ("p", "li", "br", "div", "section", "h1", "h2", "h3", "h4", "h5", "tr", "dd", "dt")
 _GREENHOUSE_HOSTS = {"boards.greenhouse.io", "job-boards.greenhouse.io"}
 _GREENHOUSE_POSTING = re.compile(r"/[^/]+/jobs/[0-9]+(?:-[0-9]+)?/?")
+_LIEPIN_POSTING = re.compile(r"/job/[0-9]+\.shtml")
+_51JOB_HOSTS = {"jobs.51job.com", "msearch.51job.com"}
 
 
 @dataclass(frozen=True)
@@ -89,7 +91,10 @@ def grade_description(text: str) -> QualityGrade:
 
 
 def url_intervention(url: str) -> InterventionReason | None:
-    path = unquote(urlsplit(url).path)
+    target = urlsplit(url)
+    path = unquote(target.path)
+    if target.hostname == "safe.liepin.com" and path.rstrip("/").casefold() == "/page/liepin/captchapage_ip_pc":
+        return "captcha_detected"
     if _LOGIN_PATH.search(path):
         return "login_required"
     if _CHALLENGE_PATH.search(path):
@@ -116,6 +121,16 @@ class HtmlPosting:
         heading = " ".join(node.get_text(" ", strip=True) for node in self.soup.select("title, h1")[:5])
         region = self.soup.select_one("main, [role=main], body")
         primary = region.get_text(" ", strip=True)[:420] if region is not None else ""
+        site = urlsplit(url).hostname
+        # These sites can return a verification page with HTTP 200 and no job content.
+        if site in _51JOB_HOSTS and (
+            primary.rstrip("。") == "为了更好的访问体验，请进行验证"
+            or (self.soup.select_one('meta[name="aliyun_waf_aa"]') and self.soup.select_one("#renderData"))
+        ):
+            return "anti_bot_challenge"
+        if (site == "www.zhaopin.com" and self._field("title, h1").casefold() == "security verification"
+                and "Protected by Tencent Cloud EdgeOne" in self.soup.get_text(" ", strip=True)):
+            return "anti_bot_challenge"
         if _CAPTCHA_TEXT.search(heading) or (
             _CAPTCHA_TEXT.search(primary) and self.soup.select_one("iframe[src*=captcha], #challenge-form, [data-sitekey]")
             and not JD_SIGNALS.search(primary)
@@ -129,6 +144,14 @@ class HtmlPosting:
         if status in {403, 429} or _CHALLENGE_TEXT.search(heading) or self.soup.select_one("#challenge-form, #cf-challenge-running"):
             return "anti_bot_challenge"
         return None
+
+    def posting_inactive(self, url: str) -> bool:
+        target = urlsplit(url)
+        return (
+            target.hostname == "www.liepin.com"
+            and _LIEPIN_POSTING.fullmatch(target.path) is not None
+            and self._field(".apply-stop-title") == "该职位已暂停招聘"
+        )
 
     def structured(self) -> ExtractedJob | None:
         postings = []

@@ -74,6 +74,8 @@ class CaptureJobUrlUseCase:
                 raise CaptureError("http_error")
             if not document.is_html:
                 raise CaptureError("unsupported_content_type")
+            if await asyncio.to_thread(page.posting_inactive, document.url):
+                return result("failed", blocker="posting_inactive")
             structured = await asyncio.to_thread(page.structured)
             if request.renderMode == "auto":
                 if structured and structured.usable and len(structured.description) >= 120:
@@ -92,6 +94,8 @@ class CaptureJobUrlUseCase:
             page = await asyncio.to_thread(HtmlPosting, rendered.html)
             if reason := await asyncio.to_thread(page.intervention, document.url, document.status):
                 return result("needs_human_intervention", reason=reason)
+            if await asyncio.to_thread(page.posting_inactive, document.url):
+                return result("failed", blocker="posting_inactive")
             rendered_structured = await asyncio.to_thread(page.structured) or structured
             semantic, raw_length = await asyncio.to_thread(page.semantic, rendered_structured, source_url=document.url)
             if rendered_structured and rendered_structured.usable and not semantic.usable:

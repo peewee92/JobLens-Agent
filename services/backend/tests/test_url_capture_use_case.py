@@ -19,7 +19,7 @@ STATIC = f'<main><h1>Software Engineer</h1><div data-company-name="Example"></di
 
 class Http:
     def __init__(self, html, status=200, *, url=URL):
-        self.data = PageResponse(url, status, {"content-type": "text/html"}, html.encode())
+        self.data = PageResponse(url, status, {"content-type": "text/html; charset=utf-8"}, html.encode())
 
     async def fetch(self, _url, _budget):
         return self.data
@@ -120,12 +120,61 @@ def test_greenhouse_preserves_explicit_and_structured_employer_evidence():
     (SHELL, 401, URL, "login_required"),
     (SHELL, 403, URL, "anti_bot_challenge"),
     (SHELL, 429, URL, "anti_bot_challenge"),
+    ('<title>Security Verification</title><main id="app"><h1>Security Verification</h1></main>'
+     '<footer>Protected by Tencent Cloud EdgeOne</footer><script src="/widget.js"></script>',
+     200, "https://www.zhaopin.com/jobdetail/CC123J456.htm", "anti_bot_challenge"),
+    ('<meta name="aliyun_waf_aa"><div id="renderData"></div><script src="/widget.js"></script>',
+     200, "https://jobs.51job.com/example/123.html", "anti_bot_challenge"),
+    ('<meta name="aliyun_waf_aa"><div id="renderData"></div><script src="/widget.js"></script>',
+     200, "https://msearch.51job.com/jobs/example/123.html", "anti_bot_challenge"),
+    ('<main>为了更好的访问体验，请进行验证</main><script src="/widget.js"></script>',
+     200, "https://jobs.51job.com/example/123.html", "anti_bot_challenge"),
+    (SHELL, 200, "https://safe.liepin.com/page/liepin/captchaPage_ip_PC", "captcha_detected"),
 ])
 def test_intervention_stops_before_browser(page, status, final, reason):
     browser = Browser(AssertionError("must not try a restricted page again"))
     result = capture(Http(page, status, url=final), browser, renderMode="playwright")
     assert result.status == "needs_human_intervention" and result.interventionReason == reason
-    assert result.draft is None and browser.called == 0
+    assert result.draft is None and result.providerCalls == browser.called == 0
+    assert result.diagnostics.adapterUsed == "guarded_http"
+
+
+LIEPIN_URL = "https://www.liepin.com/job/123.shtml"
+CHINESE_JD = "岗位职责：" + "维护集成服务并编写回归测试，整理上线记录并和团队核对。 " * 10
+CHINESE_POSTING = '<script type="application/ld+json">' + json.dumps({
+    "@type": "JobPosting", "title": "应用开发工程师",
+    "hiringOrganization": {"name": "示例软件公司"}, "description": CHINESE_JD,
+}) + '</script>'
+PAUSED_POSTING = '<span class="apply-stop-title">该职位已暂停招聘</span>' + STATIC + CHINESE_POSTING
+
+
+@pytest.mark.parametrize("rendered", [False, True])
+def test_liepin_paused_posting_never_captures_recommendations_or_stale_metadata(rendered):
+    browser = Browser(RenderedPage(PAUSED_POSTING, "") if rendered else AssertionError("paused page is terminal"))
+    result = capture(Http(SHELL if rendered else PAUSED_POSTING, url=LIEPIN_URL), browser)
+    assert (result.status, result.blockers) == ("failed", ["posting_inactive"])
+    assert result.draft is None and result.providerCalls == 0
+    assert browser.called == int(rendered)
+
+
+@pytest.mark.parametrize(("url", "other_content"), [
+    (LIEPIN_URL, "<aside>推荐岗位：该职位已暂停招聘</aside>"),
+    (URL, '<span class="apply-stop-title">该职位已暂停招聘</span>'),
+    ("https://www.liepin.com/company/123.shtml", '<span class="apply-stop-title">该职位已暂停招聘</span>'),
+    ("https://safe.liepin.com.example.test/page/liepin/captchaPage_ip_PC", ""),
+    ("https://jobs.51job.com/example/123.html", '<div id="renderData"></div>'),
+    ("https://jobs.51job.com/example/123.html", "为了更好的访问体验，请进行验证"),
+    ("https://jobs.51job.com.example.test/example/123.html", '<meta name="aliyun_waf_aa"><div id="renderData"></div>'),
+    ("https://www.zhaopin.com/jobdetail/CC123J456.htm", "<title>Security Verification Engineer</title>"),
+    ("https://www.zhaopin.com/jobdetail/CC123J456.htm", "<title>Security Verification</title>"),
+])
+def test_domestic_public_job_is_not_mistaken_for_an_interstitial_or_paused_listing(url, other_content):
+    html = other_content + CHINESE_POSTING
+    browser = Browser(AssertionError("structured fast path must not start browser"))
+    result = capture(Http(html, url=url), browser)
+    assert (result.status, result.extractionMethod, result.qualityGrade) == ("captured", "json_ld", "full_jd")
+    assert (result.draft.title, result.draft.company) == ("应用开发工程师", "示例软件公司")
+    assert result.draft.sourceUrl == url and browser.called == 0
 
 
 def test_spa_falls_back_to_dom_and_forced_mode_skips_fast_result():

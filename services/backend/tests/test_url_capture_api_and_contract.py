@@ -36,6 +36,9 @@ def local(monkeypatch):
             return PageResponse(str(url), 403, {}, b"")
         if url.path == "/unavailable":
             return PageResponse(str(url), 404, {}, b"")
+        if url.host == "www.liepin.com" and url.path == "/job/123.shtml":
+            paused = '<span class="apply-stop-title">该职位已暂停招聘</span>'
+            return PageResponse(str(url), 200, {"content-type": "text/html; charset=utf-8"}, paused.encode())
         body = b'<main><h1>Engineer</h1><div class="company-name">Example</div><div class="job-description">Build tools.</div></main>'
         return PageResponse(str(url), 200, {"content-type": "text/html"}, body)
 
@@ -82,6 +85,14 @@ def test_local_capture_response_validates_and_does_not_use_database(local, suffi
         ManualJobInput.model_validate(body["draft"])
     else:
         assert body["draft"] is None
+
+
+def test_paused_posting_fits_existing_capture_contract(local):
+    response = local.post(CAPTURE_PATH, json={"url": "https://www.liepin.com/job/123.shtml"})
+    assert response.status_code == 200
+    body = response.json()
+    validator("response").validate(body)
+    assert (body["status"], body["blockers"], body["draft"]) == ("failed", ["posting_inactive"], None)
 
 
 @pytest.mark.parametrize("payload", [
