@@ -44,7 +44,13 @@ export type RequirementReleaseBlockerCopy = {
 export const shortJobDescriptionGuidance = "岗位描述不足，请重新采集包含完整职责和任职要求的岗位，再进行要求分析。";
 export const longJobDescriptionGuidance = "岗位描述超过分析长度上限，请检查采集内容，重新采集不超过 50000 字符的完整岗位描述后再分析。";
 
-export function jobDescriptionIssue(description: string | null | undefined): string | null {
+export function jobDescriptionIssue(description: string | null | undefined, capture?: {
+  requirementReviewEligible: boolean | null;
+  sourceVersion: string | null;
+}): string | null {
+  if (capture && (capture.requirementReviewEligible === false || (
+    capture.requirementReviewEligible === null && /^1\.[45]\./.test(capture.sourceVersion ?? "")
+  ))) return shortJobDescriptionGuidance;
   // Python's len() counts Unicode code points rather than UTF-16 code units.
   const length = Array.from((description ?? "").trim()).length;
   if (length < 40) return shortJobDescriptionGuidance;

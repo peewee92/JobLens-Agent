@@ -72,6 +72,34 @@ def test_authorized_success_replay_and_saved_result(authorized):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("collector_version", ["1.4.9", "1.5.0"])
+def test_partial_collector_capture_cannot_spend_then_same_job_full_detail_can(authorized, collector_version):
+    client, factory, job, _, calls = authorized
+    path = f"/api/v1/jobs/{job}"
+    with factory.begin() as session:
+        session.execute(text("UPDATE job_sources SET source_version=:version, source_raw=:raw WHERE job_id=:job"), {
+            "version": collector_version, "job": job,
+            "raw": json.dumps({"descriptionQuality": "partial_jd", "requirementReviewEligible": False}),
+        })
+    plan = client.get(path + "/requirement-call-plan").json()
+    assert plan["descriptionCharacters"] >= 40
+    assert not plan["available"] and plan["blockerCode"] == "description_not_extractable"
+    assert client.post(path + "/requirement-calls", json=command(client, job, "partial")).status_code == 409
+    assert client.post(path + "/requirement-extractions").status_code == 422
+    assert not calls
+
+    with factory.begin() as session:
+        session.execute(text("UPDATE jobs SET description=:full WHERE id=:job"), {
+            "full": DESCRIPTION + "\n具有 API 服务部署和故障排查经验。", "job": job,
+        })
+        session.execute(text("UPDATE job_sources SET source_raw=:raw WHERE job_id=:job"), {
+            "job": job, "raw": json.dumps({"descriptionQuality": "full_jd", "requirementReviewEligible": True}),
+        })
+    assert client.get(path + "/requirement-call-plan").json()["available"]
+    result = client.post(path + "/requirement-calls", json=command(client, job, "full")).json()
+    assert result["status"] == "completed" and result["attempts"] == len(calls) == 1
+
+
 @pytest.mark.parametrize("change", ["no_consent", "zero_budget", "missing_budget", "stale", "inactive"])
 def test_no_authorization_or_stale_means_zero_http(authorized, change):
     client, factory, job, service, calls = authorized

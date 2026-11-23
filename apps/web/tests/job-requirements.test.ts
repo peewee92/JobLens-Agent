@@ -122,3 +122,13 @@ test("description length follows the backend's Unicode code point limits", async
   assert.match(requirementReleaseBlockerCopy("extraction_input_stale", "x".repeat(40)).description, /重新分析/);
   assert.match(requirementReleaseBlockerCopy("extraction_input_stale").description, /重新分析/);
 });
+
+test("a long partial collector capture still requires refreshing the full posting", async () => {
+  const {jobDescriptionIssue, shortJobDescriptionGuidance} = await import("../lib/job-requirements");
+  const description = "字".repeat(400);
+  const capture = {sourceVersion: "1.5.0", requirementReviewEligible: false};
+  assert.equal(jobDescriptionIssue(description, capture), shortJobDescriptionGuidance);
+  assert.equal(jobDescriptionIssue(description, {...capture, requirementReviewEligible: null}), shortJobDescriptionGuidance);
+  assert.equal(jobDescriptionIssue(description, {...capture, requirementReviewEligible: true}), null);
+  assert.equal(jobDescriptionIssue(description, {sourceVersion: null, requirementReviewEligible: null}), null);
+});

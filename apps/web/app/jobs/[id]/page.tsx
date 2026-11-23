@@ -44,7 +44,6 @@ import {userFacingErrorCode} from "@/lib/user-facing-errors";
 import {
   requirementImportanceLabel,
   requirementCapabilityLabel,
-  hasEnoughJobDescription,
   jobDescriptionIssue,
   requirementReleaseBlockerCopy,
   requirementReleaseLabel,
@@ -157,9 +156,9 @@ export default async function JobDetailPage({
   const requirementExtractionMissing = requirementBlockerCodes.has(
     "requirement_extraction_missing",
   );
-  const hasEnoughDescription = hasEnoughJobDescription(job.description);
+  const descriptionIssue = jobDescriptionIssue(job.description, job);
+  const hasEnoughDescription = descriptionIssue === null;
   const localProduct = process.env.JOBLENS_LOCAL_PRODUCT === "1";
-  const descriptionIssue = jobDescriptionIssue(job.description);
   const canEditDescription = job.source === "manual" && !publicDemoEnabled();
   const descriptionRevision = canEditDescription ? createHash("sha256").update(job.description ?? "").digest("hex") : null;
   const descriptionHelp = descriptionIssue && canEditDescription

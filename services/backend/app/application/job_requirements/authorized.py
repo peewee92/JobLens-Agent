@@ -1,6 +1,7 @@
 """One bounded user command reuses the existing extraction workflow and persistence."""
 from hashlib import sha256
 from app.application.job_queries.errors import JobNotFoundError
+from app.application.job_requirements.description_readiness import requires_better_capture
 from app.application.job_requirements.use_cases import ExtractJobRequirementsUseCase
 from app.workflows.job_requirement_extraction import ExtractJobRequirementsWorkflow, EXTRACTOR_VERSION, PERSONAL_EXTRACTOR_VERSION, PROMPT_VERSION
 from app.application.job_requirements.validation import SEMANTIC_POLICY_VERSION
@@ -43,7 +44,7 @@ class AuthorizedRequirementExtraction:
             blocked = "job_unavailable"
         elif len(description) < 40 or len(description) > 12000:
             blocked = "description_outside_call_limit"
-        elif (job.source_version or "").startswith("1.4.") and job.requirement_review_eligible is not True:
+        elif requires_better_capture(job):
             blocked = "description_not_extractable"
         public = dict(jobId=job_id, planDigest=digest(snapshot), inputHash=snapshot["inputHash"],
             available=blocked is None, blockerCode=blocked, model=snapshot["model"],
