@@ -201,20 +201,21 @@ def test_shared_contracts_are_current():
         assert json.loads(schema.read_text()) == model.model_json_schema(by_alias=True)
 
 
-def test_invalid_evidence_cannot_be_saved(authorized_match):
+@pytest.mark.parametrize(('field','value'), [('evidenceIds', ['E99']), ('requirementId', 'R99')])
+def test_unknown_model_reference_cannot_be_saved(authorized_match, field, value):
     c, f, job, calls, state, ok = authorized_match
     def invent(request):
         response = ok(request)
         body = response.json()
         output = json.loads(body['output'][0]['content'][0]['text'])
-        output['assessments'][0]['evidenceIds'] = ['invented-evidence']
+        output['assessments'][0][field] = value
         body['output'][0]['content'][0]['text'] = json.dumps(output)
         return httpx.Response(200, json=body)
     state['handler'] = invent
     r = c.post(f'/api/v1/jobs/{job}/semantic-calls', json=payload(c, job)).json()
     assert r['status'] == 'failed' and r['attempts'] == 1 and r['outputTokens'] == 35
     assert r['responseStatus'] == 200 and r['errorCode'] == 'semantic_output_not_grounded'
-    assert 'invented-evidence' not in json.dumps(r)
+    assert str(value) not in json.dumps(r)
     assert c.get(f'/api/v1/jobs/{job}/match-reports').json()['count'] == 0
 
 

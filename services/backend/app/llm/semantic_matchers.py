@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from dataclasses import replace
 from typing import Any
 
 import httpx
@@ -12,6 +13,7 @@ from app.application.semantic_match.call_boundary import semantic_input_payload
 from app.application.evidence_retrieval.models import EvidenceRelevanceTier
 from app.application.ports.semantic_matcher import AbstractSemanticMatcher
 from app.application.semantic_match.errors import (
+    InvalidSemanticMatcherOutputError,
     SemanticMatcherFailedError,
     SemanticMatcherUnavailableError,
     SemanticModelAuthorizationRequiredError,
@@ -153,8 +155,22 @@ class OpenAISemanticMatcher(AbstractSemanticMatcher):
             )
 
         schema = _SemanticOutputSchema.model_json_schema(by_alias=True)
+        # These short references only exist inside one provider round trip.
+        # Keep actual IDs in authorization, validation, traces and saved reports.
+        evidence_ids: dict[tuple[str, str], str] = {}
+        requirement_ids: dict[str, str] = {}
+        wire_requirements = []
+        for index, item in enumerate(requirements, 1):
+            ref = f"R{index:02d}"
+            requirement_ids[ref] = item.requirement_id
+            candidates = []
+            for candidate in item.candidates:
+                evidence_ref = f"E{len(evidence_ids) + 1:02d}"
+                evidence_ids[ref, evidence_ref] = candidate.evidence_id
+                candidates.append(replace(candidate, evidence_id=evidence_ref))
+            wire_requirements.append(replace(item, requirement_id=ref, candidates=tuple(candidates)))
         user_payload = json.dumps(
-            _semantic_input_payload(requirements),
+            semantic_input_payload(tuple(wire_requirements)),
             ensure_ascii=False,
             separators=(",", ":"),
         )
@@ -261,28 +277,24 @@ class OpenAISemanticMatcher(AbstractSemanticMatcher):
             ) from error
 
         usage = payload.get("usage") if isinstance(payload, dict) else None
-        return SemanticMatcherResult(
-            output=SemanticMatchOutput(
-                assessments=tuple(
-                    SemanticMatchAssessmentOutput(
-                        requirement_id=item.requirement_id,
-                        verdict=item.verdict,
-                        evidence_ids=tuple(item.evidence_ids),
-                        reason=item.reason,
-                    )
-                    for item in parsed.assessments
+        try:
+            assessments = tuple(
+                SemanticMatchAssessmentOutput(
+                    requirement_id=requirement_ids[item.requirement_id],
+                    verdict=item.verdict,
+                    evidence_ids=tuple(evidence_ids[item.requirement_id, ref] for ref in item.evidence_ids),
+                    reason=item.reason,
                 )
-            ),
+                for item in parsed.assessments
+            )
+        except KeyError as error:
+            raise InvalidSemanticMatcherOutputError("Semantic Match returned an unknown request reference.") from error
+        return SemanticMatcherResult(
+            output=SemanticMatchOutput(assessments=assessments),
             model=self._model,
             input_tokens=_optional_int(usage, input_tokens_key),
             output_tokens=_optional_int(usage, output_tokens_key),
         )
-
-
-def _semantic_input_payload(
-    requirements: tuple[SemanticRequirementInput, ...],
-) -> dict[str, object]:
-    return semantic_input_payload(requirements)
 
 
 def _response_output_text(payload: Any) -> str:

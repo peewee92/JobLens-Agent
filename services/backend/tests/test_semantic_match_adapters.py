@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import httpx
 import pytest
 
 from app.application.evidence_retrieval import EvidenceRelevanceTier, EvidenceRetrievalBasis
 from app.application.semantic_match import (
+    InvalidSemanticMatcherOutputError,
     SemanticCandidateInput,
     SemanticMatcherFailedError,
     SemanticMatcherUnavailableError,
@@ -71,9 +73,9 @@ def test_openai_semantic_matcher_uses_strict_chat_schema_without_overall_eligibi
         output = {
             "assessments": [
                 {
-                    "requirementId": "req_mcp",
+                    "requirementId": "R01",
                     "verdict": "partial",
-                    "evidenceIds": ["ev_tools"],
+                    "evidenceIds": ["E01"],
                     "reason": "工具调用经历相关，但不能证明已经具备 MCP 经验。",
                 }
             ]
@@ -124,7 +126,12 @@ def test_openai_semantic_matcher_uses_strict_chat_schema_without_overall_eligibi
     assert "Evidence: 使用 localStorage 保存浏览器偏好" in system_prompt
     assert "related-only Evidence can never justify matched" in system_prompt
     user_payload = json.loads(captured["messages"][1]["content"])
-    assert user_payload["requirements"][0]["candidates"][0]["evidenceId"] == "ev_tools"
+    assert user_payload["requirements"][0]["requirementId"] == "R01"
+    assert user_payload["requirements"][0]["candidates"][0]["evidenceId"] == "E01"
+    assert "req_mcp" not in captured["messages"][1]["content"]
+    assert "ev_tools" not in captured["messages"][1]["content"]
+    assert result.output.assessments[0].requirement_id == "req_mcp"
+    assert result.output.assessments[0].evidence_ids == ("ev_tools",)
     assert result.output.assessments[0].verdict is SemanticMatchVerdict.PARTIAL
     assert result.input_tokens == 120
     assert result.output_tokens == 35
@@ -134,6 +141,25 @@ def test_openai_semantic_matcher_requires_configuration() -> None:
     matcher = OpenAISemanticMatcher(api_key=None, model="")
     with pytest.raises(SemanticMatcherUnavailableError):
         matcher.match(_requirements())
+
+
+def test_model_cannot_use_another_requirements_short_evidence_reference() -> None:
+    first, = _requirements()
+    second = replace(first, requirement_id="req_next", requirement_index=1)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent = json.loads(json.loads(request.content)["messages"][1]["content"])["requirements"]
+        assert [row["candidates"][0]["evidenceId"] for row in sent] == ["E01", "E02"]
+        answer = {"assessments": [
+            {"requirementId": row["requirementId"], "verdict": "partial", "evidenceIds": ["E01"], "reason": "related"}
+            for row in sent
+        ]}
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(answer)}}]})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        matcher = OpenAISemanticMatcher(api_key="test-key", model="test-model", api_style="chat_completions", client=client)
+        with pytest.raises(InvalidSemanticMatcherOutputError, match="unknown request reference"):
+            matcher.match((first, second))
 
 
 def test_openai_semantic_matcher_maps_invalid_json_to_provider_failure() -> None:
