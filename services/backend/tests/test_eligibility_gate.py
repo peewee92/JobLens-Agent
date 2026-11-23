@@ -1,6 +1,7 @@
 """Deterministic Phase 4 Eligibility Gate tests."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from app.application.career_context.models import SearchIntentDetail
@@ -15,6 +16,7 @@ from app.application.eligibility import (
     EvaluateJobEligibilityUseCase,
     RequirementFitStatus,
 )
+from app.application.eligibility.evaluator import evaluate_eligibility
 from app.application.job_requirements.models import (
     JobRequirementDetail,
     JobRequirementExtractionDetail,
@@ -471,3 +473,42 @@ def test_missing_higher_degree_proof_does_not_prove_insufficient_education(educa
     assert result.eligibility is EligibilityDecision.CONDITIONAL
     assert result.missing_count == 0
     assert result.requirements[0].evidence_ids == ()
+
+
+@pytest.mark.parametrize("quote,evidence,years,importance,expected", [
+    ("具备 5年以上软件研发经验", "具备 5年以上软件研发经验", 2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
+    ("5年以上软件研发经验", "5年以上软件研发经验，优秀者年限可放宽。", 2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("5年以上软件研发经验", "5年以上软件研发经验", 2, RequirementImportance.PREFERRED, RequirementFitStatus.CONDITIONAL),
+    ("5年以上软件研发经验", "5年以上软件研发经验", 5, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("5年以上软件研发经验", "5年以上软件研发经验", None, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("5年以上软件研发经验", "5年以上软件研发经验或等效实践", 2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("具备 5年以上软件研发经验，其中至少2年大模型或智能体相关项目经验。",
+     "计算机或相关专业，具备 5年以上软件研发经验，其中至少2年大模型或智能体相关项目经验。",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
+    ("3-5年以上软件研发经验", "3-5年以上软件研发经验", 2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+])
+def test_boss_specialty_years_only_use_total_as_an_upper_bound(quote, evidence, years, importance, expected):
+    item = _requirement(0, text=quote, type=RequirementType.EXPERIENCE, importance=importance)
+    result = evaluate_eligibility(profile=_profile(years=years),
+                                  extraction=_extraction(replace(item, evidence_span=evidence)))
+    row = result.requirements[0]
+    assert row.status is expected
+    if expected is RequirementFitStatus.MISSING:
+        assert row.profile_fact_refs == ("yearsOfExperience",)
+        assert result.eligibility is EligibilityDecision.BLOCKED
+
+
+@pytest.mark.parametrize("level,links,expected", [
+    (SkillLevel.WORKING, ("ev_frontend",), RequirementFitStatus.CONDITIONAL),
+    (SkillLevel.STRONG, (), RequirementFitStatus.CONDITIONAL),
+    (SkillLevel.STRONG, ("ev_frontend",), RequirementFitStatus.MATCHED),
+])
+def test_boss_proficiency_requires_an_evidence_linked_confirmed_level(level, links, expected):
+    profile = _profile()
+    skill = replace(profile.skills[1], level=level, evidence_ids=links)
+    item = _requirement(0, text="精通 React", type=RequirementType.SKILL,
+                        importance=RequirementImportance.MUST_HAVE, capability="React")
+    row = evaluate_eligibility(profile=replace(profile, skills=(skill,)),
+                               extraction=_extraction(item)).requirements[0]
+    assert row.status is expected
+    assert row.evidence_ids == (links if expected is RequirementFitStatus.MATCHED else ())

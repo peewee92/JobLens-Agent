@@ -15,15 +15,29 @@ from app.application.job_requirements.models import (
     JobRequirementExtractionDetail,
 )
 from app.application.job_requirements.personal_qualifications import (
-    POLICY as PERSONAL_QUALIFICATIONS_POLICY,
+    QUALIFICATION_POLICIES,
     qualification_review_reason,
 )
 from app.domain.job_requirements import RequirementImportance, RequirementType
+from app.domain.career_context.enums import SkillLevel
 
 _YEAR_REQUIREMENT = re.compile(
     r"(?P<years>\d+(?:\.\d+)?)\s*年(?:及以上|以上)?(?P<topic>[^。；;，,]{0,40}?)经验"
 )
 _GENERIC_EXPERIENCE_TOPICS = {"", "工作", "相关工作", "从业", "相关"}
+_SOFTWARE_EXPERIENCE_MINIMUM = re.compile(
+    r"^(?:具备|具有|拥有)?\s*(?P<years>\d+(?:\.\d+)?)\s*年(?:及以上|以上)\s*软件(?:研发|开发)经验"
+    r"(?=$|[。.]$|[，,]\s*其中至少\d+\s*年)"
+)
+_FLEXIBLE_EXPERIENCE = re.compile(
+    r"放宽|酌情|可降低|优先|加分|豁免|不限|不要求|非必需|不强制|等效|同等|任选|经验\s*(?:[，,]\s*)?(?:或|/|／)"
+)
+
+
+def requires_proficiency(text: str) -> bool:
+    return bool(re.match(r"^(?:需要|要求|必须|需)?\s*精通\s*[^，。、；;：:]", text.strip()))
+
+
 _DEGREE_RANK = {"大专": 1, "专科": 1, "本科": 2, "硕士": 3, "博士": 4}
 _EDUCATION_MAJOR_MARKERS = (
     "计算机",
@@ -211,7 +225,7 @@ def evaluate_eligibility(
     )
     # A role duty is useful for assessing fit, but it is not a prerequisite
     # for applying. Scope the new distinction to versioned personal facts.
-    personal_qualifications = PERSONAL_QUALIFICATIONS_POLICY in extraction.extractor_version.split("+")
+    personal_qualifications = QUALIFICATION_POLICIES.intersection(extraction.extractor_version.split("+"))
     hard_requirements = tuple(
         item for item in results
         if item.importance is RequirementImportance.MUST_HAVE
@@ -248,6 +262,9 @@ def _evaluate_requirement(
 ) -> RequirementEligibilityResult:
     if reason := qualification_review_reason(requirement):
         return _unknown(requirement, reason)
+
+    if requires_proficiency(requirement.original_text):
+        return _evaluate_skill(profile, requirement)
 
     # 条件组先判：整体是一道门，命中任意一项即可满足。
     group_result = _evaluate_alternative_group(profile, requirement)
@@ -291,6 +308,10 @@ def _evaluate_skill(
     requirement: JobRequirementDetail,
 ) -> RequirementEligibilityResult:
     skill = _skill_match(profile, requirement.normalized_capability)
+    if requires_proficiency(requirement.original_text) and (
+        skill is None or skill.level is not SkillLevel.STRONG or not skill.evidence_ids
+    ):
+        return _unknown(requirement, "岗位明确要求精通；技能出现或有实践不等于已确认达到该熟练程度。")
     if skill is not None:
         return _result(
             requirement,
@@ -330,6 +351,18 @@ def _evaluate_experience(
 
     required_years = float(match.group("years"))
     topic = match.group("topic").strip().replace("的", "")
+    minimum = _SOFTWARE_EXPERIENCE_MINIMUM.match(requirement.original_text.strip())
+    if (
+        minimum is not None and requirement.importance is RequirementImportance.MUST_HAVE
+        and not _FLEXIBLE_EXPERIENCE.search(requirement.evidence_span)
+        and profile.years_of_experience is not None
+        and profile.years_of_experience < (minimum_years := float(minimum.group("years")))
+    ):
+        return _result(
+            requirement, status=RequirementFitStatus.MISSING, profile_fact_refs=("yearsOfExperience",),
+            reason=(f"已确认总工作年限为 {profile.years_of_experience:g} 年，"
+                    f"连总年限也低于 {minimum_years:g} 年，不能满足这条软件研发年限要求。"),
+        )
     if topic in _GENERIC_EXPERIENCE_TOPICS:
         if profile.years_of_experience is None:
             return _result(

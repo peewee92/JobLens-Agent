@@ -356,3 +356,13 @@ def test_confirmed_achievement_can_ground_explicit_deployment():
     retrieved = retrieve_candidate_evidence(profile=profile, extraction=_extraction(requirement))
     assert [item.evidence_id for item in retrieved.requirements[0].candidates] == [evidence.id]
     assert retrieved.requirements[0].candidates[0].relevance_tier is EvidenceRelevanceTier.DIRECT
+
+
+def test_boss_compound_rag_requirement_retrieves_only_relevant_evidence():
+    from dataclasses import replace
+
+    result = retrieve_candidate_evidence(profile=replace(_profile(), skills=()), extraction=_extraction(
+        _requirement(0, text="掌握大模型 API 调用、Prompt 工程、RAG 搭建、应用框架至少一种核心能力",
+                     capability=None, type=RequirementType.CONSTRAINT),
+    ))
+    assert [item.evidence_id for item in result.requirements[0].candidates] == ["ev_rag"]

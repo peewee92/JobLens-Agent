@@ -273,3 +273,34 @@ def test_preference_context_survives_semantic_workflow_and_report_builder(sessio
     assert report.search_intent_version == intent.version
     assert report.preference_fingerprint == eligibility.preference_fingerprint
     assert report.provider_calls == 0
+
+
+def test_boss_project_usage_does_not_prove_expert_level(session_factory):
+    from dataclasses import replace
+
+    clause = "精通 Python/C++/Rust"
+    eligible = _eligibility(status=RequirementFitStatus.CONDITIONAL, overall=EligibilityDecision.CONDITIONAL)
+    eligible = replace(eligible, requirements=(replace(eligible.requirements[0],
+        original_text=clause, normalized_capability="Python/C++/Rust"),))
+    retrieval = _related_retrieval()
+    base = retrieval.requirements[0]
+    candidate = replace(base.candidates[0], relevance_tier=EvidenceRelevanceTier.DIRECT,
+                        matched_terms=("Python",), summary="使用 Python 开发并维护内部接口。")
+    retrieval = replace(retrieval, requirements=(replace(base, original_text=clause,
+        normalized_capability="Python/C++/Rust", candidates=(candidate,)),))
+
+    class Overclaims(FixtureSemanticMatcher):
+        def match(self, requirements):
+            return SemanticMatcherResult(
+                output=SemanticMatchOutput(assessments=(SemanticMatchAssessmentOutput(
+                    requirement_id=requirements[0].requirement_id, verdict=SemanticMatchVerdict.MATCHED,
+                    evidence_ids=(candidate.evidence_id,), reason="大量实践，已经精通。"),)),
+                model=self.model_name,
+            )
+
+    result = _workflow(session_factory, Overclaims()).execute(eligibility=eligible, evidence=retrieval)
+    assessment = result.assessments[0]
+    assert assessment.verdict is SemanticMatchVerdict.PARTIAL
+    assert assessment.evidence_ids == (candidate.evidence_id,)
+    assert "大量实践" not in assessment.reason
+    assert "不能证明" in assessment.reason

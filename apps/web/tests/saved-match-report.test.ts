@@ -3,6 +3,7 @@ import test from "node:test";
 import React from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import {SavedMatchReportNotice} from "../components/saved-match-report-notice";
+import {MatchReportRequirementDetails} from "../components/job-match-report-panel";
 import {reportStaleReasonLabel} from "../lib/match-report";
 import type {MatchReportHistoryItem} from "../lib/contracts";
 
@@ -43,4 +44,22 @@ test("unavailable job description is not called a confirmed change", () => {
   const message = reportStaleReasonLabel("job_description_unavailable");
   assert.match(message, /无法核实/);
   assert.doesNotMatch(message, /已变化/);
+});
+
+test("the saved report exposes every frozen explanation, not just the three featured insights", () => {
+  const requirements = Array.from({length: 4}, (_, i) => ({
+    requirementId: `row-${i}`, candidateCount: i === 3 ? 1 : 0, requirementIndex: i,
+    type: "skill" as const, importance: "must_have" as const,
+    originalText: `技能要求${i + 1}`, normalizedCapability: null, eligibilityStatus: "conditional" as const,
+    reason: i === 3 ? "只有实践，不能证明精通。" : "待核实。",
+    evidenceIds: i === 3 ? ["synthetic-id"] : [], semanticVerdict: i === 3 ? "partial" as const : "not_matched" as const,
+    profileFactRefs: [], assessmentSource: "provider" as const,
+  }));
+  const html = renderToStaticMarkup(React.createElement(MatchReportRequirementDetails, {requirements}));
+  assert.match(html, /逐条判断（4 条）/);
+  assert.match(html, /技能要求4/);
+  assert.match(html, /部分支持/);
+  assert.match(html, /只有实践，不能证明精通/);
+  assert.match(html, /引用了 1 条已确认经历/);
+  assert.match(html, /没有引用已确认经历/);
 });

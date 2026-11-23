@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from app.application.evidence_retrieval.strategy import RETRIEVAL_VERSION
 from app.application.eligibility import JobEligibilityResult, RequirementFitStatus
+from app.application.eligibility.evaluator import requires_proficiency
 from app.application.evidence_retrieval import (
     EvidenceRelevanceTier,
     JobEvidenceRetrievalResult,
@@ -176,6 +177,11 @@ class SemanticMatchWorkflow:
         for requirement_input in provider_inputs:
             provider_item = provider_by_requirement[requirement_input.requirement_id]
             eligibility_item = eligibility_by_requirement[requirement_input.requirement_id]
+            # Valid IDs establish provenance, not skill level. Only the
+            # deterministic check uses a confirmed, evidence-linked skill level.
+            cap_proficiency = (
+                requires_proficiency(eligibility_item.original_text) and bool(provider_item.evidence_ids)
+            )
             deterministic[requirement_input.requirement_id] = SemanticRequirementAssessment(
                 requirement_id=eligibility_item.requirement_id,
                 requirement_index=eligibility_item.requirement_index,
@@ -184,10 +190,11 @@ class SemanticMatchWorkflow:
                 original_text=eligibility_item.original_text,
                 normalized_capability=eligibility_item.normalized_capability,
                 eligibility_status=eligibility_item.status,
-                verdict=provider_item.verdict,
+                verdict=SemanticMatchVerdict.PARTIAL if cap_proficiency else provider_item.verdict,
                 evidence_ids=provider_item.evidence_ids,
                 profile_fact_refs=eligibility_item.profile_fact_refs,
-                reason=provider_item.reason.strip(),
+                reason=("已有引用只能作为相关线索，不能证明岗位要求的熟练程度。"
+                        if cap_proficiency else provider_item.reason.strip()),
                 source=SemanticAssessmentSource.PROVIDER,
                 candidate_count=len(requirement_input.candidates),
             )

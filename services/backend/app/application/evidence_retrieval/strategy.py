@@ -1,5 +1,5 @@
 """Small, reviewable vocabulary. Retrieval is not a capability assessment."""
-RETRIEVAL_VERSION = "evidence-retrieval-v4"
+RETRIEVAL_VERSION = "evidence-retrieval-v5"
 MAX_CANDIDATES = 3
 
 TECHNOLOGIES = (
@@ -7,6 +7,7 @@ TECHNOLOGIES = (
     ("Electron",), ("Python",), ("FastAPI",), ("Docker",), ("Tauri",),
     ("Vue", "Vue.js"), ("Node.js", "NodeJS"), ("Agent", "智能体"),
     ("Tool Calling", "Function Calling", "工具调用"),
+    ("RAG", "检索增强生成"),
     ("streaming", "流式输出"), ("自动化测试", "automated testing"),
 )
 

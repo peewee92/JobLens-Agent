@@ -151,7 +151,7 @@ def test_legacy_snapshot_retains_original_conclusion_but_is_not_current(tmp_path
     with factory() as session:
         record = session.get(MatchReportORM, saved.id)
         payload = dict(record.snapshot)
-        assert payload.pop("policyVersion") == "match-policy-v3"
+        assert payload.pop("policyVersion") == "match-policy-v4"
         record.snapshot = payload
         session.commit()
     loaded = SqlAlchemyMatchReportQueryRepository(factory).get(saved.id)

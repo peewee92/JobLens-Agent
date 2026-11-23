@@ -128,3 +128,32 @@ def test_personal_job_duty_remains_available_for_fit_but_does_not_block_eligibil
     with_hard_requirement = replace(local, requirements=(*local.requirements, _requirement(1, RESIDENCY)),
                                    requirement_count=2)
     assert evaluate_eligibility(profile=profile, extraction=with_hard_requirement).eligibility is EligibilityDecision.CONDITIONAL
+
+
+def test_boss_preferred_headings_do_not_merge_with_bonus():
+    lines = ["任职要求：", "熟记基础操作。", "优先条件：", "2.知识图谱经验",
+             "5、具备以下条件者优先：", "3）具备全栈开发经验。", "加分项：", "有开源贡献。"]
+    document = "\n".join(lines)
+    raw = JobRequirementExtractionOutput(tuple(
+        ProposedJobRequirement(T.EXPERIENCE, lines[i], None, I.BONUS, lines[i], .9)
+        for i in (3, 5, 7)
+    ))
+    result, _ = preserve_grounded_qualifications(document, raw)
+    assert [x.importance for x in result.requirements] == [I.PREFERRED, I.PREFERRED, I.BONUS]
+
+
+def test_boss_core_alternative_clause_is_not_stored_as_two_hard_fragments():
+    leading = "3. 掌握大模型 API 调用、Prompt 工程、RAG 搭建、Agent 框架（Langgraph"
+    tail = "openclaw）至少一种核心能力"
+    proposal = leading + ", " + tail + "；"
+    document = "任职要求：\n" + proposal + "\n具备项目实践。"
+    raw = JobRequirementExtractionOutput((
+        ProposedJobRequirement(T.SKILL, leading, "大模型 API 调用, Prompt 工程, RAG 搭建, Agent 框架", I.MUST_HAVE, leading, .9),
+        ProposedJobRequirement(T.CONSTRAINT, tail, None, I.MUST_HAVE, tail, .9),
+    ))
+    result, _ = preserve_grounded_qualifications(document, raw)
+    assert len(result.requirements) == 1
+    only = result.requirements[0]
+    assert only.type is T.CONSTRAINT and only.importance is I.MUST_HAVE
+    assert leading in only.original_text and tail in only.original_text
+    assert only.original_text in only.evidence_span in document

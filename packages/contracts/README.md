@@ -45,11 +45,11 @@ Schemas:
 
 ### 匹配规则 v2（主流程阶段 2A）
 
-`MatchReport.policyVersion` 独立于模型和提示词版本。新响应输出 `match-policy-v3`；旧快照缺字段按 `match-policy-v1` 读取，保留历史原结论，当前排序排除非当前版本。Schema 将此字段设为可选以兼容历史样例，不能因此把缺字段解释为当前版本。v2 的资格 `missing` 仅表示已确认事实不满足（本轮实现总工作年限不足）；缺少技能、教育或专项年限证据为 `conditional`。语义 `not_matched` 表示证据未支持，不是用户能力否定。
+`MatchReport.policyVersion` 独立于模型和提示词版本。新响应输出 `match-policy-v4`；旧快照缺字段按 `match-policy-v1` 读取，保留历史原结论，当前排序排除非当前版本。Schema 将此字段设为可选以兼容历史样例，不能因此把缺字段解释为当前版本。v2 的资格 `missing` 仅表示已确认事实不满足（本轮实现总工作年限不足）；缺少技能、教育或专项年限证据为 `conditional`。语义 `not_matched` 表示证据未支持，不是用户能力否定。
 
 ### 当前规则 v3（主流程阶段 2B）
 
-当前新报告为 `match-policy-v3`，沿用 v2 的未知／冲突语义，新增 `searchIntentId`、`searchIntentVersion`、`preferenceChecks`。`preference-check.schema.json` 定义单项规则、稳定原因码、用户意向字段与岗位字段引用，示例见 `examples/preference-check.example.json`。资格、语义匹配、完整报告、排序接口消费同一检查结果，不伪造岗位要求标识。
+v3 沿用 v2 的未知／冲突语义，新增 `searchIntentId`、`searchIntentVersion`、`preferenceChecks`。`preference-check.schema.json` 定义单项规则、稳定原因码、用户意向字段与岗位字段引用，示例见 `examples/preference-check.example.json`。资格、语义匹配、完整报告、排序接口消费同一检查结果，不伪造岗位要求标识。v4 对明确的软件研发硬性年限只用已确认总年限判定上界；引用项目实践不等于证明精通。旧报告不重写。
 
 旧响应与历史样例可缺少新增字段；当前生产报告始终绑定意向版本和内部偏好输入指纹。当前排序排除旧规则、未绑定、意向改变或关键岗位字段变化的报告。历史报告不重解释、不覆盖。内部指纹不经网页或 MCP 暴露；MCP 公开形状保持原有过滤。
 

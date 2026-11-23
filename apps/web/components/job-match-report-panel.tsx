@@ -3,16 +3,16 @@ import {workspaceFetch} from "@/lib/workspace-path";
 import {MatchReason} from "@/components/match-reason";
 import Link from "next/link";
 import {LinkFeedback} from "@/components/link-feedback";
-import {matchCoverage} from "@/lib/match-coverage";
+import {coverageLabels, matchCoverage, requirementCoverage} from "@/lib/match-coverage";
 
-import {useRef, useState} from "react";
+import React, {useRef, useState} from "react";
 import {InsufficientEvidenceGuidance} from "@/components/insufficient-evidence-guidance";
 import {PreferenceCheckList} from "@/components/preference-check-list";
 import {useRouter, usePathname} from "next/navigation";
 import {AuthorizedModelCall} from "@/components/authorized-model-call";
 import {SavedMatchReportNotice} from "@/components/saved-match-report-notice";
 
-import type {ApiErrorBody, JobMatchReport, MatchReportHistoryItem, SemanticCallPlan} from "@/lib/contracts";
+import type {ApiErrorBody, JobMatchReport, MatchReportHistoryItem, MatchReportRequirementResult, SemanticCallPlan} from "@/lib/contracts";
 import {
   matchRecommendationClasses,
   matchRecommendationDescriptions,
@@ -194,13 +194,26 @@ export function JobMatchReportPanel({
             </section>
           </div>
 
-          {(report.strengths.length > 3 || report.risks.length > 3) ? (
-            <p className="muted-copy">
-              下方“已匹配 / 待确认 / 明确不满足”仍保留全部逐条依据，可继续核对细节。
-            </p>
-          ) : null}
+          <MatchReportRequirementDetails requirements={report.requirementResults} />
         </div>
       ) : null}
     </div>
   );
+}
+
+export function MatchReportRequirementDetails({requirements}: {requirements: MatchReportRequirementResult[]}) {
+  if (!requirements.length) return null;
+  return <details>
+    <summary>查看本份报告的逐条判断（{requirements.length} 条）</summary>
+    <div className="eligibility-result-list">
+      {requirements.map(item => <article className="eligibility-result-card" key={item.requirementId}>
+        <span className="tag">{coverageLabels[requirementCoverage(item)]}</span>
+        <strong>{item.originalText}</strong>
+        <MatchReason reason={item.reason} />
+        <small className="muted-copy">{item.evidenceIds.length > 0
+          ? `引用了 ${item.evidenceIds.length} 条已确认经历`
+          : "没有引用已确认经历"}{item.profileFactRefs.length > 0 ? "；判断依据包含已确认的职业资料" : ""}</small>
+      </article>)}
+    </div>
+  </details>;
 }
