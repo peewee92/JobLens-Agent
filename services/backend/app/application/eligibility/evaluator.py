@@ -25,17 +25,22 @@ _YEAR_REQUIREMENT = re.compile(
     r"(?P<years>\d+(?:\.\d+)?)\s*年(?:及以上|以上)?(?P<topic>[^。；;，,]{0,40}?)经验"
 )
 _GENERIC_EXPERIENCE_TOPICS = {"", "工作", "相关工作", "从业", "相关"}
-_SOFTWARE_EXPERIENCE_MINIMUM = re.compile(
-    r"^(?:具备|具有|拥有)?\s*(?P<years>\d+(?:\.\d+)?)\s*年(?:及以上|以上)\s*软件(?:研发|开发)经验"
-    r"(?=$|[。.]$|[，,]\s*其中至少\d+\s*年)"
+_DEVELOPMENT_EXPERIENCE_MINIMUM = re.compile(
+    r"^(?:\d+[.、)]\s*)?(?:具备|具有|拥有)?\s*(?:"
+    r"(?P<lower>\d+(?:\.\d+)?)\s*(?:年\s*(?:及以上|以上)|[-‑–—~～至到]\s*(?P<upper>\d+(?:\.\d+)?)\s*年)"
+    r"\s*(?:软件(?:研发|开发)|Web\s*前端开发)(?:工作)?经验"
+    r"|Python\s*开发(?:工作)?经验\s*(?:≥|>=)\s*(?P<explicit>\d+(?:\.\d+)?)\s*年"
+    r")(?=\s*(?:$|[。.]$|[，,；;]))",
+    re.IGNORECASE,
 )
 _FLEXIBLE_EXPERIENCE = re.compile(
-    r"放宽|酌情|可降低|优先|加分|豁免|不限|不要求|非必需|不强制|等效|同等|任选|经验\s*(?:[，,]\s*)?(?:或|/|／)"
+    r"放宽|酌情|破格|可降低|优先|加分|豁免|不限|不要求|非必需|不强制|等效|同等|任选|"
+    r"个人|开源|实习|在校|自学|经验\s*(?:[，,]\s*)?(?:或|/|／)"
 )
 
 
 def requires_proficiency(text: str) -> bool:
-    return bool(re.match(r"^(?:需要|要求|必须|需)?\s*精通\s*[^，。、；;：:]", text.strip()))
+    return bool(re.match(r"^(?:需要|要求|必须|需)?\s*(?:精通|熟练掌握)\s*[^，。、；;：:]", text.strip()))
 
 
 _DEGREE_RANK = {"大专": 1, "专科": 1, "本科": 2, "硕士": 3, "博士": 4}
@@ -311,7 +316,7 @@ def _evaluate_skill(
     if requires_proficiency(requirement.original_text) and (
         skill is None or skill.level is not SkillLevel.STRONG or not skill.evidence_ids
     ):
-        return _unknown(requirement, "岗位明确要求精通；技能出现或有实践不等于已确认达到该熟练程度。")
+        return _unknown(requirement, "岗位明确要求熟练程度；技能出现或有实践不等于已确认达到该程度。")
     if skill is not None:
         return _result(
             requirement,
@@ -330,6 +335,21 @@ def _evaluate_experience(
     profile: ProfileDetail,
     requirement: JobRequirementDetail,
 ) -> RequirementEligibilityResult:
+    minimum = _DEVELOPMENT_EXPERIENCE_MINIMUM.match(requirement.original_text.strip())
+    if (minimum is not None and requirement.importance is RequirementImportance.MUST_HAVE
+            and not _FLEXIBLE_EXPERIENCE.search(requirement.original_text + "\n" + requirement.evidence_span)
+            and profile.years_of_experience is not None):
+        minimum_years = float(minimum.group("lower") or minimum.group("explicit"))
+        upper = minimum.group("upper")
+        # For explicit professional development requirements, total years can
+        # disprove a minimum, but can never establish years in a specialty.
+        if (upper is None or minimum_years <= float(upper)) and profile.years_of_experience < minimum_years:
+            return _result(
+                requirement, status=RequirementFitStatus.MISSING, profile_fact_refs=("yearsOfExperience",),
+                reason=(f"已确认总工作年限为 {profile.years_of_experience:g} 年，"
+                        f"低于这条开发经验要求的最低 {minimum_years:g} 年。"),
+            )
+
     match = _YEAR_REQUIREMENT.search(requirement.original_text)
     if match is None:
         exact_evidence_ids = _exact_evidence_matches(profile, requirement.original_text)
@@ -351,18 +371,6 @@ def _evaluate_experience(
 
     required_years = float(match.group("years"))
     topic = match.group("topic").strip().replace("的", "")
-    minimum = _SOFTWARE_EXPERIENCE_MINIMUM.match(requirement.original_text.strip())
-    if (
-        minimum is not None and requirement.importance is RequirementImportance.MUST_HAVE
-        and not _FLEXIBLE_EXPERIENCE.search(requirement.evidence_span)
-        and profile.years_of_experience is not None
-        and profile.years_of_experience < (minimum_years := float(minimum.group("years")))
-    ):
-        return _result(
-            requirement, status=RequirementFitStatus.MISSING, profile_fact_refs=("yearsOfExperience",),
-            reason=(f"已确认总工作年限为 {profile.years_of_experience:g} 年，"
-                    f"连总年限也低于 {minimum_years:g} 年，不能满足这条软件研发年限要求。"),
-        )
     if topic in _GENERIC_EXPERIENCE_TOPICS:
         if profile.years_of_experience is None:
             return _result(

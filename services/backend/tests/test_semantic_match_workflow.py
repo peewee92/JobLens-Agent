@@ -275,10 +275,14 @@ def test_preference_context_survives_semantic_workflow_and_report_builder(sessio
     assert report.provider_calls == 0
 
 
-def test_boss_project_usage_does_not_prove_expert_level(session_factory):
+@pytest.mark.parametrize("clause,expected", [
+    ("精通 Python/C++/Rust", SemanticMatchVerdict.PARTIAL),
+    ("熟练掌握至少一门后端编程语言：Go / Python / Rust / C++", SemanticMatchVerdict.PARTIAL),
+    ("熟悉 Python/Java 至少一种编程语言", SemanticMatchVerdict.MATCHED),
+])
+def test_boss_project_usage_does_not_prove_expert_level(session_factory, clause, expected):
     from dataclasses import replace
 
-    clause = "精通 Python/C++/Rust"
     eligible = _eligibility(status=RequirementFitStatus.CONDITIONAL, overall=EligibilityDecision.CONDITIONAL)
     eligible = replace(eligible, requirements=(replace(eligible.requirements[0],
         original_text=clause, normalized_capability="Python/C++/Rust"),))
@@ -294,13 +298,15 @@ def test_boss_project_usage_does_not_prove_expert_level(session_factory):
             return SemanticMatcherResult(
                 output=SemanticMatchOutput(assessments=(SemanticMatchAssessmentOutput(
                     requirement_id=requirements[0].requirement_id, verdict=SemanticMatchVerdict.MATCHED,
-                    evidence_ids=(candidate.evidence_id,), reason="大量实践，已经精通。"),)),
+                    evidence_ids=(candidate.evidence_id,), reason="项目材料中明确用过 Python。"),)),
                 model=self.model_name,
             )
 
     result = _workflow(session_factory, Overclaims()).execute(eligibility=eligible, evidence=retrieval)
     assessment = result.assessments[0]
-    assert assessment.verdict is SemanticMatchVerdict.PARTIAL
+    assert assessment.verdict is expected
     assert assessment.evidence_ids == (candidate.evidence_id,)
-    assert "大量实践" not in assessment.reason
-    assert "不能证明" in assessment.reason
+    if expected is SemanticMatchVerdict.PARTIAL:
+        assert "不能证明" in assessment.reason
+    else:
+        assert assessment.reason == "项目材料中明确用过 Python。"

@@ -508,7 +508,7 @@ def test_unknown_without_core_support_is_not_a_positive_challenge_recommendation
             ),
         ))
         assert report.recommendation is MatchRecommendation.LOW
-        assert report.policy_version == "match-policy-v4"
+        assert report.policy_version == "match-policy-v5"
         assert report.missing_requirement_ids == ()
 
 

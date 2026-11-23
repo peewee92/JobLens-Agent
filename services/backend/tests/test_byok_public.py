@@ -158,12 +158,15 @@ def test_synthetic_inputs_require_fresh_real_extraction_then_confirm_match_and_a
         from sqlalchemy import text
         assert db.execute(text('SELECT count(*) FROM match_reports')).scalar_one()==0
         assert db.execute(text('SELECT count(*) FROM job_requirement_extractions')).scalar_one()==0
-    imported=c.post('/api/v1/job-imports/manual',headers=headers(a),json={'title':'后端工程师','company':'合成公司','description':DESCRIPTION})
+    # This journey exercises the deterministic path: a confirmed working-level
+    # Python skill can support familiarity, but cannot prove proficiency.
+    description=DESCRIPTION.replace('熟练掌握 Python 和 FastAPI','熟悉 Python')
+    imported=c.post('/api/v1/job-imports/manual',headers=headers(a),json={'title':'后端工程师','company':'合成公司','description':description})
     assert imported.status_code==201,imported.text
     job=imported.json()['jobId'];path='/api/v1/jobs/'+job
     def handle(req):
         sent.append(req)
-        output={'requirements':[{'type':'skill','originalText':'熟练掌握 Python 和 FastAPI','normalizedCapability':'Python','importance':'must_have','sourceCandidateId':'S0002','confidence':.95}]}
+        output={'requirements':[{'type':'skill','originalText':'熟悉 Python','normalizedCapability':'Python','importance':'must_have','sourceCandidateId':'S0002','confidence':.95}]}
         return httpx.Response(200,json={'choices':[{'message':{'content':json.dumps(output)}}],'usage':{'prompt_tokens':22,'completion_tokens':11}})
     h['send']=handle
     plan=c.get(path+'/requirement-call-plan',headers=headers(a));assert plan.status_code==200,plan.text
@@ -206,7 +209,7 @@ def test_semantic_uses_session_key_and_rejects_legacy_shortcut(setup_byok):
         assert body['model']=='semantic-model'
         if 'semantic_match' in json.dumps(body['response_format']):
             data=json.loads(body['messages'][1]['content'])
-            output={'assessments':[{'requirementId':r['requirementId'],'verdict':'partial','evidenceIds':[r['candidates'][0]['evidenceId']],'reason':'存在相关经历，仍需核实完整能力。'} for r in data['requirements']]}
+            output={'assessments':[{'requirementId':r['requirementId'],'verdict':'matched','evidenceIds':[r['candidates'][0]['evidenceId']],'reason':'用过 Python，所以已熟练掌握。'} for r in data['requirements']]}
         else:
             output={'requirements':[{'type':'skill','originalText':'熟练掌握 Python 和 FastAPI','normalizedCapability':'Python','importance':'must_have','sourceCandidateId':'S0002','confidence':.95}]}
         return httpx.Response(200,json={'choices':[{'message':{'content':json.dumps(output)}}]})
@@ -218,12 +221,18 @@ def test_semantic_uses_session_key_and_rejects_legacy_shortcut(setup_byok):
     r=c.post(path+'/requirement-confirmations',headers=headers(a),json=dict(actionId='confirm',extractionId=e['extractionId'],inputHash=e['inputHash'],factsDigest=e['factsDigest'],confirmed=True))
     assert r.status_code==200,r.text
     assert c.post(path+'/match-report',headers=headers(a)).status_code!=200 # cannot turn needed semantics into a fake offline result
+    assert len(sent)==1
     p=c.get(path+'/semantic-call-plan',headers=headers(a));assert p.status_code==200,p.text
     assert p.json()['available'],p.text
     payload=dict(actionId='semantic',planDigest=p.json()['planDigest'],confirmed=True,maxProviderCalls=1)
     r=c.post(path+'/semantic-calls',headers=headers(a),json=payload)
     assert r.json()['status']=='completed',r.text
     assert len(sent)==2
+    history=c.get(path+'/match-reports',headers=headers(a)).json()
+    requirement=next(row for row in history['items'][0]['report']['requirementResults']
+                     if row['originalText']=='熟练掌握 Python 和 FastAPI')
+    assert requirement['semanticVerdict']=='partial' and requirement['evidenceIds']
+    assert '不能证明' in requirement['reason']
     assert c.post(path+'/semantic-calls',headers=headers(a),json=payload).json()==r.json() and len(sent)==2
 
 def test_five_visitors_allow_only_two_model_executions():

@@ -486,6 +486,20 @@ def test_missing_higher_degree_proof_does_not_prove_insufficient_education(educa
      "计算机或相关专业，具备 5年以上软件研发经验，其中至少2年大模型或智能体相关项目经验。",
      2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
     ("3-5年以上软件研发经验", "3-5年以上软件研发经验", 2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("2. 4‑8年软件开发工作经验，接触过系统迁移", "2. 4‑8年软件开发工作经验，接触过系统迁移",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
+    ("2.Python开发经验 ≥ 3年，熟悉FastAPI/Flask等Web框架", "2.Python开发经验 ≥ 3年，熟悉FastAPI/Flask等Web框架",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
+    ("3 年以上 Web 前端开发经验，熟练掌握 React", "3 年以上 Web 前端开发经验，熟练掌握 React",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.MISSING),
+    ("3 年以上 Web 前端开发经验", "3 年以上 Web 前端开发经验，优秀者可破格。",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("Python开发经验 ≥ 3年", "Python开发经验 ≥ 3年，个人开源经历也计入。",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("4–8年软件开发工作经验", "4–8年软件开发工作经验",
+     4, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
+    ("9–4年软件开发工作经验", "9–4年软件开发工作经验",
+     2, RequirementImportance.MUST_HAVE, RequirementFitStatus.CONDITIONAL),
 ])
 def test_boss_specialty_years_only_use_total_as_an_upper_bound(quote, evidence, years, importance, expected):
     item = _requirement(0, text=quote, type=RequirementType.EXPERIENCE, importance=importance)
@@ -498,15 +512,16 @@ def test_boss_specialty_years_only_use_total_as_an_upper_bound(quote, evidence, 
         assert result.eligibility is EligibilityDecision.BLOCKED
 
 
+@pytest.mark.parametrize("phrase", ["精通", "熟练掌握"])
 @pytest.mark.parametrize("level,links,expected", [
     (SkillLevel.WORKING, ("ev_frontend",), RequirementFitStatus.CONDITIONAL),
     (SkillLevel.STRONG, (), RequirementFitStatus.CONDITIONAL),
     (SkillLevel.STRONG, ("ev_frontend",), RequirementFitStatus.MATCHED),
 ])
-def test_boss_proficiency_requires_an_evidence_linked_confirmed_level(level, links, expected):
+def test_boss_proficiency_requires_an_evidence_linked_confirmed_level(phrase, level, links, expected):
     profile = _profile()
     skill = replace(profile.skills[1], level=level, evidence_ids=links)
-    item = _requirement(0, text="精通 React", type=RequirementType.SKILL,
+    item = _requirement(0, text=f"{phrase} React", type=RequirementType.SKILL,
                         importance=RequirementImportance.MUST_HAVE, capability="React")
     row = evaluate_eligibility(profile=replace(profile, skills=(skill,)),
                                extraction=_extraction(item)).requirements[0]
