@@ -17,6 +17,13 @@ h1 small { font-size: 12px; font-weight: 650; color: var(--boss-green-dark); }
 .section { margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid #e8edef; border-radius: 10px; }
 .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-title { display: block; margin: 0 0 7px; font-size: 13px; font-weight: 750; }
+.quick-save { border-color: #bde5d9; }
+.quick-save h3 { font-size: 14px; margin: 10px 0 4px; overflow-wrap: anywhere; }
+.quick-save p, .quick-save label, .quick-save select { font-size: 12px; }
+.quick-save :is(#quickJobMeta, #quickQuality, #quickStatus) { line-height: 1.5; color: #40545d; margin: 5px 0; }
+.quick-save #quickDescription { resize: vertical; min-height: 76px; }
+.quick-save #quickActions { margin-top: 8px; }
+.quick-save button:disabled { opacity: .55; cursor: not-allowed; }
 .sub-label { flex: 0 0 auto; color: #53636c; font-size: 12px; font-weight: 650; }
 .field-help { margin: -2px 0 8px; font-size: 11px; line-height: 1.5; color: #74828a; }
 .help-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 3px; border: 1px solid #b8c8cf; border-radius: 50%; color: #60747d; font-size: 10px; font-weight: 750; line-height: 1; cursor: help; vertical-align: 1px; }

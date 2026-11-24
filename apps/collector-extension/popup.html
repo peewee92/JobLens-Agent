@@ -3,17 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>岗位筛选 v1.5.0</title>
+  <title>岗位筛选 v1.6.0</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <main>
     <header class="app-header">
       <div>
-        <h1>岗位筛选 <small>v1.5.0</small></h1>
+        <h1>岗位筛选 <small>v1.6.0</small></h1>
         <p>适用于 BOSS 直聘的通用岗位搜索与筛选工具。</p>
       </div>
     </header>
+
+    <section class="section quick-save" aria-labelledby="quickHeading">
+      <h2 id="quickHeading" class="section-title">当前岗位快存</h2>
+      <p class="field-help">在 BOSS 打开一条独立职位详情，先核对正文，再决定是否同步。</p>
+      <button id="quickCapture" type="button" class="compact-primary" disabled>采集当前岗位</button>
+      <div id="quickPreview" hidden>
+        <h3 id="quickJobTitle"></h3>
+        <p id="quickJobMeta"></p>
+        <p id="quickQuality"></p>
+        <label for="quickDescription" class="sub-label">岗位正文（只读）</label>
+        <textarea id="quickDescription" rows="5" readonly></textarea>
+        <div id="quickActions" hidden>
+          <label for="quickTarget">同步目标</label>
+          <select id="quickTarget">
+            <option value="local">本地正式工作台（8102 / 3102）</option>
+            <option value="development">本地开发环境（8000 / 3000）</option>
+          </select>
+          <button id="quickSync" type="button" class="primary-button">确认并同步到本机 JobLens</button>
+          <button id="quickDownload" type="button" class="secondary" hidden>下载这条岗位的 JSON</button>
+        </div>
+      </div>
+      <p id="quickStatus" role="status" aria-live="polite"></p>
+      <button id="quickOpenImport" type="button" class="text-button" hidden>打开最近一次成功的快存记录</button>
+    </section>
 
     <section class="section city-section">
       <div class="section-title-row">
@@ -169,7 +193,9 @@
     <p id="status">请先确认当前 Chrome 已登录 BOSS 直聘。</p>
   </main>
   <script src="cities.js"></script>
+  <script src="lib.js"></script>
   <script src="joblens-sync.js"></script>
   <script src="popup.js"></script>
+  <script src="quick-save.js"></script>
 </body>
 </html>

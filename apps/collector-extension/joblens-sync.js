@@ -1,6 +1,13 @@
 (() => {
   const DEFAULT_ENDPOINT = 'http://127.0.0.1:8000/api/v1/job-imports';
   const DEFAULT_WEB_ORIGIN = 'http://127.0.0.1:3000';
+  const QUICK_TARGETS = Object.freeze({
+    local: Object.freeze({
+      endpoint: 'http://127.0.0.1:8102/api/v1/job-imports',
+      webOrigin: 'http://127.0.0.1:3102'
+    }),
+    development: Object.freeze({ endpoint: DEFAULT_ENDPOINT, webOrigin: DEFAULT_WEB_ORIGIN })
+  });
 
   function parseReport(lastRun) {
     if (lastRun?.report && typeof lastRun.report === 'object' && !Array.isArray(lastRun.report)) {
@@ -13,11 +20,12 @@
     throw new Error('还没有可同步的完整报告。');
   }
 
-  async function syncReport(report, { fetchImpl = fetch, endpoint = DEFAULT_ENDPOINT } = {}) {
+  async function syncReport(report, { fetchImpl = fetch, endpoint = DEFAULT_ENDPOINT, localOnly = false } = {}) {
     const response = await fetchImpl(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(report)
+      body: JSON.stringify(report),
+      ...(localOnly ? { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(8000) } : {})
     });
 
     let body = null;
@@ -51,12 +59,34 @@
     return `已同步到 JobLens：${parts.join('，')}。`;
   }
 
+  function quickTarget(key) {
+    if (key !== 'local' && key !== 'development') throw new Error('请选择本机同步目标。');
+    return QUICK_TARGETS[key];
+  }
+
+  function quickImportUrl(importId, target) {
+    return buildImportDetailUrl(importId, quickTarget(target));
+  }
+
+  async function syncQuickReport(report, target, fetchImpl = fetch) {
+    const result = await syncReport(report, { fetchImpl, endpoint: quickTarget(target).endpoint, localOnly: true });
+    quickImportUrl(result?.importId, target);
+    const counts = [result.created, result.updated, result.skipped];
+    if (result.received !== 1 || !Array.isArray(result.errors) || result.errors.length
+        || !counts.every(n => Number.isInteger(n) && n >= 0) || counts.reduce((a, b) => a + b, 0) !== 1) {
+      throw new Error('本机没有确认这条岗位已导入，请先检查导入记录，再手动重试或下载 JSON。');
+    }
+    return result;
+  }
+
   globalThis.JobLensSync = {
     DEFAULT_ENDPOINT,
     DEFAULT_WEB_ORIGIN,
     parseReport,
     syncReport,
     buildImportDetailUrl,
-    formatSyncResult
+    formatSyncResult,
+    quickImportUrl,
+    syncQuickReport
   };
 })();

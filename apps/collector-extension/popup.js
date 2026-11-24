@@ -1,4 +1,4 @@
-const VERSION = '1.5.0';
+const VERSION = BossJobFilterLib.VERSION;
 const MAX_SELECTED_CITIES = 20;
 const DEFAULT_KEYWORDS = [
   'AI 应用开发工程师',
@@ -304,7 +304,7 @@ async function loadState() {
   el('salaryMode').value = config.salaryMode || 'minGte';
   el('pagesPerQuery').value = config.pagesPerQuery ?? 2;
   el('remotePolicy').value = config.remotePolicy || 'cardOrDetail';
-  el('detailMode').value = config.version === VERSION ? (config.detailMode || 'matched') : 'matched';
+  el('detailMode').value = [VERSION, '1.5.0'].includes(config.version) ? (config.detailMode || 'matched') : 'matched';
   el('detailLimit').value = config.detailLimit ?? 40;
   el('minRelevanceScore').value = config.minRelevanceScore ?? 20;
   el('recruiterActivityMaxDays').value = String(config.recruiterActivityMaxDays ?? 30);
@@ -446,7 +446,7 @@ el('downloadDiagnostics').addEventListener('click', async () => {
 el('downloadRequirementReview').addEventListener('click', async () => {
   const { lastRun } = await chrome.storage.local.get('lastRun');
   if (!lastRun?.requirementReviewJson) {
-    return void (el('status').textContent = '还没有 Requirement 验收数据，请先用 v1.5.0 重新采集。');
+    return void (el('status').textContent = `还没有 Requirement 验收数据，请先用 v${VERSION} 重新采集。`);
   }
   await downloadData(
     lastRun.requirementReviewFilename || 'boss-job-filter-requirement-review.json',

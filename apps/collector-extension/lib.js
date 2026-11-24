@@ -1,7 +1,20 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.5.0';
+  const VERSION = '1.6.0';
+
+  function currentBossJobUrl(value) {
+    try {
+      const url = new URL(value);
+      if (url.origin === 'https://www.zhipin.com' && !url.username && !url.password
+          && /^\/job_detail\/[A-Za-z0-9~_-]{6,255}\.html$/.test(url.pathname)) {
+        return url.origin + url.pathname;
+      }
+    } catch {
+      // A tab without a readable URL is not a supported job detail page.
+    }
+    return '';
+  }
   const PUA_ZERO = 0xE031;
   const PUA_NINE = 0xE03A;
   const CJK_RADICAL_FALLBACKS = Object.freeze({
@@ -770,6 +783,7 @@
   }
 
   globalThis.BossJobFilterLib = {
+    currentBossJobUrl,
     VERSION,
     clean,
     cleanMultiline,

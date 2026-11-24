@@ -2,6 +2,7 @@
   'use strict';
 
   const {
+    currentBossJobUrl,
     clean,
     cleanMultiline,
     decodeBossText,
@@ -9,6 +10,7 @@
     extractJobDescriptionSegment,
     assessDescriptionQuality,
     findSalaryInText,
+    parseSalary,
     inferDigitMap,
     detectRemote,
     parseRecruiterActivity,
@@ -384,18 +386,130 @@
     };
   }
 
+  // Quick save is intentionally separate from bulk scraping: it never scans
+  // the whole body, scrolls, or joins a search card to a different document.
+  function captureCurrentJob(expectedUrl) {
+    const visible = node => node.getClientRects().length > 0
+      && !node.closest('[hidden], [aria-hidden="true"]')
+      && getComputedStyle(node).visibility === 'visible';
+    const all = (root, selector) => [...root.querySelectorAll(selector)].filter(visible);
+    const visibleText = node => clean(node?.innerText || '');
+    const pathname = location.pathname;
+    const pageUrl = currentBossJobUrl(location.href);
+    const blocked = /(?:安全验证|请完成验证|滑动验证|访问过于频繁|异常访问|系统检测到异常|登录后查看职位)/.test(document.title)
+      || /^\/(?:web\/user\/(?:login|register)|(?:wapi\/)?(?:security|captcha))(?:\/|$)/i.test(pathname)
+      || all(document, [
+        '.geetest_panel', '.captcha-container', '.security-check', '#captcha',
+        '.login-dialog', '.login-modal', '.job-login-mask'
+      ].join(', ')).length > 0
+      || all(document, '[role="dialog"], .boss-popup__title').some(node =>
+        /安全验证|请完成验证|滑动验证|访问过于频繁|请登录|登录后/.test(visibleText(node)));
+    if (blocked) return { status: 'blocked' };
+    if (!expectedUrl) return { status: 'unsupported' };
+    if (pageUrl !== expectedUrl) return { status: 'changed' };
+    if (document.readyState === 'loading') return { status: 'unready' };
+
+    const recommended = '.recommend-job, .job-recommend, .job-card-wrapper, .job-card-box, .similar-job, aside';
+    const banners = all(document, '.job-banner').filter(node => !node.closest(recommended));
+    const descriptions = all(document, '.job-detail-section .job-sec-text, .job-detail .job-sec-text')
+      .filter(node => !node.closest(recommended));
+    if (banners.length > 1 || descriptions.length > 1) return { status: 'conflict' };
+    if (!banners.length) return { status: 'unready' };
+    const banner = banners[0];
+    const identities = [
+      ...document.querySelectorAll('link[rel="canonical"]'),
+      ...all(banner, 'a[href*="/job_detail/"]')
+    ];
+    if (identities.some(node => currentBossJobUrl(node.href) !== pageUrl)) return { status: 'conflict' };
+    const titles = all(banner, 'h1');
+    const companies = [...new Set(all(document, [
+      '.sider-company .company-info a[href*="/gongsi/"]',
+      '.sider-company .company-info .company-name',
+      '.job-banner .company-name',
+      '.job-detail .company-info a[href*="/gongsi/"]'
+    ].join(', ')).filter(node => !node.closest('.recommend-job, .job-recommend, .job-card-wrapper, .job-card-box, .similar-job'))
+      .map(visibleText).filter(Boolean))];
+    if (titles.length > 1 || companies.length > 1) return { status: 'conflict' };
+    const title = visibleText(titles[0]);
+    const company = companies[0] || '';
+    if (!title || !company || title.normalize('NFKC').length > 255 || company.normalize('NFKC').length > 255) {
+      return { status: 'unready' };
+    }
+
+    const node = descriptions[0];
+    if (node && all(node, recommended).length) return { status: 'conflict' };
+    const section = node?.closest('.job-detail-section') || node;
+    const layout = node ? getComputedStyle(node) : null;
+    const raw = decodeBossMultilineText(node?.innerText || '').text;
+    const folded = Boolean(node && (
+      node.closest('.job-sec-text.is-collapsed, .job-sec-text.collapsed')
+      || (node.scrollHeight > node.clientHeight && (Number(layout.webkitLineClamp) > 0 || /^(?:hidden|clip)$/.test(layout.overflowY)))
+      || all(section, 'a, button, [role="button"], .show-more, .expand-btn, .text-more').some(control =>
+        /^(?:展开(?:全文|全部|更多|职位描述)?|查看(?:完整|全部|更多)(?:职位|岗位)?描述|查看全文|显示更多)[\s›»>]*$/.test(visibleText(control)))
+    ));
+    const segment = extractJobDescriptionSegment(
+      raw.replace(/\n\s*(?:展开全文|查看全文|显示更多|收起)\s*$/u, '')
+    );
+    const cropped = segment.text.length > 30_000;
+    const description = segment.text.slice(0, 30_000);
+    const provenance = {
+      descriptionSource: node ? 'selector:.job-sec-text' : '',
+      descriptionSelectorTrust: node ? 'trusted' : '',
+      descriptionSanitized: segment.sanitized,
+      descriptionStartMarker: segment.startMarker,
+      descriptionStopMarker: segment.stopMarker,
+      detailAttempted: true,
+      detailSucceeded: Boolean(node && raw)
+    };
+    const quality = assessDescriptionQuality({ description, ...provenance });
+    if (folded || cropped) {
+      quality.descriptionQuality = description ? 'partial_jd' : 'unavailable';
+      quality.requirementReviewEligible = false;
+      quality.requirementReviewIneligibilityReasons = [
+        folded ? 'visible_description_folded' : 'description_capture_limit', 'missing_full_jd'
+      ];
+    }
+    const areaText = visibleText(all(banner, '.job-info .text-city, .job-info .job-area, .job-info .job-location')[0]);
+    const area = areaText && areaText.normalize('NFKC').length <= 255 ? areaText : null;
+    const salaryText = visibleText(all(banner, '.name .salary, .job-salary, .salary')[0]);
+    const salary = salaryText.length <= 80 && decodeBossText(salaryText).unknownPua.length === 0
+      ? findSalaryInText(salaryText) : '';
+    const numbers = parseSalary(salary);
+    const invalidSalary = [numbers.minK, numbers.maxK].some(value => value !== null && !Number.isFinite(value))
+      || (numbers.minK !== null && numbers.maxK !== null && numbers.maxK < numbers.minK);
+    const remote = detectRemote({ title, area, description });
+    if (currentBossJobUrl(location.href) !== pageUrl) return { status: 'changed' };
+    return { status: 'preview', job: {
+      url: pageUrl, title, company, area, salary: invalidSalary ? '' : salary,
+      salaryMinK: invalidSalary ? null : numbers.minK, salaryMaxK: invalidSalary ? null : numbers.maxK,
+      description, ...provenance, ...quality,
+      remoteStatus: remote.status, remoteConfidence: remote.confidence,
+      skills: extractSkills({ description })
+    } };
+  }
+
   globalThis.BossAiContentInternals = {
     findAreaInText,
     escapeRegExp,
     getElementText,
     isJobDetailHref,
-    chooseDescriptionCandidate
+    chooseDescriptionCandidate,
+    captureCurrentJob
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'PING') {
       sendResponse({ ok: true, version: globalThis.BossJobFilterLib.VERSION });
+      return;
+    }
+
+    if (message?.type === 'CAPTURE_CURRENT_JOB') {
+      try {
+        sendResponse(captureCurrentJob(message.expectedUrl));
+      } catch {
+        sendResponse({ status: 'unready' });
+      }
       return;
     }
 
