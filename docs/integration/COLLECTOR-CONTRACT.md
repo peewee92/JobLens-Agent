@@ -23,11 +23,11 @@
 
 ## 2. 当前 Collector Report 结构
 
-v1.4.6 主要结构（Backend 同时兼容 v1.3.1 至 v1.4.6）：
+v1.6.0 沿用既有结构（后端保留旧版本兼容）：
 
 ```json
 {
-  "version": "1.4.6",
+  "version": "1.6.0",
   "generatedAt": "...",
   "config": {},
   "statistics": {},
@@ -37,6 +37,8 @@ v1.4.6 主要结构（Backend 同时兼容 v1.3.1 至 v1.4.6）：
 ```
 
 Agent 系统优先导入 `jobs`，并按 `JobImport` 完整持久化 `candidates`，作为诊断和后续重新筛选数据；普通 API 只公开 candidate 汇总，不公开 raw。
+
+v1.6.0 的当前岗位快存只在用户核对并确认后提交。报告包含一个 `jobs` 项（`full_jd` 且 `requirementReviewEligible=true`）、空 `candidates`；来源网址不含查询参数或片段，不传整页原始文本。复用 `POST /api/v1/job-imports`，默认本机 `8102`、导入记录在 `3102`；可显式切换到 `8000/3000`，不改变批量同步目标。历史导入快照保留提交的正文，岗位展示仍使用既有文本规范化。
 
 ---
 
@@ -104,7 +106,7 @@ sourceVersion
 4. Derived field 标记提取器版本；
 5. Backend 生成、持久化并版本化 internal canonical job key；
 6. `remoteStatus` 使用 `confirmed` / `rejected` / `unknown` 三态，不压缩成布尔值；
-7. Collector v1.4.x 的 JD 质量字段作为 Requirement Extraction 的输入门禁证据，但仍原样保存在 `JobSource.source_raw`；
+7. Collector v1.4.x、v1.5.x、v1.6.x 的 JD 质量字段作为 Requirement Extraction 的输入门禁证据，但仍原样保存在 `JobSource.source_raw`；
 8. `detailSucceeded=true` 只表示详情页读取成功，不能替代 `requirementReviewEligible=true`。
 
 canonical key v1：
@@ -212,7 +214,7 @@ API Token
 
 ## 7. 向后兼容
 
-Agent Importer 当前显式支持 `1.3.1`、`1.4.0`、`1.4.1`、`1.4.2`、`1.4.3`、`1.4.4`、`1.4.5` 与 `1.4.6`，未来仍不应把业务代码强耦合到单一版本。
+Agent Importer 当前显式支持 `1.3.1`、`1.4.0`–`1.4.9`、`1.5.0` 与 `1.6.0`，未来仍不应把业务代码强耦合到单一版本。
 
 建议：
 

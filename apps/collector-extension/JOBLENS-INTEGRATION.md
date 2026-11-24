@@ -1,12 +1,12 @@
 # JobLens Agent Integration Note
 
-This directory contains JobLens Collector v1.5.0, derived from the standalone `岗位筛选` Chrome extension.
+This directory contains JobLens Collector v1.6.0, derived from the standalone `岗位筛选` Chrome extension.
 
 ## Boundary
 
 `apps/collector-extension` only collects, normalizes and exports source evidence. It does not perform career matching, recommendation, ranking or application automation.
 
-## Normal import
+## Bulk import
 
 The popup now supports **同步到 JobLens** for the latest full report. It POSTs the same report payload directly to the local Backend endpoint:
 
@@ -17,17 +17,21 @@ POST http://127.0.0.1:8000/api/v1/job-imports
 The Backend remains the source of truth for import identity and deduplication: repeated syncs create a new import audit batch but existing jobs are updated/skipped instead of duplicated. On success the popup stores only the returned immutable `importId` and exposes **查看本次导入**, which opens the existing JobLens Web audit page at `http://127.0.0.1:3000/imports/{importId}`. Reopening the popup restores the most recent successful import link; a later failed sync does not erase that link. If the local Backend is unavailable or rejects the payload, the extension keeps the existing **完整报告** JSON download as the offline fallback:
 
 ```text
-boss-job-filter-report-v1.5.0-*.json
+boss-job-filter-report-v1.6.0-*.json
 ```
 
-The backend remains compatible with Collector v1.3.1 through v1.5.0. Collector v1.5.0 keeps the v1.4.9 recruiter-activity metadata but no longer drops jobs whose recruiter activity cannot be read: BOSS only renders the activity label for recruiters who are active right now, so treating "unknown" as stale emptied real runs. Unknown activity is kept and marked (`recruiterActivityStatus: unknown`), and only jobs whose activity is confirmed to be outside the requested window are filtered.
+The backend still accepts older supported Collector reports. Since v1.5.0, the collector preserves jobs whose recruiter activity cannot be read and marks them as `recruiterActivityStatus: unknown`. Only jobs whose activity is confirmed to be outside the requested window are filtered.
+
+## Current job quick save
+
+See the [Collector contract](../../docs/integration/COLLECTOR-CONTRACT.md) for the single-job report, the separate loopback targets, and the source evidence this path preserves.
 
 ## Requirement quality review
 
 For Requirement Extraction acceptance, use:
 
 ```text
-boss-job-filter-requirement-review-v1.5.0-*.json
+boss-job-filter-requirement-review-v1.6.0-*.json
 ```
 
 The dataset contains only jobs where:
@@ -48,6 +52,6 @@ In `matched` detail mode, v1.5.0 reserves the Requirement-review quota for alrea
 
 ## Runtime guard
 
-When a Collector v1.4.x job is imported from the full report, the backend checks the persisted quality evidence before invoking the Requirement Extractor. `card_only`, `partial_jd` and `unavailable` inputs return `job_description_not_extractable` before a model call or Trace run is created.
+For Collector v1.4.x through v1.6.x, the backend checks persisted quality evidence before invoking the Requirement Extractor. Ineligible or missing quality evidence returns `job_description_not_extractable` before a model call or Trace run is created.
 
 API sync is intentionally local-only in this first P1 slice (`127.0.0.1` / `localhost`). It does not carry API keys, does not invoke Requirement extraction, and does not replace offline JSON export.
