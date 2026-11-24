@@ -23,5 +23,5 @@ def description_length_blocker(description: str) -> DescriptionLengthBlocker | N
 def requires_better_capture(job: JobDetail) -> bool:
     eligible = job.requirement_review_eligible
     return eligible is False or (
-        eligible is None and (job.source_version or "").startswith(("1.4.", "1.5."))
+        eligible is None and (job.source_version or "").startswith(("1.4.", "1.5.", "1.6."))
     )

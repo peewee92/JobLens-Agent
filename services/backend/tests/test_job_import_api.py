@@ -7,6 +7,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 from typing import Any
+from unicodedata import normalize
 
 import pytest
 from fastapi.testclient import TestClient
@@ -180,7 +181,7 @@ def test_post_job_imports_returns_201_and_persists_complete_batch(
         assert item.outcome is ImportOutcome.CREATED
 
 
-@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.5.0"])
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.5.0", "1.6.0"])
 def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
     api_environment: tuple[TestClient, sessionmaker[Session]],
     collector_version: str,
@@ -229,6 +230,47 @@ def test_collector_v14x_quality_evidence_is_accepted_and_preserved(
             assert source.source_raw["recruiterActive"] == "本月活跃"
             assert source.source_raw["recruiterActivityStatus"] == "known"
             assert source.source_raw["recruiterActivityMaxAgeDays"] == 30
+
+
+def test_quick_save_single_job_preserves_the_reviewed_description_and_reuses_job(api_environment) -> None:
+    client, factory = api_environment
+    description = "岗位职责：负责服务接口设计和上线维护。\n任职要求：熟悉 Python 并具备三年以上开发经验。"
+    url = "https://www.zhipin.com/job_detail/example.html"
+    payload = {
+        "version": "1.6.0",
+        "generatedAt": "2026-11-23T00:00:00.000Z",
+        "config": {},
+        "statistics": {},
+        "jobs": [{
+            "title": "后端工程师", "company": "示例公司", "url": url, "description": description,
+            "area": None, "salaryMinK": None, "salaryMaxK": None,
+            "detailAttempted": True, "detailSucceeded": True, "descriptionSource": "selector:.job-sec-text",
+            "descriptionSelectorTrust": "trusted", "descriptionQuality": "full_jd", "requirementReviewEligible": True,
+        }],
+        "candidates": [],
+    }
+
+    first = client.post("/api/v1/job-imports", json=payload)
+    assert first.status_code == 201
+    assert first.json() == {
+        "importId": first.json()["importId"], "sourceVersion": "1.6.0",
+        "received": 1, "created": 1, "updated": 0, "skipped": 0, "errors": [],
+    }
+    replay = client.post("/api/v1/job-imports", json=payload)
+    assert replay.status_code == 201
+    assert replay.json()["received"] == 1
+    assert replay.json()["created"] == 0
+    assert replay.json()["errors"] == []
+    assert replay.json()["importId"] != first.json()["importId"]
+    with factory() as session:
+        assert count_rows(session, JobORM) == count_rows(session, JobSourceORM) == 1
+        assert session.scalar(select(JobORM.description)) == normalize("NFKC", description)
+        assert session.scalar(select(JobSourceORM)).source_raw["description"] == description
+        items = session.scalars(select(JobImportItemORM)).all()
+        assert len(items) == 2
+        assert items[0].job_id == items[1].job_id
+        assert all(item.source_raw_snapshot["url"] == url for item in items)
+        assert all(item.source_raw_snapshot["description"] == description for item in items)
 
 
 def test_reimport_returns_updated_without_duplicate_job(

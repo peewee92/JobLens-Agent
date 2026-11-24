@@ -359,7 +359,22 @@ def test_collector_v140_ineligible_description_is_blocked_before_model_call(
         ) == 0
 
 
-@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.5.0"])
+@pytest.mark.parametrize("quality", [{}, {"descriptionQuality": "partial_jd", "requirementReviewEligible": False}])
+def test_collector_v160_requires_positive_readiness_before_model_call(api_environment, quality) -> None:
+    client, factory = api_environment
+    job_id = _seed_job(
+        factory, suffix="quicknotready", source_version="1.6.0", source_raw=quality,
+        description="岗位职责：负责服务接口设计和上线维护。任职要求：熟悉 Python，具备三年以上后端开发经验。",
+    )
+    response = client.post(f"/api/v1/jobs/{job_id}/requirement-extractions")
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "job_description_not_extractable"
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(TraceSpanORM)) == 0
+        assert session.scalar(select(func.count()).select_from(JobRequirementExtractionORM)) == 0
+
+
+@pytest.mark.parametrize("collector_version", ["1.4.1", "1.4.2", "1.4.3", "1.4.4", "1.4.5", "1.4.6", "1.4.7", "1.4.8", "1.4.9", "1.5.0", "1.6.0"])
 def test_collector_v14x_full_jd_can_run_requirement_extraction(
     api_environment: tuple[TestClient, sessionmaker[Session]],
     collector_version: str,
