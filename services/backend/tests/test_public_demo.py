@@ -46,16 +46,19 @@ def create(client):
     return response.json()['sessionToken']
 
 
-def test_session_paths_share_protection_during_the_production_cutover(setup):
+def test_public_session_route_keeps_access_checks_and_rejects_old_path(setup):
     c, manager, _ = setup
-    for path in ('/api/v1/public-session', '/api/v1/demo/session'):
-        assert c.post(path).status_code == 401
-        assert c.post(path, headers={**headers(), 'Origin': 'https://other.example'}).status_code == 403
-        response = c.post(path, headers=headers())
-        assert response.status_code == 200, response.text
-        token = response.json()['sessionToken']
-        assert c.get(path, headers=headers(token)).json() == {'active': True, 'mode': 'sample', 'synthetic': True}
-    assert len(manager.entries) == 2
+    path = '/api/v1/public-session'
+    old = '/api/v1/demo/session'
+    assert c.post(path).status_code == 401
+    assert c.post(path, headers={**headers(), 'Origin': 'https://other.example'}).status_code == 403
+    assert c.post(old, headers=headers()).status_code == 410
+    assert not manager.entries
+    token = create(c)
+    for method in ('GET', 'POST', 'DELETE'):
+        assert c.request(method, old, headers=headers(token)).status_code == 403
+    assert c.get(path, headers=headers(token)).json() == {'active': True, 'mode': 'sample', 'synthetic': True}
+    assert set(manager.entries) == {token}
 
 
 def test_deny_by_default_and_no_model_or_upload(setup):

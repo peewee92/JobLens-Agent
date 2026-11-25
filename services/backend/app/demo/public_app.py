@@ -78,7 +78,7 @@ class PublicBoundary:
             return await error('demo_unauthorized', 401, '请从公开演示网页进入。')(scope, receive, send)
         if method != 'GET' and headers.get(b'origin', b'').decode('latin-1') != self.origin:
             return await error('demo_origin_rejected', 403, '请求来源无效。')(scope, receive, send)
-        session_route = path in ('/api/v1/public-session', '/api/v1/demo/session')
+        session_route = path == '/api/v1/public-session'
         # Cap streamed bodies too, not only Content-Length. No uploads are allowed.
         chunks, size = [], 0
         while True:
