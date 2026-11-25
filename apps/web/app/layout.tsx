@@ -11,7 +11,7 @@ import {PrivateSignOutButton} from "@/components/private-session-controls";
 import {backendResponse, BackendApiError} from "@/lib/backend";
 import {PRIVATE_SIGN_IN_HEADER} from "@/lib/private-routing";
 import {releaseVersionLabel} from "@/lib/release-version";
-import {hostingOrigin, isPrivateWorkspaceBuild, workspacePath} from "@/lib/workspace-path";
+import {hostingOrigin, isPrivateWorkspaceBuild, publicEntryHref, workspacePath} from "@/lib/workspace-path";
 import "@/app/globals.css";
 import "@/app/design.css";
 
@@ -58,7 +58,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
               </>}
               {isPublicDemo && <NavLink fresh href="/connect">模型设置</NavLink>}
               {isPublicDemo && hostingOrigin(process.env.JOBLENS_PRIVATE_UPSTREAM_URL) && <a href="/private">个人工作台</a>}
-              {isPrivate && <a href="/">公开样本</a>}
+              {isPrivate && <a href={publicEntryHref()}>公开样本</a>}
             </nav>
             <ThemeChoice />
           </div>
@@ -74,7 +74,7 @@ export default async function RootLayout({children}: {children: ReactNode}) {
           {privateUnavailable ? <section className="jl-panel stack-md" aria-label="个人工作台暂不可用">
             <h1>{privateStatus === 401 ? "请重新登录" : privateStatus === 403 ? "此账号尚未开通个人工作台" : "暂时无法连接个人工作台"}</h1>
             <p>{privateStatus === 403 ? "可以联系维护者开通，或换用已受邀的账号。" : "你的已保存记录不会因本次访问失败而被清除。"}</p>
-            <div className="jl-inline"><a href={workspacePath("/sign-in")} className="button">前往登录</a><a href="/" className="button-secondary">浏览公开样本</a></div>
+            <div className="jl-inline"><a href={workspacePath("/sign-in")} className="button">前往登录</a><a href={publicEntryHref()} className="button-secondary">浏览公开样本</a></div>
           </section> : children}
         </main>
         <footer className="shell site-footer">

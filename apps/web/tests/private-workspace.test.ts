@@ -3,7 +3,7 @@ import test from "node:test";
 import {cloudIdentityHeaders} from "../lib/cloud-api-identity";
 import {privateRouteKind} from "../lib/private-routing";
 import {parseWorkspaceSignIn, workspaceCodeRecipients} from "../lib/private-sign-in";
-import {hostingOrigin, workspacePath} from "../lib/workspace-path";
+import {hostingOrigin, privateWorkspaceRewrites, publicEntryHref, workspacePath} from "../lib/workspace-path";
 
 test("the independent build preserves route, query and anchor without absorbing public or external links", () => {
   const previous = process.env.NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD;
@@ -34,6 +34,15 @@ test("individual work surfaces do not expose demo endpoints, model secrets or ma
   assert.equal(hostingOrigin("http://cloud.example.com"), null);
   assert.equal(hostingOrigin("https://cloud.example.com/private"), null);
   assert.equal(hostingOrigin("http://localhost:3230"), "http://localhost:3230");
+});
+
+test("private root reaches the upstream without a trailing slash and links back to the public homepage", () => {
+  assert.deepEqual(privateWorkspaceRewrites("https://private.example"), [
+    {source: "/private", destination: "https://private.example/private"},
+    {source: "/private/:path+", destination: "https://private.example/private/:path+"},
+  ]);
+  assert.equal(publicEntryHref("https://joblens-agent.vercel.app"), "https://joblens-agent.vercel.app/");
+  assert.equal(publicEntryHref("https://joblens-agent.vercel.app/demo"), "/");
 });
 
 test("tenant forwarding matches the FastAPI HMAC and binds method and query", () => {
