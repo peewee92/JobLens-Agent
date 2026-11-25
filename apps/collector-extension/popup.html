@@ -122,7 +122,7 @@
         <label>岗位与搜索词最低匹配分 <span class="help-icon" tabindex="0" data-tooltip="0=不按相关度过滤；20=推荐；40 以上会明显更严格。v1.4.7 起主要按你填写的搜索词判断。">?</span>
           <input id="minRelevanceScore" type="number" min="0" max="100" value="20">
         </label>
-        <label>招聘者最近多久活跃 <span class="help-icon" tabindex="0" data-tooltip="用于过滤已知长期不活跃的岗位。BOSS 只在招聘者正在活跃时显示活跃文案，多数岗位读不到；读不到的岗位会保留并标注“未验证”，只有当能确认超过所选窗口（如“半年前活跃”）时才过滤。">?</span>
+        <label>招聘者最近多久活跃 <span class="help-icon" tabindex="0" data-tooltip="用于过滤已知长期不活跃的岗位。BOSS 只在招聘者正在活跃时显示活跃文案，多数岗位读不到；无标签或标签跨过所选时间窗口的岗位会保留并标注“未核实”，只有当能确认超过所选窗口（如“半年前活跃”）时才过滤。">?</span>
           <select id="recruiterActivityMaxDays">
             <option value="0">不限制（岗位更多）</option>
             <option value="60">60天内（宽松）</option>

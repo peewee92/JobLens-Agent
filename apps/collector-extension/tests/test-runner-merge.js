@@ -14,7 +14,7 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(require.resolve('../lib.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(require.resolve('../runner.js'), 'utf8'), context);
 
-const { dedupe, classify, selectDetailTargets } = context.BossAiRunnerInternals;
+const { dedupe, classify, planDetailTargets } = context.BossAiRunnerInternals;
 const keywords = [
   'AI 应用开发工程师',
   'AI Agent 工程师',
@@ -111,7 +111,7 @@ const recruiterFresh = classify({
 }, recruiterFilterConfig, 'final');
 assert.strictEqual(recruiterFresh.keep, true);
 
-const recruiterStale = classify({
+const recruiterAmbiguous = classify({
   title: 'UI设计师',
   salary: '15-30K',
   searchKeyword: 'UI设计',
@@ -124,8 +124,8 @@ const recruiterStale = classify({
   recruiterActive: '2月内活跃',
   rawText: 'UI设计师 15-30K 武汉·洪山区 2月内活跃'
 }, recruiterFilterConfig, 'final');
-assert.strictEqual(recruiterStale.keep, false);
-assert.strictEqual(recruiterStale.reason, '招聘者活跃无法确认在30天内');
+assert.strictEqual(recruiterAmbiguous.keep, true);
+assert.strictEqual(recruiterAmbiguous.job.recruiterActivityUnverified, true);
 
 const recruiterClearlyStale = classify({
   title: 'UI设计师',
@@ -155,9 +155,12 @@ const recruiterUnknownInitial = classify({
   company: '测试公司',
   rawText: 'UI设计师 15-30K 武汉·洪山区'
 }, recruiterFilterConfig, 'initial');
-assert.strictEqual(recruiterUnknownInitial.keep, false);
-assert.strictEqual(recruiterUnknownInitial.pendingDetail, true);
-assert.strictEqual(recruiterUnknownInitial.reason, '待详情页确认招聘者活跃');
+assert.strictEqual(recruiterUnknownInitial.keep, true);
+assert.strictEqual(recruiterUnknownInitial.pendingDetail, false);
+assert.strictEqual(recruiterUnknownInitial.job.recruiterActivityUnverified, true);
+assert.strictEqual(classify({
+  ...recruiterUnknownInitial.job, recruiterActive: '刚刚活跃'
+}, recruiterFilterConfig, 'initial').job.recruiterActivityUnverified, false);
 
 const recruiterUnknownFinal = classify(recruiterUnknownInitial.job, recruiterFilterConfig, 'final');
 assert.strictEqual(recruiterUnknownFinal.keep, true, 'unknown recruiter activity must not be treated as a dead job');
@@ -229,78 +232,39 @@ const remoteWithEvidence = classify({
 }, recruiterFilterConfig, 'initial');
 assert.strictEqual(remoteWithEvidence.keep, true);
 
-const detailTargets = selectDetailTargets([
-  {
-    job: { url: 'https://example.test/accepted', title: '已通过岗位', company: 'A', area: '武汉', salary: '20-30K' },
-    initialClass: { keep: true, pendingDetail: false, reason: '通过' }
-  },
-  {
-    job: { url: 'https://example.test/activity', title: '活跃待确认岗位', company: 'B', area: '武汉', salary: '20-30K' },
-    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认招聘者活跃' }
-  },
-  {
-    job: { url: 'https://example.test/remote', title: '远程待确认岗位', company: 'C', area: '全国', salary: '20-30K' },
-    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认远程' }
-  }
-], 'matched', 2);
-assert.deepStrictEqual(Array.from(detailTargets, target => target.job.url), [
-  'https://example.test/accepted',
-  'https://example.test/activity'
-]);
-
-// 活跃待确认队列远大于详情上限时，已通过岗位仍要拿到 Requirement 验收名额。
-const acceptedPlusFlood = selectDetailTargets([
-  {
-    job: { url: 'https://example.test/accepted-1', title: '已通过岗位', company: 'A', area: '武汉', salary: '20-30K' },
-    initialClass: { keep: true, pendingDetail: false, reason: '通过' }
-  },
-  ...Array.from({ length: 50 }, (_, index) => ({
-    job: {
-      url: `https://example.test/pending-${index}`,
-      title: '活跃待确认岗位',
-      company: 'B',
-      area: '武汉',
-      salary: '20-30K'
-    },
-    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认招聘者活跃' }
-  }))
-], 'matched', 10);
-assert.strictEqual(acceptedPlusFlood.length, 10);
-assert.strictEqual(acceptedPlusFlood[0].job.url, 'https://example.test/accepted-1');
-
-// 远程候选有自己的小额度：活跃待确认队列几百条时，远程仍然拿得到 10 个详情名额；
-// 反过来远程也不能像 v1.4.9 那样把 40 个额度全吃光。
-const remotePlusFlood = selectDetailTargets([
-  ...Array.from({ length: 40 }, (_, index) => ({
-    job: {
-      url: `https://example.test/remote-${index}`,
-      title: '远程待确认岗位',
-      company: 'R',
-      area: index % 2 ? '全国' : '杭州·西湖区',
-      salary: '20-30K',
-      scope: '全国远程',
-      scopeType: 'remote'
-    },
-    initialClass: {
-      keep: false,
-      pendingDetail: true,
-      reason: index % 2 ? '待详情页确认远程' : '待详情页确认远程（卡片为线下城市）'
-    }
-  })),
-  ...Array.from({ length: 200 }, (_, index) => ({
-    job: {
-      url: `https://example.test/activity-${index}`,
-      title: '活跃待确认岗位',
-      company: 'B',
-      area: '武汉',
-      salary: '20-30K'
-    },
-    initialClass: { keep: false, pendingDetail: true, reason: '待详情页确认招聘者活跃' }
-  }))
-], 'matched', 40);
-const remotePicked = remotePlusFlood.filter(target => target.job.scopeType === 'remote');
-assert.strictEqual(remotePicked.length, 10, 'remote candidates get a fixed quota of 10 details');
-assert.strictEqual(remotePlusFlood.length, 40);
-assert.ok(remotePlusFlood.slice(0, 10).every(target => target.job.scopeType === 'remote'));
+const accepted = unknownActivityFlood.map(item => item.job);
+const pendingRemote = Array.from({ length: 45 }, (_, index) => ({
+  ...onsiteInRemoteScope.job,
+  url: `https://www.zhipin.com/job_detail/remote-pending-${index}.html`,
+  sourceUrl: undefined
+}));
+// Same url in both scopes uses only one detail read and takes the accepted slot.
+pendingRemote[0].url = accepted[0].url;
+const both = [...pendingRemote, ...accepted];
+function checkPlan(jobs, mode, limit, expected) {
+  const { targets, deferredAccepted } = planDetailTargets(jobs, {
+    ...recruiterFilterConfig, detailMode: mode, detailLimit: limit
+  });
+  assert.deepStrictEqual([
+    targets.filter(target => target.initialClass.keep).length,
+    targets.filter(target => target.initialClass.pendingDetail).length,
+    deferredAccepted
+  ], expected);
+  assert.strictEqual(new Set(targets.map(target => target.job.url)).size, targets.length);
+  return targets;
+}
+checkPlan(both, 'off', 40, [0, 0, 0]);
+checkPlan(both, 'matched', 1, [1, 0, 59]);
+const small = checkPlan(both, 'matched', 2, [1, 1, 59]);
+assert.strictEqual(small[0].job.url, accepted[0].url);
+assert.notStrictEqual(small[1].job.url, accepted[0].url);
+checkPlan(both, 'matched', 40, [30, 10, 30]);
+checkPlan(both, 'matched', 48, [38, 10, 22]);
+checkPlan(accepted, 'matched', 40, [40, 0, 20]);
+checkPlan([...accepted.slice(0, 3), ...pendingRemote], 'matched', 40, [3, 37, 0]);
+checkPlan([...accepted, ...pendingRemote.slice(0, 2)], 'matched', 40, [39, 1, 21]);
+checkPlan(both, 'remote', 40, [0, 40, 0]);
+checkPlan(accepted, 'remote', 40, [0, 0, 0]);
+assert.strictEqual(planDetailTargets(both, recruiterFilterConfig).targets.length, 40);
 
 console.log('Runner merge, query relevance and recruiter activity filter tests passed.');

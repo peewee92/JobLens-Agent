@@ -225,7 +225,7 @@ function updateSearchGuidance() {
     hints.push(`搜索词匹配门槛 ${relevance} 分高于推荐值 20，结果会更少。`);
   }
   if (recruiterActivityMaxDays > 0) {
-    hints.push(`只会排除能确认招聘者超过 ${recruiterActivityMaxDays} 天未活跃的岗位；活跃时间未知时会优先尝试详情确认，仍未知则保留并标注“未验证”。`);
+    hints.push(`只会排除能确认招聘者超过 ${recruiterActivityMaxDays} 天未活跃的岗位；活跃时间未知或无法确认在窗口内时保留，并标注“未核实”。`);
     if (el('detailMode').value === 'off') {
       hints.push('你关闭了详情补采；卡片没有招聘者活跃信息的岗位会直接保留为“未验证”，不再被过滤。');
     } else if (detailLimit < 20) {

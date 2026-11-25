@@ -22,8 +22,7 @@
   } = globalThis.BossJobFilterLib;
 
   const REQUIREMENT_REVIEW_SAMPLE_SIZE = 20;
-  const REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR = 1.5;
-  // 远程候选单独领的详情额度，避免被活跃待确认队列饿死，也避免反过来吃光全部额度。
+  // 双方都有候选时，最多为待核实远程保留 10 次详情读取。
   const REMOTE_DETAIL_QUOTA = 10;
 
   const state = {
@@ -37,7 +36,6 @@
     detailStats: {
       plannedAccepted: 0,
       plannedRemoteCandidates: 0,
-      plannedRecruiterActivityCandidates: 0,
       deferredAccepted: 0,
       attempted: 0,
       succeeded: 0,
@@ -428,11 +426,19 @@
     return /^[\u4e00-\u9fa5]{2,}(?:[\s·]|$)/.test(text);
   }
 
+  function activityUnverified(decision) {
+    return decision.reason === 'unknown' || decision.reason === 'outside_window';
+  }
+
   function classify(jobRaw, config, phase = 'final') {
     const job = normalizeJob(jobRaw);
     const salary = parseSalary(job.salary || job.rawText || job.detailText, state.digitMap);
     const remote = detectRemote(job);
     const flags = job.employmentFlags || employmentFlags(job);
+    const recruiterActivityMaxDays = Math.max(0, Number(config.recruiterActivityMaxDays || 0));
+    const recruiterActivity = recruiterActivityWithin(job.recruiterActive, recruiterActivityMaxDays);
+    const recruiterActivityUnverified = activityUnverified(recruiterActivity);
+    job.recruiterActivityUnverified = recruiterActivityUnverified;
 
     if (!['monthlyK', 'annualWan'].includes(salary.type) || salary.minK == null) {
       return { keep: false, pendingDetail: false, reason: '薪资无法解析', job, salary, remote };
@@ -453,39 +459,18 @@
       return { keep: false, pendingDetail: false, reason: '排除助理岗位', job, salary, remote };
     }
 
-    const recruiterActivityMaxDays = Math.max(0, Number(config.recruiterActivityMaxDays || 0));
-    const recruiterActivity = recruiterActivityWithin(job.recruiterActive, recruiterActivityMaxDays);
-    // 1. 能确认已超期的才过滤（列表页/详情页读不到活跃文案时一律放行）。
-    if (recruiterActivityMaxDays > 0 && !recruiterActivity.matched && recruiterActivity.reason !== 'unknown') {
-      const reason = recruiterActivity.reason === 'stale'
-        ? `招聘者超过${recruiterActivityMaxDays}天未活跃`
-        : `招聘者活跃无法确认在${recruiterActivityMaxDays}天内`;
+    if (recruiterActivity.reason === 'stale') {
+      const reason = `招聘者超过${recruiterActivityMaxDays}天未活跃`;
       return { keep: false, pendingDetail: false, reason, job, salary, remote, recruiterActivity };
     }
-    const recruiterActivityUnverified = recruiterActivityMaxDays > 0 && recruiterActivity.reason === 'unknown';
 
-    // 2. 远程范围先于活跃度排队：活跃待确认队列动辄几百条，远程候选若混进去
-    //    永远排不到详情名额（v1.4.9 实测 40/40 被远程和活跃队列互相挤占）；
-    //    卡片地点是线下城市只说明“要看 JD 才能确认”，不再一票否决。
+    // 全国范围仍需卡片或正文证据；活跃度未核实不单独占用详情名额。
     if (isRemoteJob(job) && config.remotePolicy === 'cardOrDetail' && !remote.matched && remote.status !== 'rejected'
       && phase === 'initial' && config.detailMode !== 'off') {
       return {
         keep: false,
         pendingDetail: true,
         reason: isOnsiteArea(job.area) ? '待详情页确认远程（卡片为线下城市）' : '待详情页确认远程',
-        job,
-        salary,
-        remote,
-        recruiterActivity
-      };
-    }
-
-    // 3. 活跃状态未知时优先补详情，但只作为待确认，不再当成僵尸岗位丢弃。
-    if (recruiterActivityUnverified && phase === 'initial' && config.detailMode !== 'off') {
-      return {
-        keep: false,
-        pendingDetail: true,
-        reason: '待详情页确认招聘者活跃',
         job,
         salary,
         remote,
@@ -679,6 +664,7 @@
       recruiterActivityStatus: item.job.recruiterActivityStatus,
       recruiterActivityMaxAgeDays: item.job.recruiterActivityMaxAgeDays,
       recruiterActivityMinAgeDays: item.job.recruiterActivityMinAgeDays,
+      recruiterActivityUnverified: item.job.recruiterActivityUnverified,
       detailAttempted: item.job.detailAttempted,
       detailSucceeded: item.job.detailSucceeded,
       descriptionSource: item.job.descriptionSource,
@@ -743,10 +729,10 @@
         candidateRemoteConfirmed: classified.filter(item => item.remote.matched).length,
         recruiterActivityKnownBeforeFinalFilter: uniqueJobs.filter(job => job.recruiterActivityStatus === 'known').length,
         recruiterActivityUnknown: classified.filter(item => item.job.recruiterActivityStatus !== 'known').length,
-        recruiterActivityUnverifiedKept: finalJobs.filter(job => job.recruiterActivityStatus !== 'known').length,
+        recruiterActivityUnverifiedKept: finalJobs.filter(job => job.recruiterActivityUnverified).length,
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
-        detailTargetsPlannedRecruiterActivityCandidates: state.detailStats.plannedRecruiterActivityCandidates,
+        detailTargetsPlannedRecruiterActivityCandidates: 0,
         detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
         detailAttempted: state.detailStats.attempted,
         detailSucceeded: state.detailStats.succeeded,
@@ -833,7 +819,8 @@
       ['pages', '搜索页码'],
       ['collectedAt', '采集时间'],
       ['rawText', '卡片原文'],
-      ['description', '职位描述摘要']
+      ['description', '职位描述摘要'],
+      ['recruiterActivityUnverified', '招聘者活跃未核实']
     ];
     const lines = [columns.map(([, label]) => csvCell(label)).join(',')];
     for (const job of jobs) lines.push(columns.map(([key]) => csvCell(job[key])).join(','));
@@ -1102,7 +1089,6 @@
 
   function detailPriority(job, initialClass) {
     let score = Number(job.relevanceScore || 0);
-    if (initialClass.reason === '待详情页确认招聘者活跃') score += 2000;
     if (isRemoteJob(job) && initialClass.pendingDetail) {
       // “关键词 + 远程”搜出来的卡片若还标着线下城市，先让地点本身就是全国/远程的候选进额度。
       score += initialClass.reason === '待详情页确认远程（卡片为线下城市）' ? 300 : 1000;
@@ -1141,96 +1127,56 @@
     return [...primary, ...deferredDuplicates];
   }
 
-  function selectDetailTargets(uniqueTargets, detailMode, detailLimit) {
-    const limit = Math.max(0, Number(detailLimit || 0));
-    if (!limit) return [];
-    if (detailMode !== 'matched') return uniqueTargets.slice(0, limit);
+  function selectDetailTargets(uniqueTargets, detailMode, limit) {
+    const pendingRemote = uniqueTargets.filter(target => target.initialClass.pendingDetail && isRemoteJob(target.job));
+    if (detailMode === 'off' || !limit) return [];
+    if (detailMode === 'remote') return pendingRemote.slice(0, limit);
+    const accepted = prioritizeAcceptedTargetsForReview(uniqueTargets.filter(target => target.initialClass.keep));
+    const remoteReserve = limit >= 2
+      ? Math.min(REMOTE_DETAIL_QUOTA, pendingRemote.length, Math.max(1, Math.floor(limit / 4)))
+      : 0;
+    const picked = accepted.slice(0, limit - remoteReserve);
+    return [...picked, ...pendingRemote.slice(0, limit - picked.length)];
+  }
 
-    const acceptedTargets = prioritizeAcceptedTargetsForReview(
-      uniqueTargets.filter(target => target.initialClass.keep)
-    );
-    const pendingRecruiterActivityTargets = uniqueTargets.filter(target => (
-      target.initialClass.reason === '待详情页确认招聘者活跃'
-    ));
-    const pendingOtherTargets = uniqueTargets.filter(target => (
-      target.initialClass.pendingDetail && target.initialClass.reason !== '待详情页确认招聘者活跃'
-    ));
-    const pendingRemoteTargets = pendingOtherTargets.filter(target => isRemoteJob(target.job));
-    const pendingRestTargets = pendingOtherTargets.filter(target => !isRemoteJob(target.job));
-    const reviewQuota = Math.min(
-      Math.ceil(REQUIREMENT_REVIEW_SAMPLE_SIZE * REQUIREMENT_REVIEW_DETAIL_OVERFETCH_FACTOR),
-      limit,
-      acceptedTargets.length
-    );
-    const remoteQuota = Math.min(REMOTE_DETAIL_QUOTA, limit);
-    // 顺序 = 已通过岗位（Requirement 验收）→ 远程候选（固定小额度）→ 活跃待确认 → 其他。
-    // 活跃待确认队列动辄几百条，远程候选必须有自己的份额，否则永远排不到；
-    // 反过来远程也只拿 REMOTE_DETAIL_QUOTA，不能像 v1.4.9 那样把 40 个额度吃光。
-    const ordered = [
-      ...acceptedTargets.slice(0, reviewQuota),
-      ...pendingRemoteTargets.slice(0, remoteQuota),
-      ...pendingRecruiterActivityTargets,
-      ...pendingRestTargets,
-      ...acceptedTargets.slice(reviewQuota),
-      ...pendingRemoteTargets.slice(remoteQuota)
-    ];
-    const selected = [];
-    const seenUrls = new Set();
-    for (const target of ordered) {
-      const url = target.job.url;
-      if (!url || seenUrls.has(url)) continue;
-      seenUrls.add(url);
-      selected.push(target);
-      if (selected.length >= limit) break;
+  function planDetailTargets(uniqueJobs, config) {
+    const limit = Math.max(0, Math.floor(Number(config.detailLimit ?? 40)));
+    if (config.detailMode === 'off' || !limit) return { targets: [], deferredAccepted: 0 };
+    const byUrl = new Map();
+    for (const rawJob of uniqueJobs) {
+      const initialClass = classify(rawJob, config, 'initial');
+      const job = initialClass.job;
+      if (!job.url || !(initialClass.pendingDetail || (config.detailMode === 'matched' && initialClass.keep))) continue;
+      const priority = detailPriority(job, initialClass);
+      const previous = byUrl.get(job.url);
+      // A shared URL supplies both scopes, so charge it to the accepted bucket.
+      if (!previous || (initialClass.keep && !previous.initialClass.keep)
+        || (initialClass.keep === previous.initialClass.keep && priority > previous.priority)) {
+        byUrl.set(job.url, { job, initialClass, priority });
+      }
     }
-    return selected;
+    const uniqueTargets = [...byUrl.values()].sort((a, b) => b.priority - a.priority);
+    const targets = selectDetailTargets(uniqueTargets, config.detailMode, limit);
+    return {
+      targets,
+      deferredAccepted: uniqueTargets.filter(item => item.initialClass.keep).length
+        - targets.filter(item => item.initialClass.keep).length
+    };
   }
 
   async function enrichDetails(uniqueJobs, config) {
-    if (config.detailMode === 'off' || Number(config.detailLimit || 0) <= 0) return uniqueJobs;
-
-    const initial = uniqueJobs.map(job => classify(job, config, 'initial'));
-    let targets = initial
-      .filter(item => item.pendingDetail)
-      .map(item => ({ job: item.job, initialClass: item }));
-
-    if (config.detailMode === 'matched') {
-      const additional = initial
-        .filter(item => !item.pendingDetail && (item.keep || item.reason === '通过'))
-        .map(item => ({ job: item.job, initialClass: item }));
-      targets.push(...additional);
-    }
-
-    const targetMap = new Map();
-    for (const target of targets) {
-      if (!target.job.url) continue;
-      const previous = targetMap.get(target.job.url);
-      if (!previous || detailPriority(target.job, target.initialClass) > detailPriority(previous.job, previous.initialClass)) {
-        targetMap.set(target.job.url, target);
-      }
-    }
-    const detailLimit = Number(config.detailLimit || 40);
-    const uniqueTargets = [...targetMap.values()]
-      .sort((a, b) => detailPriority(b.job, b.initialClass) - detailPriority(a.job, a.initialClass));
-    targets = selectDetailTargets(uniqueTargets, config.detailMode, detailLimit);
+    if (config.detailMode === 'off') return uniqueJobs;
+    const { targets, deferredAccepted } = planDetailTargets(uniqueJobs, config);
     state.detailStats.plannedAccepted = targets.filter(target => target.initialClass.keep).length;
-    state.detailStats.plannedRemoteCandidates = targets.filter(target => (
-      target.initialClass.pendingDetail && isRemoteJob(target.job)
-    )).length;
-    state.detailStats.plannedRecruiterActivityCandidates = targets.filter(target => (
-      target.initialClass.reason === '待详情页确认招聘者活跃'
-    )).length;
-    state.detailStats.deferredAccepted = Math.max(
-      0,
-      uniqueTargets.filter(target => target.initialClass.keep).length - state.detailStats.plannedAccepted
-    );
+    state.detailStats.plannedRemoteCandidates = targets.length - state.detailStats.plannedAccepted;
+    state.detailStats.deferredAccepted = deferredAccepted;
 
     if (!targets.length) {
       log('没有需要补采详情的岗位。');
       return uniqueJobs;
     }
 
-    log(`开始详情补采：${targets.length} 条。已通过岗位 ${state.detailStats.plannedAccepted} 条，全国远程候选 ${state.detailStats.plannedRemoteCandidates} 条，招聘者活跃待确认 ${state.detailStats.plannedRecruiterActivityCandidates} 条；正式验收优先补齐真实性信号和通过岗位 JD。`);
+    log(`开始详情补采：${targets.length} 条。已通过岗位 ${state.detailStats.plannedAccepted} 条，全国远程候选 ${state.detailStats.plannedRemoteCandidates} 条。活跃度未核实不单独占用额度。`);
     const detailsByUrl = new Map();
     let index = 0;
     for (const { job } of targets) {
@@ -1290,7 +1236,7 @@
 
     return uniqueJobs.map(job => {
       const detail = detailsByUrl.get(job.url);
-      return detail ? normalizeJob({ ...job, ...detail }) : job;
+      return detail ? normalizeJob({ ...job, ...detail, recruiterActive: detail.recruiterActive || job.recruiterActive }) : job;
     });
   }
 
@@ -1316,7 +1262,7 @@
     const c = diagnostics.counts;
     log(`过滤诊断：原始 ${c.rawCards}，按范围去重 ${c.uniqueCardsBeforeFilter}，薪资可解析 ${c.salaryParsed}，其中字体解码 ${c.salaryDecodedFromPua}，最终 ${c.finalAfterCrossScopeDedupe}。`);
     log(`详情补采：尝试 ${c.detailAttempted}，页面读取成功 ${c.detailSucceeded}，失败 ${c.detailFailed}；完整 JD ${c.fullJd}，可用于 Requirement 验收 ${c.requirementReviewEligible}。`);
-    log(`招聘者活跃：卡片/详情已知 ${c.recruiterActivityKnownBeforeFinalFilter}，未知 ${c.recruiterActivityUnknown}（未知不再当作僵尸岗，保留 ${c.recruiterActivityUnverifiedKept}）。`);
+    log(`招聘者活跃：卡片/详情已知 ${c.recruiterActivityKnownBeforeFinalFilter}，未知 ${c.recruiterActivityUnknown}；保留时仍未核实 ${c.recruiterActivityUnverifiedKept} 条（包括跨窗口标签）。`);
     for (const row of diagnostics.searchCoverage) {
       const statuses = Object.entries(row.pageStatuses)
         .map(([status, count]) => `${PAGE_STATUS_LABELS[status]} ${count}`).join('；');
@@ -1339,7 +1285,7 @@
         '岗位相关度低于阈值': '可下调“岗位与搜索词最低匹配分”，或换更贴近岗位名的搜索词。',
         '招聘者超过': '可把“招聘者最近多久活跃”改成不限制，扩大召回。',
         '未识别远程标记': '“全国远程”是用“关键词 + 远程”搜的，命中要求卡片或详情里出现远程证据；不需要远程可以关掉它。',
-        待详情页确认远程: '远程候选的详情额度只有 10 个，可调大“详情页补采上限”。'
+        待详情页确认远程: '纯远程候选可用单独的补采模式；混合模式最多优先预留 10 个名额。'
       };
       const hint = Object.entries(hints).find(([prefix]) => dominant[0].startsWith(prefix));
       if (hint) log(`建议：${hint[1]}`);
@@ -1363,7 +1309,12 @@
       remoteConfidence: item.remote.confidence,
       remoteEvidence: item.remote.evidence
     }));
-    const finalJobs = sortFinalJobs(dedupe(keptBeforeDedupe, false), state.config);
+    const finalJobs = sortFinalJobs(dedupe(keptBeforeDedupe, false), state.config).map(job => ({
+      ...job,
+      recruiterActivityUnverified: activityUnverified(
+        recruiterActivityWithin(job.recruiterActive, state.config.recruiterActivityMaxDays)
+      )
+    }));
     const statistics = buildStatistics(finalJobs, uniqueScopedJobs);
     const diagnostics = buildDiagnostics(state.jobs, uniqueScopedJobs, classified, finalJobs, state.config, statistics);
     renderDiagnostics(diagnostics);
@@ -1447,6 +1398,7 @@
     descriptionSimilarity,
     selectDistinctRequirementReviewJobs,
     selectDetailTargets,
+    planDetailTargets,
     prioritizeAcceptedTargetsForReview,
     detailCardIdentity,
     uniqueJobsByUrl

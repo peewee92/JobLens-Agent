@@ -211,6 +211,7 @@ function detailTarget(index, kind = 'accepted', overrides = {}) {
     area: '武汉·洪山区',
     salary: '20-30K',
     url: `https://www.zhipin.com/job_detail/detail-target-${kind}-${index}.html`,
+    scopeType: kind === 'remote' ? 'remote' : 'city',
     ...overrides
   };
   return {

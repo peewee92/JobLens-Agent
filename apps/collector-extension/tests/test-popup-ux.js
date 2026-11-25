@@ -29,6 +29,6 @@ assert.ok(js.includes("el('scarcityHints')"), 'popup should render dynamic resul
 assert.ok(js.includes('12–20K'), 'strict salary explanation should include a concrete example');
 assert.ok(js.includes('建议 2–3 页'), 'one-page searches should explain that coverage is limited');
 assert.ok(html.includes('30天内（推荐）'), 'recruiter activity filter should default to the recommended 30-day window');
-assert.ok(js.includes('活跃时间未知时会优先尝试详情确认'), 'popup should explain unknown recruiter activity fallback');
+assert.ok(js.includes('活跃时间未知或无法确认在窗口内时保留'), 'popup should explain uncertain recruiter activity');
 
 console.log('Popup UX copy and guidance tests passed.');
