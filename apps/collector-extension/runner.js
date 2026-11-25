@@ -17,7 +17,8 @@
     extractSkills,
     scoreRelevance,
     employmentFlags,
-    normalizeDigitMap
+    normalizeDigitMap,
+    currentBossJobUrl
   } = globalThis.BossJobFilterLib;
 
   const REQUIREMENT_REVIEW_SAMPLE_SIZE = 20;
@@ -767,6 +768,7 @@
       rejectedReasons,
       samplesByReason,
       pageStats: state.pageStats,
+      searchCoverage: buildSearchCoverage(state.pageStats, classified),
       statistics
     };
   }
@@ -936,6 +938,82 @@
     throw new Error('等待人工验证超时或任务已停止');
   }
 
+  function recordSearchPage(result, meta, history, scopeSeen) {
+    const observedPage = result?.observedPage ?? null;
+    const row = {
+      status: 'unready', issue: result?.issue || 'no_readable_cards', observedPage,
+      jobs: [], cards: 0, newWithinQuery: 0, newWithinScope: 0,
+      sameAsPreviousPage: false, noNewReads: 0
+    };
+    if (result?.blocked) {
+      row.status = 'blocked';
+      row.issue = '';
+    } else if (result?.error) {
+      row.status = 'read_failed';
+      row.issue = 'page_read_failed';
+    } else if (observedPage !== null && observedPage !== meta.page) {
+      row.issue = 'visible_page_mismatch';
+    } else if (result?.pageState === 'no_results') {
+      row.status = 'no_results';
+      row.issue = '';
+    } else if (result?.pageState === 'read') {
+      const urls = new Set();
+      for (const job of result.jobs || []) {
+        const url = currentBossJobUrl(job.url);
+        if (!url || urls.has(url)) continue;
+        urls.add(url);
+        row.jobs.push({ ...job, url });
+        if (!history.seen.has(url)) row.newWithinQuery += 1;
+        if (!scopeSeen.has(url)) row.newWithinScope += 1;
+        history.seen.add(url);
+        scopeSeen.add(url);
+      }
+      if (urls.size) {
+        row.cards = urls.size;
+        row.sameAsPreviousPage = history.previous?.size === urls.size
+          && [...urls].every(url => history.previous.has(url));
+        row.status = result.lastPage ? 'last_page' : row.sameAsPreviousPage ? 'repeated' : 'read';
+        row.issue = '';
+        history.previous = urls;
+        history.noNewReads = row.newWithinQuery === 0 ? history.noNewReads + 1 : 0;
+        row.noNewReads = history.noNewReads;
+        return row;
+      }
+    }
+    history.previous = null;
+    history.noNewReads = 0;
+    return row;
+  }
+
+  function buildSearchCoverage(pageStats, classified) {
+    const scopes = new Map();
+    for (const { scope, scopeType, status, cards, newWithinScope } of pageStats) {
+      if (!scopes.has(scope)) scopes.set(scope, {
+        scope, scopeType, requestedPages: 0, readPages: 0, rawHits: 0,
+        uniqueCards: 0, kept: 0, pageStatuses: {}, rejectedReasons: {}
+      });
+      const row = scopes.get(scope);
+      row.requestedPages += 1;
+      if (['read', 'repeated', 'last_page', 'no_results'].includes(status)) row.readPages += 1;
+      row.rawHits += cards;
+      row.uniqueCards += newWithinScope;
+      row.pageStatuses[status] = (row.pageStatuses[status] || 0) + 1;
+    }
+    for (const item of classified) {
+      const row = scopes.get(item.job.scope);
+      if (!row) continue;
+      if (item.keep) row.kept += 1;
+      else row.rejectedReasons[item.reason] = (row.rejectedReasons[item.reason] || 0) + 1;
+    }
+    return [...scopes.values()];
+  }
+
+  const PAGE_STATUS_LABELS = {
+    read: '已读', repeated: '链接集合与上一页相同', last_page: '已读（站点标记末页）',
+    no_results: '站点明确无结果', unready: '页面未就绪或无法确认', read_failed: '读取失败',
+    blocked: '等待人工登录或验证'
+  };
+
   async function collectSearchPages(config) {
     const tasks = buildTasks(config);
     const pagesPerQuery = Number(config.pagesPerQuery || 1);
@@ -948,9 +1026,10 @@
     state.jobTabId = tab.id;
     let completed = 0;
 
+    const seenByScope = new Map();
     for (const task of tasks) {
-      const taskSeen = new Set();
-      let consecutiveNoNew = 0;
+      if (!seenByScope.has(task.scope)) seenByScope.set(task.scope, new Set());
+      const taskHistory = { seen: new Set(), previous: null, noNewReads: 0 };
       for (let pageNo = 1; pageNo <= pagesPerQuery; pageNo += 1) {
         if (state.aborted) throw new Error('用户已停止任务');
         const url = makeUrl(task, pageNo);
@@ -969,18 +1048,24 @@
 
         log(`${task.scope} · ${task.keyword} · 第 ${pageNo} 页`);
         const startedAt = Date.now();
-        await waitForTabComplete(state.jobTabId, url);
-        await delay(1_300);
-        let result = await sendToJobTab({ type: 'SCRAPE_PAGE', meta, digitMap: state.digitMap });
-        if (result?.blocked) result = await waitForVerification(meta, 'SCRAPE_PAGE');
-        if (result?.error) log(`页面解析提示：${result.error}`);
-        mergeDigitMap(result?.digitMap);
-
-        const jobs = result?.jobs || [];
-        const newUrls = jobs.filter(job => job.url && !taskSeen.has(job.url));
-        for (const job of jobs) taskSeen.add(job.url);
+        let result;
+        let interruption;
+        try {
+          await waitForTabComplete(state.jobTabId, url);
+          await delay(1_300);
+          if (state.aborted) throw new Error('用户已停止任务');
+          result = await sendToJobTab({ type: 'SCRAPE_PAGE', meta, digitMap: state.digitMap });
+          if (result?.blocked) result = await waitForVerification(meta, 'SCRAPE_PAGE');
+        } catch (error) {
+          if (state.aborted || result?.blocked) interruption = error;
+          else result = { error: true };
+        }
+        const { jobs, noNewReads, ...outcome } = recordSearchPage(
+          result, meta, taskHistory, seenByScope.get(task.scope)
+        );
+        if (jobs.length) mergeDigitMap(result?.digitMap);
         state.jobs.push(...jobs);
-        const extraction = result?.extraction || {};
+        const extraction = jobs.length ? result?.extraction || {} : {};
         state.pageStats.push({
           scope: task.scope,
           scopeType: task.scopeType,
@@ -990,25 +1075,24 @@
           keyword: task.keyword,
           query: task.query,
           page: pageNo,
-          cards: jobs.length,
-          newWithinQuery: newUrls.length,
-          sameAsPreviousPage: pageNo > 1 && newUrls.length === 0,
+          ...outcome,
           puaCards: extraction.puaCards || 0,
           decodedCharacters: extraction.decodedCharacters || 0,
           durationMs: Date.now() - startedAt,
-          salarySamples: result?.salarySamples || []
+          salarySamples: jobs.length ? result?.salarySamples || [] : []
         });
 
-        log(`抓到 ${jobs.length} 条，新岗位 ${newUrls.length}；字体混淆卡片 ${extraction.puaCards || 0}，已解码字符 ${extraction.decodedCharacters || 0}。`);
-        log(`本页薪资样例：${(result?.salarySamples || []).join(' / ') || '无'}`);
+        log(`${PAGE_STATUS_LABELS[outcome.status]}：请求第 ${pageNo} 页，界面页码 ${outcome.observedPage ?? '未确认'}；${jobs.length} 条，该词新增 ${outcome.newWithinQuery} 条、该范围新增 ${outcome.newWithinScope} 条。`);
+        if (jobs.length) log(`本页薪资样例：${(result?.salarySamples || []).join(' / ') || '无'}`);
 
         completed += 1;
         el('progress').value = completed;
         el('summary').textContent = `搜索进度 ${completed}/${total}，累计原始 ${state.jobs.length} 条。`;
 
-        consecutiveNoNew = newUrls.length === 0 ? consecutiveNoNew + 1 : 0;
-        if (config.smartStop && pageNo >= 2 && consecutiveNoNew >= 1) {
-          log(`该关键词第 ${pageNo} 页与上一页完全相同（${jobs.length} 条全部已抓过），智能停止后续页；若这不是关键词本身结果太少，说明 BOSS 没有真正翻页。`);
+        if (interruption) throw interruption;
+        if (outcome.status === 'last_page' || outcome.status === 'no_results') break;
+        if (config.smartStop && noNewReads >= 2 && pageNo < pagesPerQuery) {
+          log('连续两次成功读到列表但该词没有新增链接，提前停止；这不代表已确认站点末页。');
           break;
         }
         await delay(randomDelay(config));
@@ -1233,6 +1317,13 @@
     log(`过滤诊断：原始 ${c.rawCards}，按范围去重 ${c.uniqueCardsBeforeFilter}，薪资可解析 ${c.salaryParsed}，其中字体解码 ${c.salaryDecodedFromPua}，最终 ${c.finalAfterCrossScopeDedupe}。`);
     log(`详情补采：尝试 ${c.detailAttempted}，页面读取成功 ${c.detailSucceeded}，失败 ${c.detailFailed}；完整 JD ${c.fullJd}，可用于 Requirement 验收 ${c.requirementReviewEligible}。`);
     log(`招聘者活跃：卡片/详情已知 ${c.recruiterActivityKnownBeforeFinalFilter}，未知 ${c.recruiterActivityUnknown}（未知不再当作僵尸岗，保留 ${c.recruiterActivityUnverifiedKept}）。`);
+    for (const row of diagnostics.searchCoverage) {
+      const statuses = Object.entries(row.pageStatuses)
+        .map(([status, count]) => `${PAGE_STATUS_LABELS[status]} ${count}`).join('；');
+      const mainReasons = Object.entries(row.rejectedReasons).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([reason, count]) => `${reason} ${count}`).join('；');
+      log(`${row.scope}：请求 ${row.requestedPages} 页，读到结果 ${row.readPages} 页（${statuses}）；命中 ${row.rawHits} 次，去重候选 ${row.uniqueCards} 条，保留 ${row.kept} 条（跨范围去重前）。${mainReasons ? `主要排除：${mainReasons}。` : ''}`);
+    }
     const reasons = Object.entries(diagnostics.rejectedReasons).map(([reason, count]) => `${reason} ${count}`).join('；');
     if (reasons) log(`过滤原因：${reasons}`);
   }
@@ -1342,6 +1433,9 @@
     normalizeRuntimeConfig,
     buildTasks,
     makeUrl,
+    recordSearchPage,
+    buildSearchCoverage,
+    collectSearchPages,
     remoteQueryFor,
     normalizeJob,
     mergeJobs,

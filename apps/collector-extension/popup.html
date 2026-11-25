@@ -153,7 +153,7 @@
           <label>最多打开多少个详情页 <span class="help-icon" tabindex="0" data-tooltip="限制本次最多补采多少个岗位详情。太低会影响远程确认和完整 JD 数量，但不会扩大 BOSS 搜索范围。">?</span>
             <input id="detailLimit" type="number" min="0" max="200" value="40">
           </label>
-          <label>什么时候提前停止翻页 <span class="help-icon" tabindex="0" data-tooltip="推荐遇到连续没有新岗位时提前停，避免重复访问；如果你想强制把设定页数全部扫完，可关闭提前停止。">?</span>
+          <label>什么时候提前停止翻页 <span class="help-icon" tabindex="0" data-tooltip="连续两次读到列表但没有新岗位时提前停；一次重复或页面没读到不会触发。如果你想强制把设定页数全部扫完，可关闭提前停止。">?</span>
             <select id="smartStop">
               <option value="true">连续没有新岗位就提前停止（推荐）</option>
               <option value="false">按设定页数全部搜索</option>

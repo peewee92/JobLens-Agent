@@ -150,6 +150,22 @@
     return map;
   }
 
+  const RECOMMENDATIONS = '.recommend-job, .job-recommend, .similar-job, aside';
+  const VERIFICATION_TEXT = /安全验证|请完成验证|滑动验证|访问过于频繁|异常访问|系统检测到异常/;
+  const visible = node => node.getClientRects().length > 0
+    && !node.closest('[hidden], [aria-hidden="true"]')
+    && getComputedStyle(node).visibility === 'visible';
+  const allVisible = (root, selector) => [...root.querySelectorAll(selector)].filter(visible);
+  const visibleText = node => clean(node?.innerText || '');
+
+  function hasBlockingOverlay() {
+    return VERIFICATION_TEXT.test(document.title) || /登录后查看职位/.test(document.title)
+      || /^\/web\/user(?:\/(?:login|register))?\/?$|^\/(?:wapi\/)?(?:security|captcha)(?:\/|$)/i.test(location.pathname)
+      || allVisible(document, '.geetest_panel, .captcha-container, .security-check, #captcha, .login-dialog, .login-modal, .job-login-mask').length > 0
+      || allVisible(document, '[role="dialog"], .boss-popup__title').some(node =>
+        VERIFICATION_TEXT.test(visibleText(node)) || /请登录|登录后/.test(visibleText(node)));
+  }
+
   async function autoScroll() {
     const maxSteps = 8;
     let previousHeight = 0;
@@ -174,11 +190,31 @@
 
   function getCardForAnchor(anchor) {
     return anchor.closest(
-      '.job-card-wrapper, .job-card-box, .job-list-box, li, article, [class*="job-card"], [class*="job-list"]'
+      '.job-card-wrapper, .job-card-box, li, article, [class*="job-card"]'
     ) || anchor.parentElement;
   }
 
   function extractList(meta = {}, initialDigitMap = {}) {
+    const pageFailure = (pageState, issue = '') => ({ jobs: [], pageState, issue, blocked: pageState === 'blocked' });
+    if (hasBlockingOverlay()) return pageFailure('blocked');
+    const params = new URL(location.href).searchParams;
+    if (location.origin !== 'https://www.zhipin.com' || location.pathname !== '/web/geek/jobs'
+      || params.get('query') !== meta.searchQuery || params.get('city') !== String(meta.cityCode)
+      || Number(params.get('page') || 1) !== meta.page) return pageFailure('unready', 'search_context_mismatch');
+
+    const lists = allVisible(document, '.job-list-box').filter(node => !node.closest(RECOMMENDATIONS));
+    if (document.readyState === 'loading' || lists.length !== 1) return pageFailure('unready', 'main_list_unavailable');
+    const list = lists[0];
+    // Observe standard semantics when supplied. Do not infer the active page
+    // from the URL or guess site-specific controls.
+    const activePages = allVisible(list.closest('main') || list.parentElement || list, 'nav [aria-current="page"]').filter(node => !node.closest(RECOMMENDATIONS));
+    const activePage = activePages.length === 1 ? activePages[0] : null;
+    const label = visibleText(activePage);
+    const observedPage = /^\d{1,3}$/.test(label) && Number(label) > 0 ? Number(label) : null;
+    const next = observedPage !== null ? activePage.closest('nav')?.querySelector('[rel~="next"]') : null;
+    const lastPage = Boolean(next && visible(next)
+      && (next.disabled === true || next.getAttribute('aria-disabled') === 'true'));
+
     const selectors = {
       title: ['.job-name', '.job-title', '[class*="job-name"]', '[class*="job-title"]'],
       area: [
@@ -199,8 +235,11 @@
       ]
     };
 
-    const anchors = [...document.querySelectorAll('a[href*="/job_detail/"]')];
-    const cards = [...new Set(anchors.map(getCardForAnchor).filter(Boolean))];
+    const anchors = allVisible(list, 'a[href*="/job_detail/"]').filter(anchor =>
+      !anchor.closest(RECOMMENDATIONS) && currentBossJobUrl(anchor.href));
+    const cardFor = new Map(anchors.map(anchor => [anchor, getCardForAnchor(anchor)]).filter(([, card]) =>
+      card && card !== list && list.contains(card)));
+    const cards = [...new Set(cardFor.values())];
     const digitMap = learnPageDigitMap(cards, initialDigitMap);
     const seen = new Set();
     const jobs = [];
@@ -208,9 +247,9 @@
     let decodedCharacters = 0;
 
     for (const anchor of anchors) {
-      const url = String(anchor.href || anchor.getAttribute('href') || '').split('?')[0];
-      if (!url || seen.has(url) || !isJobDetailHref(url)) continue;
-      const card = getCardForAnchor(anchor);
+      const url = currentBossJobUrl(anchor.href);
+      if (seen.has(url)) continue;
+      const card = cardFor.get(anchor);
       if (!card) continue;
 
       const originalRawText = clean(card.innerText || card.textContent);
@@ -268,14 +307,18 @@
       });
     }
 
-    const pageDecoded = decodeBossText(document.body?.innerText || document.body?.textContent || '', digitMap);
-    const pageText = pageDecoded.text;
+    const pageDecoded = decodeBossText(visibleText(list), digitMap);
+    const explicitEmpty = anchors.length === 0
+      && /^(?:暂无(?:相关)?(?:职位|岗位)|未找到(?:相关)?(?:职位|岗位)|没有找到(?:相关)?(?:职位|岗位))[。！!]?$/.test(pageDecoded.text);
+    const blocked = anchors.length === 0 && VERIFICATION_TEXT.test(pageDecoded.text);
     return {
-      jobs,
+      jobs: blocked ? [] : jobs,
       digitMap,
-      blocked: /(安全验证|请完成验证|滑动验证|访问过于频繁|异常访问|系统检测到异常)/.test(pageText),
-      title: document.title,
-      pageText: pageText.slice(0, 1000),
+      blocked,
+      pageState: blocked ? 'blocked' : jobs.length ? 'read' : explicitEmpty ? 'no_results' : 'unready',
+      issue: !jobs.length && !explicitEmpty && !blocked ? 'no_readable_cards' : '',
+      observedPage,
+      lastPage,
       salarySamples: jobs.map(job => `${job.salary || '空'} [${job.salarySource}]`).slice(0, 8),
       extraction: {
         anchors: anchors.length,
@@ -389,22 +432,9 @@
   // Quick save is intentionally separate from bulk scraping: it never scans
   // the whole body, scrolls, or joins a search card to a different document.
   function captureCurrentJob(expectedUrl) {
-    const visible = node => node.getClientRects().length > 0
-      && !node.closest('[hidden], [aria-hidden="true"]')
-      && getComputedStyle(node).visibility === 'visible';
-    const all = (root, selector) => [...root.querySelectorAll(selector)].filter(visible);
-    const visibleText = node => clean(node?.innerText || '');
-    const pathname = location.pathname;
+    const all = allVisible;
     const pageUrl = currentBossJobUrl(location.href);
-    const blocked = /(?:安全验证|请完成验证|滑动验证|访问过于频繁|异常访问|系统检测到异常|登录后查看职位)/.test(document.title)
-      || /^\/(?:web\/user\/(?:login|register)|(?:wapi\/)?(?:security|captcha))(?:\/|$)/i.test(pathname)
-      || all(document, [
-        '.geetest_panel', '.captcha-container', '.security-check', '#captcha',
-        '.login-dialog', '.login-modal', '.job-login-mask'
-      ].join(', ')).length > 0
-      || all(document, '[role="dialog"], .boss-popup__title').some(node =>
-        /安全验证|请完成验证|滑动验证|访问过于频繁|请登录|登录后/.test(visibleText(node)));
-    if (blocked) return { status: 'blocked' };
+    if (hasBlockingOverlay()) return { status: 'blocked' };
     if (!expectedUrl) return { status: 'unsupported' };
     if (pageUrl !== expectedUrl) return { status: 'changed' };
     if (document.readyState === 'loading') return { status: 'unready' };
@@ -494,7 +524,8 @@
     getElementText,
     isJobDetailHref,
     chooseDescriptionCandidate,
-    captureCurrentJob
+    captureCurrentJob,
+    extractList
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;
 
@@ -515,7 +546,7 @@
 
     if (message?.type === 'SCRAPE_PAGE') {
       (async () => {
-        await autoScroll();
+        if (!hasBlockingOverlay()) await autoScroll();
         sendResponse(extractList(message.meta || {}, message.digitMap || {}));
       })().catch(error => sendResponse({
         jobs: [],
