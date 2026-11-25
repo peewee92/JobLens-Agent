@@ -34,6 +34,10 @@ export function proxy(request: NextRequest) {
     destination.pathname = "/";
     return NextResponse.redirect(destination, 308);
   }
+  // Never fall through to the hosted HTML fallback for retired session endpoints.
+  if (path === "/api/demo/session" || path === "/api/byok/demo/session") {
+    return new NextResponse(null, {status: 404});
+  }
   if ((path === PRIVATE_WORKSPACE_PATH || path.startsWith(`${PRIVATE_WORKSPACE_PATH}/`)) &&
       hostingOrigin(process.env.JOBLENS_PRIVATE_UPSTREAM_URL)) return NextResponse.next();
   if (!publicDemoEnabled()) return NextResponse.next();
