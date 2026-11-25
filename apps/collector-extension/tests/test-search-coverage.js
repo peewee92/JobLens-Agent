@@ -8,7 +8,7 @@ for (const file of ['lib.js', 'runner.js', 'content.js']) {
   vm.runInContext(fs.readFileSync(require.resolve('../' + file), 'utf8'), context, { filename: file });
 }
 const { recordSearchPage, buildSearchCoverage, collectSearchPages } = context.BossAiRunnerInternals;
-const { extractList } = context.BossAiContentInternals;
+const { extractDetail, extractList } = context.BossAiContentInternals;
 const url = id => `https://www.zhipin.com/job_detail/example-${id}.html`;
 const scope = { scope: '武汉', scopeType: 'city', cityName: '武汉', cityCode: '101200100', searchQuery: 'AI' };
 const page = (n, ids, extra = {}) => ({ observedPage: n, pageState: 'read', jobs: ids.map(id => ({ url: url(id) })), ...extra });
@@ -165,4 +165,94 @@ test('batch loop reaches page 3 on overlap or unread page and stops on a confirm
   assert.match(log, /链接集合与上一页相同/);
   assert.match(log, /页面未就绪或无法确认/);
   assert.match(log, /站点标记末页/);
+});
+
+function detailHarness(readDetail) {
+  const local = vm.createContext({
+    URL, URLSearchParams,
+    __BOSS_JOB_FILTER_TEST__: true,
+    setTimeout(callback, ms) {
+      const timer = { cancelled: false };
+      // Complete navigations synchronously; the 120th virtual 5-second tick
+      // fires the independent deadline while the verification read is pending.
+      if (ms === 600_000) deadline = () => { if (!timer.cancelled) callback(); };
+      else if (ms !== 70_000) queueMicrotask(() => {
+        if (!timer.cancelled) callback();
+        if (ms === 5_000 && ++polls === 120) deadline?.();
+      });
+      return timer;
+    },
+    clearTimeout(timer) { if (timer) timer.cancelled = true; },
+    document: { getElementById: () => log }
+  });
+  const log = { textContent: '' };
+  const listeners = new Set();
+  const navigated = [];
+  let deadline;
+  let polls = 0;
+  local.chrome = { tabs: {
+    onUpdated: {
+      addListener: listener => listeners.add(listener),
+      removeListener: listener => listeners.delete(listener)
+    },
+    async update(id, { url }) {
+      if (!url) return;
+      navigated.push(url);
+      for (const listener of listeners) listener(id, { status: 'complete' });
+    },
+    async sendMessage(_id, { meta }) { return readDetail(meta, polls); }
+  } };
+  for (const file of ['lib.js', 'runner.js']) {
+    vm.runInContext(fs.readFileSync(require.resolve('../' + file), 'utf8'), local, { filename: file });
+  }
+  const { enrichDetails, buildStatistics } = local.BossAiRunnerInternals;
+  const jobs = ['a', 'b', 'c'].map(id => ({
+    ...scope, url: url(id), title: '后端工程师 ' + id, salary: '20-30K', recruiterActive: '今日活跃'
+  }));
+  return {
+    navigated,
+    async collect() {
+      const output = await enrichDetails(jobs, { detailMode: 'matched', detailLimit: 3 });
+      return { output, totals: buildStatistics([], output).totals };
+    }
+  };
+}
+
+test('human verification timeout preserves the first detail and does not open the next one', async () => {
+  const harness = detailHarness((meta, polls) => {
+    if (meta.url !== url('b')) return { description: '示例正文', collectedAt: '2026-01-01' };
+    if (polls === 1) return { blocked: false, error: 'not loaded after login' };
+    if (polls === 120) return new Promise(() => {}); // An unresponsive tab cannot defeat the deadline.
+    return { blocked: true };
+  });
+  const { output, totals } = await harness.collect();
+  assert.deepEqual(harness.navigated, [url('a'), url('b')]);
+  assert.equal(output[0].detailSucceeded, true);
+  assert.equal(output[0].recruiterActive, '今日活跃');
+  assert.equal(output[1].detailSucceeded, false);
+  assert.equal(Boolean(output[2].detailAttempted), false);
+  assert.equal(totals.detailTargetsUnattempted, 1);
+  assert.equal(totals.detailStopReason, 'verification_timeout');
+});
+
+test('a verification actually cleared by the user and an ordinary read failure do not stop the detail queue', async () => {
+  const harness = detailHarness((meta, polls) => {
+    if (meta.url === url('a') && !polls) return { blocked: true };
+    if (meta.url === url('b')) return { error: 'ordinary read failure' };
+    return { description: '示例正文', collectedAt: '2026-01-01' };
+  });
+  const { output, totals } = await harness.collect();
+  assert.deepEqual(harness.navigated, [url('a'), url('b'), url('c')]);
+  assert.deepEqual(Array.from(output, job => job.detailSucceeded), [true, false, true]);
+  assert.equal(totals.detailTargetsUnattempted, 0);
+  assert.equal(totals.detailStopReason, null);
+});
+
+
+test('bulk detail does not treat a login prompt or a changed tab as a successful read', () => {
+  context.location = new URL('https://www.zhipin.com/web/user/login');
+  context.document = { title: '用户登录', querySelectorAll: () => [] };
+  assert.equal(extractDetail({ url: url('a') }).blocked, true);
+  context.location = new URL(url('b'));
+  assert.match(extractDetail({ url: url('a') }).error, /地址已变化/);
 });

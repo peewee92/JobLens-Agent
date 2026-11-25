@@ -391,9 +391,16 @@
   }
 
   function extractDetail(meta = {}, digitMap = {}) {
+    if (hasBlockingOverlay()) return { blocked: true };
+    if (!meta.url || currentBossJobUrl(location.href) !== meta.url || document.readyState === 'loading') {
+      return { error: '岗位详情尚未就绪或地址已变化' };
+    }
     const bodyOriginal = cleanMultiline(document.body?.innerText || document.body?.textContent || '');
     const bodyDecoded = decodeBossMultilineText(bodyOriginal, digitMap);
     const bodyText = bodyDecoded.text;
+    if (VERIFICATION_TEXT.test(bodyText) && !document.querySelector('.job-detail-section, .job-sec-text')) {
+      return { blocked: true };
+    }
     const selectedDescription = chooseDescriptionCandidate(digitMap, bodyText);
     const description = selectedDescription.description;
 
@@ -423,7 +430,7 @@
       recruiterActive,
       skills,
       puaDecodedCount: bodyDecoded.decodedCount,
-      blocked: /(安全验证|请完成验证|滑动验证|访问过于频繁|异常访问|系统检测到异常)/.test(bodyText),
+      blocked: false,
       title: document.title,
       collectedAt: new Date().toISOString()
     };
@@ -525,6 +532,7 @@
     isJobDetailHref,
     chooseDescriptionCandidate,
     captureCurrentJob,
+    extractDetail,
     extractList
   };
   if (globalThis.__BOSS_JOB_FILTER_TEST__) return;

@@ -40,7 +40,8 @@
       attempted: 0,
       succeeded: 0,
       failed: 0,
-      blocked: 0
+      blocked: 0,
+      stopReason: null
     }
   };
 
@@ -594,6 +595,14 @@
     return '40K+';
   }
 
+  function detailCoverage() {
+    const { plannedAccepted, plannedRemoteCandidates, attempted, stopReason } = state.detailStats;
+    return {
+      detailTargetsUnattempted: plannedAccepted + plannedRemoteCandidates - attempted,
+      detailStopReason: stopReason
+    };
+  }
+
   function buildStatistics(finalJobs, candidates) {
     const averageMinSalaryK = finalJobs.length
       ? Math.round(finalJobs.reduce((sum, job) => sum + Number(job.salaryMinK || 0), 0) / finalJobs.length * 100) / 100
@@ -612,6 +621,7 @@
         detailTargetsPlannedAccepted: state.detailStats.plannedAccepted,
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
         detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
+        ...detailCoverage(),
         detailEnriched: finalJobs.filter(job => job.detailSucceeded).length,
         fullJd: finalJobs.filter(job => job.descriptionQuality === 'full_jd').length,
         requirementReviewEligible: finalJobs.filter(job => job.requirementReviewEligible).length,
@@ -734,9 +744,11 @@
         detailTargetsPlannedRemoteCandidates: state.detailStats.plannedRemoteCandidates,
         detailTargetsPlannedRecruiterActivityCandidates: 0,
         detailTargetsDeferredAccepted: state.detailStats.deferredAccepted,
+        ...detailCoverage(),
         detailAttempted: state.detailStats.attempted,
         detailSucceeded: state.detailStats.succeeded,
         detailFailed: state.detailStats.failed,
+        detailBlocked: state.detailStats.blocked,
         finalDetailEnriched: finalJobs.filter(job => job.detailSucceeded).length,
         fullJd: finalJobs.filter(job => job.descriptionQuality === 'full_jd').length,
         partialJd: finalJobs.filter(job => job.descriptionQuality === 'partial_jd').length,
@@ -912,17 +924,39 @@
   }
 
   async function waitForVerification(meta, type = 'SCRAPE_PAGE') {
-    log('检测到安全验证。请在 BOSS 标签页人工完成验证，插件不会尝试绕过。');
-    await chrome.tabs.update(state.jobTabId, { active: true });
-    for (let i = 0; i < 120 && !state.aborted; i += 1) {
-      await delay(5_000);
-      const result = await sendToJobTab({ type, meta, digitMap: state.digitMap }, 2).catch(() => null);
-      if (result && !result.blocked) {
-        log('验证已通过，继续运行。');
-        return result;
+    log('需要人工登录或完成安全验证。请在 BOSS 标签页处理，插件不会尝试绕过。');
+    let finished = false;
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(Object.assign(new Error('等待人工验证超时'), { code: 'verification_timeout' }));
+      }, 600_000);
+    });
+    const poll = async () => {
+      await chrome.tabs.update(state.jobTabId, { active: true }).catch(() => {});
+      while (!finished && !state.aborted) {
+        await delay(5_000);
+        if (finished || state.aborted) break;
+        const result = await sendToJobTab({ type, meta, digitMap: state.digitMap }, 1).catch(() => null);
+        if (finished || state.aborted) break;
+        if (!result || result.blocked || result.error) continue;
+        const ready = type === 'SCRAPE_DETAIL'
+          ? Boolean(result.collectedAt)
+          : ['read', 'no_results'].includes(result.pageState)
+            && (result.observedPage == null || result.observedPage === meta.page);
+        if (ready) {
+          log('页面已可读取，继续运行。');
+          return result;
+        }
       }
+      throw new Error('用户已停止任务');
+    };
+    try {
+      return await Promise.race([poll(), deadline]);
+    } finally {
+      finished = true;
+      clearTimeout(timer);
     }
-    throw new Error('等待人工验证超时或任务已停止');
   }
 
   function recordSearchPage(result, meta, history, scopeSeen) {
@@ -1193,7 +1227,7 @@
           state.detailStats.blocked += 1;
           detail = await waitForVerification(meta, 'SCRAPE_DETAIL');
         }
-        if (detail?.error) throw new Error(detail.error);
+        if (!detail?.collectedAt || detail.error) throw new Error(detail?.error || '未读到岗位详情');
         detailsByUrl.set(job.url, {
           detailAttempted: true,
           detailSucceeded: true,
@@ -1230,6 +1264,12 @@
           detailError: String(error?.message || error)
         });
         log(`详情补采失败：${job.title} · ${error?.message || error}`);
+        if (state.aborted) throw new Error('用户已停止任务');
+        if (error?.code === 'verification_timeout') {
+          state.detailStats.stopReason = error.code;
+          log(`人工验证超时，停止打开新详情，保留已有结果；${detailCoverage().detailTargetsUnattempted} 条计划内详情未尝试。`);
+          break;
+        }
       }
       await delay(randomDelay(config, 0.65));
     }
@@ -1374,10 +1414,11 @@
     el('diagnostics').disabled = false;
     el('requirementReview').disabled = false;
     const reviewGate = requirementReviewDataset.qualityGate;
-    el('summary').textContent = `完成：最终 ${finalJobs.length} 条，完整 JD ${diagnostics.counts.fullJd} 条，Requirement 验收样本 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}（${reviewGate.status}）。`;
+    const completion = state.detailStats.stopReason ? '部分完成（详情验证超时）' : '完成';
+    el('summary').textContent = `${completion}：最终 ${finalJobs.length} 条，完整 JD ${diagnostics.counts.fullJd} 条，Requirement 验收样本 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}（${reviewGate.status}）。`;
     log(`Requirement 验收数据：${reviewGate.status}，原始合格 ${reviewGate.eligibleCount} 条，独立合格 ${reviewGate.distinctEligibleCount} 条，近重复排除 ${reviewGate.nearDuplicateCount} 条，已选 ${reviewGate.selectedCount}/${reviewGate.requiredSampleSize}。`);
     log('运行完成，已下载 CSV、完整报告、诊断 JSON 和 Requirement 验收数据集。');
-    document.title = `完成：筛选出 ${finalJobs.length} 条岗位`;
+    document.title = `${completion}：筛选出 ${finalJobs.length} 条岗位`;
   }
 
   globalThis.BossAiRunnerInternals = {
@@ -1399,6 +1440,7 @@
     selectDistinctRequirementReviewJobs,
     selectDetailTargets,
     planDetailTargets,
+    enrichDetails,
     prioritizeAcceptedTargetsForReview,
     detailCardIdentity,
     uniqueJobsByUrl
