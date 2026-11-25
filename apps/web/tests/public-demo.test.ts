@@ -50,7 +50,15 @@ test("legacy page only redirects reads and only the new public session route can
     assert.equal(request("/demo", "POST").status, 404);
     assert.equal(request("/api/public-session", "POST").headers.get("x-middleware-next"), "1");
     assert.equal(request("/api/public-session", "POST", "https://other.example").status, 403);
-    for (const old of ["/api/demo/session", "/api/byok/demo/session"]) assert.equal(request(old, "POST").status, 410);
+    for (const old of ["/api/demo/session", "/api/byok/demo/session"]) {
+      for (const method of ["GET", "HEAD", "POST", "DELETE"]) {
+        for (const cookie of ["", "joblens_demo_session=opaque"]) {
+          const result = request(old, method, origin, cookie);
+          assert.equal(result.status, 404);
+          assert.equal(result.headers.get("set-cookie"), null);
+        }
+      }
+    }
     assert.equal(request("/jobs/private-id").headers.get("location"), origin + "/");
     assert.equal(request("/quality", "GET", origin, "joblens_demo_session=opaque").headers.get("location"), origin + "/");
     delete process.env.JOBLENS_PUBLIC_DEMO;
