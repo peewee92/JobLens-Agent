@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
-  "functions": {"app/api/demo/session/route.ts": {"maxDuration": 60}}
+  "functions": {"app/api/public-session/route.ts": {"maxDuration": 60}}
 }

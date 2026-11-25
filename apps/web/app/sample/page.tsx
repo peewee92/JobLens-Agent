@@ -4,7 +4,7 @@ import {DemoStart} from "@/components/demo-start";
 import {DEMO_COOKIE, publicDemoEnabled} from "@/lib/public-demo";
 
 export const dynamic = "force-dynamic";
-export default async function DemoPage() {
+export default async function SamplePage() {
   const canStart = publicDemoEnabled();
   const hasCookie = canStart && Boolean((await cookies()).get(DEMO_COOKIE)?.value);
   return <section className="hero product-hero"><p className="eyebrow">JobLens · 公开合成演示</p>

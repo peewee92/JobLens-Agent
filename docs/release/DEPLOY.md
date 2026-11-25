@@ -1,6 +1,6 @@
 # 免费公开演示部署
 
-Render 免费后端与 Vercel 网页均已发布；入口为 https://joblens-agent.vercel.app/demo ，线上完整路径与网络边界见验收记录。当前证据见 [交付状态](STATUS.md)。主方案：Vercel Hobby + Render Free + 临时 SQLite。
+公开入口为 [JobLens 首页](https://joblens-agent.vercel.app/)。Render 免费后端与 Vercel 网页的线上验收记录见[交付状态](STATUS.md)。主方案：Vercel Hobby + Render Free + 临时 SQLite。
 
 ## 1. 发布前检查
 
@@ -45,11 +45,11 @@ docker build -f services/backend/Dockerfile.demo -t joblens-demo:local .
 | `JOBLENS_BACKEND_URL` | Render 的 HTTPS 服务地址，无尾斜线 |
 | `JOBLENS_DEMO_PROXY_SECRET` | 与 Render 相同 |
 | `JOBLENS_DEMO_FRONTEND_ORIGIN` | Vercel 固定生产来源，与 Render 相同 |
-| `JOBLENS_RELEASE_VERSION` | 审核后的版本号或提交标识 |
+| `JOBLENS_RELEASE_VERSION` | 审核后的版本号，可含发布阶段和构建标识（如 `0.2.1-preview+b510bc3`）；页脚仅显示 `v0.2.1` |
 
 先创建 Vercel 项目取得固定生产域名，再配置 Render 来源；最后补齐网页后端地址并重新部署。预览分支域名不自动加入允许来源。
 
-公开页为 `/demo`；点击开始后才创建临时样本库。Cookie 在生产环境为 Secure、HttpOnly、SameSite=Lax，令牌不返回浏览器脚本。后端需代理凭证；更换凭证时两侧同时更新。
+首页 `/` 是公开入口，`/sample` 提供说明与重新开始；旧 `/demo` 仅对 GET / HEAD 永久跳转到首页。点击开始后才通过 `POST /api/public-session` 创建或重置临时样本库。Cookie 在生产环境为 Secure、HttpOnly、SameSite=Lax，令牌不返回浏览器脚本。后端需代理凭证；更换凭证时两侧同时更新。
 
 Vercel 路由时限配置为 60 秒。Render 冷启动可能接近或超过此值；失败时提示手动重试，绝不自动重放写操作。创建请求结果丢失可能暂占一个会话，过期后回收。
 
@@ -66,6 +66,8 @@ Vercel 路由时限配置为 60 秒。Render 冷启动可能接近或超过此�
 不使用定时保活规避休眠。不承诺免费子域名在国内稳定；不可达时保留公开视频与本地演示，不声称上线验收通过。
 
 ## 5. 回滚与成本
+
+会话地址迁移需分步发布：先单独部署 Render 的过渡构建，使同一个受保护的处理器暂时识别 `/api/v1/demo/session` 和 `/api/v1/public-session`；再部署切到新接口的 Vercel，验证旧网页跳转、样本与自带模型会话创建。验收后部署只识别新接口的 Render 最终构建。清理后若需回滚网页，先恢复 Render 双路径过渡构建，再回滚 Vercel。不要为此增加客户端写入重试或保留旧接口转发。
 
 回滚到上一已审核提交，并重建合成模板；访客临时进度会失效。不要带旧临时数据库跨版本恢复。免费额度耗尽应暂停而非自动升级；平台条款或费用提示变化时先停止发布。
 

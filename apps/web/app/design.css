@@ -74,6 +74,19 @@
 .jl-field input:not([type=checkbox]), .jl-field textarea, .jl-field select { width: 100%; min-height: 44px; background: var(--panel); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-s); padding: var(--jl-space-2) var(--jl-space-3); box-sizing: border-box; }
 .jl-field [aria-invalid=true] { border-color: var(--danger); }
 .jl-field .jl-field-error { color: var(--danger); }
+.jl-model-session-setup { display: grid; gap: var(--jl-space-4); }
+.byok-shell details > .jl-field { margin-block-start: var(--jl-space-3); }
+.byok-shell .jl-field label { color: var(--ink-soft); }
+.jl-model-select-trigger, .jl-model-select-option { display: flex; align-items: center; justify-content: space-between; gap: var(--jl-space-2); min-height: 44px; min-width: 0; padding: var(--jl-space-2) var(--jl-space-3); overflow-wrap: anywhere; }
+.jl-model-select-trigger { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius-s); background: var(--panel); color: var(--ink); text-align: start; cursor: pointer; }
+.jl-model-select-trigger:enabled:hover { background: var(--soft); }
+.jl-model-select-trigger:is(:focus-visible, [data-state="open"]) { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.jl-model-select-trigger:disabled { opacity: .65; cursor: not-allowed; }
+.jl-model-select-trigger svg, .jl-model-select-option svg { flex: none; color: var(--brand-dark); }
+.jl-model-select-menu { z-index: 40; width: var(--radix-select-trigger-width); max-width: var(--radix-select-content-available-width); max-height: var(--radix-select-content-available-height); overflow: hidden; padding: var(--jl-space-1); border: 1px solid var(--line-strong); border-radius: var(--radius-s); background: var(--panel); color: var(--ink); box-shadow: var(--shadow-lg); }
+.jl-model-select-option { border-radius: var(--radius-s); cursor: pointer; }
+.jl-model-select-option[data-state="checked"] { font-weight: 650; color: var(--brand-dark); }
+.jl-model-select-option[data-highlighted] { background: var(--brand-soft); color: var(--brand-dark); outline: none; }
 .jl-skeleton { display: block; background: var(--soft); border-radius: var(--radius-s); }
 .jl-dialog-backdrop { position: fixed; inset: 0; z-index: 49; background: #20282072; }
 .jl-dialog { position: fixed; z-index: 50; inset-inline: 0; top: 8vh; margin-inline: auto; width: min(34rem, calc(100% - 2rem)); max-height: 84dvh; overflow: auto; box-shadow: var(--shadow-lg); }

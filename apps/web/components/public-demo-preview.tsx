@@ -10,7 +10,7 @@ const previews = {
   "/": {
     title: "求职工作台",
     description: "先了解样本背景，再看看三条岗位的要求，最后决定从哪一条开始准备。",
-    action: "从工作台开始体验",
+    action: "开始样本体验",
     content: <ul><li><Link href="/profile">看样本背景</Link>：看看已有经历能支持哪些要求。</li>
       <li><Link href="/jobs">浏览样本岗位</Link>：区分有依据、证据不足和明确冲突。</li>
       <li><Link href="/applications">了解准备工作区</Link>：把选定岗位拆成下一步行动。</li></ul>,

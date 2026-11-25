@@ -7,7 +7,7 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 [![CI](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/peewee92/JobLens-Agent/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**[在线体验：三个岗位，先准备哪个？](https://joblens-agent.vercel.app/demo)** · [操作录屏与预发布版本](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)
+**[在线体验：三个岗位，先准备哪个？](https://joblens-agent.vercel.app/)** · [操作录屏与预发布版本](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)
 
 ![线上合成演示：开始行动并刷新后仍保留进度](docs/assets/public-demo-live-workspace.png)
 
@@ -15,14 +15,14 @@ JobLens 不用一个“匹配概率”替你做决定。它区分已有证据、
 
 ## 线上访问与故障排查
 
-**公开体验：[https://joblens-agent.vercel.app/demo](https://joblens-agent.vercel.app/demo)**。无需登录，也不需要上传简历、配置模型或付费。首次访问可以直接切换「首页／我的背景／我的岗位／我的准备」查看各页概览，点击「开始样本体验」或各页的样本按钮后，可用三条合成岗位完成**比较 → 确认目标 → 建立准备工作区 → 开始行动**。
+**公开体验：[https://joblens-agent.vercel.app/](https://joblens-agent.vercel.app/)**。无需登录，也不需要上传简历、配置模型或付费。首次访问可以直接切换「首页／我的背景／我的岗位／我的准备」查看各页概览，点击「开始样本体验」或各页的样本按钮后，可用三条合成岗位完成**比较 → 确认目标 → 建立准备工作区 → 开始行动**。
 
 页面由 Vercel 提供，演示后端运行在 Render 免费实例。每位访客使用独立的临时会话。允许本站 Cookie 并在同一浏览器内操作，刷新通常保留进度；**闲置 30 分钟、会话满 2 小时或后端休眠、重启后，进度可能重置**。这不是可长期保存简历的云端账户版；用真实资料并长期保留，请走下方的本地正式版。
 
 | 遇到的情况 | 可以怎么做 |
 | --- | --- |
 | 页面能打开，但点击开始后提示服务正在唤醒或暂时不可用 | 免费后端闲置后会休眠。等待约 1 分钟，再手动点一次；不要连续点击。如果仍无法开始，可运行下方的本地离线演示。 |
-| 页面提示会话已结束，或原来的工作区打不开 | 在当前页面重新打开样本，或回到[公开体验入口](https://joblens-agent.vercel.app/demo)重新开始。换浏览器或无痕窗口不会沿用原会话，已过期记录不会恢复。 |
+| 页面提示会话已结束，或原来的工作区打不开 | 在当前页面重新打开样本，或回到[公开体验入口](https://joblens-agent.vercel.app/)重新开始。换浏览器或无痕窗口不会沿用原会话，已过期记录不会恢复。 |
 | 页面本身打不开、要求登录 Vercel，或停在浏览器网络错误页 | 先确认使用上面的公开网址，而非部署预览链接。国内不同网络的访问情况可能不同，尚未完成多网络验收；也可以看[操作录屏](https://github.com/peewee92/JobLens-Agent/releases/tag/v0.1.0-public-preview.2)或使用本地离线演示。 |
 
 - [部署与回滚步骤](docs/release/DEPLOY.md)：Vercel 网页、Render 后端和独立临时会话。

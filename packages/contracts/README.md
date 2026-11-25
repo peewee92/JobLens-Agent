@@ -136,6 +136,6 @@ v3 沿用 v2 的未知／冲突语义，新增 `searchIntentId`、`searchIntentV
 
 ### 公开临时演示会话
 
-`demo-session.schema.json` 是后端给网页服务端的创建／重置回执；令牌不可返回浏览器脚本。`POST /api/v1/demo/session` 创建，`GET` 验证状态，`DELETE` 显式重置并签发新令牌。需要服务间代理凭证；写操作需要固定前端 Origin。浏览器只收到 `{active:true}` 和安全 Cookie。
+`demo-session.schema.json` 是后端给网页服务端的创建／重置回执；令牌不可返回浏览器脚本。`POST /api/v1/public-session` 创建，`GET` 验证状态，`DELETE` 显式重置并签发新令牌。需要服务间代理凭证；写操作需要固定前端 Origin。浏览器通过 `POST /api/public-session` 开始或重置，只收到 `{active:true}` 和安全 Cookie。
 
 默认 30 分钟闲置／两小时最长生命周期／20 个同时会话；过期 410、频繁请求 429、容量已满 503、来源与未开放路由 403、无代理凭证 401。服务重启令牌失效；业务契约不变，不承诺临时数据持久保存。

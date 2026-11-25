@@ -26,7 +26,7 @@ test("the independent build preserves route, query and anchor without absorbing 
 
 test("individual work surfaces do not expose demo endpoints, model secrets or maintenance", () => {
   for (const path of ["/", "/jobs/one", "/applications/one", "/profile", "/agent/results/run", "/import"]) assert.equal(privateRouteKind(path), "page");
-  for (const path of ["/demo", "/connect", "/quality", "/evals/profile", "/api/demo/session", "/api/byok/model-connection", "/api/local/profile-model/status"]) assert.equal(privateRouteKind(path), "blocked");
+  for (const path of ["/demo", "/sample", "/connect", "/quality", "/evals/profile", "/api/demo/session", "/api/public-session", "/api/byok/model-connection", "/api/local/profile-model/status"]) assert.equal(privateRouteKind(path), "blocked");
   assert.equal(privateRouteKind("/api/profile"), "api");
   assert.equal(privateRouteKind("/api/workspace-session"), "session");
   assert.equal(privateRouteKind("/sign-in"), "sign-in");

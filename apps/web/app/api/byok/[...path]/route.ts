@@ -1,6 +1,6 @@
 import {backendProxyResponse} from "@/lib/backend";
 // This is not an arbitrary backend proxy; both layers deny unlisted operations.
-const allowed = /^(?:model-connection(?:\/test(?:-plan)?)?|profile-call-plan|profile-calls(?:\/[A-Za-z0-9_-]{1,100})?|session-export|demo\/session)$/;
+const allowed = /^(?:model-connection(?:\/test(?:-plan)?)?|profile-call-plan|profile-calls(?:\/[A-Za-z0-9_-]{1,100})?|session-export)$/;
 async function forward(request: Request, {params}: {params: Promise<{path: string[]}>}) {
   const path = (await params).path.join("/");
   if (!allowed.test(path)) return new Response(null, {status: 404});

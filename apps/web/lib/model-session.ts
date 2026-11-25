@@ -7,7 +7,7 @@ import {DEMO_COOKIE, demoSessionStateFromResponse, publicDemoEnabled, type DemoS
 export const publicSessionState = cache(async function publicSessionState(): Promise<DemoSessionState> {
   if (!publicDemoEnabled() || !(await cookies()).get(DEMO_COOKIE)?.value) return {status: "not-started"};
   try {
-    const response = await backendResponse("/api/v1/demo/session");
+    const response = await backendResponse("/api/v1/public-session");
     return demoSessionStateFromResponse(response.status, response.ok ? await response.json() : null);
   } catch {
     return {status: "unavailable"};

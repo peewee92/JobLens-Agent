@@ -12,15 +12,19 @@ SECRET = 'test-proxy-secret-' * 3
 ORIGIN = 'https://joblens.example'
 
 
-@pytest.fixture(scope='module')
-def template(tmp_path_factory):
+def prepare_template(tmp_path_factory, *, empty=False):
     root = Path(__file__).parents[3]
     spec = importlib.util.spec_from_file_location('launcher_for_public', root / 'scripts/demo.py')
     demo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(demo)
     directory = tmp_path_factory.mktemp('public-template')
-    demo.prepare_demo(directory)
+    demo.prepare_demo(directory, empty=empty)
     return directory / 'demo.db'
+
+
+@pytest.fixture(scope='module')
+def template(tmp_path_factory):
+    return prepare_template(tmp_path_factory)
 
 
 @pytest.fixture
@@ -37,9 +41,24 @@ def headers(token=None):
 
 
 def create(client):
-    response = client.post('/api/v1/demo/session', headers=headers())
+    response = client.post('/api/v1/public-session', headers=headers())
     assert response.status_code == 200, response.text
     return response.json()['sessionToken']
+
+
+def test_public_session_route_keeps_access_checks_and_rejects_old_path(setup):
+    c, manager, _ = setup
+    path = '/api/v1/public-session'
+    old = '/api/v1/demo/session'
+    assert c.post(path).status_code == 401
+    assert c.post(path, headers={**headers(), 'Origin': 'https://other.example'}).status_code == 403
+    assert c.post(old, headers=headers()).status_code == 410
+    assert not manager.entries
+    token = create(c)
+    for method in ('GET', 'POST', 'DELETE'):
+        assert c.request(method, old, headers=headers(token)).status_code == 403
+    assert c.get(path, headers=headers(token)).json() == {'active': True, 'mode': 'sample', 'synthetic': True}
+    assert set(manager.entries) == {token}
 
 
 def test_deny_by_default_and_no_model_or_upload(setup):
@@ -102,7 +121,7 @@ def test_two_parallel_visitors_and_real_flow(setup, monkeypatch):
 def test_expiry_reset_and_restart(setup):
     c, manager, now = setup
     token = create(c)
-    new = c.delete('/api/v1/demo/session', headers=headers(token))
+    new = c.delete('/api/v1/public-session', headers=headers(token))
     assert new.status_code == 200
     assert c.get('/api/v1/profile', headers=headers(token)).status_code == 410
     token = new.json()['sessionToken']

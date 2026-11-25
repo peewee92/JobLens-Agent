@@ -9,11 +9,15 @@ from fastapi.testclient import TestClient
 from app.demo.public_app import create_public_app
 from app.demo.sessions import DemoSessions
 from app.byok.transport import validate_url, PublicNetworkBackend
-from .test_public_demo import template, SECRET, ORIGIN, headers
+from .test_public_demo import template, prepare_template, SECRET, ORIGIN, headers
+
+@pytest.fixture(scope='module')
+def blank_template(tmp_path_factory):
+    return prepare_template(tmp_path_factory, empty=True)
 
 @pytest.fixture
-def setup_byok(tmp_path, template, monkeypatch):
-    now=[100.];manager=DemoSessions(tmp_path/'sessions',template,clock=lambda:now[0])
+def setup_byok(tmp_path, template, blank_template, monkeypatch):
+    now=[100.];manager=DemoSessions(tmp_path/'sessions',template,clock=lambda:now[0],empty_template=blank_template)
     monkeypatch.setattr(socket,'getaddrinfo',lambda *a,**k:[(socket.AF_INET,socket.SOCK_STREAM,6,'',('93.184.216.34',443))])
     sent=[]
     def handle(req):
@@ -26,8 +30,8 @@ def setup_byok(tmp_path, template, monkeypatch):
         yield c,manager,now,sent,handlers
     manager.close()
 
-def start(c,who='a'):
-    r=c.post('/api/v1/demo/session',headers={**headers(),'X-Demo-Client':who},json={'mode':'byok','seed':'sample'})
+def start(c,who='a',seed='sample'):
+    r=c.post('/api/v1/public-session',headers={**headers(),'X-Demo-Client':who},json={'mode':'byok','seed':seed})
     assert r.status_code==200,r.text
     return r.json()['sessionToken']
 
@@ -40,6 +44,24 @@ def connect(c,t,key='secret-a',model='model-a'):
 def command(c,t):
     r=c.get('/api/v1/model-connection/test-plan',headers=headers(t));assert r.status_code==200,r.text
     return dict(actionId='test-one',planDigest=r.json()['planDigest'],confirmed=True,maxProviderCalls=1)
+
+def test_status_without_a_session_does_not_expose_another_visitor_or_call_model(setup_byok):
+    c, _, _, sent, _ = setup_byok
+    connect(c, start(c))
+    r = c.get('/api/v1/model-connection', headers=headers())
+    assert r.status_code == 410
+    assert r.json()['error']['code'] == 'demo_session_expired'
+    assert 'model-a' not in r.text and 'secret-a' not in r.text and not sent
+
+@pytest.mark.parametrize('seed', ['blank', 'sample'])
+def test_byok_seed_only_creates_session_without_model_calls(setup_byok, seed):
+    c, _, _, sent, _ = setup_byok
+    token = start(c, seed=seed)
+    assert c.get('/api/v1/public-session', headers=headers(token)).json() == {
+        'active': True, 'mode': 'byok', 'synthetic': seed == 'sample',
+    }
+    status = c.get('/api/v1/model-connection', headers=headers(token)).json()
+    assert status['seed'] == seed and not status['connected'] and not status['recentCalls'] and not sent
 
 def test_connection_no_calls_replay_and_isolation(setup_byok):
     c,m,_,sent,_=setup_byok;a,b=start(c),start(c,'b')
@@ -108,10 +130,10 @@ def test_expiry_erases_key(setup_byok):
 
 def test_default_off_and_sample_denied(setup_byok):
     c,m,_,sent,_=setup_byok
-    t=c.post('/api/v1/demo/session',headers=headers()).json()['sessionToken']
+    t=c.post('/api/v1/public-session',headers=headers()).json()['sessionToken']
     assert c.get('/api/v1/model-connection',headers=headers(t)).status_code==403
     with TestClient(create_public_app(m,secret=SECRET,origin=ORIGIN)) as off:
-        assert off.post('/api/v1/demo/session',headers=headers(),json={'mode':'byok'}).status_code==403
+        assert off.post('/api/v1/public-session',headers=headers(),json={'mode':'byok'}).status_code==403
     assert not sent
 
 @pytest.mark.parametrize('url',['http://example.com/v1','https://user:pass@example.com/v1','https://example.com/v1?key=x','https://example.com/v1#x','https://example.com:8443/v1'])

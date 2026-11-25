@@ -36,7 +36,7 @@ function browser() {
 
 const start = (request, account) => request("/private/api/workspace-session", {method: "POST", body: {email: account.email, password: account.password}});
 const guest = browser(), alpha = browser(), beta = browser();
-if (!privateOnly) assert.equal((await guest("/demo")).status, 200);
+if (!privateOnly) assert.equal((await guest("/")).status, 200);
 const redirect = await guest("/private", {headers: {"x-joblens-private-sign-in-page": "1", "X-Joblens-Owner": a.id}});
 assert.equal(redirect.status, 307);
 assert.equal(new URL(redirect.location, origin).pathname, "/private/sign-in");
@@ -87,8 +87,8 @@ assert.equal((await alpha(`/private/api/jobs/${encodeURIComponent(savedJobs.data
 assert.ok((await beta("/private/profile")).text.includes(marker));
 assert.ok(!(await alpha("/private/profile")).text.includes(marker));
 if (!privateOnly) {
-  assert.ok(!(await beta("/demo")).text.includes(marker));
-  assert.equal((await beta("/api/demo/session", {method: "POST"})).status, 200);
+  assert.ok(!(await beta("/sample")).text.includes(marker));
+  assert.equal((await beta("/api/public-session", {method: "POST"})).status, 200);
   assert.ok(!(await beta("/jobs")).text.includes(marker));
 }
 assert.equal((await beta("/private/api/jobs")).data.total, 1);

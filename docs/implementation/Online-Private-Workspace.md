@@ -14,7 +14,7 @@
 2. 用两个测试账号和两套独立数据库验证登录、写入、重新登录和后端重启。运行角色不使用迁移管理员权限：关闭业务库对 `PUBLIC` 的连接权限，每个账号的运行角色只被授予对应库的连接和业务表权限，不给修改迁移版本的权限。验证账号和数据库角色的双层隔离，不把两套账号接到一个业务库。
 3. 独立的 FastAPI 使用 `services/backend/Dockerfile.private`，健康检查路径 `/api/v1/health`；运行时设置 `JOBLENS_CLOUD_WORKSPACES`（账号 ID 到 PostgreSQL 直连地址的 JSON 映射）和 `JOBLENS_CLOUD_PROXY_SECRET`。代码和镜像不放连接凭证。不要用新的库替换 `joblens-demo-api` 的临时库。
 4. 独立的 Next.js 构建设置 `NEXT_PUBLIC_JOBLENS_PRIVATE_BUILD=1`，以及服务端的 `JOBLENS_CLOUD_FRONTEND_ORIGIN`、`JOBLENS_CLOUD_BACKEND_URL`、`JOBLENS_CLOUD_PROXY_SECRET`、`NEON_AUTH_BASE_URL` 和 `NEON_AUTH_COOKIE_SECRET`。两个应用使用相同的服务间签名密钥，登录 Cookie 签名密钥单独设置。把正式网站域名加到 Neon Auth 可信域名，关闭公开注册。登录 Cookie 只限于 `/private`。
-5. 先走受控预览，再为公开网页设置 `JOBLENS_PRIVATE_UPSTREAM_URL`，仅让 `/private` 转发到独立私有前端。确认 `/demo`、未登录页面、两位测试用户读写、退出登录和旧链接，然后才开启正式入口。失败先撤去入口的转发配置，不删除或回滚业务数据。
+5. 先走受控预览，再为公开网页设置 `JOBLENS_PRIVATE_UPSTREAM_URL`，仅让 `/private` 转发到独立私有前端。确认 `/`、未登录页面、两位测试用户读写、退出登录和旧链接，然后才开启正式入口。失败先撤去入口的转发配置，不删除或回滚业务数据。
 6. 只在用户确认具体源文件、账号已经开通且归属可核验、账号工作库为空时，导入个人记录。原 SQLite 只读，继续保留，不切换本地配置。确认远端数据只从该账号可访问，再告知用户结果。
 
 ## 第一次登录

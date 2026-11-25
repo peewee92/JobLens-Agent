@@ -27,20 +27,30 @@ function privateProxy(request: NextRequest) {
 export function proxy(request: NextRequest) {
   if (isPrivateWorkspaceBuild()) return privateProxy(request);
   const path = request.nextUrl.pathname;
+  const isRead = request.method === "GET" || request.method === "HEAD";
+  if (path === "/demo") {
+    if (!isRead) return new NextResponse(null, {status: 404});
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/";
+    return NextResponse.redirect(destination, 308);
+  }
   if ((path === PRIVATE_WORKSPACE_PATH || path.startsWith(`${PRIVATE_WORKSPACE_PATH}/`)) &&
       hostingOrigin(process.env.JOBLENS_PRIVATE_UPSTREAM_URL)) return NextResponse.next();
   if (!publicDemoEnabled()) return NextResponse.next();
-  if (!["GET", "HEAD"].includes(request.method) &&
+  if (!isRead &&
       !demoOriginAllowed(request.headers.get("origin"), process.env.JOBLENS_DEMO_FRONTEND_ORIGIN)) {
     return NextResponse.json({error: {code: "demo_origin_rejected", message: "请求来源无效。"}}, {status: 403});
   }
-  if (path === "/connect" || path === "/demo" || path === "/api/demo/session" || isDemoDestination(path)) return NextResponse.next();
+  if (path === "/connect" || path === "/sample" || path === "/api/public-session" || isDemoDestination(path)) return NextResponse.next();
+  // Let the backend answer this precise read without a cookie so it can wake
+  // before a visitor creates a session. The backend still checks session access.
+  if (request.method === "GET" && path === "/api/byok/model-connection") return NextResponse.next();
   if (!request.cookies.get(DEMO_COOKIE)?.value) {
     if (path.startsWith("/api/")) return NextResponse.json({error: {code: "demo_session_expired", message: "演示已结束，请重新开始样本体验。"}}, {status: 410});
-    return NextResponse.redirect(new URL("/demo", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
   // Public visitors cannot upload private files or access administration screens.
-  if (/^\/(?:evals|quality|import)(?:\/|$)/.test(path)) return NextResponse.redirect(new URL("/demo", request.url));
+  if (/^\/(?:evals|quality|import)(?:\/|$)/.test(path)) return NextResponse.redirect(new URL("/", request.url));
   return NextResponse.next();
 }
 

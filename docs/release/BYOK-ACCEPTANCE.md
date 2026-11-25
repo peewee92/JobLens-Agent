@@ -44,7 +44,7 @@
 
 ## 线上发布与复验
 
-- 入口：[连接我的模型](https://joblens-agent.vercel.app/connect)，保留 [免配置样本](https://joblens-agent.vercel.app/demo)。
+- 入口：[连接我的模型](https://joblens-agent.vercel.app/connect)，保留 [免配置样本](https://joblens-agent.vercel.app/)。
 - 网页部署：`dpl_3JDAVWusfGAJLZi1Cn4D6mHvAXVU`，网页代码 `e55c38c`；后端代码 `0fecfc9`，已开启自带模型开关，Render 部署 `dep-dbklbqui0phs73ak15m0` 已进入 live。
 - 代码提交 `0fecfc9` 的[远端持续集成](https://github.com/peewee92/JobLens-Agent/actions/runs/41572005074)：后端 **1852 项**、前端 **323 项**、类型检查和生产构建全部通过。
 - 在真实 Vercel 入口操作浏览器：创建空白会话、保存配置后密钥输入清空、添加岗位、刷新保留、无文件上传、无密钥导出、另一个访客无法访问，全部通过。

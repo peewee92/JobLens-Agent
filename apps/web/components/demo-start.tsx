@@ -9,7 +9,7 @@ export function DemoStart({destination = "/agent", label = "开始样本体验"}
     if (busy) return;
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/demo/session", {method: "POST"});
+      const response = await fetch("/api/public-session", {method: "POST"});
       const data = await response.json();
       if (!response.ok) {setError(data.error?.message ?? "暂时无法开始，请稍后重试。"); return;}
       window.location.assign(destination);

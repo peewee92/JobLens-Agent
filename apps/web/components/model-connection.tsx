@@ -1,40 +1,76 @@
 "use client";
+import * as Select from "@radix-ui/react-select";
 import Link from "next/link";
-import {useEffect, useRef, useState, type FormEvent} from "react";
+import {useCallback, useEffect, useId, useRef, useState, type FormEvent} from "react";
+import {readModelConnection, type ModelConnectionConfig, type ModelConnectionStatus} from "@/lib/model-connection-read";
 import {Button} from "./ui/button";
 import {PendingIndicator} from "./ui/pending-indicator";
 import {ActionFeedback} from "./ui/patterns";
+import {Field, Panel} from "./ui/primitives";
 
-type Connection = {enableThinking?: boolean | null; name: string; baseUrl: string; model: string; apiStyle: string; profileModel?: string; requirementModel?: string; semanticModel?: string};
-type Status = {recentCalls: {actionId:string; kind:string; status:string; model:string; attempts:number; inputTokens:number | null; outputTokens:number | null}[]; connected: boolean; version: number; connection: Connection | null; seed: string};
+function ModelSelect({label, value, onValueChange, options, disabled}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  options: ReadonlyArray<readonly [value: string, label: string]>;
+  disabled?: boolean;
+}) {
+  const id = useId();
+  return <Field id={id} label={label}>
+    <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
+      <Select.Trigger id={id} className="jl-model-select-trigger">
+        <Select.Value />
+        <Select.Icon asChild><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content position="popper" align="start" sideOffset={4} collisionPadding={12} className="jl-model-select-menu">
+          <Select.Viewport>
+            {options.map(([optionValue, text]) => <Select.Item key={optionValue} value={optionValue} className="jl-model-select-option">
+              <Select.ItemText>{text}</Select.ItemText>
+              <Select.ItemIndicator asChild><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg></Select.ItemIndicator>
+            </Select.Item>)}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  </Field>;
+}
+
 export function ModelConnection() {
-  const [status, setStatus] = useState<Status | null>(null);
+  const [status, setStatus] = useState<ModelConnectionStatus | null>(null);
   const [reading, setReading] = useState(true);
   const [readError, setReadError] = useState(false);
+  const statusCheck = useRef<AbortController | null>(null);
   const requestLock = useRef(false);
   const [priorTest, setPriorTest] = useState<string | null>(null);
   const [testDone, setTestDone] = useState(false);
   const [seed, setSeed] = useState("blank");
   const [key, setKey] = useState("");
-  const [config, setConfig] = useState<Connection>({name:"我的模型", baseUrl:"", model:"", apiStyle:"chat_completions"});
+  const [config, setConfig] = useState<ModelConnectionConfig>({name:"我的模型", baseUrl:"", model:"", apiStyle:"chat_completions"});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [plan, setPlan] = useState<{planDigest: string; model: string; maxOutputTokens: number} | null>(null);
   const [action, setAction] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
-  async function read() {
+  const read = useCallback(async () => {
+    statusCheck.current?.abort();
+    const controller = new AbortController();
+    statusCheck.current = controller;
     setReading(true); setReadError(false);
-    try {
-      const r = await fetch("/api/byok/model-connection", {cache:"no-store"});
-      const data = await r.json();
-      if (r.ok) {setStatus(data as Status); if (data.connection) setConfig(data.connection);}
-      else if ((r.status === 403 && ["byok_required", "demo_route_disabled"].includes(data.error?.code)) ||
-        (r.status === 410 && data.error?.code === "demo_session_expired")) setStatus(null);
-      else throw new Error();
-    } catch {setReadError(true);}
-    finally {setReading(false);}
-  }
-  useEffect(() => {void read();}, []);
+    const result = await readModelConnection(controller.signal);
+    if (controller.signal.aborted) return;
+    if (result.kind === "ready") {
+      setStatus(result.status);
+      if (result.status?.connection) setConfig(result.status.connection);
+    } else {
+      setReadError(true);
+    }
+    setReading(false);
+  }, []);
+  useEffect(() => {
+    void read();
+    return () => statusCheck.current?.abort();
+  }, [read]);
   async function perform(fn: () => Promise<void>) {
     if (requestLock.current) return;
     requestLock.current = true; setBusy(true); setMessage("");
@@ -51,6 +87,21 @@ export function ModelConnection() {
     if (!r.ok) {setMessage(data.error?.message ?? "操作失败，请检查会话与输入。"); return null;}
     return data;
   }
+  async function createSession() {
+    const response = await fetch("/api/public-session", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode: "byok", seed}),
+    });
+    if (response.status === 503) {
+      const data = await response.json().catch(() => null);
+      if (statusCheck.current?.signal.aborted) return;
+      setMessage(data?.error?.code !== "demo_backend_waking" && data?.error?.message
+        ? data.error.message
+        : "未能确认会话是否已创建。将重新检查连接状态，不会自动重试创建。");
+      await read();
+      return;
+    }
+    if (await check(response)) window.location.assign("/connect");
+  }
   function save(e: FormEvent) {
     e.preventDefault();
     if (action && !testDone) return;
@@ -64,18 +115,21 @@ export function ModelConnection() {
     <h1>连接我的模型</h1>
     <p>API Key 用于服务器代你请求所选模型服务，调用费用由你的模型账户承担。密钥仅保存在当前后端会话内存，不提供长期保存。</p>
     <p>背景和岗位文本会发送给你选择的服务。闲置 30 分钟、最长两小时或服务重启后，会话、密钥和进度失效；完成后请导出资料。</p>
-    {reading && <PendingIndicator label={status ? "正在刷新模型设置，保留已有连接信息。" : "正在读取模型设置…"} skeleton={!status} />}
+    {reading && <PendingIndicator label={status ? "正在刷新模型设置，保留已有连接信息。" : "正在读取模型设置…"}
+      slowLabel="免费演示服务可能正在启动，当前检查不会创建会话或调用模型。" skeleton={!status} />}
     {readError && <div className="stack-sm">
       <ActionFeedback tone="danger">暂时无法读取连接状态。尚不能确认是否已有会话；不会新建或清除资料。</ActionFeedback>
-      <div><Button variant="secondary" onClick={() => void read()}>重新读取模型设置</Button></div>
+      <div><Button variant="secondary" onClick={() => void read()}>重新检查</Button></div>
     </div>}
-    {reading || readError ? null : !status ? <section className="detail-card"><h2>创建独立真实使用会话</h2>
+    {reading || readError ? null : !status ? <Panel><h2>创建独立真实使用会话</h2>
       <p>这会清除当前样本或旧会话的进度；不调用模型。公开功能未开启时会明确拒绝。</p>
-      <label className="field">初始资料 <select value={seed} onChange={e => setSeed(e.target.value)}><option value="blank">空白：填写自己的资料</option><option value="sample">样本：合成资料＋我的真实模型</option></select></label>
-      <button className="button-secondary" disabled={busy} onClick={() => void perform(async () => {
-        const d = await check(await fetch("/api/demo/session", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({mode:"byok", seed})}));
-        if (d) window.location.assign("/connect");
-      })}>确认清除旧进度并创建会话</button></section> : <>
+      <div className="jl-model-session-setup">
+        <ModelSelect label="初始资料" value={seed} onValueChange={setSeed} disabled={busy}
+          options={[["blank", "空白：填写自己的资料"], ["sample", "样本：合成资料＋我的真实模型"]]} />
+        <Button variant="secondary" disabled={busy}
+          onClick={() => void perform(createSession)}>确认清除旧进度并创建会话</Button>
+      </div>
+    </Panel> : <>
       <p>资料来源：{status.seed === "sample" ? "合成样本" : "用户填写"}；模型方式：用户自带模型；连接版本：{status.version}。</p>
       <form className="panel stack-sm" onSubmit={save} autoComplete="off">
         <label className="field">连接名称<input required maxLength={80} value={config.name} onChange={e => setConfig({...config, name:e.target.value})}/></label>
@@ -83,8 +137,12 @@ export function ModelConnection() {
         <label className="field">API Key<input required type="password" autoComplete="new-password" maxLength={4096} value={key} onChange={e => setKey(e.target.value)}/></label>
         <label className="field">默认模型名称<input required maxLength={160} value={config.model} onChange={e => setConfig({...config, model:e.target.value})}/></label>
         <details><summary>高级设置</summary>
-          <label className="field">思考模式<select value={config.enableThinking == null ? "default" : String(config.enableThinking)} onChange={e => setConfig({...config, enableThinking:e.target.value === 'default' ? null : e.target.value === 'true'})}><option value="default">沿用服务默认（不发送参数）</option><option value="false">关闭（服务需支持 enable_thinking）</option><option value="true">开启（服务需支持 enable_thinking）</option></select></label>
-          <label className="field">接口类型<select value={config.apiStyle} onChange={e => setConfig({...config, apiStyle:e.target.value})}><option value="chat_completions">chat_completions</option><option value="responses">responses</option></select></label>
+          <ModelSelect label="思考模式" value={config.enableThinking == null ? "default" : String(config.enableThinking)}
+            onValueChange={value => setConfig(current => ({...current, enableThinking: value === "default" ? null : value === "true"}))}
+            options={[["default", "沿用服务默认（不发送参数）"], ["false", "关闭（服务需支持 enable_thinking）"], ["true", "开启（服务需支持 enable_thinking）"]]} />
+          <ModelSelect label="接口类型" value={config.apiStyle}
+            onValueChange={apiStyle => setConfig(current => ({...current, apiStyle}))}
+            options={[["chat_completions", "chat_completions"], ["responses", "responses"]]} />
           {([['profileModel','背景提取'],['requirementModel','岗位提取'],['semanticModel','语义匹配']] as const).map(([field,label]) => <label className="field" key={field}>{label}模型（留空沿用默认）<input maxLength={160} value={config[field] ?? ""} onChange={e => setConfig({...config, [field]:e.target.value || undefined})}/></label>)}
         </details>
         <button className="button-secondary" disabled={busy || (!!action && !testDone)} type="submit">保存连接（不调用模型）</button>
@@ -131,6 +189,6 @@ export function ModelConnection() {
     </>}
     {busy && <PendingIndicator label="正在处理本次操作，请不要重复提交。" slowLabel="仍在等待结果。关闭页面不会撤销已发出的请求。" />}
     {message && <p role="status">{message}</p>}
-    <Link href="/demo">返回免配置样本体验</Link>
+    <Link href="/sample">返回免配置样本体验</Link>
   </div>;
 }

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const client = (request.headers.get("x-forwarded-for") ?? "local").split(",")[0].trim();
     const body = await request.text();
     const deadline = AbortSignal.timeout(57000);
-    const requestSession = (current: string | undefined) => fetch(`${backendBaseUrl()}/api/v1/demo/session`, {
+    const requestSession = (current: string | undefined) => fetch(`${backendBaseUrl()}/api/v1/public-session`, {
       method: current ? "DELETE" : "POST", cache: "no-store", signal: deadline,
       headers: {...demoBackendHeaders(current), "X-Demo-Client": client, "Content-Type": "application/json"}, body,
     });

@@ -56,7 +56,7 @@ def test_verified_accounts_cannot_read_or_modify_each_others_records(tmp_path):
             assert list(threads.map(read, ("account-alpha", "account-beta"))) == ["Synthetic profile A", "Synthetic profile B"]
 
         # Even trusted forwarding cannot enable maintenance or unguarded demo endpoints.
-        for p in ("/docs", "/api/v1/profile-evals", "/api/v1/demo/session", "/api/v1/local/profile-model/status"):
+        for p in ("/docs", "/api/v1/profile-evals", "/api/v1/demo/session", "/api/v1/public-session", "/api/v1/local/profile-model/status"):
             assert client.get(p, headers=signed("account-alpha", p)).status_code == 404
         assert current_database.get() is None
 
