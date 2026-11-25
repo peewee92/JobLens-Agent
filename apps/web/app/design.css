@@ -192,10 +192,13 @@
   .shell { width: calc(100% - 24px); }
   .header-inner { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 8px; align-items: center; padding-block: 4px; }
   .header-inner .brand small { display: none; }
-  .header-inner .site-nav { grid-column: 1 / -1; grid-row: 2; display: flex; width: 100%; }
+  .header-inner .site-nav { grid-column: 1 / -1; grid-row: 2; display: flex; flex-wrap: wrap; width: 100%; }
   .header-inner .site-nav a { flex: 1 1 auto; padding-inline: .2rem; font-size: .8125rem; white-space: nowrap; }
   .header-inner .jl-theme-choice { grid-area: 1 / 2; }
   .page-shell { padding-top: 1rem; }
+}
+@media (max-width: 420px) {
+  .header-inner .site-nav:has(> :nth-child(6)) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* Record browsing: keep filters, results and pagination aligned to the same grid. */
